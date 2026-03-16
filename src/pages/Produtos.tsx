@@ -91,7 +91,7 @@ const Produtos = () => {
 
   const save = () => {
     if (!form.name.trim() || !form.price || !form.categoryId) {
-      toast({ title: 'Preencha nome, preço e categoria', variant: 'destructive' });
+      return;
       return;
     }
     const product: Product = {
