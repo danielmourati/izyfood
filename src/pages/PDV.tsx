@@ -141,7 +141,7 @@ const PDV = () => {
     setTables(prev => prev.map(t =>
       t.number === table.number ? { ...t, status: 'occupied', orderId } : t
     ));
-    toast({ title: `Mesa ${table.number} selecionada`, description: cart.length > 0 ? 'Itens transferidos para a mesa.' : '' });
+    
     navigate(`/pdv?mesa=${table.number}&pedido=${orderId}`);
   };
 
