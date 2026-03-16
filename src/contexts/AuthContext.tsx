@@ -1,10 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '@/types';
-import { seedUsers } from '@/data/seed';
+
+const demoUsers: { email: string; password: string; user: User }[] = [
+  { email: 'admin@carnauba.com', password: '1234', user: { id: 'u1', name: 'Proprietário', role: 'admin', pin: '1234' } },
+  { email: 'atendente@carnauba.com', password: '0000', user: { id: 'u2', name: 'Atendente', role: 'atendente', pin: '0000' } },
+];
 
 interface AuthContextType {
   user: User | null;
-  login: (pin: string) => boolean;
+  login: (email: string, password: string) => boolean;
   logout: () => void;
   isAdmin: boolean;
 }
@@ -22,9 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem('pos_user');
   }, [user]);
 
-  const login = (pin: string) => {
-    const found = seedUsers.find(u => u.pin === pin);
-    if (found) { setUser(found); return true; }
+  const login = (email: string, password: string) => {
+    const found = demoUsers.find(u => u.email === email && u.password === password);
+    if (found) { setUser(found.user); return true; }
     return false;
   };
 

@@ -10,8 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 
 const allItems = [
-  { title: 'PDV', url: '/', icon: ShoppingCart, adminOnly: false },
-  { title: 'Mesas', url: '/mesas', icon: Grid3X3, adminOnly: false },
+  { title: 'Mesas', url: '/', icon: Grid3X3, adminOnly: false },
+  { title: 'PDV', url: '/pdv', icon: ShoppingCart, adminOnly: false },
   { title: 'Pedidos', url: '/pedidos', icon: ClipboardList, adminOnly: false },
   { title: 'Clientes', url: '/clientes', icon: Users, adminOnly: true },
   { title: 'Estoque', url: '/estoque', icon: Package, adminOnly: true },
