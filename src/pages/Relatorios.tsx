@@ -36,6 +36,7 @@ const Relatorios = () => {
   const [activePreset, setActivePreset] = useState<PresetKey>('hoje');
   const [customRange, setCustomRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [pickingField, setPickingField] = useState<'from' | 'to'>('from');
 
   const dateRange = useMemo(() => {
     if (activePreset === 'custom' && customRange.from) {
