@@ -71,7 +71,7 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
         <DialogHeader>
           <DialogTitle className="text-center">{productName}</DialogTitle>
         </DialogHeader>
-        <p className="text-center text-sm text-muted-foreground">R$ {pricePerKg.toFixed(2)}/kg</p>
+        <p className="text-center text-sm text-muted-foreground">R$ {fmt(pricePerKg)}/kg</p>
 
         <div className="bg-muted rounded-lg p-4 text-center" onClick={() => inputRef.current?.focus()}>
           <div className="flex items-baseline justify-center gap-1">
