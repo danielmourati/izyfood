@@ -159,13 +159,22 @@ const PDV = () => {
   };
 
   return (
-    <div className="flex h-[calc(100vh-3rem)]">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-3rem)]">
       {/* Left: Products */}
-      <div className="flex-1 flex flex-col p-4 overflow-hidden">
+      <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden">
         {/* Header with back button for table orders */}
         {tableNumber && (
           <div className="flex items-center gap-3 mb-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+            <Button variant="ghost" size="icon" onClick={() => {
+              // If empty cart, release table
+              if (cart.length === 0 && pedidoParam) {
+                setTables(prev => prev.map(t =>
+                  t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
+                ));
+                setOrders(prev => prev.filter(o => o.id !== pedidoParam));
+              }
+              navigate('/');
+            }}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <h2 className="text-lg font-bold text-foreground">Mesa {tableNumber}</h2>
@@ -173,12 +182,12 @@ const PDV = () => {
         )}
 
         {/* Category Tabs */}
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="flex gap-2 mb-3 md:mb-4 overflow-x-auto pb-1">
           {(Object.entries(categoryLabels) as [ProductCategory, string][]).map(([key, label]) => (
             <Button
               key={key}
               variant={category === key ? 'default' : 'outline'}
-              className="h-12 px-5 text-base"
+              className="h-10 md:h-12 px-3 md:px-5 text-sm md:text-base whitespace-nowrap shrink-0"
               onClick={() => setCategory(key)}
             >
               {label}
@@ -188,19 +197,19 @@ const PDV = () => {
 
         {/* Product Grid */}
         <div className="flex-1 overflow-auto">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
             {filteredProducts.map(product => (
               <Card
                 key={product.id}
                 className="cursor-pointer hover:shadow-lg hover:border-primary/40 transition-all active:scale-95 select-none"
                 onClick={() => addToCart(product)}
               >
-                <div className="p-4 text-center space-y-2">
-                  <div className="h-16 w-16 mx-auto rounded-xl bg-primary/10 flex items-center justify-center text-3xl">
+                <div className="p-3 md:p-4 text-center space-y-1 md:space-y-2">
+                  <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl bg-primary/10 flex items-center justify-center text-2xl md:text-3xl">
                     {product.category === 'acai' ? '🍇' : product.category === 'sorvetes' ? '🍦' : product.category === 'bebidas' ? '🥤' : '✨'}
                   </div>
-                  <h3 className="font-semibold text-sm leading-tight text-foreground">{product.name}</h3>
-                  <p className="text-primary font-bold">
+                  <h3 className="font-semibold text-xs md:text-sm leading-tight text-foreground">{product.name}</h3>
+                  <p className="text-primary font-bold text-sm">
                     R$ {fmt(product.price)}
                     {product.type === 'weight' && <span className="text-xs text-muted-foreground">/kg</span>}
                   </p>
@@ -212,90 +221,66 @@ const PDV = () => {
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Right: Cart */}
-      <div className="w-96 border-l bg-card flex flex-col">
-        {/* Order Type */}
-        <div className="p-3 border-b">
-          {tableNumber ? (
-            <div className="text-center py-1">
-              <Badge className="text-sm px-3 py-1">🪑 Mesa {tableNumber}</Badge>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-1.5">
-              {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
-                <Button
-                  key={key}
-                  variant={orderType === key ? 'default' : 'ghost'}
-                  size="sm"
-                  className="text-xs h-9"
-                  onClick={() => setOrderType(key)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Cart Items */}
-        <div className="flex-1 overflow-auto p-3 space-y-2">
-          {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-              <ShoppingCart className="h-12 w-12 mb-2 opacity-30" />
-              <p className="text-sm">Carrinho vazio</p>
-            </div>
-          ) : (
-            cart.map(item => (
-              <div key={item.id} className="bg-muted/50 rounded-lg p-3 space-y-1">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <p className="font-medium text-sm text-foreground">{item.name}</p>
-                    {item.weight && <p className="text-xs text-muted-foreground">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>}
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(item.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <div className="flex items-center justify-between">
-                  {!item.weight ? (
-                    <div className="flex items-center gap-1">
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, -1)}>
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <span className="w-8 text-center font-semibold text-sm">{item.quantity}</span>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, 1)}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : <div />}
-                  <p className="font-bold text-primary text-sm">R$ {fmt(item.subtotal)}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Total & Actions */}
-        <div className="border-t p-3 space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-foreground">Total</span>
-            <span className="text-2xl font-bold text-primary">R$ {fmt(total)}</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Button variant="destructive" className="h-12" onClick={cancelOrder} disabled={cart.length === 0}>
-              <X className="h-4 w-4 mr-1" /> Cancelar
-            </Button>
-            <Button variant="outline" className="h-12" onClick={holdOrder} disabled={cart.length === 0}>
-              <Pause className="h-4 w-4 mr-1" /> Segurar
-            </Button>
-            <Button className="h-12" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-              <ShoppingCart className="h-4 w-4 mr-1" /> Pagar
-            </Button>
-          </div>
+        {/* Mobile: floating cart button */}
+        <div className="md:hidden fixed bottom-4 right-4 z-50">
+          <Button
+            size="lg"
+            className="h-14 w-14 rounded-full shadow-lg relative"
+            onClick={() => setShowCart(true)}
+          >
+            <ShoppingCart className="h-6 w-6" />
+            {cart.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                {cart.length}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
+
+      {/* Right: Cart — desktop sidebar */}
+      <div className="hidden md:flex w-80 lg:w-96 border-l bg-card flex-col">
+        <CartContent
+          cart={cart}
+          orderType={orderType}
+          setOrderType={setOrderType}
+          tableNumber={tableNumber}
+          total={total}
+          updateQty={updateQty}
+          removeItem={removeItem}
+          cancelOrder={cancelOrder}
+          holdOrder={holdOrder}
+          setCheckoutOpen={setCheckoutOpen}
+        />
+      </div>
+
+      {/* Right: Cart — mobile slide-over */}
+      {showCart && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCart(false)} />
+          <div className="ml-auto w-full max-w-sm bg-card flex flex-col relative z-10 animate-in slide-in-from-right">
+            <div className="flex items-center justify-between p-3 border-b">
+              <span className="font-semibold text-foreground">Carrinho</span>
+              <Button variant="ghost" size="icon" onClick={() => setShowCart(false)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <CartContent
+              cart={cart}
+              orderType={orderType}
+              setOrderType={setOrderType}
+              tableNumber={tableNumber}
+              total={total}
+              updateQty={updateQty}
+              removeItem={removeItem}
+              cancelOrder={() => { cancelOrder(); setShowCart(false); }}
+              holdOrder={() => { holdOrder(); setShowCart(false); }}
+              setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }}
+            />
+          </div>
+        </div>
+      )}
 
       <WeightModal
         open={weightModal.open}
@@ -314,5 +299,105 @@ const PDV = () => {
     </div>
   );
 };
+
+/* Cart content extracted for reuse in desktop sidebar and mobile slide-over */
+function CartContent({
+  cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen,
+}: {
+  cart: OrderItem[];
+  orderType: OrderType;
+  setOrderType: (t: OrderType) => void;
+  tableNumber?: number;
+  total: number;
+  updateQty: (id: string, delta: number) => void;
+  removeItem: (id: string) => void;
+  cancelOrder: () => void;
+  holdOrder: () => void;
+  setCheckoutOpen: (v: boolean) => void;
+}) {
+  return (
+    <>
+      {/* Order Type */}
+      <div className="p-3 border-b">
+        {tableNumber ? (
+          <div className="text-center py-1">
+            <Badge className="text-sm px-3 py-1">🪑 Mesa {tableNumber}</Badge>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-1.5">
+            {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
+              <Button
+                key={key}
+                variant={orderType === key ? 'default' : 'ghost'}
+                size="sm"
+                className="text-xs h-9"
+                onClick={() => setOrderType(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Cart Items */}
+      <div className="flex-1 overflow-auto p-3 space-y-2">
+        {cart.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+            <ShoppingCart className="h-12 w-12 mb-2 opacity-30" />
+            <p className="text-sm">Carrinho vazio</p>
+          </div>
+        ) : (
+          cart.map(item => (
+            <div key={item.id} className="bg-muted/50 rounded-lg p-3 space-y-1">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <p className="font-medium text-sm text-foreground">{item.name}</p>
+                  {item.weight && <p className="text-xs text-muted-foreground">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>}
+                </div>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(item.id)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="flex items-center justify-between">
+                {!item.weight ? (
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, -1)}>
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="w-8 text-center font-semibold text-sm">{item.quantity}</span>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, 1)}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : <div />}
+                <p className="font-bold text-primary text-sm">R$ {fmt(item.subtotal)}</p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Total & Actions */}
+      <div className="border-t p-3 space-y-3">
+        <div className="flex justify-between items-center">
+          <span className="text-lg font-semibold text-foreground">Total</span>
+          <span className="text-2xl font-bold text-primary">R$ {fmt(total)}</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <Button variant="destructive" className="h-12 text-xs" onClick={cancelOrder} disabled={cart.length === 0 && !tableNumber}>
+            <X className="h-4 w-4 mr-1" /> Cancelar
+          </Button>
+          <Button variant="outline" className="h-12 text-xs" onClick={holdOrder} disabled={cart.length === 0}>
+            <Pause className="h-4 w-4 mr-1" /> Segurar
+          </Button>
+          <Button className="h-12 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+            <ShoppingCart className="h-4 w-4 mr-1" /> Pagar
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+}
 
 export default PDV;
