@@ -90,7 +90,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
       return;
     }
     if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
-      toast({ title: 'Cupom expirado', variant: 'destructive' });
+      return;
       return;
     }
     if (coupon.minOrder && subtotal < coupon.minOrder) {
