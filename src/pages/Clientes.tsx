@@ -37,7 +37,7 @@ const Clientes = () => {
     if (!form.name.trim()) { return; }
     if (editing) {
       setCustomers(prev => prev.map(c => c.id === editing.id ? { ...c, ...form } : c));
-      toast({ title: 'Cliente atualizado' });
+      
     } else {
       setCustomers(prev => [...prev, { id: crypto.randomUUID(), ...form, creditBalance: 0 }]);
       toast({ title: 'Cliente cadastrado' });
