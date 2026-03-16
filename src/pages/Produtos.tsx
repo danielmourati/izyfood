@@ -227,7 +227,7 @@ const Produtos = () => {
                   <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-5xl">
-                    {cat?.emoji || '📦'}
+                    {cat?.name?.charAt(0) || '?'}
                   </div>
                 )}
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
