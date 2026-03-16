@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { fmt } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -55,7 +56,7 @@ const Pedidos = () => {
                 <TableCell className="font-mono text-xs">#{order.id.slice(0, 6)}</TableCell>
                 <TableCell className="capitalize">{order.orderType}</TableCell>
                 <TableCell>{order.items.length} itens</TableCell>
-                <TableCell className="font-semibold">R$ {order.total.toFixed(2)}</TableCell>
+                <TableCell className="font-semibold">R$ {fmt(order.total)}</TableCell>
                 <TableCell>
                   <Badge className={statusColors[order.status] || ''}>{order.status}</Badge>
                 </TableCell>

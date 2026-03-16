@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { fmt } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -61,7 +62,7 @@ const Relatorios = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Vendas Hoje</p>
-              <p className="text-2xl font-bold text-foreground">R$ {todayTotal.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-foreground">R$ {fmt(todayTotal)}</p>
             </div>
           </CardContent>
         </Card>
@@ -83,7 +84,7 @@ const Relatorios = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Geral</p>
-              <p className="text-2xl font-bold text-foreground">R$ {sales.reduce((s, v) => s + v.total, 0).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-foreground">R$ {fmt(sales.reduce((s, v) => s + v.total, 0))}</p>
             </div>
           </CardContent>
         </Card>
@@ -94,7 +95,7 @@ const Relatorios = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Fiados Abertos</p>
-              <p className="text-2xl font-bold text-foreground">R$ {creditCustomers.reduce((s, c) => s + c.creditBalance, 0).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-foreground">R$ {fmt(creditCustomers.reduce((s, c) => s + c.creditBalance, 0))}</p>
             </div>
           </CardContent>
         </Card>
@@ -110,7 +111,7 @@ const Relatorios = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" fontSize={12} />
                 <YAxis fontSize={12} />
-                <Tooltip formatter={(v: number) => `R$ ${v.toFixed(2)}`} />
+                <Tooltip formatter={(v: number) => `R$ ${fmt(v)}`} />
                 <Bar dataKey="total" fill="hsl(152,45%,28%)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -155,7 +156,7 @@ const Relatorios = () => {
                     <TableRow key={p.name}>
                       <TableCell>{p.name}</TableCell>
                       <TableCell>{p.qty}</TableCell>
-                      <TableCell className="font-semibold">R$ {p.total.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">R$ {fmt(p.total)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -181,7 +182,7 @@ const Relatorios = () => {
                     <TableRow key={c.id}>
                       <TableCell>{c.name}</TableCell>
                       <TableCell>{c.phone}</TableCell>
-                      <TableCell className="font-semibold text-destructive">R$ {c.creditBalance.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold text-destructive">R$ {fmt(c.creditBalance)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

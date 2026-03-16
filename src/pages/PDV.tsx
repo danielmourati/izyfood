@@ -3,6 +3,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { fmt, fmtWeight } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Product, OrderItem, Order, OrderType, ProductCategory } from '@/types';
 import { categoryLabels } from '@/data/seed';
@@ -192,7 +193,7 @@ const PDV = () => {
                   </div>
                   <h3 className="font-semibold text-sm leading-tight text-foreground">{product.name}</h3>
                   <p className="text-primary font-bold">
-                    R$ {product.price.toFixed(2)}
+                    R$ {fmt(product.price)}
                     {product.type === 'weight' && <span className="text-xs text-muted-foreground">/kg</span>}
                   </p>
                   {product.stock <= 5 && (
@@ -243,7 +244,7 @@ const PDV = () => {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <p className="font-medium text-sm text-foreground">{item.name}</p>
-                    {item.weight && <p className="text-xs text-muted-foreground">{item.weight}kg × R$ {item.price.toFixed(2)}/kg</p>}
+                    {item.weight && <p className="text-xs text-muted-foreground">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>}
                   </div>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(item.id)}>
                     <Trash2 className="h-3.5 w-3.5" />
@@ -261,7 +262,7 @@ const PDV = () => {
                       </Button>
                     </div>
                   ) : <div />}
-                  <p className="font-bold text-primary text-sm">R$ {item.subtotal.toFixed(2)}</p>
+                  <p className="font-bold text-primary text-sm">R$ {fmt(item.subtotal)}</p>
                 </div>
               </div>
             ))
@@ -272,7 +273,7 @@ const PDV = () => {
         <div className="border-t p-3 space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-lg font-semibold text-foreground">Total</span>
-            <span className="text-2xl font-bold text-primary">R$ {total.toFixed(2)}</span>
+            <span className="text-2xl font-bold text-primary">R$ {fmt(total)}</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <Button variant="destructive" className="h-12" onClick={cancelOrder} disabled={cart.length === 0}>

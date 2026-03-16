@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/contexts/StoreContext';
 import { Order, PaymentMethod } from '@/types';
+import { fmt } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { CreditCard, QrCode, Wallet, Banknote } from 'lucide-react';
 
@@ -45,7 +46,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
     };
 
     completeSale(finalOrder);
-    toast({ title: 'Venda finalizada!', description: `R$ ${order.total.toFixed(2)} via ${selectedMethod.toUpperCase()}` });
+    toast({ title: 'Venda finalizada!', description: `R$ ${fmt(order.total)} via ${selectedMethod.toUpperCase()}` });
     setSelectedMethod(null);
     setSelectedCustomer(null);
     setCashGiven('');
@@ -66,7 +67,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
 
         <div className="bg-primary/10 rounded-xl p-4 text-center">
           <p className="text-sm text-muted-foreground">Total</p>
-          <p className="text-4xl font-bold text-primary">R$ {order.total.toFixed(2)}</p>
+          <p className="text-4xl font-bold text-primary">R$ {fmt(order.total)}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -94,7 +95,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
                   className="w-full justify-start h-10 text-sm"
                   onClick={() => setSelectedCustomer(c.id)}
                 >
-                  {c.name} {c.creditBalance > 0 && <span className="ml-auto text-xs text-destructive">Débito: R$ {c.creditBalance.toFixed(2)}</span>}
+                  {c.name} {c.creditBalance > 0 && <span className="ml-auto text-xs text-destructive">Débito: R$ {fmt(c.creditBalance)}</span>}
                 </Button>
               ))}
             </div>
@@ -115,7 +116,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
             {change > 0 && (
               <div className="bg-accent/10 rounded-lg p-3 text-center">
                 <p className="text-sm text-muted-foreground">Troco</p>
-                <p className="text-2xl font-bold text-accent">R$ {change.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-accent">R$ {fmt(change)}</p>
               </div>
             )}
           </div>

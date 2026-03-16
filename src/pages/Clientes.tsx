@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { fmt } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,7 +70,7 @@ const Clientes = () => {
               <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /> {c.address}</p>
               {c.notes && <p className="flex items-center gap-2"><FileText className="h-3.5 w-3.5" /> {c.notes}</p>}
               {c.creditBalance > 0 && (
-                <p className="text-destructive font-semibold pt-1">Débito: R$ {c.creditBalance.toFixed(2)}</p>
+                <p className="text-destructive font-semibold pt-1">Débito: R$ {fmt(c.creditBalance)}</p>
               )}
             </CardContent>
           </Card>

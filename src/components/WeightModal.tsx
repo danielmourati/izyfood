@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { fmt } from '@/lib/utils';
 
 interface WeightModalProps {
   open: boolean;
@@ -51,11 +52,13 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(',', '.');
-    // Only allow digits and one dot, max 3 decimal places
     if (/^\d*\.?\d{0,3}$/.test(raw)) {
       setValue(raw);
     }
   };
+
+  // Display value with comma
+  const displayValue = value.replace('.', ',');
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -70,7 +73,7 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
         <DialogHeader>
           <DialogTitle className="text-center">{productName}</DialogTitle>
         </DialogHeader>
-        <p className="text-center text-sm text-muted-foreground">R$ {pricePerKg.toFixed(2)}/kg</p>
+        <p className="text-center text-sm text-muted-foreground">R$ {fmt(pricePerKg)}/kg</p>
 
         <div className="bg-muted rounded-lg p-4 text-center" onClick={() => inputRef.current?.focus()}>
           <div className="flex items-baseline justify-center gap-1">
@@ -78,7 +81,7 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
               ref={inputRef}
               type="text"
               inputMode="decimal"
-              value={value}
+              value={displayValue}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder="0"
@@ -87,14 +90,14 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
             />
             <span className="text-lg text-muted-foreground">kg</span>
           </div>
-          <p className="text-lg font-semibold text-primary mt-1">R$ {total.toFixed(2)}</p>
+          <p className="text-lg font-semibold text-primary mt-1">R$ {fmt(total)}</p>
           <p className="text-[10px] text-muted-foreground mt-1">Digite o peso no teclado ou use os botões</p>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          {['1','2','3','4','5','6','7','8','9','.','0',''].map((d, i) => (
+          {['1','2','3','4','5','6','7','8','9',',','0',''].map((d, i) => (
             d !== '' ? (
-              <Button key={i} variant="outline" className="h-12 text-lg font-semibold" onClick={() => handleDigit(d)} tabIndex={-1}>
+              <Button key={i} variant="outline" className="h-12 text-lg font-semibold" onClick={() => handleDigit(d === ',' ? '.' : d)} tabIndex={-1}>
                 {d}
               </Button>
             ) : (

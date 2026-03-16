@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { fmt } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -75,7 +76,7 @@ const Estoque = () => {
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell className="capitalize">{p.category}</TableCell>
                     <TableCell>{p.type === 'weight' ? 'Peso' : 'Unidade'}</TableCell>
-                    <TableCell>R$ {p.price.toFixed(2)}{p.type === 'weight' ? '/kg' : ''}</TableCell>
+                    <TableCell>R$ {fmt(p.price)}{p.type === 'weight' ? '/kg' : ''}</TableCell>
                     <TableCell>
                       <Badge variant={p.stock <= 5 ? 'destructive' : 'secondary'}>
                         {p.stock} {p.unit}
