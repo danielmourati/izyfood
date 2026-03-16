@@ -28,7 +28,7 @@ const Login = () => {
     e.preventDefault();
     const user = users.find(u => u.email === resetEmail);
     if (!user) {
-      toast({ title: 'Usuário não encontrado', description: 'Verifique o email informado.', variant: 'destructive' });
+      return;
       return;
     }
     if (newPassword.length < 4) {
