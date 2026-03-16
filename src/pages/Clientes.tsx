@@ -34,7 +34,7 @@ const Clientes = () => {
   };
 
   const save = () => {
-    if (!form.name.trim()) { toast({ title: 'Nome obrigatório', variant: 'destructive' }); return; }
+    if (!form.name.trim()) { return; }
     if (editing) {
       setCustomers(prev => prev.map(c => c.id === editing.id ? { ...c, ...form } : c));
       toast({ title: 'Cliente atualizado' });
