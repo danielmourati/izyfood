@@ -95,9 +95,9 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          {['1','2','3','4','5','6','7','8','9','.','0',''].map((d, i) => (
+          {['1','2','3','4','5','6','7','8','9',',','0',''].map((d, i) => (
             d !== '' ? (
-              <Button key={i} variant="outline" className="h-12 text-lg font-semibold" onClick={() => handleDigit(d)} tabIndex={-1}>
+              <Button key={i} variant="outline" className="h-12 text-lg font-semibold" onClick={() => handleDigit(d === ',' ? '.' : d)} tabIndex={-1}>
                 {d}
               </Button>
             ) : (
