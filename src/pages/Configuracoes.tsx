@@ -127,7 +127,7 @@ function UsuariosTab() {
     } else {
       const exists = users.find(u => u.email === form.email);
       if (exists) {
-        toast({ title: 'Email já cadastrado', variant: 'destructive' });
+        return;
         return;
       }
       setUsers(prev => [...prev, { id: crypto.randomUUID(), ...form }]);
