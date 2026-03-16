@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
@@ -12,16 +12,17 @@ interface WeightModalProps {
 
 export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm }: WeightModalProps) {
   const [value, setValue] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const weight = parseFloat(value) || 0;
   const total = weight * pricePerKg;
 
-  const handleDigit = (d: string) => {
-    if (d === '.' && value.includes('.')) return;
-    if (value.includes('.') && value.split('.')[1]?.length >= 3) return;
-    setValue(prev => prev + d);
-  };
+  const handleDigit = useCallback((d: string) => {
+    setValue(prev => {
+      if (d === '.' && prev.includes('.')) return prev;
+      if (prev.includes('.') && prev.split('.')[1]?.length >= 3) return prev;
+      return prev + d;
+    });
+  }, []);
 
   const handleConfirm = useCallback(() => {
     const w = parseFloat(value) || 0;
@@ -32,54 +33,65 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
     }
   }, [value, onConfirm, onClose]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setValue('');
     onClose();
-  };
+  }, [onClose]);
 
-  // Focus hidden input when modal opens
+  // Reset when opening
   useEffect(() => {
-    if (open) {
-      setValue('');
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
+    if (open) setValue('');
   }, [open]);
 
-  // Handle physical keyboard input
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key >= '0' && e.key <= '9') {
-      handleDigit(e.key);
-    } else if (e.key === '.' || e.key === ',') {
-      handleDigit('.');
-    } else if (e.key === 'Backspace') {
-      setValue(prev => prev.slice(0, -1));
-    } else if (e.key === 'Delete') {
-      setValue('');
-    } else if (e.key === 'Enter') {
-      handleConfirm();
-    } else if (e.key === 'Escape') {
-      handleClose();
-    }
-  }, [handleDigit, handleConfirm]);
+  // Global keyboard listener
+  useEffect(() => {
+    if (!open) return;
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === '.' || e.key === ',') {
+        e.preventDefault();
+        handleDigit('.');
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        setValue(prev => prev.slice(0, -1));
+      } else if (e.key === 'Delete') {
+        e.preventDefault();
+        setValue('');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        // Need to read current value via ref-like pattern
+      }
+    };
+
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [open, handleDigit]);
+
+  // Separate effect for Enter key to access latest value
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleConfirm();
+      }
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [open, handleConfirm]);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xs" onKeyDown={handleKeyDown}>
+      <DialogContent className="max-w-xs">
         <DialogHeader>
           <DialogTitle className="text-center">{productName}</DialogTitle>
         </DialogHeader>
         <p className="text-center text-sm text-muted-foreground">R$ {pricePerKg.toFixed(2)}/kg</p>
 
-        {/* Hidden input to capture keyboard focus */}
-        <input
-          ref={inputRef}
-          className="sr-only"
-          aria-hidden="true"
-          tabIndex={-1}
-          onKeyDown={handleKeyDown}
-        />
-
-        <div className="bg-muted rounded-lg p-4 text-center cursor-text" onClick={() => inputRef.current?.focus()}>
+        <div className="bg-muted rounded-lg p-4 text-center">
           <p className="text-3xl font-bold text-foreground">{value || '0'} <span className="text-lg text-muted-foreground">kg</span></p>
           <p className="text-lg font-semibold text-primary mt-1">R$ {total.toFixed(2)}</p>
           <p className="text-[10px] text-muted-foreground mt-1">Digite o peso no teclado ou use os botões</p>
