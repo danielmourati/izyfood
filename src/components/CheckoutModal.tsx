@@ -117,7 +117,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
       return;
     }
     if (hasFiado && !selectedCustomer && !order.customerId) {
-      toast({ title: 'Selecione o cliente para fiado', variant: 'destructive' });
+      return;
       return;
     }
 
