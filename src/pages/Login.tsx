@@ -50,7 +50,8 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-login-bg">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-login-bg">
+      <div className="flex-1 flex items-center justify-center w-full">
       <Card className="w-full max-w-sm shadow-2xl border-primary/20">
         <CardHeader className="text-center pb-2">
           <img src="/logo.png" alt="Carnaúba" className="h-24 mx-auto mb-2 object-contain" />
