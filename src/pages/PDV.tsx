@@ -48,7 +48,7 @@ const PDV = () => {
     if (initialized) return;
     if (existingOrder) {
       setCart(existingOrder.items);
-      setOrderType('mesa');
+      setOrderType(existingOrder.orderType);
       setCurrentOrderId(existingOrder.id);
     } else if (tableNumber) {
       setOrderType('mesa');
