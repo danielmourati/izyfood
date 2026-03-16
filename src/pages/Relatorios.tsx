@@ -62,7 +62,7 @@ const Relatorios = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Vendas Hoje</p>
-              <p className="text-2xl font-bold text-foreground">R$ {todayTotal.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-foreground">R$ {fmt(todayTotal)}</p>
             </div>
           </CardContent>
         </Card>
