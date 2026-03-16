@@ -32,7 +32,7 @@ const Login = () => {
       return;
     }
     if (newPassword.length < 4) {
-      toast({ title: 'Senha muito curta', description: 'A senha deve ter pelo menos 4 caracteres.', variant: 'destructive' });
+      return;
       return;
     }
     if (newPassword !== confirmPassword) {
