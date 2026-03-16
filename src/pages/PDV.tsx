@@ -20,7 +20,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 };
 
 const PDV = () => {
-  const { products, categories, orders, setOrders, setTables, getCategoryById } = useStore();
+  const { products, categories, orders, setOrders, tables, setTables, getCategoryById } = useStore();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [showCart, setShowCart] = useState(false);
