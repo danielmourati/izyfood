@@ -133,8 +133,33 @@ const Relatorios = () => {
                 ))}
               </div>
               {/* Calendar */}
-              <div className="p-2">
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-1 block mb-1">Período personalizado</span>
+              <div className="p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center">
+                    <span className="text-muted-foreground block text-[10px] leading-none mb-0.5">Início</span>
+                    <span className="font-medium">
+                      {(activePreset === 'custom' ? customRange.from : dateRange.from)
+                        ? format(activePreset === 'custom' ? customRange.from! : dateRange.from, 'dd/MM/yyyy', { locale: ptBR })
+                        : '—'}
+                    </span>
+                  </div>
+                  <span className="text-muted-foreground text-xs">→</span>
+                  <div className="flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center">
+                    <span className="text-muted-foreground block text-[10px] leading-none mb-0.5">Fim</span>
+                    <span className="font-medium">
+                      {(activePreset === 'custom' ? customRange.to : dateRange.to)
+                        ? format(activePreset === 'custom' ? customRange.to! : dateRange.to, 'dd/MM/yyyy', { locale: ptBR })
+                        : '—'}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground text-center">
+                  {!customRange.from || activePreset !== 'custom'
+                    ? 'Clique na data de início'
+                    : !customRange.to
+                      ? 'Agora clique na data final'
+                      : 'Período selecionado'}
+                </p>
                 <Calendar
                   mode="range"
                   selected={activePreset === 'custom' ? { from: customRange.from, to: customRange.to } : { from: dateRange.from, to: dateRange.to }}
