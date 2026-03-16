@@ -65,7 +65,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
     if (!addingMethod) return;
     const amount = parseFloat(addingAmount.replace(',', '.'));
     if (isNaN(amount) || amount <= 0) {
-      toast({ title: 'Informe um valor válido', variant: 'destructive' });
+      return;
       return;
     }
     setSplits(prev => [...prev, { method: addingMethod, amount }]);
