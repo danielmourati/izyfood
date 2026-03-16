@@ -176,7 +176,7 @@ const PDV = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-3rem)]">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-3rem)]">
       <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden">
         {tableNumber && (
           <div className="flex items-center gap-3 mb-3">
@@ -211,7 +211,7 @@ const PDV = () => {
 
         {/* Product Grid */}
         <div className="flex-1 overflow-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3">
             {filteredProducts.map(product => {
               const cat = getCategoryById(product.categoryId);
               return (
@@ -245,7 +245,7 @@ const PDV = () => {
           </div>
         </div>
 
-        <div className="md:hidden fixed bottom-4 right-4 z-50">
+        <div className="lg:hidden fixed bottom-4 right-4 z-50">
           <Button size="lg" className="h-14 w-14 rounded-full shadow-lg relative" onClick={() => setShowCart(true)}>
             <ShoppingCart className="h-6 w-6" />
             {cart.length > 0 && (
@@ -257,14 +257,14 @@ const PDV = () => {
         </div>
       </div>
 
-      <div className="hidden md:flex w-80 lg:w-96 border-l bg-card flex-col">
+      <div className="hidden lg:flex w-80 xl:w-96 border-l bg-card flex-col">
         <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
           updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
           tables={tables} onSelectTable={(t) => handleSelectTable(t)} />
       </div>
 
       {showCart && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowCart(false)} />
           <div className="ml-auto w-full max-w-sm bg-card flex flex-col relative z-10 animate-in slide-in-from-right">
             <div className="flex items-center justify-between p-3 border-b">
