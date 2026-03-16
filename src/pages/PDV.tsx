@@ -176,7 +176,7 @@ const PDV = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-3rem)]">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-3rem)]">
       <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden">
         {tableNumber && (
           <div className="flex items-center gap-3 mb-3">
