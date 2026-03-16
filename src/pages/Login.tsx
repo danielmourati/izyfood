@@ -36,7 +36,7 @@ const Login = () => {
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({ title: 'Senhas não conferem', description: 'As senhas digitadas são diferentes.', variant: 'destructive' });
+      return;
       return;
     }
     setUsers(prev => prev.map(u => u.email === resetEmail ? { ...u, pin: newPassword } : u));
