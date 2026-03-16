@@ -36,6 +36,10 @@ export interface Order {
   tableNumber?: number;
   customerId?: string;
   customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  deliveryFee?: number;
+  deliveryStatus?: DeliveryStatus;
   paymentMethod?: PaymentMethod;
   createdAt: string;
   heldAt?: string;
