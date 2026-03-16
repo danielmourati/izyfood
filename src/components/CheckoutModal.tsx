@@ -67,7 +67,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
 
         <div className="bg-primary/10 rounded-xl p-4 text-center">
           <p className="text-sm text-muted-foreground">Total</p>
-          <p className="text-4xl font-bold text-primary">R$ {order.total.toFixed(2)}</p>
+          <p className="text-4xl font-bold text-primary">R$ {fmt(order.total)}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
