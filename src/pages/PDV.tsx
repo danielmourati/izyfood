@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { fmt, fmtWeight } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Product, OrderItem, Order, OrderType } from '@/types';
+import { Product, OrderItem, Order, OrderType, TableInfo } from '@/types';
 import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
@@ -19,7 +20,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 };
 
 const PDV = () => {
-  const { products, categories, orders, setOrders, setTables, getCategoryById } = useStore();
+  const { products, categories, orders, setOrders, tables, setTables, getCategoryById } = useStore();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [showCart, setShowCart] = useState(false);
@@ -238,7 +239,8 @@ const PDV = () => {
 
       <div className="hidden md:flex w-80 lg:w-96 border-l bg-card flex-col">
         <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
-          updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen} />
+          updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
+          tables={tables} onSelectTable={(t) => navigate(`/pdv?mesa=${t.number}`)} />
       </div>
 
       {showCart && (
@@ -255,7 +257,8 @@ const PDV = () => {
               updateQty={updateQty} removeItem={removeItem}
               cancelOrder={() => { cancelOrder(); setShowCart(false); }}
               holdOrder={() => { holdOrder(); setShowCart(false); }}
-              setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }} />
+              setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }}
+              tables={tables} onSelectTable={(t) => { setShowCart(false); navigate(`/pdv?mesa=${t.number}`); }} />
           </div>
         </div>
       )}
@@ -269,12 +272,24 @@ const PDV = () => {
 };
 
 function CartContent({
-  cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen,
+  cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
   cancelOrder: () => void; holdOrder: () => void; setCheckoutOpen: (v: boolean) => void;
+  tables: TableInfo[]; onSelectTable: (t: TableInfo) => void;
 }) {
+  const [tableModalOpen, setTableModalOpen] = useState(false);
+  const availableTables = tables.filter(t => t.status === 'available');
+
+  const handleOrderTypeClick = (key: OrderType) => {
+    if (key === 'mesa') {
+      setTableModalOpen(true);
+    } else {
+      setOrderType(key);
+    }
+  };
+
   return (
     <>
       <div className="p-3 border-b">
@@ -283,7 +298,7 @@ function CartContent({
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
-              <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-xs h-9" onClick={() => setOrderType(key)}>
+              <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-xs h-9" onClick={() => handleOrderTypeClick(key)}>
                 {label}
               </Button>
             ))}
@@ -336,6 +351,30 @@ function CartContent({
           </Button>
         </div>
       </div>
+
+      <Dialog open={tableModalOpen} onOpenChange={setTableModalOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Selecionar Mesa</DialogTitle>
+          </DialogHeader>
+          {availableTables.length === 0 ? (
+            <p className="text-center text-muted-foreground py-6">Nenhuma mesa disponível</p>
+          ) : (
+            <div className="grid grid-cols-4 gap-2">
+              {availableTables.map(t => (
+                <Button
+                  key={t.number}
+                  variant="outline"
+                  className="h-14 text-base font-semibold hover:bg-primary hover:text-primary-foreground"
+                  onClick={() => { setTableModalOpen(false); onSelectTable(t); }}
+                >
+                  {t.number}
+                </Button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
