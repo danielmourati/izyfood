@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { DollarSign, ShoppingBag, TrendingUp, AlertTriangle, CalendarIcon } from 'lucide-react';
-import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, isWithinInterval, eachDayOfInterval } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, isWithinInterval, eachDayOfInterval, isAfter, isBefore, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const COLORS = ['hsl(152,45%,28%)', 'hsl(145,55%,42%)', 'hsl(38,92%,50%)', 'hsl(0,72%,51%)'];
@@ -179,6 +179,18 @@ const Relatorios = () => {
                         if (customRange.from) setCalendarOpen(false);
                       }
                     }
+                  }}
+                  modifiers={{
+                    range_start: customRange.from ? customRange.from : undefined,
+                    range_end: customRange.to ? customRange.to : undefined,
+                    range_middle: customRange.from && customRange.to
+                      ? (date: Date) => isAfter(date, customRange.from!) && isBefore(date, customRange.to!) && !isSameDay(date, customRange.from!) && !isSameDay(date, customRange.to!)
+                      : undefined,
+                  }}
+                  modifiersClassNames={{
+                    range_start: 'bg-primary text-primary-foreground rounded-l-md hover:bg-primary',
+                    range_end: 'bg-primary text-primary-foreground rounded-r-md hover:bg-primary',
+                    range_middle: 'bg-primary/15 text-foreground rounded-none',
                   }}
                   locale={ptBR}
                   numberOfMonths={1}
