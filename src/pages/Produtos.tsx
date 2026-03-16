@@ -132,7 +132,7 @@ const Produtos = () => {
 
   const openEditCat = (cat: ProductCategory) => {
     setEditingCatId(cat.id);
-    setCatForm({ name: cat.name, emoji: cat.emoji });
+    setCatForm({ name: cat.name });
     setCatDialogOpen(true);
   };
 
