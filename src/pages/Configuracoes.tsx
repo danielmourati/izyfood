@@ -76,7 +76,7 @@ function GeralTab() {
       return;
     }
     updateTableCount(count);
-    toast({ title: 'Configuração salva', description: `${count} mesas configuradas.` });
+    
   };
 
   return (
