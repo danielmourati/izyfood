@@ -140,7 +140,7 @@ const Produtos = () => {
 
   const saveCat = () => {
     if (!catForm.name.trim()) {
-      toast({ title: 'Preencha o nome da categoria', variant: 'destructive' });
+      return;
       return;
     }
     const cat: ProductCategory = {
