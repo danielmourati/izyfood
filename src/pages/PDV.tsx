@@ -193,7 +193,7 @@ const PDV = () => {
                   </div>
                   <h3 className="font-semibold text-sm leading-tight text-foreground">{product.name}</h3>
                   <p className="text-primary font-bold">
-                    R$ {product.price.toFixed(2)}
+                    R$ {fmt(product.price)}
                     {product.type === 'weight' && <span className="text-xs text-muted-foreground">/kg</span>}
                   </p>
                   {product.stock <= 5 && (
