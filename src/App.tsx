@@ -15,6 +15,7 @@ import Estoque from "./pages/Estoque";
 import Produtos from "./pages/Produtos";
 import Relatorios from "./pages/Relatorios";
 import Entregas from "./pages/Entregas";
+import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
