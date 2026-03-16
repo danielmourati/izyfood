@@ -2,8 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User } from '@/types';
 
 const demoUsers: { email: string; password: string; user: User }[] = [
-  { email: 'admin@carnauba.com', password: '1234', user: { id: 'u1', name: 'Proprietário', role: 'admin', pin: '1234' } },
-  { email: 'atendente@carnauba.com', password: '0000', user: { id: 'u2', name: 'Atendente', role: 'atendente', pin: '0000' } },
+  { email: 'admin@carnauba.com', password: '1234', user: { id: 'u1', name: 'Proprietário', email: 'admin@carnauba.com', role: 'admin', pin: '1234' } },
+  { email: 'atendente@carnauba.com', password: '0000', user: { id: 'u2', name: 'Atendente', email: 'atendente@carnauba.com', role: 'atendente', pin: '0000' } },
 ];
 
 interface AuthContextType {
