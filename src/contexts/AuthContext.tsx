@@ -17,27 +17,38 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function loadUsers(): User[] {
+  const s = localStorage.getItem('pos_users');
+  if (s) return JSON.parse(s);
+  return demoUsers.map(d => d.user);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('pos_user');
     return saved ? JSON.parse(saved) : null;
   });
+  const [users, setUsers] = useState<User[]>(loadUsers);
 
   useEffect(() => {
     if (user) localStorage.setItem('pos_user', JSON.stringify(user));
     else localStorage.removeItem('pos_user');
   }, [user]);
 
+  useEffect(() => {
+    localStorage.setItem('pos_users', JSON.stringify(users));
+  }, [users]);
+
   const login = (email: string, password: string) => {
-    const found = demoUsers.find(u => u.email === email && u.password === password);
-    if (found) { setUser(found.user); return true; }
+    const found = users.find(u => u.email === email && u.pin === password);
+    if (found) { setUser(found); return true; }
     return false;
   };
 
   const logout = () => setUser(null);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider value={{ user, users, setUsers, login, logout, isAdmin: user?.role === 'admin' }}>
       {children}
     </AuthContext.Provider>
   );
