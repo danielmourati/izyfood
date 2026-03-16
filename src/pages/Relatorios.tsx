@@ -156,7 +156,7 @@ const Relatorios = () => {
                     <TableRow key={p.name}>
                       <TableCell>{p.name}</TableCell>
                       <TableCell>{p.qty}</TableCell>
-                      <TableCell className="font-semibold">R$ {p.total.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">R$ {fmt(p.total)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
