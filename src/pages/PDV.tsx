@@ -10,7 +10,7 @@ import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+
 
 const orderTypeLabels: Record<OrderType, string> = {
   balcao: '🏪 Balcão',
