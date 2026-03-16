@@ -1,10 +1,10 @@
 import { Product, Customer, Supplier, TableInfo, User, ProductCategory } from '@/types';
 
 export const seedCategories: ProductCategory[] = [
-  { id: 'cat1', name: 'Açaí', emoji: '🍇' },
-  { id: 'cat2', name: 'Sorvetes', emoji: '🍦' },
-  { id: 'cat3', name: 'Bebidas', emoji: '🥤' },
-  { id: 'cat4', name: 'Extras', emoji: '✨' },
+  { id: 'cat1', name: 'Açaí' },
+  { id: 'cat2', name: 'Sorvetes' },
+  { id: 'cat3', name: 'Bebidas' },
+  { id: 'cat4', name: 'Extras' },
 ];
 
 export const seedProducts: Product[] = [
