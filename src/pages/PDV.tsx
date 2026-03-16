@@ -38,7 +38,7 @@ const PDV = () => {
   const [orderType, setOrderType] = useState<OrderType>('balcao');
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [currentOrderId, setCurrentOrderId] = useState(() => crypto.randomUUID());
+  const [currentOrderId, setCurrentOrderId] = useState<string>(() => crypto.randomUUID());
   const [initialized, setInitialized] = useState(false);
 
   // Initialize from existing order
