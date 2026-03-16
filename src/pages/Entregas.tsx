@@ -93,7 +93,7 @@ const Entregas = () => {
       return;
     }
     if (selectedType === 'delivery' && !customerAddress.trim()) {
-      toast({ title: 'Informe o endereço de entrega', variant: 'destructive' });
+      return;
       return;
     }
 
