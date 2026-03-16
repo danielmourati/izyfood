@@ -121,7 +121,7 @@ const PDV = () => {
       ));
       setOrders(prev => prev.filter(o => o.id !== pedidoParam));
     }
-    toast({ title: 'Pedido cancelado' });
+    
     if (tableNumber) navigate('/');
   };
 
