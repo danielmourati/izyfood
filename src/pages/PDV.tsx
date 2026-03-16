@@ -183,7 +183,7 @@ const PDV = () => {
               className="h-10 md:h-12 px-3 md:px-5 text-sm md:text-base whitespace-nowrap shrink-0"
               onClick={() => setActiveCategoryId(cat.id)}
             >
-              {cat.emoji} {cat.name}
+              {cat.name}
             </Button>
           ))}
         </div>
