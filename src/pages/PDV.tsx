@@ -125,6 +125,26 @@ const PDV = () => {
     if (tableNumber) navigate('/');
   };
 
+  const handleSelectTable = (table: TableInfo) => {
+    // Create order with current cart items for the selected table
+    const orderId = currentOrderId;
+    const order: Order = {
+      id: orderId,
+      items: cart,
+      total,
+      orderType: 'mesa',
+      status: 'aberto',
+      tableNumber: table.number,
+      createdAt: new Date().toISOString(),
+    };
+    setOrders(prev => [...prev, order]);
+    setTables(prev => prev.map(t =>
+      t.number === table.number ? { ...t, status: 'occupied', orderId } : t
+    ));
+    toast({ title: `Mesa ${table.number} selecionada`, description: cart.length > 0 ? 'Itens transferidos para a mesa.' : '' });
+    navigate(`/pdv?mesa=${table.number}&pedido=${orderId}`);
+  };
+
   const holdOrder = () => {
     if (cart.length === 0) return;
     if (!pedidoParam) {
