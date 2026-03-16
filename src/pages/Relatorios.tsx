@@ -89,6 +89,11 @@ const Relatorios = () => {
 
   const selectPreset = (key: PresetKey) => {
     setActivePreset(key);
+    const preset = presets.find(p => p.key === key);
+    if (preset) {
+      const range = preset.getRange();
+      setCustomRange({ from: range.from, to: range.to });
+    }
     setCalendarOpen(false);
   };
 
