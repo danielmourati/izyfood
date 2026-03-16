@@ -249,9 +249,9 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
           )}
 
           {remaining > 0.01 && (
-            <div className="bg-amber-500/10 rounded-lg px-3 py-2 text-center">
+            <div className="bg-destructive/10 rounded-lg px-3 py-2 text-center">
               <p className="text-xs text-muted-foreground">Restante</p>
-              <p className="text-lg font-bold text-amber-600">R$ {fmt(remaining)}</p>
+              <p className="text-lg font-bold text-destructive">R$ {fmt(remaining)}</p>
             </div>
           )}
 
