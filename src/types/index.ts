@@ -96,6 +96,26 @@ export interface Sale {
 export interface User {
   id: string;
   name: string;
+  email: string;
   role: UserRole;
   pin: string;
+}
+
+export interface PaymentSplit {
+  method: PaymentMethod;
+  amount: number;
+}
+
+export interface DiscountCoupon {
+  id: string;
+  code: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  active: boolean;
+  minOrder?: number;
+  expiresAt?: string;
+}
+
+export interface StoreSettings {
+  tableCount: number;
 }
