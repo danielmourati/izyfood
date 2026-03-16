@@ -60,22 +60,6 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
   const hasFiado = splits.some(s => s.method === 'fiado');
 
   if (!order) return null;
-    const val = parseFloat(discountValue.replace(',', '.')) || 0;
-    if (appliedCoupon) {
-      const coupon = coupons.find(c => c.id === appliedCoupon);
-      if (coupon) {
-        return coupon.type === 'percentage' ? (subtotal * coupon.value) / 100 : coupon.value;
-      }
-    }
-    if (val <= 0) return 0;
-    return discountType === 'percentage' ? (subtotal * val) / 100 : val;
-  }, [discountValue, discountType, subtotal, appliedCoupon, coupons]);
-
-  const finalTotal = Math.max(0, subtotal - discountAmount);
-  const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
-  const remaining = finalTotal - totalAssigned;
-
-  const hasFiado = splits.some(s => s.method === 'fiado');
 
   const addSplit = () => {
     if (!addingMethod) return;
