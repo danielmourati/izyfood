@@ -22,7 +22,7 @@ const Estoque = () => {
   const addEntry = () => {
     const qty = parseFloat(entryForm.quantity);
     if (!entryForm.productId || !qty || !entryForm.supplierId) {
-      toast({ title: 'Preencha todos os campos', variant: 'destructive' });
+      return;
       return;
     }
     const entry: StockEntry = {
