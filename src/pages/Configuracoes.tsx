@@ -254,7 +254,7 @@ function CuponsTab() {
       
     } else {
       setCoupons(prev => [...prev, coupon]);
-      toast({ title: 'Cupom criado' });
+      
     }
     resetForm();
   };
