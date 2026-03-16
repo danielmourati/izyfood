@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +8,7 @@ import { Product, OrderItem, Order, OrderType, ProductCategory } from '@/types';
 import { categoryLabels } from '@/data/seed';
 import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
-import { Plus, Minus, Trash2, ShoppingCart, Pause, X } from 'lucide-react';
+import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 const orderTypeLabels: Record<OrderType, string> = {
@@ -19,12 +20,48 @@ const orderTypeLabels: Record<OrderType, string> = {
 
 const PDV = () => {
   const { products, orders, setOrders } = useStore();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const mesaParam = searchParams.get('mesa');
+  const pedidoParam = searchParams.get('pedido');
+  const tableNumber = mesaParam ? parseInt(mesaParam) : undefined;
+
+  // Load existing order if coming from a table
+  const existingOrder = useMemo(() => {
+    if (pedidoParam) return orders.find(o => o.id === pedidoParam);
+    return undefined;
+  }, [pedidoParam, orders]);
+
   const [category, setCategory] = useState<ProductCategory>('acai');
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('balcao');
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [currentOrderId] = useState(() => crypto.randomUUID());
+  const [currentOrderId, setCurrentOrderId] = useState(() => crypto.randomUUID());
+  const [initialized, setInitialized] = useState(false);
+
+  // Initialize from existing order
+  useEffect(() => {
+    if (initialized) return;
+    if (existingOrder) {
+      setCart(existingOrder.items);
+      setOrderType('mesa');
+      setCurrentOrderId(existingOrder.id);
+    } else if (tableNumber) {
+      setOrderType('mesa');
+    }
+    setInitialized(true);
+  }, [existingOrder, tableNumber, initialized]);
+
+  // Sync cart back to the order in store (for table orders)
+  useEffect(() => {
+    if (!pedidoParam || !initialized) return;
+    const total = cart.reduce((s, i) => s + i.subtotal, 0);
+    setOrders(prev => prev.map(o =>
+      o.id === pedidoParam ? { ...o, items: cart, total } : o
+    ));
+  }, [cart, pedidoParam, initialized, setOrders]);
 
   const filteredProducts = useMemo(() => products.filter(p => p.category === category), [products, category]);
   const total = useMemo(() => cart.reduce((s, i) => s + i.subtotal, 0), [cart]);
@@ -79,22 +116,27 @@ const PDV = () => {
   const cancelOrder = () => {
     setCart([]);
     toast({ title: 'Pedido cancelado' });
+    if (tableNumber) navigate('/');
   };
 
   const holdOrder = () => {
     if (cart.length === 0) return;
-    const order: Order = {
-      id: currentOrderId,
-      items: cart,
-      total,
-      orderType,
-      status: 'segurado',
-      createdAt: new Date().toISOString(),
-      heldAt: new Date().toISOString(),
-    };
-    setOrders(prev => [...prev, order]);
+    if (!pedidoParam) {
+      const order: Order = {
+        id: currentOrderId,
+        items: cart,
+        total,
+        orderType,
+        status: 'segurado',
+        tableNumber,
+        createdAt: new Date().toISOString(),
+        heldAt: new Date().toISOString(),
+      };
+      setOrders(prev => [...prev, order]);
+    }
     setCart([]);
-    toast({ title: 'Pedido segurado', description: `#${order.id.slice(0, 6)}` });
+    toast({ title: 'Pedido segurado', description: tableNumber ? `Mesa ${tableNumber}` : `#${currentOrderId.slice(0, 6)}` });
+    if (tableNumber) navigate('/');
   };
 
   const currentOrder: Order = {
@@ -103,6 +145,7 @@ const PDV = () => {
     total,
     orderType,
     status: 'aberto',
+    tableNumber,
     createdAt: new Date().toISOString(),
   };
 
@@ -110,6 +153,16 @@ const PDV = () => {
     <div className="flex h-[calc(100vh-3rem)]">
       {/* Left: Products */}
       <div className="flex-1 flex flex-col p-4 overflow-hidden">
+        {/* Header with back button for table orders */}
+        {tableNumber && (
+          <div className="flex items-center gap-3 mb-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h2 className="text-lg font-bold text-foreground">Mesa {tableNumber}</h2>
+          </div>
+        )}
+
         {/* Category Tabs */}
         <div className="flex gap-2 mb-4 flex-wrap">
           {(Object.entries(categoryLabels) as [ProductCategory, string][]).map(([key, label]) => (
@@ -156,19 +209,25 @@ const PDV = () => {
       <div className="w-96 border-l bg-card flex flex-col">
         {/* Order Type */}
         <div className="p-3 border-b">
-          <div className="grid grid-cols-2 gap-1.5">
-            {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
-              <Button
-                key={key}
-                variant={orderType === key ? 'default' : 'ghost'}
-                size="sm"
-                className="text-xs h-9"
-                onClick={() => setOrderType(key)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
+          {tableNumber ? (
+            <div className="text-center py-1">
+              <Badge className="text-sm px-3 py-1">🪑 Mesa {tableNumber}</Badge>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5">
+              {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
+                <Button
+                  key={key}
+                  variant={orderType === key ? 'default' : 'ghost'}
+                  size="sm"
+                  className="text-xs h-9"
+                  onClick={() => setOrderType(key)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Cart Items */}
@@ -241,7 +300,7 @@ const PDV = () => {
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         order={cart.length > 0 ? currentOrder : null}
-        onComplete={() => setCart([])}
+        onComplete={() => { setCart([]); if (tableNumber) navigate('/'); }}
       />
     </div>
   );

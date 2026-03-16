@@ -13,7 +13,7 @@ const Mesas = () => {
 
     if (table.status === 'occupied' && table.orderId) {
       toast({ title: `Mesa ${tableNum}`, description: 'Abrindo pedido...' });
-      navigate('/');
+      navigate(`/pdv?mesa=${tableNum}&pedido=${table.orderId}`);
     } else {
       const newOrder = {
         id: crypto.randomUUID(),
@@ -29,7 +29,7 @@ const Mesas = () => {
         t.number === tableNum ? { ...t, status: 'occupied', orderId: newOrder.id } : t
       ));
       toast({ title: `Mesa ${tableNum} aberta`, description: 'Novo pedido criado.' });
-      navigate('/');
+      navigate(`/pdv?mesa=${tableNum}&pedido=${newOrder.id}`);
     }
   };
 
