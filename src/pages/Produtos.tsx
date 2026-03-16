@@ -161,7 +161,7 @@ const Produtos = () => {
     if (!deleteCatId) return;
     const hasProducts = products.some(p => p.categoryId === deleteCatId);
     if (hasProducts) {
-      toast({ title: 'Não é possível excluir', description: 'Existem produtos vinculados a esta categoria', variant: 'destructive' });
+      setCatDeleteOpen(false);
       setCatDeleteOpen(false);
       return;
     }
