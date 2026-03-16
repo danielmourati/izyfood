@@ -107,7 +107,7 @@ const Produtos = () => {
     };
     if (editingId) {
       setProducts(prev => prev.map(p => p.id === editingId ? product : p));
-      toast({ title: 'Produto atualizado' });
+      
     } else {
       setProducts(prev => [...prev, product]);
       toast({ title: 'Produto cadastrado' });
