@@ -332,14 +332,40 @@ const Entregas = () => {
           </div>
 
           <div className="space-y-3">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 relative">
               <Label htmlFor="name">Nome do cliente *</Label>
               <Input
                 id="name"
-                placeholder="Nome completo"
+                ref={nameInputRef}
+                placeholder="Buscar cliente ou digitar nome..."
                 value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
+                onChange={e => {
+                  setCustomerName(e.target.value);
+                  setCustomerSearch(e.target.value);
+                  setShowCustomerDropdown(true);
+                  setSelectedCustomerId(undefined);
+                }}
+                onFocus={() => customerSearch && setShowCustomerDropdown(true)}
+                onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                autoComplete="off"
               />
+              {showCustomerDropdown && filteredCustomers.length > 0 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden">
+                  {filteredCustomers.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
+                      onMouseDown={() => selectCustomer(c)}
+                    >
+                      <div>
+                        <p className="font-medium text-foreground">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">{c.phone} • {c.address}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
