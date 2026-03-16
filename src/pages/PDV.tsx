@@ -20,9 +20,10 @@ const orderTypeLabels: Record<OrderType, string> = {
 };
 
 const PDV = () => {
-  const { products, orders, setOrders } = useStore();
+  const { products, orders, setOrders, setTables } = useStore();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [showCart, setShowCart] = useState(false);
 
   const mesaParam = searchParams.get('mesa');
   const pedidoParam = searchParams.get('pedido');
