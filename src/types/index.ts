@@ -41,6 +41,8 @@ export interface Order {
   customerAddress?: string;
   deliveryFee?: number;
   deliveryStatus?: DeliveryStatus;
+  orderSource?: OrderSource;
+  motoboyName?: string;
   paymentMethod?: PaymentMethod;
   createdAt: string;
   heldAt?: string;
