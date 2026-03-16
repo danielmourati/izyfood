@@ -316,7 +316,7 @@ const Produtos = () => {
                 >
                   <option value="">Selecione...</option>
                   {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.emoji} {cat.name}</option>
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
                 </select>
               </div>
