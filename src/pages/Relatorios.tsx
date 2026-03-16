@@ -1,120 +1,218 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { DollarSign, ShoppingBag, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { DollarSign, ShoppingBag, TrendingUp, AlertTriangle, CalendarIcon } from 'lucide-react';
+import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, isWithinInterval, eachDayOfInterval } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const COLORS = ['hsl(152,45%,28%)', 'hsl(145,55%,42%)', 'hsl(38,92%,50%)', 'hsl(0,72%,51%)'];
 
-const Relatorios = () => {
-  const { sales, customers, products } = useStore();
+type PresetKey = 'hoje' | 'ontem' | 'esta_semana' | 'semana_passada' | 'este_mes' | 'mes_passado' | 'custom';
 
-  const today = new Date().toISOString().split('T')[0];
-  const todaySales = useMemo(() => sales.filter(s => s.date.startsWith(today)), [sales, today]);
-  const todayTotal = useMemo(() => todaySales.reduce((s, sale) => s + sale.total, 0), [todaySales]);
+const presets: { key: PresetKey; label: string; getRange: () => { from: Date; to: Date } }[] = [
+  { key: 'hoje', label: 'Hoje', getRange: () => ({ from: startOfDay(new Date()), to: endOfDay(new Date()) }) },
+  { key: 'ontem', label: 'Ontem', getRange: () => ({ from: startOfDay(subDays(new Date(), 1)), to: endOfDay(subDays(new Date(), 1)) }) },
+  { key: 'esta_semana', label: 'Esta Semana', getRange: () => ({ from: startOfWeek(new Date(), { weekStartsOn: 1 }), to: endOfDay(new Date()) }) },
+  { key: 'semana_passada', label: 'Semana Passada', getRange: () => {
+    const lastWeek = subWeeks(new Date(), 1);
+    return { from: startOfWeek(lastWeek, { weekStartsOn: 1 }), to: endOfWeek(lastWeek, { weekStartsOn: 1 }) };
+  }},
+  { key: 'este_mes', label: 'Este Mês', getRange: () => ({ from: startOfMonth(new Date()), to: endOfDay(new Date()) }) },
+  { key: 'mes_passado', label: 'Mês Passado', getRange: () => {
+    const lastMonth = subMonths(new Date(), 1);
+    return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
+  }},
+];
+
+const Relatorios = () => {
+  const { sales, customers } = useStore();
+
+  const [activePreset, setActivePreset] = useState<PresetKey>('hoje');
+  const [customRange, setCustomRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const dateRange = useMemo(() => {
+    if (activePreset === 'custom' && customRange.from) {
+      return { from: startOfDay(customRange.from), to: endOfDay(customRange.to || customRange.from) };
+    }
+    const preset = presets.find(p => p.key === activePreset);
+    return preset ? preset.getRange() : presets[0].getRange();
+  }, [activePreset, customRange]);
+
+  const filteredSales = useMemo(() =>
+    sales.filter(s => {
+      const d = new Date(s.date);
+      return isWithinInterval(d, { start: dateRange.from, end: dateRange.to });
+    }),
+  [sales, dateRange]);
+
+  const totalRevenue = useMemo(() => filteredSales.reduce((s, v) => s + v.total, 0), [filteredSales]);
 
   const salesByProduct = useMemo(() => {
     const map: Record<string, { name: string; total: number; qty: number }> = {};
-    sales.forEach(s => s.items.forEach(i => {
+    filteredSales.forEach(s => s.items.forEach(i => {
       if (!map[i.productId]) map[i.productId] = { name: i.name, total: 0, qty: 0 };
       map[i.productId].total += i.subtotal;
       map[i.productId].qty += i.quantity;
     }));
     return Object.values(map).sort((a, b) => b.total - a.total).slice(0, 10);
-  }, [sales]);
+  }, [filteredSales]);
 
   const salesByMethod = useMemo(() => {
     const map: Record<string, number> = {};
-    sales.forEach(s => { map[s.paymentMethod] = (map[s.paymentMethod] || 0) + s.total; });
+    filteredSales.forEach(s => { map[s.paymentMethod] = (map[s.paymentMethod] || 0) + s.total; });
     return Object.entries(map).map(([name, value]) => ({ name: name.toUpperCase(), value }));
-  }, [sales]);
+  }, [filteredSales]);
 
-  const last7Days = useMemo(() => {
-    const days: Record<string, number> = {};
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      days[d.toISOString().split('T')[0]] = 0;
-    }
-    sales.forEach(s => {
+  const dailyData = useMemo(() => {
+    const days = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
+    const map: Record<string, number> = {};
+    days.forEach(d => { map[format(d, 'yyyy-MM-dd')] = 0; });
+    filteredSales.forEach(s => {
       const day = s.date.split('T')[0];
-      if (day in days) days[day] += s.total;
+      if (day in map) map[day] += s.total;
     });
-    return Object.entries(days).map(([date, total]) => ({
-      date: new Date(date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' }),
+    return Object.entries(map).map(([date, total]) => ({
+      date: format(new Date(date), days.length > 14 ? 'dd/MM' : 'EEE dd', { locale: ptBR }),
       total,
     }));
-  }, [sales]);
+  }, [filteredSales, dateRange]);
 
   const creditCustomers = customers.filter(c => c.creditBalance > 0);
 
+  const selectPreset = (key: PresetKey) => {
+    setActivePreset(key);
+    setCalendarOpen(false);
+  };
+
+  const rangeLabelText = useMemo(() => {
+    if (activePreset !== 'custom') {
+      return presets.find(p => p.key === activePreset)?.label || '';
+    }
+    if (customRange.from && customRange.to) {
+      return `${format(customRange.from, 'dd/MM/yyyy')} - ${format(customRange.to, 'dd/MM/yyyy')}`;
+    }
+    if (customRange.from) return format(customRange.from, 'dd/MM/yyyy');
+    return 'Selecionar período';
+  }, [activePreset, customRange]);
+
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
+
+        {/* Date Range Selector */}
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="gap-2 min-w-[200px] justify-start">
+              <CalendarIcon className="h-4 w-4" />
+              <span className="truncate">{rangeLabelText}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <div className="flex">
+              {/* Presets */}
+              <div className="border-r p-2 space-y-1 min-w-[140px]">
+                {presets.map(p => (
+                  <Button
+                    key={p.key}
+                    variant={activePreset === p.key ? 'default' : 'ghost'}
+                    size="sm"
+                    className="w-full justify-start text-xs"
+                    onClick={() => selectPreset(p.key)}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+              {/* Calendar */}
+              <div className="p-2">
+                <Calendar
+                  mode="range"
+                  selected={activePreset === 'custom' ? { from: customRange.from, to: customRange.to } : { from: dateRange.from, to: dateRange.to }}
+                  onSelect={(range) => {
+                    setActivePreset('custom');
+                    setCustomRange({ from: range?.from, to: range?.to });
+                  }}
+                  locale={ptBR}
+                  numberOfMonths={1}
+                />
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <DollarSign className="h-6 w-6 text-primary" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-primary" />
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Vendas Hoje</p>
-              <p className="text-2xl font-bold text-foreground">R$ {fmt(todayTotal)}</p>
+            <div className="min-w-0">
+              <p className="text-xs md:text-sm text-muted-foreground">Vendas</p>
+              <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(totalRevenue)}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-accent/10 flex items-center justify-center">
-              <ShoppingBag className="h-6 w-6 text-accent" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+              <ShoppingBag className="h-5 w-5 md:h-6 md:w-6 text-accent" />
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pedidos Hoje</p>
-              <p className="text-2xl font-bold text-foreground">{todaySales.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <TrendingUp className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Geral</p>
-              <p className="text-2xl font-bold text-foreground">R$ {fmt(sales.reduce((s, v) => s + v.total, 0))}</p>
+            <div className="min-w-0">
+              <p className="text-xs md:text-sm text-muted-foreground">Pedidos</p>
+              <p className="text-lg md:text-2xl font-bold text-foreground">{filteredSales.length}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-              <AlertTriangle className="h-6 w-6 text-destructive" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-primary" />
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Fiados Abertos</p>
-              <p className="text-2xl font-bold text-foreground">R$ {fmt(creditCustomers.reduce((s, c) => s + c.creditBalance, 0))}</p>
+            <div className="min-w-0">
+              <p className="text-xs md:text-sm text-muted-foreground">Total Geral</p>
+              <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(sales.reduce((s, v) => s + v.total, 0))}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 text-destructive" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs md:text-sm text-muted-foreground">Fiados</p>
+              <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(creditCustomers.reduce((s, c) => s + c.creditBalance, 0))}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <Card>
-          <CardHeader><CardTitle>Vendas - Últimos 7 Dias</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Vendas no Período</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={last7Days}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" fontSize={12} />
-                <YAxis fontSize={12} />
-                <Tooltip formatter={(v: number) => `R$ ${fmt(v)}`} />
-                <Bar dataKey="total" fill="hsl(152,45%,28%)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {dailyData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={dailyData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" fontSize={11} />
+                  <YAxis fontSize={11} />
+                  <Tooltip formatter={(v: number) => `R$ ${fmt(v)}`} />
+                  <Bar dataKey="total" fill="hsl(152,45%,28%)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <p className="text-center text-muted-foreground py-12">Sem dados no período</p>}
           </CardContent>
         </Card>
 
@@ -127,18 +225,16 @@ const Relatorios = () => {
                   <Pie data={salesByMethod} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
                     {salesByMethod.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number) => `R$ ${v.toFixed(2)}`} />
+                  <Tooltip formatter={(v: number) => `R$ ${fmt(v)}`} />
                 </PieChart>
               </ResponsiveContainer>
-            ) : (
-              <p className="text-center text-muted-foreground py-12">Sem dados ainda</p>
-            )}
+            ) : <p className="text-center text-muted-foreground py-12">Sem dados no período</p>}
           </CardContent>
         </Card>
       </div>
 
       {/* Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <Card>
           <CardHeader><CardTitle>Top Produtos</CardTitle></CardHeader>
           <CardContent>
@@ -161,7 +257,7 @@ const Relatorios = () => {
                   ))}
                 </TableBody>
               </Table>
-            ) : <p className="text-center text-muted-foreground py-8">Sem dados ainda</p>}
+            ) : <p className="text-center text-muted-foreground py-8">Sem dados no período</p>}
           </CardContent>
         </Card>
 
