@@ -146,7 +146,7 @@ const Estoque = () => {
 
       {/* Stock Entry Dialog */}
       <Dialog open={entryOpen} onOpenChange={setEntryOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nova Entrada de Estoque</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
