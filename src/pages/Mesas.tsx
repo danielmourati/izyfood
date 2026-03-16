@@ -1,7 +1,7 @@
 import React from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { useNavigate } from 'react-router-dom';
-import { toast } from '@/hooks/use-toast';
+
 
 const Mesas = () => {
   const { tables, setTables, orders, setOrders } = useStore();
