@@ -94,7 +94,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
       return;
     }
     if (coupon.minOrder && subtotal < coupon.minOrder) {
-      toast({ title: `Pedido mínimo: R$ ${fmt(coupon.minOrder)}`, variant: 'destructive' });
+      return;
       return;
     }
     setAppliedCoupon(coupon.id);
