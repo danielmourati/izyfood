@@ -149,7 +149,7 @@ const Produtos = () => {
     };
     if (editingCatId) {
       setCategories(prev => prev.map(c => c.id === editingCatId ? cat : c));
-      toast({ title: 'Categoria atualizada' });
+      
     } else {
       setCategories(prev => [...prev, cat]);
       toast({ title: 'Categoria cadastrada' });
