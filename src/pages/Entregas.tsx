@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ const statusConfig: Record<DeliveryStatus, { label: string; color: string; icon:
 };
 
 const Entregas = () => {
-  const { orders, setOrders } = useStore();
+  const { orders, setOrders, customers } = useStore();
   const navigate = useNavigate();
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<'delivery' | 'retirada'>('delivery');
@@ -29,6 +29,27 @@ const Entregas = () => {
   const [deliveryFee, setDeliveryFee] = useState('');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<DeliveryStatus | 'todos'>('todos');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>();
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return [];
+    const s = customerSearch.toLowerCase();
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(s) || c.phone.includes(s)
+    ).slice(0, 5);
+  }, [customers, customerSearch]);
+
+  const selectCustomer = (c: typeof customers[0]) => {
+    setCustomerName(c.name);
+    setCustomerPhone(c.phone);
+    setCustomerAddress(c.address);
+    setSelectedCustomerId(c.id);
+    setCustomerSearch('');
+    setShowCustomerDropdown(false);
+  };
 
   const deliveryOrders = useMemo(() => {
     return orders
@@ -70,6 +91,7 @@ const Entregas = () => {
       total: 0,
       orderType: selectedType,
       status: 'aberto',
+      customerId: selectedCustomerId,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       customerAddress: selectedType === 'delivery' ? customerAddress.trim() : undefined,
@@ -86,6 +108,8 @@ const Entregas = () => {
     setCustomerPhone('');
     setCustomerAddress('');
     setDeliveryFee('');
+    setSelectedCustomerId(undefined);
+    setCustomerSearch('');
     setNewOrderOpen(false);
 
     // Navigate to PDV to add items
@@ -308,14 +332,40 @@ const Entregas = () => {
           </div>
 
           <div className="space-y-3">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 relative">
               <Label htmlFor="name">Nome do cliente *</Label>
               <Input
                 id="name"
-                placeholder="Nome completo"
+                ref={nameInputRef}
+                placeholder="Buscar cliente ou digitar nome..."
                 value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
+                onChange={e => {
+                  setCustomerName(e.target.value);
+                  setCustomerSearch(e.target.value);
+                  setShowCustomerDropdown(true);
+                  setSelectedCustomerId(undefined);
+                }}
+                onFocus={() => customerSearch && setShowCustomerDropdown(true)}
+                onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                autoComplete="off"
               />
+              {showCustomerDropdown && filteredCustomers.length > 0 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden">
+                  {filteredCustomers.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
+                      onMouseDown={() => selectCustomer(c)}
+                    >
+                      <div>
+                        <p className="font-medium text-foreground">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">{c.phone} • {c.address}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
