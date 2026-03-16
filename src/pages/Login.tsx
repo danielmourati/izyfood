@@ -25,18 +25,18 @@ const Login = () => {
       <Card className="w-full max-w-sm shadow-2xl border-primary/20">
         <CardHeader className="text-center pb-2">
           <img src="/logo.png" alt="Carnaúba" className="h-24 mx-auto mb-2 object-contain" />
-          <h1 className="text-2xl font-bold text-foreground">Carnaúba POS</h1>
+          <h1 className="text-2xl font-bold text-foreground">Carnaúba </h1>
           <p className="text-sm text-muted-foreground">Faça login para continuar</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="h-12" required />
+              <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Senha</Label>
-              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} className="h-12" required />
+              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="h-12" required />
             </div>
             <Button type="submit" className="w-full h-12 text-base font-semibold">Entrar</Button>
           </form>
@@ -47,8 +47,8 @@ const Login = () => {
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>);
+
 };
 
 export default Login;
