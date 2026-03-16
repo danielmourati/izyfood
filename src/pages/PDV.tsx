@@ -205,8 +205,8 @@ const PDV = () => {
                         <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                       </div>
                     ) : (
-                      <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl bg-primary/10 flex items-center justify-center text-2xl md:text-3xl">
-                        {cat?.emoji || '📦'}
+                      <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl bg-primary/10 flex items-center justify-center text-sm md:text-base font-bold text-primary">
+                        {cat?.name?.charAt(0) || '?'}
                       </div>
                     )}
                     <h3 className="font-semibold text-xs md:text-sm leading-tight text-foreground">{product.name}</h3>
