@@ -15,6 +15,7 @@ const allItems = [
   { title: 'Pedidos', url: '/pedidos', icon: ClipboardList, adminOnly: false },
   { title: 'Delivery', url: '/entregas', icon: Truck, adminOnly: false },
   { title: 'Clientes', url: '/clientes', icon: Users, adminOnly: true },
+  { title: 'Produtos', url: '/produtos', icon: UtensilsCrossed, adminOnly: true },
   { title: 'Estoque', url: '/estoque', icon: Package, adminOnly: true },
   { title: 'Relatórios', url: '/relatorios', icon: BarChart3, adminOnly: true },
 ];
