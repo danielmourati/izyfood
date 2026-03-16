@@ -262,7 +262,7 @@ const PDV = () => {
                       </Button>
                     </div>
                   ) : <div />}
-                  <p className="font-bold text-primary text-sm">R$ {item.subtotal.toFixed(2)}</p>
+                  <p className="font-bold text-primary text-sm">R$ {fmt(item.subtotal)}</p>
                 </div>
               </div>
             ))
