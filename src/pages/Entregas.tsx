@@ -140,7 +140,7 @@ const Entregas = () => {
         ...o,
         deliveryStatus: newStatus,
         status: newStatus === 'finalizado' ? 'finalizado' as const : o.status === 'finalizado' ? 'aberto' as const : o.status,
-        completedAt: newStatus === 'finalizado' ? new Date().toISOString() : newStatus !== 'finalizado' ? undefined : o.completedAt,
+        completedAt: newStatus === 'finalizado' ? new Date().toISOString() : undefined,
       };
     }));
     setStatusDialogOrder(null);
