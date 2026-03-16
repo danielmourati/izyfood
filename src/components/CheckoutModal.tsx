@@ -86,7 +86,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
     const code = couponCode.trim().toUpperCase();
     const coupon = coupons.find(c => c.code === code && c.active);
     if (!coupon) {
-      toast({ title: 'Cupom inválido ou inativo', variant: 'destructive' });
+      return;
       return;
     }
     if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
