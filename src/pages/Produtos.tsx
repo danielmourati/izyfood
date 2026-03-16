@@ -204,7 +204,7 @@ const Produtos = () => {
               onClick={() => setFilterCategory(cat.id)}
               className="whitespace-nowrap group/cat"
             >
-              {cat.emoji} {cat.name}
+              {cat.name}
               <span
                 className="ml-1 opacity-0 group-hover/cat:opacity-100 transition-opacity cursor-pointer"
                 onClick={e => { e.stopPropagation(); openEditCat(cat); }}
