@@ -180,6 +180,18 @@ const Relatorios = () => {
                       }
                     }
                   }}
+                  modifiers={{
+                    range_start: customRange.from ? customRange.from : undefined,
+                    range_end: customRange.to ? customRange.to : undefined,
+                    range_middle: customRange.from && customRange.to
+                      ? (date: Date) => isAfter(date, customRange.from!) && isBefore(date, customRange.to!) && !isSameDay(date, customRange.from!) && !isSameDay(date, customRange.to!)
+                      : undefined,
+                  }}
+                  modifiersClassNames={{
+                    range_start: 'bg-primary text-primary-foreground rounded-l-md hover:bg-primary',
+                    range_end: 'bg-primary text-primary-foreground rounded-r-md hover:bg-primary',
+                    range_middle: 'bg-primary/15 text-foreground rounded-none',
+                  }}
                   locale={ptBR}
                   numberOfMonths={1}
                 />
