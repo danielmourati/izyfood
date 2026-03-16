@@ -12,7 +12,7 @@ const Mesas = () => {
     if (!table) return;
 
     if (table.status === 'occupied' && table.orderId) {
-      toast({ title: `Mesa ${tableNum}`, description: 'Abrindo pedido...' });
+      
       navigate(`/pdv?mesa=${tableNum}&pedido=${table.orderId}`);
     } else {
       const newOrder = {
