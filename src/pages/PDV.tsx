@@ -257,7 +257,8 @@ const PDV = () => {
               updateQty={updateQty} removeItem={removeItem}
               cancelOrder={() => { cancelOrder(); setShowCart(false); }}
               holdOrder={() => { holdOrder(); setShowCart(false); }}
-              setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }} />
+              setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }}
+              tables={tables} onSelectTable={(t) => { setShowCart(false); navigate(`/pdv?mesa=${t.number}`); }} />
           </div>
         </div>
       )}
