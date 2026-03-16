@@ -111,7 +111,7 @@ const Relatorios = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" fontSize={12} />
                 <YAxis fontSize={12} />
-                <Tooltip formatter={(v: number) => `R$ ${v.toFixed(2)}`} />
+                <Tooltip formatter={(v: number) => `R$ ${fmt(v)}`} />
                 <Bar dataKey="total" fill="hsl(152,45%,28%)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
