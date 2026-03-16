@@ -245,7 +245,7 @@ const PDV = () => {
           </div>
         </div>
 
-        <div className="md:hidden fixed bottom-4 right-4 z-50">
+        <div className="lg:hidden fixed bottom-4 right-4 z-50">
           <Button size="lg" className="h-14 w-14 rounded-full shadow-lg relative" onClick={() => setShowCart(true)}>
             <ShoppingCart className="h-6 w-6" />
             {cart.length > 0 && (
