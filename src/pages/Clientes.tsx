@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import { Customer } from '@/types';
 import { Plus, Search, Phone, MapPin, FileText } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+
 
 const Clientes = () => {
   const { customers, setCustomers } = useStore();
