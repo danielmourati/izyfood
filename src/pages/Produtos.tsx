@@ -23,7 +23,7 @@ const emptyProductForm = {
   image: '',
 };
 
-const emptyCategoryForm = { name: '', emoji: '' };
+const emptyCategoryForm = { name: '' };
 
 const Produtos = () => {
   const { products, setProducts, categories, setCategories } = useStore();
