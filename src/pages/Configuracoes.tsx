@@ -146,7 +146,7 @@ function UsuariosTab() {
 
   const handleDelete = (id: string) => {
     setUsers(prev => prev.filter(u => u.id !== id));
-    toast({ title: 'Usuário removido' });
+    
   };
 
   return (
