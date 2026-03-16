@@ -360,10 +360,6 @@ const Produtos = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Emoji</Label>
-              <Input value={catForm.emoji} onChange={e => setCatForm(f => ({ ...f, emoji: e.target.value }))} placeholder="Ex: 🍕" maxLength={4} />
-            </div>
-            <div>
               <Label>Nome *</Label>
               <Input value={catForm.name} onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Pizzas" />
             </div>
