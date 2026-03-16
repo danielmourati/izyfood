@@ -20,9 +20,7 @@ const Login = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (login(email, password)) {
-      toast({ title: 'Bem-vindo!', description: 'Login realizado com sucesso.' });
-    } else {
-      toast({ title: 'Credenciais inválidas', description: 'Verifique email e senha.', variant: 'destructive' });
+      // login success
     }
   };
 
