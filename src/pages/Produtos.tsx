@@ -146,7 +146,6 @@ const Produtos = () => {
     const cat: ProductCategory = {
       id: editingCatId || crypto.randomUUID(),
       name: catForm.name.trim(),
-      emoji: catForm.emoji.trim() || '📦',
     };
     if (editingCatId) {
       setCategories(prev => prev.map(c => c.id === editingCatId ? cat : c));
