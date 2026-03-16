@@ -109,7 +109,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
 
   const handleFinalize = () => {
     if (splits.length === 0) {
-      toast({ title: 'Adicione ao menos uma forma de pagamento', variant: 'destructive' });
+      return;
       return;
     }
     if (Math.abs(remaining) > 0.01 && remaining > 0) {
