@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus } from 'lucide-react';
 import { Supplier, StockEntry } from '@/types';
-import { toast } from '@/hooks/use-toast';
+
 
 const Estoque = () => {
   const { products, setProducts, suppliers, setSuppliers, stockEntries, setStockEntries, categories } = useStore();
