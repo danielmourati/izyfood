@@ -139,6 +139,9 @@ const Relatorios = () => {
                   onSelect={(range) => {
                     setActivePreset('custom');
                     setCustomRange({ from: range?.from, to: range?.to });
+                    if (range?.from && range?.to) {
+                      setCalendarOpen(false);
+                    }
                   }}
                   locale={ptBR}
                   numberOfMonths={1}
