@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { fmt, fmtWeight } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Product, OrderItem, Order, OrderType, ProductCategory } from '@/types';
-import { categoryLabels } from '@/data/seed';
+import { Product, OrderItem, Order, OrderType } from '@/types';
 import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft } from 'lucide-react';
@@ -20,7 +19,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 };
 
 const PDV = () => {
-  const { products, orders, setOrders, setTables } = useStore();
+  const { products, categories, orders, setOrders, setTables, getCategoryById } = useStore();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [showCart, setShowCart] = useState(false);
@@ -29,13 +28,12 @@ const PDV = () => {
   const pedidoParam = searchParams.get('pedido');
   const tableNumber = mesaParam ? parseInt(mesaParam) : undefined;
 
-  // Load existing order if coming from a table
   const existingOrder = useMemo(() => {
     if (pedidoParam) return orders.find(o => o.id === pedidoParam);
     return undefined;
   }, [pedidoParam, orders]);
 
-  const [category, setCategory] = useState<ProductCategory>('acai');
+  const [activeCategoryId, setActiveCategoryId] = useState<string>(() => categories[0]?.id || '');
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('balcao');
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
@@ -43,7 +41,6 @@ const PDV = () => {
   const [currentOrderId, setCurrentOrderId] = useState<string>(() => crypto.randomUUID());
   const [initialized, setInitialized] = useState(false);
 
-  // Initialize from existing order
   useEffect(() => {
     if (initialized) return;
     if (existingOrder) {
@@ -56,10 +53,8 @@ const PDV = () => {
     setInitialized(true);
   }, [existingOrder, tableNumber, initialized]);
 
-  // Sync cart back to the order in store (for table/delivery orders)
   useEffect(() => {
     if (!pedidoParam || !initialized) return;
-    // Don't sync empty cart back — it would erase saved items after checkout
     if (cart.length === 0) return;
     const total = cart.reduce((s, i) => s + i.subtotal, 0);
     setOrders(prev => prev.map(o =>
@@ -67,7 +62,7 @@ const PDV = () => {
     ));
   }, [cart, pedidoParam, initialized, setOrders]);
 
-  const filteredProducts = useMemo(() => products.filter(p => p.category === category), [products, category]);
+  const filteredProducts = useMemo(() => products.filter(p => p.categoryId === activeCategoryId), [products, activeCategoryId]);
   const total = useMemo(() => cart.reduce((s, i) => s + i.subtotal, 0), [cart]);
 
   const addToCart = (product: Product) => {
@@ -119,7 +114,6 @@ const PDV = () => {
 
   const cancelOrder = () => {
     setCart([]);
-    // If table order with no items, release the table and remove the order
     if (tableNumber && pedidoParam) {
       setTables(prev => prev.map(t =>
         t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
@@ -162,13 +156,10 @@ const PDV = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-3rem)]">
-      {/* Left: Products */}
       <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden">
-        {/* Header with back button for table orders */}
         {tableNumber && (
           <div className="flex items-center gap-3 mb-3">
             <Button variant="ghost" size="icon" onClick={() => {
-              // If empty cart, release table
               if (cart.length === 0 && pedidoParam) {
                 setTables(prev => prev.map(t =>
                   t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
@@ -185,14 +176,14 @@ const PDV = () => {
 
         {/* Category Tabs */}
         <div className="flex gap-2 mb-3 md:mb-4 overflow-x-auto pb-1">
-          {(Object.entries(categoryLabels) as [ProductCategory, string][]).map(([key, label]) => (
+          {categories.map(cat => (
             <Button
-              key={key}
-              variant={category === key ? 'default' : 'outline'}
+              key={cat.id}
+              variant={activeCategoryId === cat.id ? 'default' : 'outline'}
               className="h-10 md:h-12 px-3 md:px-5 text-sm md:text-base whitespace-nowrap shrink-0"
-              onClick={() => setCategory(key)}
+              onClick={() => setActiveCategoryId(cat.id)}
             >
-              {label}
+              {cat.emoji} {cat.name}
             </Button>
           ))}
         </div>
@@ -200,43 +191,41 @@ const PDV = () => {
         {/* Product Grid */}
         <div className="flex-1 overflow-auto">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
-            {filteredProducts.map(product => (
-              <Card
-                key={product.id}
-                className="cursor-pointer hover:shadow-lg hover:border-primary/40 transition-all active:scale-95 select-none"
-                onClick={() => addToCart(product)}
-              >
-                <div className="p-3 md:p-4 text-center space-y-1 md:space-y-2">
-                  {product.image ? (
-                    <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl overflow-hidden">
-                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl bg-primary/10 flex items-center justify-center text-2xl md:text-3xl">
-                      {product.category === 'acai' ? '🍇' : product.category === 'sorvetes' ? '🍦' : product.category === 'bebidas' ? '🥤' : '✨'}
-                    </div>
-                  )}
-                  <h3 className="font-semibold text-xs md:text-sm leading-tight text-foreground">{product.name}</h3>
-                  <p className="text-primary font-bold text-sm">
-                    R$ {fmt(product.price)}
-                    {product.type === 'weight' && <span className="text-xs text-muted-foreground">/kg</span>}
-                  </p>
-                  {product.stock <= 5 && (
-                    <Badge variant="destructive" className="text-[10px]">Estoque baixo</Badge>
-                  )}
-                </div>
-              </Card>
-            ))}
+            {filteredProducts.map(product => {
+              const cat = getCategoryById(product.categoryId);
+              return (
+                <Card
+                  key={product.id}
+                  className="cursor-pointer hover:shadow-lg hover:border-primary/40 transition-all active:scale-95 select-none"
+                  onClick={() => addToCart(product)}
+                >
+                  <div className="p-3 md:p-4 text-center space-y-1 md:space-y-2">
+                    {product.image ? (
+                      <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl overflow-hidden">
+                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl bg-primary/10 flex items-center justify-center text-2xl md:text-3xl">
+                        {cat?.emoji || '📦'}
+                      </div>
+                    )}
+                    <h3 className="font-semibold text-xs md:text-sm leading-tight text-foreground">{product.name}</h3>
+                    <p className="text-primary font-bold text-sm">
+                      R$ {fmt(product.price)}
+                      {product.type === 'weight' && <span className="text-xs text-muted-foreground">/kg</span>}
+                    </p>
+                    {product.stock <= 5 && (
+                      <Badge variant="destructive" className="text-[10px]">Estoque baixo</Badge>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         </div>
 
-        {/* Mobile: floating cart button */}
         <div className="md:hidden fixed bottom-4 right-4 z-50">
-          <Button
-            size="lg"
-            className="h-14 w-14 rounded-full shadow-lg relative"
-            onClick={() => setShowCart(true)}
-          >
+          <Button size="lg" className="h-14 w-14 rounded-full shadow-lg relative" onClick={() => setShowCart(true)}>
             <ShoppingCart className="h-6 w-6" />
             {cart.length > 0 && (
               <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
@@ -247,23 +236,11 @@ const PDV = () => {
         </div>
       </div>
 
-      {/* Right: Cart — desktop sidebar */}
       <div className="hidden md:flex w-80 lg:w-96 border-l bg-card flex-col">
-        <CartContent
-          cart={cart}
-          orderType={orderType}
-          setOrderType={setOrderType}
-          tableNumber={tableNumber}
-          total={total}
-          updateQty={updateQty}
-          removeItem={removeItem}
-          cancelOrder={cancelOrder}
-          holdOrder={holdOrder}
-          setCheckoutOpen={setCheckoutOpen}
-        />
+        <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
+          updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen} />
       </div>
 
-      {/* Right: Cart — mobile slide-over */}
       {showCart && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowCart(false)} />
@@ -274,119 +251,74 @@ const PDV = () => {
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            <CartContent
-              cart={cart}
-              orderType={orderType}
-              setOrderType={setOrderType}
-              tableNumber={tableNumber}
-              total={total}
-              updateQty={updateQty}
-              removeItem={removeItem}
+            <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
+              updateQty={updateQty} removeItem={removeItem}
               cancelOrder={() => { cancelOrder(); setShowCart(false); }}
               holdOrder={() => { holdOrder(); setShowCart(false); }}
-              setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }}
-            />
+              setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }} />
           </div>
         </div>
       )}
 
-      <WeightModal
-        open={weightModal.open}
-        onClose={() => setWeightModal({ open: false, product: null })}
-        productName={weightModal.product?.name || ''}
-        pricePerKg={weightModal.product?.price || 0}
-        onConfirm={addWeightItem}
-      />
-
-      <CheckoutModal
-        open={checkoutOpen}
-        onClose={() => setCheckoutOpen(false)}
-        order={cart.length > 0 ? currentOrder : null}
-        onComplete={() => { setCart([]); if (tableNumber) navigate('/'); }}
-      />
+      <WeightModal open={weightModal.open} onClose={() => setWeightModal({ open: false, product: null })}
+        productName={weightModal.product?.name || ''} pricePerKg={weightModal.product?.price || 0} onConfirm={addWeightItem} />
+      <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)}
+        order={cart.length > 0 ? currentOrder : null} onComplete={() => { setCart([]); if (tableNumber) navigate('/'); }} />
     </div>
   );
 };
 
-/* Cart content extracted for reuse in desktop sidebar and mobile slide-over */
 function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen,
 }: {
-  cart: OrderItem[];
-  orderType: OrderType;
-  setOrderType: (t: OrderType) => void;
-  tableNumber?: number;
-  total: number;
-  updateQty: (id: string, delta: number) => void;
-  removeItem: (id: string) => void;
-  cancelOrder: () => void;
-  holdOrder: () => void;
-  setCheckoutOpen: (v: boolean) => void;
+  cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
+  total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
+  cancelOrder: () => void; holdOrder: () => void; setCheckoutOpen: (v: boolean) => void;
 }) {
   return (
     <>
-      {/* Order Type */}
       <div className="p-3 border-b">
         {tableNumber ? (
-          <div className="text-center py-1">
-            <Badge className="text-sm px-3 py-1">🪑 Mesa {tableNumber}</Badge>
-          </div>
+          <div className="text-center py-1"><Badge className="text-sm px-3 py-1">🪑 Mesa {tableNumber}</Badge></div>
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
-              <Button
-                key={key}
-                variant={orderType === key ? 'default' : 'ghost'}
-                size="sm"
-                className="text-xs h-9"
-                onClick={() => setOrderType(key)}
-              >
+              <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-xs h-9" onClick={() => setOrderType(key)}>
                 {label}
               </Button>
             ))}
           </div>
         )}
       </div>
-
-      {/* Cart Items */}
       <div className="flex-1 overflow-auto p-3 space-y-2">
         {cart.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <ShoppingCart className="h-12 w-12 mb-2 opacity-30" />
-            <p className="text-sm">Carrinho vazio</p>
+            <ShoppingCart className="h-12 w-12 mb-2 opacity-30" /><p className="text-sm">Carrinho vazio</p>
           </div>
-        ) : (
-          cart.map(item => (
-            <div key={item.id} className="bg-muted/50 rounded-lg p-3 space-y-1">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="font-medium text-sm text-foreground">{item.name}</p>
-                  {item.weight && <p className="text-xs text-muted-foreground">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>}
-                </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(item.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+        ) : cart.map(item => (
+          <div key={item.id} className="bg-muted/50 rounded-lg p-3 space-y-1">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <p className="font-medium text-sm text-foreground">{item.name}</p>
+                {item.weight && <p className="text-xs text-muted-foreground">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>}
               </div>
-              <div className="flex items-center justify-between">
-                {!item.weight ? (
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, -1)}>
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <span className="w-8 text-center font-semibold text-sm">{item.quantity}</span>
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, 1)}>
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : <div />}
-                <p className="font-bold text-primary text-sm">R$ {fmt(item.subtotal)}</p>
-              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(item.id)}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
             </div>
-          ))
-        )}
+            <div className="flex items-center justify-between">
+              {!item.weight ? (
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, -1)}><Minus className="h-3 w-3" /></Button>
+                  <span className="w-8 text-center font-semibold text-sm">{item.quantity}</span>
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, 1)}><Plus className="h-3 w-3" /></Button>
+                </div>
+              ) : <div />}
+              <p className="font-bold text-primary text-sm">R$ {fmt(item.subtotal)}</p>
+            </div>
+          </div>
+        ))}
       </div>
-
-      {/* Total & Actions */}
       <div className="border-t p-3 space-y-3">
         <div className="flex justify-between items-center">
           <span className="text-lg font-semibold text-foreground">Total</span>
