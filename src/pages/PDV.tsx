@@ -207,9 +207,15 @@ const PDV = () => {
                 onClick={() => addToCart(product)}
               >
                 <div className="p-3 md:p-4 text-center space-y-1 md:space-y-2">
-                  <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl bg-primary/10 flex items-center justify-center text-2xl md:text-3xl">
-                    {product.category === 'acai' ? '🍇' : product.category === 'sorvetes' ? '🍦' : product.category === 'bebidas' ? '🥤' : '✨'}
-                  </div>
+                  {product.image ? (
+                    <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl overflow-hidden">
+                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl bg-primary/10 flex items-center justify-center text-2xl md:text-3xl">
+                      {product.category === 'acai' ? '🍇' : product.category === 'sorvetes' ? '🍦' : product.category === 'bebidas' ? '🥤' : '✨'}
+                    </div>
+                  )}
                   <h3 className="font-semibold text-xs md:text-sm leading-tight text-foreground">{product.name}</h3>
                   <p className="text-primary font-bold text-sm">
                     R$ {fmt(product.price)}

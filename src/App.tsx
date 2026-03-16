@@ -12,6 +12,7 @@ import Mesas from "./pages/Mesas";
 import Pedidos from "./pages/Pedidos";
 import Clientes from "./pages/Clientes";
 import Estoque from "./pages/Estoque";
+import Produtos from "./pages/Produtos";
 import Relatorios from "./pages/Relatorios";
 import Entregas from "./pages/Entregas";
 import NotFound from "./pages/NotFound";
@@ -45,6 +46,7 @@ function AppRoutes() {
         <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
         <Route path="/entregas" element={<ProtectedRoute><Entregas /></ProtectedRoute>} />
         <Route path="/clientes" element={<ProtectedRoute adminOnly><Clientes /></ProtectedRoute>} />
+        <Route path="/produtos" element={<ProtectedRoute adminOnly><Produtos /></ProtectedRoute>} />
         <Route path="/estoque" element={<ProtectedRoute adminOnly><Estoque /></ProtectedRoute>} />
         <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
         <Route path="/login" element={<Navigate to="/" replace />} />
