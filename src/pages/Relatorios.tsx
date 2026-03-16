@@ -136,39 +136,48 @@ const Relatorios = () => {
               {/* Calendar */}
               <div className="p-3 space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center">
+                  <button
+                    type="button"
+                    onClick={() => setPickingField('from')}
+                    className={`flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center cursor-pointer transition-colors ${pickingField === 'from' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-muted-foreground/40'}`}
+                  >
                     <span className="text-muted-foreground block text-[10px] leading-none mb-0.5">Início</span>
                     <span className="font-medium">
-                      {(activePreset === 'custom' ? customRange.from : dateRange.from)
-                        ? format(activePreset === 'custom' ? customRange.from! : dateRange.from, 'dd/MM/yyyy', { locale: ptBR })
-                        : '—'}
+                      {customRange.from ? format(customRange.from, 'dd/MM/yyyy', { locale: ptBR }) : '-- / -- / ----'}
                     </span>
-                  </div>
+                  </button>
                   <span className="text-muted-foreground text-xs">→</span>
-                  <div className="flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center">
+                  <button
+                    type="button"
+                    onClick={() => { if (customRange.from) setPickingField('to'); }}
+                    className={`flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center transition-colors ${!customRange.from ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${pickingField === 'to' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-muted-foreground/40'}`}
+                  >
                     <span className="text-muted-foreground block text-[10px] leading-none mb-0.5">Fim</span>
                     <span className="font-medium">
-                      {(activePreset === 'custom' ? customRange.to : dateRange.to)
-                        ? format(activePreset === 'custom' ? customRange.to! : dateRange.to, 'dd/MM/yyyy', { locale: ptBR })
-                        : '—'}
+                      {customRange.to ? format(customRange.to, 'dd/MM/yyyy', { locale: ptBR }) : '-- / -- / ----'}
                     </span>
-                  </div>
+                  </button>
                 </div>
                 <p className="text-[10px] text-muted-foreground text-center">
-                  {!customRange.from || activePreset !== 'custom'
-                    ? 'Clique na data de início'
-                    : !customRange.to
-                      ? 'Agora clique na data final'
-                      : 'Período selecionado'}
+                  {pickingField === 'from' ? 'Selecione a data de início' : 'Selecione a data final'}
                 </p>
                 <Calendar
-                  mode="range"
-                  selected={activePreset === 'custom' ? { from: customRange.from, to: customRange.to } : { from: dateRange.from, to: dateRange.to }}
-                  onSelect={(range) => {
+                  mode="single"
+                  selected={pickingField === 'from' ? customRange.from : customRange.to}
+                  onSelect={(day) => {
+                    if (!day) return;
                     setActivePreset('custom');
-                    setCustomRange({ from: range?.from, to: range?.to });
-                    if (range?.from && range?.to) {
-                      setCalendarOpen(false);
+                    if (pickingField === 'from') {
+                      setCustomRange({ from: day, to: customRange.to && day <= customRange.to ? customRange.to : undefined });
+                      setPickingField('to');
+                    } else {
+                      if (customRange.from && day < customRange.from) {
+                        setCustomRange({ from: day, to: undefined });
+                        setPickingField('to');
+                      } else {
+                        setCustomRange(prev => ({ ...prev, to: day }));
+                        if (customRange.from) setCalendarOpen(false);
+                      }
                     }
                   }}
                   locale={ptBR}
