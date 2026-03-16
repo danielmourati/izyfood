@@ -46,7 +46,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
     };
 
     completeSale(finalOrder);
-    toast({ title: 'Venda finalizada!', description: `R$ ${order.total.toFixed(2)} via ${selectedMethod.toUpperCase()}` });
+    toast({ title: 'Venda finalizada!', description: `R$ ${fmt(order.total)} via ${selectedMethod.toUpperCase()}` });
     setSelectedMethod(null);
     setSelectedCustomer(null);
     setCashGiven('');
