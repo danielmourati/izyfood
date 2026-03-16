@@ -74,7 +74,7 @@ const Estoque = () => {
                 {products.map(p => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.name}</TableCell>
-                    <TableCell>{(() => { const cat = categories.find(c => c.id === p.categoryId); return cat ? `${cat.emoji} ${cat.name}` : '-'; })()}</TableCell>
+                    <TableCell>{(() => { const cat = categories.find(c => c.id === p.categoryId); return cat ? cat.name : '-'; })()}</TableCell>
                     <TableCell>{p.type === 'weight' ? 'Peso' : 'Unidade'}</TableCell>
                     <TableCell>R$ {fmt(p.price)}{p.type === 'weight' ? '/kg' : ''}</TableCell>
                     <TableCell>

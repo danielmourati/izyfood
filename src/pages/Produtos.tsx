@@ -23,7 +23,7 @@ const emptyProductForm = {
   image: '',
 };
 
-const emptyCategoryForm = { name: '', emoji: '' };
+const emptyCategoryForm = { name: '' };
 
 const Produtos = () => {
   const { products, setProducts, categories, setCategories } = useStore();
@@ -132,7 +132,7 @@ const Produtos = () => {
 
   const openEditCat = (cat: ProductCategory) => {
     setEditingCatId(cat.id);
-    setCatForm({ name: cat.name, emoji: cat.emoji });
+    setCatForm({ name: cat.name });
     setCatDialogOpen(true);
   };
 
@@ -146,7 +146,6 @@ const Produtos = () => {
     const cat: ProductCategory = {
       id: editingCatId || crypto.randomUUID(),
       name: catForm.name.trim(),
-      emoji: catForm.emoji.trim() || '📦',
     };
     if (editingCatId) {
       setCategories(prev => prev.map(c => c.id === editingCatId ? cat : c));
@@ -205,7 +204,7 @@ const Produtos = () => {
               onClick={() => setFilterCategory(cat.id)}
               className="whitespace-nowrap group/cat"
             >
-              {cat.emoji} {cat.name}
+              {cat.name}
               <span
                 className="ml-1 opacity-0 group-hover/cat:opacity-100 transition-opacity cursor-pointer"
                 onClick={e => { e.stopPropagation(); openEditCat(cat); }}
@@ -228,7 +227,7 @@ const Produtos = () => {
                   <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-5xl">
-                    {cat?.emoji || '📦'}
+                    {cat?.name?.charAt(0) || '?'}
                   </div>
                 )}
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -249,7 +248,7 @@ const Produtos = () => {
                 {product.description && <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>}
                 <div className="flex items-center justify-between pt-1">
                   <Badge variant="outline" className="text-[10px]">
-                    {cat ? `${cat.emoji} ${cat.name}` : 'Sem categoria'}
+                    {cat ? cat.name : 'Sem categoria'}
                   </Badge>
                   <Badge variant={product.stock <= 5 ? 'destructive' : 'secondary'} className="text-[10px]">
                     {product.stock} {product.unit}
@@ -317,7 +316,7 @@ const Produtos = () => {
                 >
                   <option value="">Selecione...</option>
                   {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.emoji} {cat.name}</option>
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
                 </select>
               </div>
@@ -360,10 +359,6 @@ const Produtos = () => {
             <DialogTitle>{editingCatId ? 'Editar Categoria' : 'Nova Categoria'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Emoji</Label>
-              <Input value={catForm.emoji} onChange={e => setCatForm(f => ({ ...f, emoji: e.target.value }))} placeholder="Ex: 🍕" maxLength={4} />
-            </div>
             <div>
               <Label>Nome *</Label>
               <Input value={catForm.name} onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Pizzas" />
