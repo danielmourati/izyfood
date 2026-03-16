@@ -108,6 +108,8 @@ const Entregas = () => {
     setCustomerPhone('');
     setCustomerAddress('');
     setDeliveryFee('');
+    setSelectedCustomerId(undefined);
+    setCustomerSearch('');
     setNewOrderOpen(false);
 
     // Navigate to PDV to add items
