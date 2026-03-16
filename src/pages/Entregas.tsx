@@ -117,7 +117,7 @@ const Entregas = () => {
     };
 
     setOrders(prev => [...prev, newOrder]);
-    toast({ title: 'Pedido criado!', description: `${selectedType === 'delivery' ? '🛵 Delivery' : '📦 Retirada'} — ${customerName}` });
+    
 
     // Reset form
     setCustomerName('');
