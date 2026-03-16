@@ -1,5 +1,5 @@
 import {
-  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, LogOut, Truck, UtensilsCrossed
+  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, LogOut, Truck, UtensilsCrossed, Settings
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,6 +18,7 @@ const allItems = [
   { title: 'Produtos', url: '/produtos', icon: UtensilsCrossed, adminOnly: true },
   { title: 'Estoque', url: '/estoque', icon: Package, adminOnly: true },
   { title: 'Relatórios', url: '/relatorios', icon: BarChart3, adminOnly: true },
+  { title: 'Configurações', url: '/configuracoes', icon: Settings, adminOnly: true },
 ];
 
 export function AppSidebar() {
