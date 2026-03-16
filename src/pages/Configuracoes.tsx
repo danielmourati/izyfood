@@ -251,7 +251,7 @@ function CuponsTab() {
 
     if (editingId) {
       setCoupons(prev => prev.map(c => c.id === editingId ? coupon : c));
-      toast({ title: 'Cupom atualizado' });
+      
     } else {
       setCoupons(prev => [...prev, coupon]);
       toast({ title: 'Cupom criado' });
