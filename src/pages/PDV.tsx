@@ -117,6 +117,13 @@ const PDV = () => {
 
   const cancelOrder = () => {
     setCart([]);
+    // If table order with no items, release the table and remove the order
+    if (tableNumber && pedidoParam) {
+      setTables(prev => prev.map(t =>
+        t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
+      ));
+      setOrders(prev => prev.filter(o => o.id !== pedidoParam));
+    }
     toast({ title: 'Pedido cancelado' });
     if (tableNumber) navigate('/');
   };
