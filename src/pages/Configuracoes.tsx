@@ -235,7 +235,7 @@ function CuponsTab() {
     }
     const val = parseFloat(form.value.replace(',', '.'));
     if (isNaN(val) || val <= 0) {
-      toast({ title: 'Valor inválido', variant: 'destructive' });
+      return;
       return;
     }
 
