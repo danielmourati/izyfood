@@ -13,6 +13,7 @@ import Pedidos from "./pages/Pedidos";
 import Clientes from "./pages/Clientes";
 import Estoque from "./pages/Estoque";
 import Relatorios from "./pages/Relatorios";
+import Entregas from "./pages/Entregas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
