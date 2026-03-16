@@ -12,6 +12,7 @@ import Mesas from "./pages/Mesas";
 import Pedidos from "./pages/Pedidos";
 import Clientes from "./pages/Clientes";
 import Estoque from "./pages/Estoque";
+import Produtos from "./pages/Produtos";
 import Relatorios from "./pages/Relatorios";
 import Entregas from "./pages/Entregas";
 import NotFound from "./pages/NotFound";
