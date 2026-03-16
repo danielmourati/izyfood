@@ -244,7 +244,7 @@ const PDV = () => {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <p className="font-medium text-sm text-foreground">{item.name}</p>
-                    {item.weight && <p className="text-xs text-muted-foreground">{item.weight}kg × R$ {item.price.toFixed(2)}/kg</p>}
+                    {item.weight && <p className="text-xs text-muted-foreground">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>}
                   </div>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(item.id)}>
                     <Trash2 className="h-3.5 w-3.5" />
