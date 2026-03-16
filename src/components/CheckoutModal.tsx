@@ -113,7 +113,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
       return;
     }
     if (Math.abs(remaining) > 0.01 && remaining > 0) {
-      toast({ title: `Falta R$ ${fmt(remaining)} para completar`, variant: 'destructive' });
+      return;
       return;
     }
     if (hasFiado && !selectedCustomer && !order.customerId) {
