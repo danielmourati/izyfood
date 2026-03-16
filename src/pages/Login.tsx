@@ -113,6 +113,10 @@ const Login = () => {
           </form>
         </DialogContent>
       </Dialog>
+      </div>
+      <footer className="py-4 text-center text-xs text-primary-foreground/60">
+        <p>© 2026 Carnaúba. Desenvolvido por Daniel Moura</p>
+      </footer>
     </div>
   );
 };
