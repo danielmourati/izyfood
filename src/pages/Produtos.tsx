@@ -110,7 +110,7 @@ const Produtos = () => {
       
     } else {
       setProducts(prev => [...prev, product]);
-      toast({ title: 'Produto cadastrado' });
+      
     }
     setDialogOpen(false);
   };
