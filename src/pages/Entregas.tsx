@@ -7,15 +7,26 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { fmt } from '@/lib/utils';
-import { Order, OrderType, DeliveryStatus } from '@/types';
+import { Order, OrderType, DeliveryStatus, OrderSource } from '@/types';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Phone, MapPin, User, Truck, Package, CheckCircle2, Clock, Search } from 'lucide-react';
+import { Plus, Phone, MapPin, User, Truck, Package, CheckCircle2, Clock, Search, ChevronRight, Bike } from 'lucide-react';
 
 const statusConfig: Record<DeliveryStatus, { label: string; color: string; icon: React.ElementType }> = {
   pendente: { label: 'Pendente', color: 'bg-warning text-warning-foreground', icon: Clock },
   pronto: { label: 'Pronto', color: 'bg-primary text-primary-foreground', icon: Package },
   finalizado: { label: 'Finalizado', color: 'bg-muted text-muted-foreground', icon: CheckCircle2 },
+};
+
+const orderSourceLabels: Record<OrderSource, string> = {
+  ifood: '🟥 iFood',
+  aiqfome: '🟪 AiqFome',
+  whatsapp: '💬 WhatsApp',
+  instagram: '📸 Instagram',
+  telefone: '📞 Telefone',
+  loja: '🏪 Loja',
+  outro: '📋 Outro',
 };
 
 const Entregas = () => {
@@ -27,11 +38,14 @@ const Entregas = () => {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
+  const [motoboyName, setMotoboyName] = useState('');
+  const [orderSource, setOrderSource] = useState<OrderSource>('whatsapp');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<DeliveryStatus | 'todos'>('todos');
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>();
+  const [statusDialogOrder, setStatusDialogOrder] = useState<Order | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const filteredCustomers = useMemo(() => {
@@ -97,6 +111,8 @@ const Entregas = () => {
       customerAddress: selectedType === 'delivery' ? customerAddress.trim() : undefined,
       deliveryFee: selectedType === 'delivery' ? fee : 0,
       deliveryStatus: 'pendente',
+      orderSource,
+      motoboyName: motoboyName.trim() || undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -108,27 +124,33 @@ const Entregas = () => {
     setCustomerPhone('');
     setCustomerAddress('');
     setDeliveryFee('');
+    setMotoboyName('');
+    setOrderSource('whatsapp');
     setSelectedCustomerId(undefined);
     setCustomerSearch('');
     setNewOrderOpen(false);
 
-    // Navigate to PDV to add items
     navigate(`/pdv?pedido=${newOrder.id}`);
   };
 
-  const advanceStatus = (orderId: string) => {
+  const changeStatus = (orderId: string, newStatus: DeliveryStatus) => {
     setOrders(prev => prev.map(o => {
       if (o.id !== orderId) return o;
-      const next: Record<string, DeliveryStatus> = { pendente: 'pronto', pronto: 'finalizado' };
-      const newStatus = next[o.deliveryStatus || 'pendente'];
-      if (!newStatus) return o;
       return {
         ...o,
         deliveryStatus: newStatus,
-        status: newStatus === 'finalizado' ? 'finalizado' as const : o.status,
-        completedAt: newStatus === 'finalizado' ? new Date().toISOString() : o.completedAt,
+        status: newStatus === 'finalizado' ? 'finalizado' as const : o.status === 'finalizado' ? 'aberto' as const : o.status,
+        completedAt: newStatus === 'finalizado' ? new Date().toISOString() : newStatus !== 'finalizado' ? undefined : o.completedAt,
       };
     }));
+    setStatusDialogOrder(null);
+    toast({ title: `Status alterado para ${statusConfig[newStatus].label}` });
+  };
+
+  const updateOrderField = (orderId: string, field: 'motoboyName' | 'orderSource', value: string) => {
+    setOrders(prev => prev.map(o =>
+      o.id === orderId ? { ...o, [field]: value } : o
+    ));
   };
 
   const pendingCount = orders.filter(o => (o.orderType === 'delivery' || o.orderType === 'retirada') && o.deliveryStatus === 'pendente').length;
@@ -206,12 +228,18 @@ const Entregas = () => {
                           {order.orderType === 'delivery' ? '🛵' : '📦'}
                         </span>
                         <span className="font-bold text-foreground text-sm">#{order.id.slice(0, 6)}</span>
+                        {order.orderSource && (
+                          <span className="text-xs text-muted-foreground">{orderSourceLabels[order.orderSource]}</span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {new Date(order.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
-                    <Badge className={`${cfg.color} gap-1`}>
+                    <Badge
+                      className={`${cfg.color} gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
+                      onClick={() => setStatusDialogOrder(order)}
+                    >
                       <StatusIcon className="h-3 w-3" />
                       {cfg.label}
                     </Badge>
@@ -233,6 +261,12 @@ const Entregas = () => {
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <MapPin className="h-3.5 w-3.5 shrink-0" />
                         <span className="line-clamp-2">{order.customerAddress}</span>
+                      </div>
+                    )}
+                    {order.motoboyName && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Bike className="h-3.5 w-3.5" />
+                        <span>{order.motoboyName}</span>
                       </div>
                     )}
                   </div>
@@ -289,10 +323,11 @@ const Entregas = () => {
                         </Button>
                         <Button
                           size="sm"
-                          className="flex-1"
-                          onClick={() => advanceStatus(order.id)}
+                          className="flex-1 gap-1"
+                          onClick={() => changeStatus(order.id, ds === 'pendente' ? 'pronto' : 'finalizado')}
                         >
                           {ds === 'pendente' ? 'Marcar Pronto' : 'Finalizar'}
+                          <ChevronRight className="h-3.5 w-3.5" />
                         </Button>
                       </>
                     ) : null}
@@ -303,6 +338,72 @@ const Entregas = () => {
           })}
         </div>
       )}
+
+      {/* Status Change Dialog */}
+      <Dialog open={!!statusDialogOrder} onOpenChange={(open) => !open && setStatusDialogOrder(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Alterar Status — #{statusDialogOrder?.id.slice(0, 6)}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {(['pendente', 'pronto', 'finalizado'] as DeliveryStatus[]).map(s => {
+              const cfg = statusConfig[s];
+              const Icon = cfg.icon;
+              const isActive = statusDialogOrder?.deliveryStatus === s;
+              return (
+                <Button
+                  key={s}
+                  variant={isActive ? 'default' : 'outline'}
+                  className="w-full justify-start gap-3 h-12"
+                  onClick={() => statusDialogOrder && changeStatus(statusDialogOrder.id, s)}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="font-medium">{cfg.label}</span>
+                  {isActive && <span className="ml-auto text-xs opacity-70">Atual</span>}
+                </Button>
+              );
+            })}
+          </div>
+
+          {/* Edit motoboy inline */}
+          {statusDialogOrder && (statusDialogOrder.orderType === 'delivery') && (
+            <div className="space-y-2 pt-2 border-t">
+              <Label>Motoboy</Label>
+              <Input
+                placeholder="Nome do motoboy"
+                value={statusDialogOrder.motoboyName || ''}
+                onChange={e => {
+                  updateOrderField(statusDialogOrder.id, 'motoboyName', e.target.value);
+                  setStatusDialogOrder(prev => prev ? { ...prev, motoboyName: e.target.value } : null);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Edit order source inline */}
+          {statusDialogOrder && (
+            <div className="space-y-2 pt-2 border-t">
+              <Label>Origem do pedido</Label>
+              <Select
+                value={statusDialogOrder.orderSource || 'outro'}
+                onValueChange={v => {
+                  updateOrderField(statusDialogOrder.id, 'orderSource', v);
+                  setStatusDialogOrder(prev => prev ? { ...prev, orderSource: v as OrderSource } : null);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(orderSourceLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* New Order Dialog */}
       <Dialog open={newOrderOpen} onOpenChange={setNewOrderOpen}>
@@ -332,6 +433,7 @@ const Entregas = () => {
           </div>
 
           <div className="space-y-3">
+            {/* Customer search */}
             <div className="space-y-1.5 relative">
               <Label htmlFor="name">Nome do cliente *</Label>
               <Input
@@ -389,7 +491,6 @@ const Entregas = () => {
                     onChange={e => setCustomerAddress(e.target.value)}
                   />
                 </div>
-
                 <div className="space-y-1.5">
                   <Label htmlFor="fee">Taxa de entrega (R$)</Label>
                   <Input
@@ -400,8 +501,32 @@ const Entregas = () => {
                     onChange={e => setDeliveryFee(e.target.value)}
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="motoboy">Motoboy</Label>
+                  <Input
+                    id="motoboy"
+                    placeholder="Nome do motoboy (opcional)"
+                    value={motoboyName}
+                    onChange={e => setMotoboyName(e.target.value)}
+                  />
+                </div>
               </>
             )}
+
+            {/* Order source */}
+            <div className="space-y-1.5">
+              <Label>Origem do pedido</Label>
+              <Select value={orderSource} onValueChange={v => setOrderSource(v as OrderSource)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(orderSourceLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="flex gap-2 pt-2">
