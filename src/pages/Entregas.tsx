@@ -91,6 +91,7 @@ const Entregas = () => {
       total: 0,
       orderType: selectedType,
       status: 'aberto',
+      customerId: selectedCustomerId,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       customerAddress: selectedType === 'delivery' ? customerAddress.trim() : undefined,
