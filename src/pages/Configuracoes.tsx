@@ -117,7 +117,7 @@ function UsuariosTab() {
 
   const handleSave = () => {
     if (!form.name || !form.email || !form.pin) {
-      toast({ title: 'Preencha todos os campos', variant: 'destructive' });
+      return;
       return;
     }
 
