@@ -118,7 +118,7 @@ const Produtos = () => {
   const confirmDelete = () => {
     if (!deleteId) return;
     setProducts(prev => prev.filter(p => p.id !== deleteId));
-    toast({ title: 'Produto excluído' });
+    
     setDeleteOpen(false);
     setDeleteId(null);
   };
