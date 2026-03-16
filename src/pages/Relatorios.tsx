@@ -118,13 +118,14 @@ const Relatorios = () => {
           <PopoverContent className="w-auto p-0" align="end">
             <div className="flex">
               {/* Presets */}
-              <div className="border-r p-2 space-y-1 min-w-[140px]">
+              <div className="border-r p-2 space-y-0.5 w-[120px]">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-2 pb-1 block">Atalhos</span>
                 {presets.map(p => (
                   <Button
                     key={p.key}
                     variant={activePreset === p.key ? 'default' : 'ghost'}
                     size="sm"
-                    className="w-full justify-start text-xs"
+                    className="w-full justify-start text-[11px] h-7 px-2"
                     onClick={() => selectPreset(p.key)}
                   >
                     {p.label}
@@ -133,6 +134,7 @@ const Relatorios = () => {
               </div>
               {/* Calendar */}
               <div className="p-2">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-1 block mb-1">Período personalizado</span>
                 <Calendar
                   mode="range"
                   selected={activePreset === 'custom' ? { from: customRange.from, to: customRange.to } : { from: dateRange.from, to: dateRange.to }}
