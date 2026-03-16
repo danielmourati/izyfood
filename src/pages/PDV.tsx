@@ -240,7 +240,7 @@ const PDV = () => {
       <div className="hidden md:flex w-80 lg:w-96 border-l bg-card flex-col">
         <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
           updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
-          tables={tables} onSelectTable={(t) => navigate(`/pdv?mesa=${t.number}`)} />
+          tables={tables} onSelectTable={(t) => handleSelectTable(t)} />
       </div>
 
       {showCart && (
