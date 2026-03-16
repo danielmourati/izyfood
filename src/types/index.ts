@@ -49,6 +49,10 @@ export interface Order {
   orderSource?: OrderSource;
   motoboyName?: string;
   paymentMethod?: PaymentMethod;
+  paymentSplits?: PaymentSplit[];
+  discount?: number;
+  discountType?: 'percentage' | 'fixed';
+  couponId?: string;
   createdAt: string;
   heldAt?: string;
   completedAt?: string;
