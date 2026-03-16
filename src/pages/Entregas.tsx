@@ -85,7 +85,7 @@ const Entregas = () => {
 
   const handleCreateOrder = () => {
     if (!customerName.trim()) {
-      toast({ title: 'Informe o nome do cliente', variant: 'destructive' });
+      return;
       return;
     }
     if (!customerPhone.trim()) {
