@@ -52,11 +52,13 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(',', '.');
-    // Only allow digits and one dot, max 3 decimal places
     if (/^\d*\.?\d{0,3}$/.test(raw)) {
       setValue(raw);
     }
   };
+
+  // Display value with comma
+  const displayValue = value.replace('.', ',');
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
