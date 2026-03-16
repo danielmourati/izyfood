@@ -89,7 +89,7 @@ const Entregas = () => {
       return;
     }
     if (!customerPhone.trim()) {
-      toast({ title: 'Informe o telefone', variant: 'destructive' });
+      return;
       return;
     }
     if (selectedType === 'delivery' && !customerAddress.trim()) {
