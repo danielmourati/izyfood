@@ -56,9 +56,11 @@ const PDV = () => {
     setInitialized(true);
   }, [existingOrder, tableNumber, initialized]);
 
-  // Sync cart back to the order in store (for table orders)
+  // Sync cart back to the order in store (for table/delivery orders)
   useEffect(() => {
     if (!pedidoParam || !initialized) return;
+    // Don't sync empty cart back — it would erase saved items after checkout
+    if (cart.length === 0) return;
     const total = cart.reduce((s, i) => s + i.subtotal, 0);
     setOrders(prev => prev.map(o =>
       o.id === pedidoParam ? { ...o, items: cart, total } : o
