@@ -88,7 +88,7 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
             />
             <span className="text-lg text-muted-foreground">kg</span>
           </div>
-          <p className="text-lg font-semibold text-primary mt-1">R$ {total.toFixed(2)}</p>
+          <p className="text-lg font-semibold text-primary mt-1">R$ {fmt(total)}</p>
           <p className="text-[10px] text-muted-foreground mt-1">Digite o peso no teclado ou use os botões</p>
         </div>
 
