@@ -9,7 +9,7 @@ export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | '
 export type DeliveryStatus = 'pendente' | 'pronto' | 'finalizado';
 export type PaymentMethod = 'pix' | 'cartao' | 'fiado' | 'dinheiro';
 export type OrderSource = 'ifood' | 'aiqfome' | 'whatsapp' | 'instagram' | 'telefone' | 'loja' | 'outro';
-export type UserRole = 'admin' | 'atendente';
+export type UserRole = 'admin' | 'atendente' | 'motoboy';
 
 export interface Product {
   id: string;
@@ -49,6 +49,10 @@ export interface Order {
   orderSource?: OrderSource;
   motoboyName?: string;
   paymentMethod?: PaymentMethod;
+  paymentSplits?: PaymentSplit[];
+  discount?: number;
+  discountType?: 'percentage' | 'fixed';
+  couponId?: string;
   createdAt: string;
   heldAt?: string;
   completedAt?: string;
@@ -96,6 +100,26 @@ export interface Sale {
 export interface User {
   id: string;
   name: string;
+  email: string;
   role: UserRole;
   pin: string;
+}
+
+export interface PaymentSplit {
+  method: PaymentMethod;
+  amount: number;
+}
+
+export interface DiscountCoupon {
+  id: string;
+  code: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  active: boolean;
+  minOrder?: number;
+  expiresAt?: string;
+}
+
+export interface StoreSettings {
+  tableCount: number;
 }

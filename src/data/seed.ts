@@ -46,6 +46,6 @@ export const seedTables: TableInfo[] = Array.from({ length: 20 }, (_, i) => ({
 }));
 
 export const seedUsers: User[] = [
-  { id: 'u1', name: 'Proprietário', role: 'admin', pin: '1234' },
-  { id: 'u2', name: 'Atendente', role: 'atendente', pin: '0000' },
+  { id: 'u1', name: 'Proprietário', email: 'admin@carnauba.com', role: 'admin', pin: '1234' },
+  { id: 'u2', name: 'Atendente', email: 'atendente@carnauba.com', role: 'atendente', pin: '0000' },
 ];
