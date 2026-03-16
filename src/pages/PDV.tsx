@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { fmt, fmtWeight } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Product, OrderItem, Order, OrderType } from '@/types';
+import { Product, OrderItem, Order, OrderType, TableInfo } from '@/types';
 import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
