@@ -34,7 +34,7 @@ const Estoque = () => {
     };
     setStockEntries(prev => [...prev, entry]);
     setProducts(prev => prev.map(p => p.id === entryForm.productId ? { ...p, stock: p.stock + qty } : p));
-    toast({ title: 'Entrada registrada' });
+    
     setEntryForm({ productId: '', quantity: '', supplierId: '' });
     setEntryOpen(false);
   };
