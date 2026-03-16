@@ -70,7 +70,7 @@ const Clientes = () => {
               <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /> {c.address}</p>
               {c.notes && <p className="flex items-center gap-2"><FileText className="h-3.5 w-3.5" /> {c.notes}</p>}
               {c.creditBalance > 0 && (
-                <p className="text-destructive font-semibold pt-1">Débito: R$ {c.creditBalance.toFixed(2)}</p>
+                <p className="text-destructive font-semibold pt-1">Débito: R$ {fmt(c.creditBalance)}</p>
               )}
             </CardContent>
           </Card>

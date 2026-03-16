@@ -182,7 +182,7 @@ const Relatorios = () => {
                     <TableRow key={c.id}>
                       <TableCell>{c.name}</TableCell>
                       <TableCell>{c.phone}</TableCell>
-                      <TableCell className="font-semibold text-destructive">R$ {c.creditBalance.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold text-destructive">R$ {fmt(c.creditBalance)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

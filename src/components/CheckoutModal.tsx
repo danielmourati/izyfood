@@ -116,7 +116,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
             {change > 0 && (
               <div className="bg-accent/10 rounded-lg p-3 text-center">
                 <p className="text-sm text-muted-foreground">Troco</p>
-                <p className="text-2xl font-bold text-accent">R$ {change.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-accent">R$ {fmt(change)}</p>
               </div>
             )}
           </div>
