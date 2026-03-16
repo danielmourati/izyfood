@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/contexts/StoreContext';
 import { Order, PaymentMethod } from '@/types';
+import { fmt } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { CreditCard, QrCode, Wallet, Banknote } from 'lucide-react';
 
