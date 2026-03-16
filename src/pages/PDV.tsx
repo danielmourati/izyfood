@@ -264,7 +264,7 @@ const PDV = () => {
       </div>
 
       {showCart && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowCart(false)} />
           <div className="ml-auto w-full max-w-sm bg-card flex flex-col relative z-10 animate-in slide-in-from-right">
             <div className="flex items-center justify-between p-3 border-b">
