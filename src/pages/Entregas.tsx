@@ -19,7 +19,7 @@ const statusConfig: Record<DeliveryStatus, { label: string; color: string; icon:
 };
 
 const Entregas = () => {
-  const { orders, setOrders } = useStore();
+  const { orders, setOrders, customers } = useStore();
   const navigate = useNavigate();
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<'delivery' | 'retirada'>('delivery');
@@ -29,6 +29,27 @@ const Entregas = () => {
   const [deliveryFee, setDeliveryFee] = useState('');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<DeliveryStatus | 'todos'>('todos');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>();
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return [];
+    const s = customerSearch.toLowerCase();
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(s) || c.phone.includes(s)
+    ).slice(0, 5);
+  }, [customers, customerSearch]);
+
+  const selectCustomer = (c: typeof customers[0]) => {
+    setCustomerName(c.name);
+    setCustomerPhone(c.phone);
+    setCustomerAddress(c.address);
+    setSelectedCustomerId(c.id);
+    setCustomerSearch('');
+    setShowCustomerDropdown(false);
+  };
 
   const deliveryOrders = useMemo(() => {
     return orders
