@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useStore } from '@/contexts/StoreContext';
 import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
-import { toast } from '@/hooks/use-toast';
+
 import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket } from 'lucide-react';
 
 interface CheckoutModalProps {
