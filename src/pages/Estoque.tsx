@@ -13,7 +13,7 @@ import { Supplier, StockEntry } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const Estoque = () => {
-  const { products, setProducts, suppliers, setSuppliers, stockEntries, setStockEntries } = useStore();
+  const { products, setProducts, suppliers, setSuppliers, stockEntries, setStockEntries, categories } = useStore();
   const [entryOpen, setEntryOpen] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [entryForm, setEntryForm] = useState({ productId: '', quantity: '', supplierId: '' });
