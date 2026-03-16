@@ -123,7 +123,7 @@ function UsuariosTab() {
 
     if (editingId) {
       setUsers(prev => prev.map(u => u.id === editingId ? { ...u, ...form } : u));
-      toast({ title: 'Usuário atualizado' });
+      
     } else {
       const exists = users.find(u => u.email === form.email);
       if (exists) {
