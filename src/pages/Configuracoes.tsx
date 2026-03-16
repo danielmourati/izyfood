@@ -131,7 +131,7 @@ function UsuariosTab() {
         return;
       }
       setUsers(prev => [...prev, { id: crypto.randomUUID(), ...form }]);
-      toast({ title: 'Usuário criado' });
+      
     }
     resetForm();
   };
