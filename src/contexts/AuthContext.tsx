@@ -8,6 +8,8 @@ const demoUsers: { email: string; password: string; user: User }[] = [
 
 interface AuthContextType {
   user: User | null;
+  users: User[];
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   login: (email: string, password: string) => boolean;
   logout: () => void;
   isAdmin: boolean;
