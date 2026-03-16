@@ -39,8 +39,8 @@ function AppRoutes() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
-        <Route path="/mesas" element={<ProtectedRoute><Mesas /></ProtectedRoute>} />
+        <Route path="/" element={<ProtectedRoute><Mesas /></ProtectedRoute>} />
+        <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
         <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
         <Route path="/clientes" element={<ProtectedRoute adminOnly><Clientes /></ProtectedRoute>} />
         <Route path="/estoque" element={<ProtectedRoute adminOnly><Estoque /></ProtectedRoute>} />
