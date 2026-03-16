@@ -273,7 +273,7 @@ const PDV = () => {
         <div className="border-t p-3 space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-lg font-semibold text-foreground">Total</span>
-            <span className="text-2xl font-bold text-primary">R$ {total.toFixed(2)}</span>
+            <span className="text-2xl font-bold text-primary">R$ {fmt(total)}</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <Button variant="destructive" className="h-12" onClick={cancelOrder} disabled={cart.length === 0}>

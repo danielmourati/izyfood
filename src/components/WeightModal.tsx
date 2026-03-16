@@ -81,7 +81,7 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
               ref={inputRef}
               type="text"
               inputMode="decimal"
-              value={value}
+              value={displayValue}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder="0"
