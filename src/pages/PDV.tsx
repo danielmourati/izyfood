@@ -272,12 +272,24 @@ const PDV = () => {
 };
 
 function CartContent({
-  cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen,
+  cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
   cancelOrder: () => void; holdOrder: () => void; setCheckoutOpen: (v: boolean) => void;
+  tables: TableInfo[]; onSelectTable: (t: TableInfo) => void;
 }) {
+  const [tableModalOpen, setTableModalOpen] = useState(false);
+  const availableTables = tables.filter(t => t.status === 'available');
+
+  const handleOrderTypeClick = (key: OrderType) => {
+    if (key === 'mesa') {
+      setTableModalOpen(true);
+    } else {
+      setOrderType(key);
+    }
+  };
+
   return (
     <>
       <div className="p-3 border-b">
@@ -286,7 +298,7 @@ function CartContent({
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
-              <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-xs h-9" onClick={() => setOrderType(key)}>
+              <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-xs h-9" onClick={() => handleOrderTypeClick(key)}>
                 {label}
               </Button>
             ))}
@@ -339,6 +351,30 @@ function CartContent({
           </Button>
         </div>
       </div>
+
+      <Dialog open={tableModalOpen} onOpenChange={setTableModalOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Selecionar Mesa</DialogTitle>
+          </DialogHeader>
+          {availableTables.length === 0 ? (
+            <p className="text-center text-muted-foreground py-6">Nenhuma mesa disponível</p>
+          ) : (
+            <div className="grid grid-cols-4 gap-2">
+              {availableTables.map(t => (
+                <Button
+                  key={t.number}
+                  variant="outline"
+                  className="h-14 text-base font-semibold hover:bg-primary hover:text-primary-foreground"
+                  onClick={() => { setTableModalOpen(false); onSelectTable(t); }}
+                >
+                  {t.number}
+                </Button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
