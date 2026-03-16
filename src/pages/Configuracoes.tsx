@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { DiscountCoupon, UserRole } from '@/types';
-import { toast } from '@/hooks/use-toast';
+
 import { fmt } from '@/lib/utils';
 import {
   Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X
