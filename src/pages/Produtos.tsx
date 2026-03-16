@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Upload, X, Search, Tag } from 'lucide-react';
 import { Product, ProductType, ProductCategory } from '@/types';
-import { toast } from '@/hooks/use-toast';
+
 
 const emptyProductForm = {
   name: '',
