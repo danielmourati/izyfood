@@ -1,5 +1,5 @@
 import {
-  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, LogOut
+  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, LogOut, Truck
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ const allItems = [
   { title: 'Mesas', url: '/', icon: Grid3X3, adminOnly: false },
   { title: 'PDV', url: '/pdv', icon: ShoppingCart, adminOnly: false },
   { title: 'Pedidos', url: '/pedidos', icon: ClipboardList, adminOnly: false },
+  { title: 'Entregas', url: '/entregas', icon: Truck, adminOnly: false },
   { title: 'Clientes', url: '/clientes', icon: Users, adminOnly: true },
   { title: 'Estoque', url: '/estoque', icon: Package, adminOnly: true },
   { title: 'Relatórios', url: '/relatorios', icon: BarChart3, adminOnly: true },

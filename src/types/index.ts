@@ -1,7 +1,8 @@
 export type ProductCategory = 'acai' | 'sorvetes' | 'bebidas' | 'extras';
 export type ProductType = 'unit' | 'weight';
 export type OrderType = 'balcao' | 'mesa' | 'delivery' | 'retirada';
-export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado';
+export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | 'pronto';
+export type DeliveryStatus = 'pendente' | 'pronto' | 'finalizado';
 export type PaymentMethod = 'pix' | 'cartao' | 'fiado' | 'dinheiro';
 export type UserRole = 'admin' | 'atendente';
 
@@ -35,6 +36,10 @@ export interface Order {
   tableNumber?: number;
   customerId?: string;
   customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  deliveryFee?: number;
+  deliveryStatus?: DeliveryStatus;
   paymentMethod?: PaymentMethod;
   createdAt: string;
   heldAt?: string;
