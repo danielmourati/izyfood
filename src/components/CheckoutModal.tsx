@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useStore } from '@/contexts/StoreContext';
-import { Order, PaymentMethod } from '@/types';
+import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import { CreditCard, QrCode, Wallet, Banknote } from 'lucide-react';
+import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket } from 'lucide-react';
 
 interface CheckoutModalProps {
   open: boolean;
@@ -22,71 +25,288 @@ const methods: { key: PaymentMethod; label: string; icon: React.ElementType }[] 
 ];
 
 export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModalProps) {
-  const { completeSale, customers } = useStore();
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const { completeSale, customers, coupons } = useStore();
+  const [splits, setSplits] = useState<PaymentSplit[]>([]);
+  const [addingMethod, setAddingMethod] = useState<PaymentMethod | null>(null);
+  const [addingAmount, setAddingAmount] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [cashGiven, setCashGiven] = useState('');
 
+  // Discount state
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('fixed');
+  const [discountValue, setDiscountValue] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+
   if (!order) return null;
 
-  const handleFinalize = () => {
-    if (!selectedMethod) {
-      toast({ title: 'Selecione a forma de pagamento', variant: 'destructive' });
+  const subtotal = order.total;
+
+  // Calculate discount
+  const discountAmount = useMemo(() => {
+    const val = parseFloat(discountValue.replace(',', '.')) || 0;
+    if (appliedCoupon) {
+      const coupon = coupons.find(c => c.id === appliedCoupon);
+      if (coupon) {
+        return coupon.type === 'percentage' ? (subtotal * coupon.value) / 100 : coupon.value;
+      }
+    }
+    if (val <= 0) return 0;
+    return discountType === 'percentage' ? (subtotal * val) / 100 : val;
+  }, [discountValue, discountType, subtotal, appliedCoupon, coupons]);
+
+  const finalTotal = Math.max(0, subtotal - discountAmount);
+  const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
+  const remaining = finalTotal - totalAssigned;
+
+  const hasFiado = splits.some(s => s.method === 'fiado');
+
+  const addSplit = () => {
+    if (!addingMethod) return;
+    const amount = parseFloat(addingAmount.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      toast({ title: 'Informe um valor válido', variant: 'destructive' });
       return;
     }
-    if (selectedMethod === 'fiado' && !selectedCustomer && !order.customerId) {
+    setSplits(prev => [...prev, { method: addingMethod, amount }]);
+    setAddingMethod(null);
+    setAddingAmount('');
+  };
+
+  const addFullRemaining = (method: PaymentMethod) => {
+    if (remaining <= 0) return;
+    setSplits(prev => [...prev, { method, amount: Math.round(remaining * 100) / 100 }]);
+  };
+
+  const removeSplit = (idx: number) => {
+    setSplits(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const applyCoupon = () => {
+    const code = couponCode.trim().toUpperCase();
+    const coupon = coupons.find(c => c.code === code && c.active);
+    if (!coupon) {
+      toast({ title: 'Cupom inválido ou inativo', variant: 'destructive' });
+      return;
+    }
+    if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+      toast({ title: 'Cupom expirado', variant: 'destructive' });
+      return;
+    }
+    if (coupon.minOrder && subtotal < coupon.minOrder) {
+      toast({ title: `Pedido mínimo: R$ ${fmt(coupon.minOrder)}`, variant: 'destructive' });
+      return;
+    }
+    setAppliedCoupon(coupon.id);
+    setDiscountValue('');
+    toast({ title: 'Cupom aplicado!', description: `${coupon.type === 'percentage' ? `${coupon.value}%` : `R$ ${fmt(coupon.value)}`} de desconto` });
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+  };
+
+  const handleFinalize = () => {
+    if (splits.length === 0) {
+      toast({ title: 'Adicione ao menos uma forma de pagamento', variant: 'destructive' });
+      return;
+    }
+    if (Math.abs(remaining) > 0.01 && remaining > 0) {
+      toast({ title: `Falta R$ ${fmt(remaining)} para completar`, variant: 'destructive' });
+      return;
+    }
+    if (hasFiado && !selectedCustomer && !order.customerId) {
       toast({ title: 'Selecione o cliente para fiado', variant: 'destructive' });
       return;
     }
 
+    const primaryMethod = splits.reduce((a, b) => a.amount >= b.amount ? a : b).method;
+
     const finalOrder: Order = {
       ...order,
-      paymentMethod: selectedMethod,
-      customerId: selectedMethod === 'fiado' ? (selectedCustomer || order.customerId) : order.customerId,
+      total: finalTotal,
+      paymentMethod: primaryMethod,
+      paymentSplits: splits,
+      discount: discountAmount > 0 ? discountAmount : undefined,
+      discountType: discountAmount > 0 ? discountType : undefined,
+      couponId: appliedCoupon || undefined,
+      customerId: hasFiado ? (selectedCustomer || order.customerId) : order.customerId,
     };
 
     completeSale(finalOrder);
-    toast({ title: 'Venda finalizada!', description: `R$ ${fmt(order.total)} via ${selectedMethod.toUpperCase()}` });
-    setSelectedMethod(null);
+    const methodsStr = splits.map(s => `${s.method.toUpperCase()} R$ ${fmt(s.amount)}`).join(' + ');
+    toast({ title: 'Venda finalizada!', description: `R$ ${fmt(finalTotal)} via ${methodsStr}` });
+
+    // Reset
+    setSplits([]);
+    setAddingMethod(null);
+    setAddingAmount('');
     setSelectedCustomer(null);
     setCashGiven('');
+    setDiscountValue('');
+    setAppliedCoupon(null);
+    setCouponCode('');
     onComplete();
     onClose();
   };
 
-  const change = selectedMethod === 'dinheiro' && cashGiven
-    ? parseFloat(cashGiven) - order.total
-    : 0;
+  const cashSplit = splits.find(s => s.method === 'dinheiro');
+  const cashChange = cashSplit && cashGiven ? parseFloat(cashGiven.replace(',', '.')) - cashSplit.amount : 0;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
         <DialogHeader>
           <DialogTitle>Pagamento</DialogTitle>
         </DialogHeader>
 
-        <div className="bg-primary/10 rounded-xl p-4 text-center">
-          <p className="text-sm text-muted-foreground">Total</p>
-          <p className="text-4xl font-bold text-primary">R$ {fmt(order.total)}</p>
+        {/* Subtotal */}
+        <div className="bg-primary/10 rounded-xl p-3 text-center">
+          <p className="text-sm text-muted-foreground">Subtotal</p>
+          <p className="text-3xl font-bold text-primary">R$ {fmt(subtotal)}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {methods.map(m => (
-            <Button
-              key={m.key}
-              variant={selectedMethod === m.key ? 'default' : 'outline'}
-              className="h-16 flex-col gap-1"
-              onClick={() => setSelectedMethod(m.key)}
-            >
-              <m.icon className="h-5 w-5" />
-              <span className="text-sm">{m.label}</span>
-            </Button>
-          ))}
+        {/* Discount section */}
+        <div className="space-y-2 border rounded-lg p-3">
+          <p className="text-sm font-semibold text-foreground">Desconto</p>
+          {appliedCoupon ? (
+            <div className="flex items-center justify-between bg-accent/10 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Ticket className="h-4 w-4 text-primary" />
+                <span className="font-mono font-bold text-sm">{coupons.find(c => c.id === appliedCoupon)?.code}</span>
+                <span className="text-sm text-muted-foreground">-R$ {fmt(discountAmount)}</span>
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={removeCoupon}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <div className="flex border rounded-lg overflow-hidden">
+                  <button
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${discountType === 'fixed' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground'}`}
+                    onClick={() => setDiscountType('fixed')}
+                  >
+                    <DollarSign className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${discountType === 'percentage' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground'}`}
+                    onClick={() => setDiscountType('percentage')}
+                  >
+                    <Percent className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <Input
+                  className="flex-1 h-9"
+                  placeholder={discountType === 'percentage' ? 'Ex: 10' : 'Ex: 5,00'}
+                  value={discountValue}
+                  onChange={e => setDiscountValue(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  className="flex-1 h-9"
+                  placeholder="Código do cupom"
+                  value={couponCode}
+                  onChange={e => setCouponCode(e.target.value)}
+                />
+                <Button size="sm" variant="outline" onClick={applyCoupon} disabled={!couponCode.trim()}>
+                  Aplicar
+                </Button>
+              </div>
+            </>
+          )}
+          {discountAmount > 0 && (
+            <p className="text-sm text-primary font-semibold text-right">
+              Total com desconto: R$ {fmt(finalTotal)}
+            </p>
+          )}
         </div>
 
-        {selectedMethod === 'fiado' && (
+        {/* Payment splits */}
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-foreground">Formas de pagamento</p>
+
+          {splits.length > 0 && (
+            <div className="space-y-1.5">
+              {splits.map((s, i) => (
+                <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    {React.createElement(methods.find(m => m.key === s.method)?.icon || QrCode, { className: 'h-4 w-4' })}
+                    <span className="text-sm font-medium">{methods.find(m => m.key === s.method)?.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm">R$ {fmt(s.amount)}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeSplit(i)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {remaining > 0.01 && (
+            <div className="bg-amber-500/10 rounded-lg px-3 py-2 text-center">
+              <p className="text-xs text-muted-foreground">Restante</p>
+              <p className="text-lg font-bold text-amber-600">R$ {fmt(remaining)}</p>
+            </div>
+          )}
+
+          {/* Quick add buttons - full remaining */}
+          {remaining > 0.01 && (
+            <div className="grid grid-cols-4 gap-2">
+              {methods.map(m => (
+                <Button
+                  key={m.key}
+                  variant="outline"
+                  className="h-14 flex-col gap-1 text-xs"
+                  onClick={() => addFullRemaining(m.key)}
+                >
+                  <m.icon className="h-4 w-4" />
+                  {m.label}
+                </Button>
+              ))}
+            </div>
+          )}
+
+          {/* Partial payment */}
+          {remaining > 0.01 && (
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Label className="text-xs">Valor parcial</Label>
+                <div className="flex gap-1.5">
+                  <select
+                    className="h-9 rounded-md border bg-background px-2 text-sm"
+                    value={addingMethod || ''}
+                    onChange={e => setAddingMethod(e.target.value as PaymentMethod)}
+                  >
+                    <option value="">Método</option>
+                    {methods.map(m => (
+                      <option key={m.key} value={m.key}>{m.label}</option>
+                    ))}
+                  </select>
+                  <Input
+                    className="h-9 flex-1"
+                    placeholder="Valor"
+                    value={addingAmount}
+                    onChange={e => setAddingAmount(e.target.value)}
+                  />
+                  <Button size="sm" className="h-9" onClick={addSplit} disabled={!addingMethod || !addingAmount}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Fiado customer selection */}
+        {hasFiado && (
           <div className="space-y-2">
-            <p className="text-sm font-medium">Selecionar cliente:</p>
+            <p className="text-sm font-medium">Selecionar cliente (fiado):</p>
             <div className="max-h-32 overflow-auto space-y-1">
               {customers.map(c => (
                 <Button
@@ -102,21 +322,20 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
           </div>
         )}
 
-        {selectedMethod === 'dinheiro' && (
+        {/* Cash change */}
+        {cashSplit && (
           <div className="space-y-2">
-            <p className="text-sm font-medium">Valor recebido:</p>
-            <input
-              type="number"
-              step="0.01"
-              className="w-full h-12 text-center text-2xl font-bold border rounded-lg bg-background text-foreground"
-              placeholder="0.00"
+            <p className="text-sm font-medium">Valor recebido (dinheiro):</p>
+            <Input
+              className="h-12 text-center text-2xl font-bold"
+              placeholder="0,00"
               value={cashGiven}
               onChange={e => setCashGiven(e.target.value)}
             />
-            {change > 0 && (
+            {cashChange > 0 && (
               <div className="bg-accent/10 rounded-lg p-3 text-center">
                 <p className="text-sm text-muted-foreground">Troco</p>
-                <p className="text-2xl font-bold text-accent">R$ {fmt(change)}</p>
+                <p className="text-2xl font-bold text-accent">R$ {fmt(cashChange)}</p>
               </div>
             )}
           </div>

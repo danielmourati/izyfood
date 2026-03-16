@@ -1,10 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory } from '@/types';
-import { seedProducts, seedCustomers, seedSuppliers, seedTables, seedCategories } from '@/data/seed';
+import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory, DiscountCoupon, StoreSettings } from '@/types';
+import { seedProducts, seedCustomers, seedSuppliers, seedCategories } from '@/data/seed';
 
 function load<T>(key: string, fallback: T): T {
   const s = localStorage.getItem(key);
   return s ? JSON.parse(s) : fallback;
+}
+
+const defaultSettings: StoreSettings = { tableCount: 20 };
+
+function generateTables(count: number): TableInfo[] {
+  return Array.from({ length: count }, (_, i) => ({
+    number: i + 1,
+    status: 'available' as const,
+  }));
 }
 
 interface StoreContextType {
@@ -24,23 +33,31 @@ interface StoreContextType {
   setSales: React.Dispatch<React.SetStateAction<Sale[]>>;
   stockEntries: StockEntry[];
   setStockEntries: React.Dispatch<React.SetStateAction<StockEntry[]>>;
+  coupons: DiscountCoupon[];
+  setCoupons: React.Dispatch<React.SetStateAction<DiscountCoupon[]>>;
+  settings: StoreSettings;
+  setSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
   completeSale: (order: Order) => void;
   deductStock: (items: OrderItem[]) => void;
   getCategoryById: (id: string) => ProductCategory | undefined;
+  updateTableCount: (count: number) => void;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const [settings, setSettings] = useState<StoreSettings>(() => load('pos_settings', defaultSettings));
   const [products, setProducts] = useState<Product[]>(() => load('pos_products', seedProducts));
   const [categories, setCategories] = useState<ProductCategory[]>(() => load('pos_categories', seedCategories));
   const [orders, setOrders] = useState<Order[]>(() => load('pos_orders', []));
   const [customers, setCustomers] = useState<Customer[]>(() => load('pos_customers', seedCustomers));
-  const [tables, setTables] = useState<TableInfo[]>(() => load('pos_tables', seedTables));
+  const [tables, setTables] = useState<TableInfo[]>(() => load('pos_tables', generateTables(settings.tableCount)));
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => load('pos_suppliers', seedSuppliers));
   const [sales, setSales] = useState<Sale[]>(() => load('pos_sales', []));
   const [stockEntries, setStockEntries] = useState<StockEntry[]>(() => load('pos_stock_entries', []));
+  const [coupons, setCoupons] = useState<DiscountCoupon[]>(() => load('pos_coupons', []));
 
+  useEffect(() => { localStorage.setItem('pos_settings', JSON.stringify(settings)); }, [settings]);
   useEffect(() => { localStorage.setItem('pos_products', JSON.stringify(products)); }, [products]);
   useEffect(() => { localStorage.setItem('pos_categories', JSON.stringify(categories)); }, [categories]);
   useEffect(() => { localStorage.setItem('pos_orders', JSON.stringify(orders)); }, [orders]);
@@ -49,8 +66,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => { localStorage.setItem('pos_suppliers', JSON.stringify(suppliers)); }, [suppliers]);
   useEffect(() => { localStorage.setItem('pos_sales', JSON.stringify(sales)); }, [sales]);
   useEffect(() => { localStorage.setItem('pos_stock_entries', JSON.stringify(stockEntries)); }, [stockEntries]);
+  useEffect(() => { localStorage.setItem('pos_coupons', JSON.stringify(coupons)); }, [coupons]);
 
   const getCategoryById = useCallback((id: string) => categories.find(c => c.id === id), [categories]);
+
+  const updateTableCount = useCallback((count: number) => {
+    setSettings(prev => ({ ...prev, tableCount: count }));
+    setTables(prev => {
+      if (count > prev.length) {
+        return [...prev, ...Array.from({ length: count - prev.length }, (_, i) => ({
+          number: prev.length + i + 1,
+          status: 'available' as const,
+        }))];
+      }
+      return prev.slice(0, count);
+    });
+  }, []);
 
   const deductStock = useCallback((items: OrderItem[]) => {
     setProducts(prev => prev.map(p => {
@@ -96,7 +127,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       products, setProducts, categories, setCategories,
       orders, setOrders, customers, setCustomers,
       tables, setTables, suppliers, setSuppliers, sales, setSales,
-      stockEntries, setStockEntries, completeSale, deductStock, getCategoryById,
+      stockEntries, setStockEntries, coupons, setCoupons,
+      settings, setSettings, completeSale, deductStock, getCategoryById, updateTableCount,
     }}>
       {children}
     </StoreContext.Provider>
