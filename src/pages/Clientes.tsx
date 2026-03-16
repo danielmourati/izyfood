@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import { Customer } from '@/types';
 import { Plus, Search, Phone, MapPin, FileText } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+
 
 const Clientes = () => {
   const { customers, setCustomers } = useStore();
@@ -34,13 +34,13 @@ const Clientes = () => {
   };
 
   const save = () => {
-    if (!form.name.trim()) { toast({ title: 'Nome obrigatório', variant: 'destructive' }); return; }
+    if (!form.name.trim()) { return; }
     if (editing) {
       setCustomers(prev => prev.map(c => c.id === editing.id ? { ...c, ...form } : c));
-      toast({ title: 'Cliente atualizado' });
+      
     } else {
       setCustomers(prev => [...prev, { id: crypto.randomUUID(), ...form, creditBalance: 0 }]);
-      toast({ title: 'Cliente cadastrado' });
+      
     }
     setEditOpen(false);
   };

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { fmt } from '@/lib/utils';
 import { Order, OrderType, DeliveryStatus, OrderSource } from '@/types';
-import { toast } from '@/hooks/use-toast';
+
 import { Plus, Phone, MapPin, User, Truck, Package, CheckCircle2, Clock, Search, ChevronRight, Bike } from 'lucide-react';
 
 const statusConfig: Record<DeliveryStatus, { label: string; color: string; icon: React.ElementType }> = {
@@ -85,15 +85,15 @@ const Entregas = () => {
 
   const handleCreateOrder = () => {
     if (!customerName.trim()) {
-      toast({ title: 'Informe o nome do cliente', variant: 'destructive' });
+      return;
       return;
     }
     if (!customerPhone.trim()) {
-      toast({ title: 'Informe o telefone', variant: 'destructive' });
+      return;
       return;
     }
     if (selectedType === 'delivery' && !customerAddress.trim()) {
-      toast({ title: 'Informe o endereço de entrega', variant: 'destructive' });
+      return;
       return;
     }
 
@@ -117,7 +117,7 @@ const Entregas = () => {
     };
 
     setOrders(prev => [...prev, newOrder]);
-    toast({ title: 'Pedido criado!', description: `${selectedType === 'delivery' ? '🛵 Delivery' : '📦 Retirada'} — ${customerName}` });
+    
 
     // Reset form
     setCustomerName('');
@@ -144,7 +144,7 @@ const Entregas = () => {
       };
     }));
     setStatusDialogOrder(null);
-    toast({ title: `Status alterado para ${statusConfig[newStatus].label}` });
+    
   };
 
   const updateOrderField = (orderId: string, field: 'motoboyName' | 'orderSource', value: string) => {

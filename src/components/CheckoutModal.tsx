@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useStore } from '@/contexts/StoreContext';
 import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
-import { toast } from '@/hooks/use-toast';
+
 import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket } from 'lucide-react';
 
 interface CheckoutModalProps {
@@ -65,7 +65,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
     if (!addingMethod) return;
     const amount = parseFloat(addingAmount.replace(',', '.'));
     if (isNaN(amount) || amount <= 0) {
-      toast({ title: 'Informe um valor válido', variant: 'destructive' });
+      return;
       return;
     }
     setSplits(prev => [...prev, { method: addingMethod, amount }]);
@@ -86,20 +86,20 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
     const code = couponCode.trim().toUpperCase();
     const coupon = coupons.find(c => c.code === code && c.active);
     if (!coupon) {
-      toast({ title: 'Cupom inválido ou inativo', variant: 'destructive' });
+      return;
       return;
     }
     if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
-      toast({ title: 'Cupom expirado', variant: 'destructive' });
+      return;
       return;
     }
     if (coupon.minOrder && subtotal < coupon.minOrder) {
-      toast({ title: `Pedido mínimo: R$ ${fmt(coupon.minOrder)}`, variant: 'destructive' });
+      return;
       return;
     }
     setAppliedCoupon(coupon.id);
     setDiscountValue('');
-    toast({ title: 'Cupom aplicado!', description: `${coupon.type === 'percentage' ? `${coupon.value}%` : `R$ ${fmt(coupon.value)}`} de desconto` });
+    
   };
 
   const removeCoupon = () => {
@@ -109,15 +109,15 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
 
   const handleFinalize = () => {
     if (splits.length === 0) {
-      toast({ title: 'Adicione ao menos uma forma de pagamento', variant: 'destructive' });
+      return;
       return;
     }
     if (Math.abs(remaining) > 0.01 && remaining > 0) {
-      toast({ title: `Falta R$ ${fmt(remaining)} para completar`, variant: 'destructive' });
+      return;
       return;
     }
     if (hasFiado && !selectedCustomer && !order.customerId) {
-      toast({ title: 'Selecione o cliente para fiado', variant: 'destructive' });
+      return;
       return;
     }
 
@@ -136,7 +136,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
 
     completeSale(finalOrder);
     const methodsStr = splits.map(s => `${s.method.toUpperCase()} R$ ${fmt(s.amount)}`).join(' + ');
-    toast({ title: 'Venda finalizada!', description: `R$ ${fmt(finalTotal)} via ${methodsStr}` });
+    
 
     // Reset
     setSplits([]);

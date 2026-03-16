@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Upload, X, Search, Tag } from 'lucide-react';
 import { Product, ProductType, ProductCategory } from '@/types';
-import { toast } from '@/hooks/use-toast';
+
 
 const emptyProductForm = {
   name: '',
@@ -81,7 +81,7 @@ const Produtos = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      toast({ title: 'Imagem muito grande', description: 'Máximo 2MB', variant: 'destructive' });
+      return;
       return;
     }
     const reader = new FileReader();
@@ -91,7 +91,7 @@ const Produtos = () => {
 
   const save = () => {
     if (!form.name.trim() || !form.price || !form.categoryId) {
-      toast({ title: 'Preencha nome, preço e categoria', variant: 'destructive' });
+      return;
       return;
     }
     const product: Product = {
@@ -107,10 +107,10 @@ const Produtos = () => {
     };
     if (editingId) {
       setProducts(prev => prev.map(p => p.id === editingId ? product : p));
-      toast({ title: 'Produto atualizado' });
+      
     } else {
       setProducts(prev => [...prev, product]);
-      toast({ title: 'Produto cadastrado' });
+      
     }
     setDialogOpen(false);
   };
@@ -118,7 +118,7 @@ const Produtos = () => {
   const confirmDelete = () => {
     if (!deleteId) return;
     setProducts(prev => prev.filter(p => p.id !== deleteId));
-    toast({ title: 'Produto excluído' });
+    
     setDeleteOpen(false);
     setDeleteId(null);
   };
@@ -140,7 +140,7 @@ const Produtos = () => {
 
   const saveCat = () => {
     if (!catForm.name.trim()) {
-      toast({ title: 'Preencha o nome da categoria', variant: 'destructive' });
+      return;
       return;
     }
     const cat: ProductCategory = {
@@ -149,10 +149,10 @@ const Produtos = () => {
     };
     if (editingCatId) {
       setCategories(prev => prev.map(c => c.id === editingCatId ? cat : c));
-      toast({ title: 'Categoria atualizada' });
+      
     } else {
       setCategories(prev => [...prev, cat]);
-      toast({ title: 'Categoria cadastrada' });
+      
     }
     setCatDialogOpen(false);
   };
@@ -161,13 +161,13 @@ const Produtos = () => {
     if (!deleteCatId) return;
     const hasProducts = products.some(p => p.categoryId === deleteCatId);
     if (hasProducts) {
-      toast({ title: 'Não é possível excluir', description: 'Existem produtos vinculados a esta categoria', variant: 'destructive' });
+      setCatDeleteOpen(false);
       setCatDeleteOpen(false);
       return;
     }
     setCategories(prev => prev.filter(c => c.id !== deleteCatId));
     if (filterCategory === deleteCatId) setFilterCategory('all');
-    toast({ title: 'Categoria excluída' });
+    
     setCatDeleteOpen(false);
     setDeleteCatId(null);
   };

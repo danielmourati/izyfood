@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { toast } from '@/hooks/use-toast';
+
 import { ArrowLeft } from 'lucide-react';
 
 const Login = () => {
@@ -20,9 +20,7 @@ const Login = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (login(email, password)) {
-      toast({ title: 'Bem-vindo!', description: 'Login realizado com sucesso.' });
-    } else {
-      toast({ title: 'Credenciais inválidas', description: 'Verifique email e senha.', variant: 'destructive' });
+      // login success
     }
   };
 
@@ -30,19 +28,19 @@ const Login = () => {
     e.preventDefault();
     const user = users.find(u => u.email === resetEmail);
     if (!user) {
-      toast({ title: 'Usuário não encontrado', description: 'Verifique o email informado.', variant: 'destructive' });
+      return;
       return;
     }
     if (newPassword.length < 4) {
-      toast({ title: 'Senha muito curta', description: 'A senha deve ter pelo menos 4 caracteres.', variant: 'destructive' });
+      return;
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({ title: 'Senhas não conferem', description: 'As senhas digitadas são diferentes.', variant: 'destructive' });
+      return;
       return;
     }
     setUsers(prev => prev.map(u => u.email === resetEmail ? { ...u, pin: newPassword } : u));
-    toast({ title: 'Senha redefinida!', description: 'Faça login com a nova senha.' });
+    
     setForgotOpen(false);
     setResetEmail('');
     setNewPassword('');

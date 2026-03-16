@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus } from 'lucide-react';
 import { Supplier, StockEntry } from '@/types';
-import { toast } from '@/hooks/use-toast';
+
 
 const Estoque = () => {
   const { products, setProducts, suppliers, setSuppliers, stockEntries, setStockEntries, categories } = useStore();
@@ -22,7 +22,7 @@ const Estoque = () => {
   const addEntry = () => {
     const qty = parseFloat(entryForm.quantity);
     if (!entryForm.productId || !qty || !entryForm.supplierId) {
-      toast({ title: 'Preencha todos os campos', variant: 'destructive' });
+      return;
       return;
     }
     const entry: StockEntry = {
@@ -34,15 +34,15 @@ const Estoque = () => {
     };
     setStockEntries(prev => [...prev, entry]);
     setProducts(prev => prev.map(p => p.id === entryForm.productId ? { ...p, stock: p.stock + qty } : p));
-    toast({ title: 'Entrada registrada' });
+    
     setEntryForm({ productId: '', quantity: '', supplierId: '' });
     setEntryOpen(false);
   };
 
   const addSupplier = () => {
-    if (!supplierForm.name.trim()) { toast({ title: 'Nome obrigatório', variant: 'destructive' }); return; }
+    if (!supplierForm.name.trim()) { return; }
     setSuppliers(prev => [...prev, { id: crypto.randomUUID(), ...supplierForm }]);
-    toast({ title: 'Fornecedor cadastrado' });
+    
     setSupplierForm({ name: '', contact: '' });
     setSupplierOpen(false);
   };

@@ -10,7 +10,7 @@ import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+
 
 const orderTypeLabels: Record<OrderType, string> = {
   balcao: '🏪 Balcão',
@@ -121,7 +121,7 @@ const PDV = () => {
       ));
       setOrders(prev => prev.filter(o => o.id !== pedidoParam));
     }
-    toast({ title: 'Pedido cancelado' });
+    
     if (tableNumber) navigate('/');
   };
 
@@ -141,7 +141,7 @@ const PDV = () => {
     setTables(prev => prev.map(t =>
       t.number === table.number ? { ...t, status: 'occupied', orderId } : t
     ));
-    toast({ title: `Mesa ${table.number} selecionada`, description: cart.length > 0 ? 'Itens transferidos para a mesa.' : '' });
+    
     navigate(`/pdv?mesa=${table.number}&pedido=${orderId}`);
   };
 
@@ -161,7 +161,7 @@ const PDV = () => {
       setOrders(prev => [...prev, order]);
     }
     setCart([]);
-    toast({ title: 'Pedido segurado', description: tableNumber ? `Mesa ${tableNumber}` : `#${currentOrderId.slice(0, 6)}` });
+    
     if (tableNumber) navigate('/');
   };
 

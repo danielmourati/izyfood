@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { DiscountCoupon, UserRole } from '@/types';
-import { toast } from '@/hooks/use-toast';
+
 import { fmt } from '@/lib/utils';
 import {
   Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X
@@ -72,11 +72,11 @@ function GeralTab() {
   const handleSave = () => {
     const count = parseInt(tableCount);
     if (isNaN(count) || count < 1 || count > 100) {
-      toast({ title: 'Quantidade inválida', description: 'Informe um número entre 1 e 100.', variant: 'destructive' });
+      return;
       return;
     }
     updateTableCount(count);
-    toast({ title: 'Configuração salva', description: `${count} mesas configuradas.` });
+    
   };
 
   return (
@@ -117,21 +117,21 @@ function UsuariosTab() {
 
   const handleSave = () => {
     if (!form.name || !form.email || !form.pin) {
-      toast({ title: 'Preencha todos os campos', variant: 'destructive' });
+      return;
       return;
     }
 
     if (editingId) {
       setUsers(prev => prev.map(u => u.id === editingId ? { ...u, ...form } : u));
-      toast({ title: 'Usuário atualizado' });
+      
     } else {
       const exists = users.find(u => u.email === form.email);
       if (exists) {
-        toast({ title: 'Email já cadastrado', variant: 'destructive' });
+        return;
         return;
       }
       setUsers(prev => [...prev, { id: crypto.randomUUID(), ...form }]);
-      toast({ title: 'Usuário criado' });
+      
     }
     resetForm();
   };
@@ -146,7 +146,7 @@ function UsuariosTab() {
 
   const handleDelete = (id: string) => {
     setUsers(prev => prev.filter(u => u.id !== id));
-    toast({ title: 'Usuário removido' });
+    
   };
 
   return (
@@ -230,12 +230,12 @@ function CuponsTab() {
 
   const handleSave = () => {
     if (!form.code || !form.value) {
-      toast({ title: 'Preencha código e valor', variant: 'destructive' });
+      return;
       return;
     }
     const val = parseFloat(form.value.replace(',', '.'));
     if (isNaN(val) || val <= 0) {
-      toast({ title: 'Valor inválido', variant: 'destructive' });
+      return;
       return;
     }
 
@@ -251,10 +251,10 @@ function CuponsTab() {
 
     if (editingId) {
       setCoupons(prev => prev.map(c => c.id === editingId ? coupon : c));
-      toast({ title: 'Cupom atualizado' });
+      
     } else {
       setCoupons(prev => [...prev, coupon]);
-      toast({ title: 'Cupom criado' });
+      
     }
     resetForm();
   };
@@ -265,7 +265,7 @@ function CuponsTab() {
 
   const handleDelete = (id: string) => {
     setCoupons(prev => prev.filter(c => c.id !== id));
-    toast({ title: 'Cupom removido' });
+    
   };
 
   const handleEdit = (coupon: DiscountCoupon) => {

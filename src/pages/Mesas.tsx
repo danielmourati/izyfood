@@ -1,7 +1,7 @@
 import React from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { useNavigate } from 'react-router-dom';
-import { toast } from '@/hooks/use-toast';
+
 
 const Mesas = () => {
   const { tables, setTables, orders, setOrders } = useStore();
@@ -12,7 +12,7 @@ const Mesas = () => {
     if (!table) return;
 
     if (table.status === 'occupied' && table.orderId) {
-      toast({ title: `Mesa ${tableNum}`, description: 'Abrindo pedido...' });
+      
       navigate(`/pdv?mesa=${tableNum}&pedido=${table.orderId}`);
     } else {
       const newOrder = {
@@ -28,7 +28,7 @@ const Mesas = () => {
       setTables(prev => prev.map(t =>
         t.number === tableNum ? { ...t, status: 'occupied', orderId: newOrder.id } : t
       ));
-      toast({ title: `Mesa ${tableNum} aberta`, description: 'Novo pedido criado.' });
+      
       navigate(`/pdv?mesa=${tableNum}&pedido=${newOrder.id}`);
     }
   };
