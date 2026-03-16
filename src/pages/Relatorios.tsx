@@ -84,7 +84,7 @@ const Relatorios = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Geral</p>
-              <p className="text-2xl font-bold text-foreground">R$ {sales.reduce((s, v) => s + v.total, 0).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-foreground">R$ {fmt(sales.reduce((s, v) => s + v.total, 0))}</p>
             </div>
           </CardContent>
         </Card>
