@@ -152,7 +152,7 @@ const Produtos = () => {
       
     } else {
       setCategories(prev => [...prev, cat]);
-      toast({ title: 'Categoria cadastrada' });
+      
     }
     setCatDialogOpen(false);
   };
