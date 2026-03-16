@@ -3,6 +3,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { fmt, fmtWeight } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Product, OrderItem, Order, OrderType, ProductCategory } from '@/types';
 import { categoryLabels } from '@/data/seed';
