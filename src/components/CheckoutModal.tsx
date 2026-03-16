@@ -95,7 +95,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
                   className="w-full justify-start h-10 text-sm"
                   onClick={() => setSelectedCustomer(c.id)}
                 >
-                  {c.name} {c.creditBalance > 0 && <span className="ml-auto text-xs text-destructive">Débito: R$ {c.creditBalance.toFixed(2)}</span>}
+                  {c.name} {c.creditBalance > 0 && <span className="ml-auto text-xs text-destructive">Débito: R$ {fmt(c.creditBalance)}</span>}
                 </Button>
               ))}
             </div>
