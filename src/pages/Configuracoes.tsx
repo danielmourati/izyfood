@@ -230,7 +230,7 @@ function CuponsTab() {
 
   const handleSave = () => {
     if (!form.code || !form.value) {
-      toast({ title: 'Preencha código e valor', variant: 'destructive' });
+      return;
       return;
     }
     const val = parseFloat(form.value.replace(',', '.'));
