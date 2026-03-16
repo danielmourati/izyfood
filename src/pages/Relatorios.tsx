@@ -95,7 +95,7 @@ const Relatorios = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Fiados Abertos</p>
-              <p className="text-2xl font-bold text-foreground">R$ {creditCustomers.reduce((s, c) => s + c.creditBalance, 0).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-foreground">R$ {fmt(creditCustomers.reduce((s, c) => s + c.creditBalance, 0))}</p>
             </div>
           </CardContent>
         </Card>
