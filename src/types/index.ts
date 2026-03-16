@@ -9,7 +9,7 @@ export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | '
 export type DeliveryStatus = 'pendente' | 'pronto' | 'finalizado';
 export type PaymentMethod = 'pix' | 'cartao' | 'fiado' | 'dinheiro';
 export type OrderSource = 'ifood' | 'aiqfome' | 'whatsapp' | 'instagram' | 'telefone' | 'loja' | 'outro';
-export type UserRole = 'admin' | 'atendente';
+export type UserRole = 'admin' | 'atendente' | 'motoboy';
 
 export interface Product {
   id: string;
