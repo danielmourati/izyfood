@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
@@ -17,11 +17,15 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
   const weight = parseFloat(value) || 0;
   const total = weight * pricePerKg;
 
-  const handleDigit = (d: string) => {
-    if (d === '.' && value.includes('.')) return;
-    if (value.includes('.') && value.split('.')[1]?.length >= 3) return;
-    setValue(prev => prev + d);
-  };
+  const handleDigit = useCallback((d: string) => {
+    setValue(prev => {
+      if (d === '.' && prev.includes('.')) return prev;
+      if (prev.includes('.') && prev.split('.')[1]?.length >= 3) return prev;
+      return prev + d;
+    });
+    // Refocus input after button click
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, []);
 
   const handleConfirm = useCallback(() => {
     const w = parseFloat(value) || 0;
@@ -32,55 +36,57 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
     }
   }, [value, onConfirm, onClose]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setValue('');
     onClose();
-  };
+  }, [onClose]);
 
-  // Focus hidden input when modal opens
+  // Reset and focus when opening
   useEffect(() => {
     if (open) {
       setValue('');
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [open]);
 
-  // Handle physical keyboard input
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key >= '0' && e.key <= '9') {
-      handleDigit(e.key);
-    } else if (e.key === '.' || e.key === ',') {
-      handleDigit('.');
-    } else if (e.key === 'Backspace') {
-      setValue(prev => prev.slice(0, -1));
-    } else if (e.key === 'Delete') {
-      setValue('');
-    } else if (e.key === 'Enter') {
-      handleConfirm();
-    } else if (e.key === 'Escape') {
-      handleClose();
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(',', '.');
+    // Only allow digits and one dot, max 3 decimal places
+    if (/^\d*\.?\d{0,3}$/.test(raw)) {
+      setValue(raw);
     }
-  }, [handleDigit, handleConfirm]);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleConfirm();
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xs" onKeyDown={handleKeyDown}>
+      <DialogContent className="max-w-xs">
         <DialogHeader>
           <DialogTitle className="text-center">{productName}</DialogTitle>
         </DialogHeader>
         <p className="text-center text-sm text-muted-foreground">R$ {pricePerKg.toFixed(2)}/kg</p>
 
-        {/* Hidden input to capture keyboard focus */}
-        <input
-          ref={inputRef}
-          className="sr-only"
-          aria-hidden="true"
-          tabIndex={-1}
-          onKeyDown={handleKeyDown}
-        />
-
-        <div className="bg-muted rounded-lg p-4 text-center cursor-text" onClick={() => inputRef.current?.focus()}>
-          <p className="text-3xl font-bold text-foreground">{value || '0'} <span className="text-lg text-muted-foreground">kg</span></p>
+        <div className="bg-muted rounded-lg p-4 text-center" onClick={() => inputRef.current?.focus()}>
+          <div className="flex items-baseline justify-center gap-1">
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="decimal"
+              value={value}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="0"
+              className="text-3xl font-bold text-foreground bg-transparent border-none outline-none text-center w-24 appearance-none"
+              autoComplete="off"
+            />
+            <span className="text-lg text-muted-foreground">kg</span>
+          </div>
           <p className="text-lg font-semibold text-primary mt-1">R$ {total.toFixed(2)}</p>
           <p className="text-[10px] text-muted-foreground mt-1">Digite o peso no teclado ou use os botões</p>
         </div>
@@ -88,11 +94,11 @@ export function WeightModal({ open, onClose, productName, pricePerKg, onConfirm 
         <div className="grid grid-cols-3 gap-2">
           {['1','2','3','4','5','6','7','8','9','.','0',''].map((d, i) => (
             d !== '' ? (
-              <Button key={i} variant="outline" className="h-12 text-lg font-semibold" onClick={() => handleDigit(d)}>
+              <Button key={i} variant="outline" className="h-12 text-lg font-semibold" onClick={() => handleDigit(d)} tabIndex={-1}>
                 {d}
               </Button>
             ) : (
-              <Button key={i} variant="ghost" className="h-12 text-sm" onClick={() => setValue('')}>
+              <Button key={i} variant="ghost" className="h-12 text-sm" onClick={() => { setValue(''); inputRef.current?.focus(); }} tabIndex={-1}>
                 Limpar
               </Button>
             )
