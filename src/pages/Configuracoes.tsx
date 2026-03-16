@@ -72,7 +72,7 @@ function GeralTab() {
   const handleSave = () => {
     const count = parseInt(tableCount);
     if (isNaN(count) || count < 1 || count > 100) {
-      toast({ title: 'Quantidade inválida', description: 'Informe um número entre 1 e 100.', variant: 'destructive' });
+      return;
       return;
     }
     updateTableCount(count);
