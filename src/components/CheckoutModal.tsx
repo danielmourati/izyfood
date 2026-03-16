@@ -99,7 +99,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
     }
     setAppliedCoupon(coupon.id);
     setDiscountValue('');
-    toast({ title: 'Cupom aplicado!', description: `${coupon.type === 'percentage' ? `${coupon.value}%` : `R$ ${fmt(coupon.value)}`} de desconto` });
+    
   };
 
   const removeCoupon = () => {
