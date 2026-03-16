@@ -265,7 +265,7 @@ function CuponsTab() {
 
   const handleDelete = (id: string) => {
     setCoupons(prev => prev.filter(c => c.id !== id));
-    toast({ title: 'Cupom removido' });
+    
   };
 
   const handleEdit = (coupon: DiscountCoupon) => {

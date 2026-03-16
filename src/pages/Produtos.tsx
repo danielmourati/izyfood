@@ -167,7 +167,7 @@ const Produtos = () => {
     }
     setCategories(prev => prev.filter(c => c.id !== deleteCatId));
     if (filterCategory === deleteCatId) setFilterCategory('all');
-    toast({ title: 'Categoria excluída' });
+    
     setCatDeleteOpen(false);
     setDeleteCatId(null);
   };

@@ -40,7 +40,7 @@ const Clientes = () => {
       
     } else {
       setCustomers(prev => [...prev, { id: crypto.randomUUID(), ...form, creditBalance: 0 }]);
-      toast({ title: 'Cliente cadastrado' });
+      
     }
     setEditOpen(false);
   };

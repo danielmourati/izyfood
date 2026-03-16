@@ -42,7 +42,7 @@ const Estoque = () => {
   const addSupplier = () => {
     if (!supplierForm.name.trim()) { return; }
     setSuppliers(prev => [...prev, { id: crypto.randomUUID(), ...supplierForm }]);
-    toast({ title: 'Fornecedor cadastrado' });
+    
     setSupplierForm({ name: '', contact: '' });
     setSupplierOpen(false);
   };

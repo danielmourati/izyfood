@@ -40,7 +40,7 @@ const Login = () => {
       return;
     }
     setUsers(prev => prev.map(u => u.email === resetEmail ? { ...u, pin: newPassword } : u));
-    toast({ title: 'Senha redefinida!', description: 'Faça login com a nova senha.' });
+    
     setForgotOpen(false);
     setResetEmail('');
     setNewPassword('');

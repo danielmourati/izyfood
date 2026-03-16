@@ -136,7 +136,7 @@ export function CheckoutModal({ open, onClose, order, onComplete }: CheckoutModa
 
     completeSale(finalOrder);
     const methodsStr = splits.map(s => `${s.method.toUpperCase()} R$ ${fmt(s.amount)}`).join(' + ');
-    toast({ title: 'Venda finalizada!', description: `R$ ${fmt(finalTotal)} via ${methodsStr}` });
+    
 
     // Reset
     setSplits([]);

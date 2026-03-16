@@ -144,7 +144,7 @@ const Entregas = () => {
       };
     }));
     setStatusDialogOrder(null);
-    toast({ title: `Status alterado para ${statusConfig[newStatus].label}` });
+    
   };
 
   const updateOrderField = (orderId: string, field: 'motoboyName' | 'orderSource', value: string) => {
