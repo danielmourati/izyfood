@@ -13,7 +13,7 @@ import { Supplier, StockEntry } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 const Estoque = () => {
-  const { products, setProducts, suppliers, setSuppliers, stockEntries, setStockEntries } = useStore();
+  const { products, setProducts, suppliers, setSuppliers, stockEntries, setStockEntries, categories } = useStore();
   const [entryOpen, setEntryOpen] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [entryForm, setEntryForm] = useState({ productId: '', quantity: '', supplierId: '' });
@@ -74,7 +74,7 @@ const Estoque = () => {
                 {products.map(p => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.name}</TableCell>
-                    <TableCell className="capitalize">{p.category}</TableCell>
+                    <TableCell>{(() => { const cat = categories.find(c => c.id === p.categoryId); return cat ? `${cat.emoji} ${cat.name}` : '-'; })()}</TableCell>
                     <TableCell>{p.type === 'weight' ? 'Peso' : 'Unidade'}</TableCell>
                     <TableCell>R$ {fmt(p.price)}{p.type === 'weight' ? '/kg' : ''}</TableCell>
                     <TableCell>
