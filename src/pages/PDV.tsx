@@ -161,7 +161,7 @@ const PDV = () => {
       setOrders(prev => [...prev, order]);
     }
     setCart([]);
-    toast({ title: 'Pedido segurado', description: tableNumber ? `Mesa ${tableNumber}` : `#${currentOrderId.slice(0, 6)}` });
+    
     if (tableNumber) navigate('/');
   };
 

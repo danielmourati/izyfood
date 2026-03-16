@@ -28,7 +28,7 @@ const Mesas = () => {
       setTables(prev => prev.map(t =>
         t.number === tableNum ? { ...t, status: 'occupied', orderId: newOrder.id } : t
       ));
-      toast({ title: `Mesa ${tableNum} aberta`, description: 'Novo pedido criado.' });
+      
       navigate(`/pdv?mesa=${tableNum}&pedido=${newOrder.id}`);
     }
   };
