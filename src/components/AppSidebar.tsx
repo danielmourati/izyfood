@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 const allItems = [
   { title: 'Mesas', url: '/', icon: Grid3X3, adminOnly: false },
   { title: 'PDV', url: '/pdv', icon: ShoppingCart, adminOnly: false },
-  { title: 'Pedidos', url: '/pedidos', icon: ClipboardList, adminOnly: false },
+  { title: 'Delivery', url: '/pedidos', icon: ClipboardList, adminOnly: false },
   { title: 'Entregas', url: '/entregas', icon: Truck, adminOnly: false },
   { title: 'Clientes', url: '/clientes', icon: Users, adminOnly: true },
   { title: 'Estoque', url: '/estoque', icon: Package, adminOnly: true },
