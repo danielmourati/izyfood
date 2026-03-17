@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Customer } from '@/types';
-import { Plus, Search, Phone, MapPin, FileText } from 'lucide-react';
+import { Plus, Search, Phone, MapPin, FileText, Star } from 'lucide-react';
 
 
 const Clientes = () => {
