@@ -96,6 +96,18 @@ const Clientes = () => {
             <div><Label>Telefone</Label><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
             <div><Label>Endereço</Label><Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></div>
             <div><Label>Observações</Label><Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+            {editing && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
+                <Star className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-medium">Pontos de Fidelidade:</span>
+                <span className="text-sm font-bold text-amber-600">{editing.loyaltyPoints || 0}</span>
+                {(editing.loyaltyPoints || 0) >= 10 && (
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium ml-auto">
+                    {Math.floor((editing.loyaltyPoints || 0) / 10)} resgate(s) disponível(is)
+                  </span>
+                )}
+              </div>
+            )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
               <Button onClick={save}>Salvar</Button>
