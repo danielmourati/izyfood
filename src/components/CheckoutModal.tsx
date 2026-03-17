@@ -123,8 +123,8 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   };
 
   const handleFinalize = () => {
-    if (splits.length === 0) return;
-    if (Math.abs(remaining) > 0.01 && remaining > 0) return;
+    if (finalTotal > 0 && splits.length === 0) return;
+    if (finalTotal > 0 && Math.abs(remaining) > 0.01 && remaining > 0) return;
     if (hasFiado && !selectedCustomer) return;
 
     const primaryMethod = splits.reduce((a, b) => a.amount >= b.amount ? a : b).method;
