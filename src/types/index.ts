@@ -56,6 +56,7 @@ export interface Order {
   createdAt: string;
   heldAt?: string;
   completedAt?: string;
+  loyaltyRedemptions?: number;
 }
 
 export interface Customer {

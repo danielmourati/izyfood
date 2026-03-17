@@ -105,10 +105,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSales(prev => [...prev, sale]);
     deductStock(order.items);
 
-    if (order.paymentMethod === 'fiado' && order.customerId) {
-      setCustomers(prev => prev.map(c =>
-        c.id === order.customerId ? { ...c, creditBalance: c.creditBalance + order.total } : c
-      ));
+    // Customer updates: fiado credit + loyalty points
+    if (order.customerId) {
+      const acaiCategoryIds = categories
+        .filter(c => c.name.toLowerCase().includes('açaí') || c.name.toLowerCase().includes('acai'))
+        .map(c => c.id);
+
+      const eligibleCount = order.items.filter(item => {
+        const product = products.find(p => p.id === item.productId);
+        return product && acaiCategoryIds.includes(product.categoryId) && item.weight && item.weight >= 0.3;
+      }).length;
+
+      const pointsToSubtract = (order.loyaltyRedemptions || 0) * 10;
+      const isFiado = order.paymentMethod === 'fiado';
+
+      setCustomers(prev => prev.map(c => {
+        if (c.id !== order.customerId) return c;
+        return {
+          ...c,
+          creditBalance: isFiado ? c.creditBalance + order.total : c.creditBalance,
+          loyaltyPoints: Math.max(0, (c.loyaltyPoints || 0) + eligibleCount - pointsToSubtract),
+        };
+      }));
     }
 
     if (order.tableNumber) {
@@ -120,7 +138,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOrders(prev => prev.map(o =>
       o.id === order.id ? { ...o, status: 'finalizado', completedAt: new Date().toISOString() } : o
     ));
-  }, [deductStock]);
+  }, [deductStock, products, categories]);
 
   return (
     <StoreContext.Provider value={{
