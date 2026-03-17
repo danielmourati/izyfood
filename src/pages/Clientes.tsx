@@ -69,8 +69,17 @@ const Clientes = () => {
               <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" /> {c.phone}</p>
               <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /> {c.address}</p>
               {c.notes && <p className="flex items-center gap-2"><FileText className="h-3.5 w-3.5" /> {c.notes}</p>}
+              <p className="flex items-center gap-2 pt-1">
+                <Star className="h-3.5 w-3.5 text-amber-500" />
+                <span className="font-semibold text-amber-600">{c.loyaltyPoints || 0} pontos</span>
+                {(c.loyaltyPoints || 0) >= 10 && (
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium">
+                    {Math.floor((c.loyaltyPoints || 0) / 10)} resgate(s)
+                  </span>
+                )}
+              </p>
               {c.creditBalance > 0 && (
-                <p className="text-destructive font-semibold pt-1">Débito: R$ {fmt(c.creditBalance)}</p>
+                <p className="text-destructive font-semibold">Débito: R$ {fmt(c.creditBalance)}</p>
               )}
             </CardContent>
           </Card>
