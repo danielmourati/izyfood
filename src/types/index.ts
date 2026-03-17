@@ -65,6 +65,7 @@ export interface Customer {
   address: string;
   notes: string;
   creditBalance: number;
+  loyaltyPoints: number;
 }
 
 export interface TableInfo {
