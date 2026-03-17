@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Customer } from '@/types';
-import { Plus, Search, Phone, MapPin, FileText } from 'lucide-react';
+import { Plus, Search, Phone, MapPin, FileText, Star } from 'lucide-react';
 
 
 const Clientes = () => {
@@ -69,8 +69,17 @@ const Clientes = () => {
               <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" /> {c.phone}</p>
               <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /> {c.address}</p>
               {c.notes && <p className="flex items-center gap-2"><FileText className="h-3.5 w-3.5" /> {c.notes}</p>}
+              <p className="flex items-center gap-2 pt-1">
+                <Star className="h-3.5 w-3.5 text-amber-500" />
+                <span className="font-semibold text-amber-600">{c.loyaltyPoints || 0} pontos</span>
+                {(c.loyaltyPoints || 0) >= 10 && (
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium">
+                    {Math.floor((c.loyaltyPoints || 0) / 10)} resgate(s)
+                  </span>
+                )}
+              </p>
               {c.creditBalance > 0 && (
-                <p className="text-destructive font-semibold pt-1">Débito: R$ {fmt(c.creditBalance)}</p>
+                <p className="text-destructive font-semibold">Débito: R$ {fmt(c.creditBalance)}</p>
               )}
             </CardContent>
           </Card>
@@ -87,6 +96,18 @@ const Clientes = () => {
             <div><Label>Telefone</Label><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
             <div><Label>Endereço</Label><Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></div>
             <div><Label>Observações</Label><Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+            {editing && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
+                <Star className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-medium">Pontos de Fidelidade:</span>
+                <span className="text-sm font-bold text-amber-600">{editing.loyaltyPoints || 0}</span>
+                {(editing.loyaltyPoints || 0) >= 10 && (
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium ml-auto">
+                    {Math.floor((editing.loyaltyPoints || 0) / 10)} resgate(s) disponível(is)
+                  </span>
+                )}
+              </div>
+            )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
               <Button onClick={save}>Salvar</Button>
