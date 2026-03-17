@@ -127,7 +127,9 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     if (finalTotal > 0 && Math.abs(remaining) > 0.01 && remaining > 0) return;
     if (hasFiado && !selectedCustomer) return;
 
-    const primaryMethod = splits.reduce((a, b) => a.amount >= b.amount ? a : b).method;
+    const primaryMethod = splits.length > 0
+      ? splits.reduce((a, b) => a.amount >= b.amount ? a : b).method
+      : 'pix';
 
     const finalOrder: Order = {
       ...order,
