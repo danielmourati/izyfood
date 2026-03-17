@@ -6,8 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { DollarSign, ShoppingBag, TrendingUp, AlertTriangle, CalendarIcon } from 'lucide-react';
+import { DollarSign, ShoppingBag, TrendingUp, AlertTriangle, CalendarIcon, ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, isWithinInterval, eachDayOfInterval, isAfter, isBefore, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -37,6 +38,7 @@ const Relatorios = () => {
   const [customRange, setCustomRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [pickingField, setPickingField] = useState<'from' | 'to'>('from');
+  const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
 
   const dateRange = useMemo(() => {
     if (activePreset === 'custom' && customRange.from) {
@@ -87,6 +89,34 @@ const Relatorios = () => {
 
   const creditCustomers = customers.filter(c => c.creditBalance > 0);
 
+  // Customer purchase stats
+  const customerStats = useMemo(() => {
+    const map: Record<string, { name: string; phone: string; count: number; total: number; loyaltyPoints: number; items: Record<string, { name: string; qty: number; weightTotal: number; total: number }> }> = {};
+    filteredSales.forEach(s => {
+      if (!s.customerId) return;
+      const customer = customers.find(c => c.id === s.customerId);
+      if (!customer) return;
+      if (!map[s.customerId]) {
+        map[s.customerId] = { name: customer.name, phone: customer.phone, count: 0, total: 0, loyaltyPoints: customer.loyaltyPoints || 0, items: {} };
+      }
+      map[s.customerId].count++;
+      map[s.customerId].total += s.total;
+      s.items.forEach(i => {
+        if (!map[s.customerId!].items[i.productId]) {
+          map[s.customerId!].items[i.productId] = { name: i.name, qty: 0, weightTotal: 0, total: 0 };
+        }
+        map[s.customerId!].items[i.productId].qty += i.quantity;
+        map[s.customerId!].items[i.productId].weightTotal += i.weight || 0;
+        map[s.customerId!].items[i.productId].total += i.subtotal;
+      });
+    });
+    return Object.entries(map).map(([id, data]) => ({
+      id,
+      ...data,
+      itemsList: Object.values(data.items).sort((a, b) => b.total - a.total),
+    })).sort((a, b) => b.total - a.total);
+  }, [filteredSales, customers]);
+
   const selectPreset = (key: PresetKey) => {
     setActivePreset(key);
     const preset = presets.find(p => p.key === key);
@@ -108,242 +138,337 @@ const Relatorios = () => {
     return 'Selecionar período';
   }, [activePreset, customRange]);
 
+  const datePickerUI = (
+    <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="gap-2 min-w-[200px] justify-start">
+          <CalendarIcon className="h-4 w-4" />
+          <span className="truncate">{rangeLabelText}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="end">
+        <div className="flex">
+          <div className="border-r p-2 space-y-0.5 w-[120px]">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-2 pb-1 block">Atalhos</span>
+            {presets.map(p => (
+              <Button
+                key={p.key}
+                variant={activePreset === p.key ? 'default' : 'ghost'}
+                size="sm"
+                className="w-full justify-start text-[11px] h-7 px-2"
+                onClick={() => selectPreset(p.key)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </div>
+          <div className="p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPickingField('from')}
+                className={`flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center cursor-pointer transition-colors ${pickingField === 'from' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-muted-foreground/40'}`}
+              >
+                <span className="text-muted-foreground block text-[10px] leading-none mb-0.5">Início</span>
+                <span className="font-medium">
+                  {customRange.from ? format(customRange.from, 'dd/MM/yyyy', { locale: ptBR }) : '-- / -- / ----'}
+                </span>
+              </button>
+              <span className="text-muted-foreground text-xs">→</span>
+              <button
+                type="button"
+                onClick={() => { if (customRange.from) setPickingField('to'); }}
+                className={`flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center transition-colors ${!customRange.from ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${pickingField === 'to' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-muted-foreground/40'}`}
+              >
+                <span className="text-muted-foreground block text-[10px] leading-none mb-0.5">Fim</span>
+                <span className="font-medium">
+                  {customRange.to ? format(customRange.to, 'dd/MM/yyyy', { locale: ptBR }) : '-- / -- / ----'}
+                </span>
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center">
+              {pickingField === 'from' ? 'Selecione a data de início' : 'Selecione a data final'}
+            </p>
+            <Calendar
+              mode="single"
+              selected={pickingField === 'from' ? customRange.from : customRange.to}
+              onSelect={(day) => {
+                if (!day) return;
+                setActivePreset('custom');
+                if (pickingField === 'from') {
+                  setCustomRange({ from: day, to: customRange.to && day <= customRange.to ? customRange.to : undefined });
+                  setPickingField('to');
+                } else {
+                  if (customRange.from && day < customRange.from) {
+                    setCustomRange({ from: day, to: undefined });
+                    setPickingField('to');
+                  } else {
+                    setCustomRange(prev => ({ ...prev, to: day }));
+                    if (customRange.from) setCalendarOpen(false);
+                  }
+                }
+              }}
+              modifiers={{
+                range_start: customRange.from ? customRange.from : undefined,
+                range_end: customRange.to ? customRange.to : undefined,
+                range_middle: customRange.from && customRange.to
+                  ? (date: Date) => isAfter(date, customRange.from!) && isBefore(date, customRange.to!) && !isSameDay(date, customRange.from!) && !isSameDay(date, customRange.to!)
+                  : undefined,
+              }}
+              modifiersClassNames={{
+                range_start: 'bg-primary text-primary-foreground rounded-l-md hover:bg-primary',
+                range_end: 'bg-primary text-primary-foreground rounded-r-md hover:bg-primary',
+                range_middle: 'bg-primary/15 text-foreground rounded-none',
+              }}
+              locale={ptBR}
+              numberOfMonths={1}
+            />
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
+        {datePickerUI}
+      </div>
 
-        {/* Date Range Selector */}
-        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="gap-2 min-w-[200px] justify-start">
-              <CalendarIcon className="h-4 w-4" />
-              <span className="truncate">{rangeLabelText}</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end">
-            <div className="flex">
-              {/* Presets */}
-              <div className="border-r p-2 space-y-0.5 w-[120px]">
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-2 pb-1 block">Atalhos</span>
-                {presets.map(p => (
-                  <Button
-                    key={p.key}
-                    variant={activePreset === p.key ? 'default' : 'ghost'}
-                    size="sm"
-                    className="w-full justify-start text-[11px] h-7 px-2"
-                    onClick={() => selectPreset(p.key)}
-                  >
-                    {p.label}
-                  </Button>
-                ))}
-              </div>
-              {/* Calendar */}
-              <div className="p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPickingField('from')}
-                    className={`flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center cursor-pointer transition-colors ${pickingField === 'from' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-muted-foreground/40'}`}
-                  >
-                    <span className="text-muted-foreground block text-[10px] leading-none mb-0.5">Início</span>
-                    <span className="font-medium">
-                      {customRange.from ? format(customRange.from, 'dd/MM/yyyy', { locale: ptBR }) : '-- / -- / ----'}
-                    </span>
-                  </button>
-                  <span className="text-muted-foreground text-xs">→</span>
-                  <button
-                    type="button"
-                    onClick={() => { if (customRange.from) setPickingField('to'); }}
-                    className={`flex-1 rounded-md border px-2.5 py-1.5 text-xs text-center transition-colors ${!customRange.from ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${pickingField === 'to' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-muted-foreground/40'}`}
-                  >
-                    <span className="text-muted-foreground block text-[10px] leading-none mb-0.5">Fim</span>
-                    <span className="font-medium">
-                      {customRange.to ? format(customRange.to, 'dd/MM/yyyy', { locale: ptBR }) : '-- / -- / ----'}
-                    </span>
-                  </button>
+      <Tabs defaultValue="geral" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="geral">Geral</TabsTrigger>
+          <TabsTrigger value="clientes" className="gap-1.5">
+            <Users className="h-4 w-4" /> Por Cliente
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="geral" className="space-y-4 md:space-y-6">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                 </div>
-                <p className="text-[10px] text-muted-foreground text-center">
-                  {pickingField === 'from' ? 'Selecione a data de início' : 'Selecione a data final'}
-                </p>
-                <Calendar
-                  mode="single"
-                  selected={pickingField === 'from' ? customRange.from : customRange.to}
-                  onSelect={(day) => {
-                    if (!day) return;
-                    setActivePreset('custom');
-                    if (pickingField === 'from') {
-                      setCustomRange({ from: day, to: customRange.to && day <= customRange.to ? customRange.to : undefined });
-                      setPickingField('to');
-                    } else {
-                      if (customRange.from && day < customRange.from) {
-                        setCustomRange({ from: day, to: undefined });
-                        setPickingField('to');
-                      } else {
-                        setCustomRange(prev => ({ ...prev, to: day }));
-                        if (customRange.from) setCalendarOpen(false);
-                      }
-                    }
-                  }}
-                  modifiers={{
-                    range_start: customRange.from ? customRange.from : undefined,
-                    range_end: customRange.to ? customRange.to : undefined,
-                    range_middle: customRange.from && customRange.to
-                      ? (date: Date) => isAfter(date, customRange.from!) && isBefore(date, customRange.to!) && !isSameDay(date, customRange.from!) && !isSameDay(date, customRange.to!)
-                      : undefined,
-                  }}
-                  modifiersClassNames={{
-                    range_start: 'bg-primary text-primary-foreground rounded-l-md hover:bg-primary',
-                    range_end: 'bg-primary text-primary-foreground rounded-r-md hover:bg-primary',
-                    range_middle: 'bg-primary/15 text-foreground rounded-none',
-                  }}
-                  locale={ptBR}
-                  numberOfMonths={1}
-                />
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm text-muted-foreground">Vendas</p>
+                  <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(totalRevenue)}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                  <ShoppingBag className="h-5 w-5 md:h-6 md:w-6 text-accent" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm text-muted-foreground">Pedidos</p>
+                  <p className="text-lg md:text-2xl font-bold text-foreground">{filteredSales.length}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm text-muted-foreground">Total Geral</p>
+                  <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(sales.reduce((s, v) => s + v.total, 0))}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 text-destructive" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm text-muted-foreground">Fiados</p>
+                  <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(creditCustomers.reduce((s, c) => s + c.creditBalance, 0))}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs md:text-sm text-muted-foreground">Vendas</p>
-              <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(totalRevenue)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-              <ShoppingBag className="h-5 w-5 md:h-6 md:w-6 text-accent" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs md:text-sm text-muted-foreground">Pedidos</p>
-              <p className="text-lg md:text-2xl font-bold text-foreground">{filteredSales.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs md:text-sm text-muted-foreground">Total Geral</p>
-              <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(sales.reduce((s, v) => s + v.total, 0))}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
-              <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 text-destructive" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs md:text-sm text-muted-foreground">Fiados</p>
-              <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(creditCustomers.reduce((s, c) => s + c.creditBalance, 0))}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+            <Card>
+              <CardHeader><CardTitle>Vendas no Período</CardTitle></CardHeader>
+              <CardContent>
+                {dailyData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={dailyData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" fontSize={11} />
+                      <YAxis fontSize={11} />
+                      <Tooltip formatter={(v: number) => `R$ ${fmt(v)}`} />
+                      <Bar dataKey="total" fill="hsl(152,45%,28%)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : <p className="text-center text-muted-foreground py-12">Sem dados no período</p>}
+              </CardContent>
+            </Card>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        <Card>
-          <CardHeader><CardTitle>Vendas no Período</CardTitle></CardHeader>
-          <CardContent>
-            {dailyData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" fontSize={11} />
-                  <YAxis fontSize={11} />
-                  <Tooltip formatter={(v: number) => `R$ ${fmt(v)}`} />
-                  <Bar dataKey="total" fill="hsl(152,45%,28%)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <p className="text-center text-muted-foreground py-12">Sem dados no período</p>}
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader><CardTitle>Vendas por Forma de Pagamento</CardTitle></CardHeader>
+              <CardContent>
+                {salesByMethod.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie data={salesByMethod} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                        {salesByMethod.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v: number) => `R$ ${fmt(v)}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : <p className="text-center text-muted-foreground py-12">Sem dados no período</p>}
+              </CardContent>
+            </Card>
+          </div>
 
-        <Card>
-          <CardHeader><CardTitle>Vendas por Forma de Pagamento</CardTitle></CardHeader>
-          <CardContent>
-            {salesByMethod.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie data={salesByMethod} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                    {salesByMethod.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v: number) => `R$ ${fmt(v)}`} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : <p className="text-center text-muted-foreground py-12">Sem dados no período</p>}
-          </CardContent>
-        </Card>
-      </div>
+          {/* Tables */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+            <Card>
+              <CardHeader><CardTitle>Top Produtos</CardTitle></CardHeader>
+              <CardContent>
+                {salesByProduct.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produto</TableHead>
+                        <TableHead>Qtd</TableHead>
+                        <TableHead>Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {salesByProduct.map(p => (
+                        <TableRow key={p.name}>
+                          <TableCell>{p.name}</TableCell>
+                          <TableCell>{p.qty}</TableCell>
+                          <TableCell className="font-semibold">R$ {fmt(p.total)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : <p className="text-center text-muted-foreground py-8">Sem dados no período</p>}
+              </CardContent>
+            </Card>
 
-      {/* Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        <Card>
-          <CardHeader><CardTitle>Top Produtos</CardTitle></CardHeader>
-          <CardContent>
-            {salesByProduct.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Produto</TableHead>
-                    <TableHead>Qtd</TableHead>
-                    <TableHead>Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {salesByProduct.map(p => (
-                    <TableRow key={p.name}>
-                      <TableCell>{p.name}</TableCell>
-                      <TableCell>{p.qty}</TableCell>
-                      <TableCell className="font-semibold">R$ {fmt(p.total)}</TableCell>
+            <Card>
+              <CardHeader><CardTitle>Clientes com Fiado</CardTitle></CardHeader>
+              <CardContent>
+                {creditCustomers.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Telefone</TableHead>
+                        <TableHead>Débito</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {creditCustomers.map(c => (
+                        <TableRow key={c.id}>
+                          <TableCell>{c.name}</TableCell>
+                          <TableCell>{c.phone}</TableCell>
+                          <TableCell className="font-semibold text-destructive">R$ {fmt(c.creditBalance)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : <p className="text-center text-muted-foreground py-8">Nenhum fiado aberto</p>}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="clientes" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" /> Compras por Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {customerStats.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8"></TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead className="text-center">Compras</TableHead>
+                      <TableHead className="text-center">Pontos</TableHead>
+                      <TableHead className="text-right">Total Gasto</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : <p className="text-center text-muted-foreground py-8">Sem dados no período</p>}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>Clientes com Fiado</CardTitle></CardHeader>
-          <CardContent>
-            {creditCustomers.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Telefone</TableHead>
-                    <TableHead>Débito</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {creditCustomers.map(c => (
-                    <TableRow key={c.id}>
-                      <TableCell>{c.name}</TableCell>
-                      <TableCell>{c.phone}</TableCell>
-                      <TableCell className="font-semibold text-destructive">R$ {fmt(c.creditBalance)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : <p className="text-center text-muted-foreground py-8">Nenhum fiado aberto</p>}
-          </CardContent>
-        </Card>
-      </div>
+                  </TableHeader>
+                  <TableBody>
+                    {customerStats.map(cs => (
+                      <React.Fragment key={cs.id}>
+                        <TableRow
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => setExpandedCustomerId(prev => prev === cs.id ? null : cs.id)}
+                        >
+                          <TableCell className="w-8 px-2">
+                            {expandedCustomerId === cs.id
+                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            }
+                          </TableCell>
+                          <TableCell className="font-medium">{cs.name}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{cs.phone}</TableCell>
+                          <TableCell className="text-center">{cs.count}</TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-sm">⭐ {cs.loyaltyPoints}</span>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-primary">R$ {fmt(cs.total)}</TableCell>
+                        </TableRow>
+                        {expandedCustomerId === cs.id && (
+                          <TableRow>
+                            <TableCell colSpan={6} className="bg-muted/30 p-0">
+                              <div className="p-4">
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Produtos Comprados</p>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Produto</TableHead>
+                                      <TableHead className="text-center">Qtd</TableHead>
+                                      <TableHead className="text-right">Total</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {cs.itemsList.map((item, idx) => (
+                                      <TableRow key={idx}>
+                                        <TableCell className="text-sm">{item.name}</TableCell>
+                                        <TableCell className="text-center text-sm">
+                                          {item.qty}
+                                          {item.weightTotal > 0 && (
+                                            <span className="text-xs text-muted-foreground ml-1">({(item.weightTotal).toFixed(2)}kg)</span>
+                                          )}
+                                        </TableCell>
+                                        <TableCell className="text-right text-sm font-medium">R$ {fmt(item.total)}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-center text-muted-foreground py-12">Nenhuma venda vinculada a clientes no período selecionado</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
