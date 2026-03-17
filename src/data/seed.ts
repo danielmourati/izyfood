@@ -29,9 +29,9 @@ export const seedProducts: Product[] = [
 ];
 
 export const seedCustomers: Customer[] = [
-  { id: 'c1', name: 'João Silva', phone: '(85) 99999-0001', address: 'Rua A, 123', notes: 'Cliente frequente', creditBalance: 0 },
-  { id: 'c2', name: 'Maria Santos', phone: '(85) 99999-0002', address: 'Rua B, 456', notes: '', creditBalance: 25.50 },
-  { id: 'c3', name: 'Pedro Oliveira', phone: '(85) 99999-0003', address: 'Rua C, 789', notes: 'Preferência: sem granola', creditBalance: 0 },
+  { id: 'c1', name: 'João Silva', phone: '(85) 99999-0001', address: 'Rua A, 123', notes: 'Cliente frequente', creditBalance: 0, loyaltyPoints: 0 },
+  { id: 'c2', name: 'Maria Santos', phone: '(85) 99999-0002', address: 'Rua B, 456', notes: '', creditBalance: 25.50, loyaltyPoints: 0 },
+  { id: 'c3', name: 'Pedro Oliveira', phone: '(85) 99999-0003', address: 'Rua C, 789', notes: 'Preferência: sem granola', creditBalance: 0, loyaltyPoints: 0 },
 ];
 
 export const seedSuppliers: Supplier[] = [

@@ -39,7 +39,7 @@ const Clientes = () => {
       setCustomers(prev => prev.map(c => c.id === editing.id ? { ...c, ...form } : c));
       
     } else {
-      setCustomers(prev => [...prev, { id: crypto.randomUUID(), ...form, creditBalance: 0 }]);
+      setCustomers(prev => [...prev, { id: crypto.randomUUID(), ...form, creditBalance: 0, loyaltyPoints: 0 }]);
       
     }
     setEditOpen(false);
