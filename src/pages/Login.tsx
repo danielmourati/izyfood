@@ -4,47 +4,44 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const { login, users, setUsers } = useAuth();
+  const { login } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(email, password)) {
-      // login success
+    setError('');
+    setIsLoading(true);
+    const result = await login(email, password);
+    if (!result.success) {
+      setError(result.error || 'Credenciais inválidas');
     }
+    setIsLoading(false);
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = users.find(u => u.email === resetEmail);
-    if (!user) {
-      return;
-      return;
+    if (!resetEmail.trim()) return;
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success('Email de recuperação enviado!');
+      setForgotOpen(false);
+      setResetEmail('');
     }
-    if (newPassword.length < 4) {
-      return;
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      return;
-      return;
-    }
-    setUsers(prev => prev.map(u => u.email === resetEmail ? { ...u, pin: newPassword } : u));
-    
-    setForgotOpen(false);
-    setResetEmail('');
-    setNewPassword('');
-    setConfirmPassword('');
   };
 
   return (
@@ -66,7 +63,10 @@ const Login = () => {
               <Label htmlFor="password">Senha</Label>
               <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="h-12" required />
             </div>
-            <Button type="submit" className="w-full h-12 text-base font-semibold">Entrar</Button>
+            {error && <p className="text-sm text-destructive text-center">{error}</p>}
+            <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={isLoading}>
+              {isLoading ? 'Entrando...' : 'Entrar'}
+            </Button>
           </form>
 
           <button
@@ -76,11 +76,6 @@ const Login = () => {
           >
             Esqueceu sua senha?
           </button>
-
-          <div className="text-xs text-center text-muted-foreground space-y-1 pt-4 border-t mt-4">
-            <p>Proprietário: <strong>admin@carnauba.com</strong> / <strong>1234</strong></p>
-            <p>Atendente: <strong>atendente@carnauba.com</strong> / <strong>0000</strong></p>
-          </div>
         </CardContent>
       </Card>
 
@@ -94,19 +89,11 @@ const Login = () => {
               <Label htmlFor="reset-email">Email cadastrado</Label>
               <Input id="reset-email" type="email" placeholder="seu@email.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-password">Nova senha</Label>
-              <Input id="new-password" type="password" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirmar nova senha</Label>
-              <Input id="confirm-password" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-            </div>
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setForgotOpen(false)}>
                 <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
               </Button>
-              <Button type="submit" className="flex-1">Redefinir Senha</Button>
+              <Button type="submit" className="flex-1">Enviar Email</Button>
             </div>
           </form>
         </DialogContent>

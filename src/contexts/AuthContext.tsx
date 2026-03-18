@@ -1,54 +1,96 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
-const demoUsers: { email: string; password: string; user: User }[] = [
-  { email: 'admin@carnauba.com', password: '1234', user: { id: 'u1', name: 'Proprietário', email: 'admin@carnauba.com', role: 'admin', pin: '1234' } },
-  { email: 'atendente@carnauba.com', password: '0000', user: { id: 'u2', name: 'Atendente', email: 'atendente@carnauba.com', role: 'atendente', pin: '0000' } },
-];
+export type AppRole = 'admin' | 'atendente' | 'motoboy';
+
+export interface AppUser {
+  id: string;
+  name: string;
+  email: string;
+  role: AppRole;
+}
 
 interface AuthContextType {
-  user: User | null;
-  users: User[];
-  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
-  login: (email: string, password: string) => boolean;
-  logout: () => void;
+  user: AppUser | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
   isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-function loadUsers(): User[] {
-  const s = localStorage.getItem('pos_users');
-  if (s) return JSON.parse(s);
-  return demoUsers.map(d => d.user);
+async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
+  // Fetch profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('name, email')
+    .eq('id', supaUser.id)
+    .single();
+
+  // Fetch role
+  const { data: roleData } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', supaUser.id)
+    .single();
+
+  if (!profile) return null;
+
+  return {
+    id: supaUser.id,
+    name: profile.name,
+    email: profile.email,
+    role: (roleData?.role as AppRole) || 'atendente',
+  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('pos_user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [users, setUsers] = useState<User[]>(loadUsers);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) localStorage.setItem('pos_user', JSON.stringify(user));
-    else localStorage.removeItem('pos_user');
-  }, [user]);
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        // Use setTimeout to avoid Supabase deadlock
+        setTimeout(async () => {
+          const appUser = await fetchAppUser(session.user);
+          setUser(appUser);
+          setLoading(false);
+        }, 0);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
 
-  useEffect(() => {
-    localStorage.setItem('pos_users', JSON.stringify(users));
-  }, [users]);
+    // THEN check existing session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const appUser = await fetchAppUser(session.user);
+        setUser(appUser);
+      }
+      setLoading(false);
+    });
 
-  const login = (email: string, password: string) => {
-    const found = users.find(u => u.email === email && u.pin === password);
-    if (found) { setUser(found); return true; }
-    return false;
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
   };
 
-  const logout = () => setUser(null);
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, users, setUsers, login, logout, isAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin: user?.role === 'admin' }}>
       {children}
     </AuthContext.Provider>
   );

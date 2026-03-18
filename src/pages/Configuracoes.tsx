@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useStore } from '@/contexts/StoreContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { DiscountCoupon, UserRole } from '@/types';
+import { useAuth, AppRole } from '@/contexts/AuthContext';
+import { DiscountCoupon } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 import { fmt } from '@/lib/utils';
 import {
@@ -30,7 +32,7 @@ const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'impressora', label: 'Impressora', icon: Printer },
 ];
 
-const roleLabels: Record<UserRole, string> = {
+const roleLabels: Record<AppRole, string> = {
   admin: 'Administrador',
   atendente: 'Atendente',
   motoboy: 'Motoboy',
@@ -71,12 +73,9 @@ function GeralTab() {
 
   const handleSave = () => {
     const count = parseInt(tableCount);
-    if (isNaN(count) || count < 1 || count > 100) {
-      return;
-      return;
-    }
+    if (isNaN(count) || count < 1 || count > 100) return;
     updateTableCount(count);
-    
+    toast.success('Configuração salva!');
   };
 
   return (
@@ -103,50 +102,97 @@ function GeralTab() {
   );
 }
 
+interface UserRow {
+  id: string;
+  name: string;
+  email: string;
+  role: AppRole;
+}
+
 function UsuariosTab() {
-  const { users, setUsers } = useAuth();
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'atendente' as UserRole, pin: '' });
+  const [form, setForm] = useState({ name: '', email: '', role: 'atendente' as AppRole, password: '' });
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  const fetchUsers = useCallback(async () => {
+    const { data: profiles } = await supabase.from('profiles').select('id, name, email');
+    const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+
+    if (profiles) {
+      const userList: UserRow[] = profiles.map(p => {
+        const userRole = roles?.find(r => r.user_id === p.id);
+        return { id: p.id, name: p.name, email: p.email, role: (userRole?.role as AppRole) || 'atendente' };
+      });
+      setUsers(userList);
+    }
+    setLoadingUsers(false);
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   const resetForm = () => {
-    setForm({ name: '', email: '', role: 'atendente', pin: '' });
+    setForm({ name: '', email: '', role: 'atendente', password: '' });
     setShowForm(false);
     setEditingId(null);
   };
 
-  const handleSave = () => {
-    if (!form.name || !form.email || !form.pin) {
-      return;
+  const handleSave = async () => {
+    if (!form.name || !form.email) {
+      toast.error('Preencha nome e email');
       return;
     }
 
     if (editingId) {
-      setUsers(prev => prev.map(u => u.id === editingId ? { ...u, ...form } : u));
-      
+      // Update profile name
+      await supabase.from('profiles').update({ name: form.name }).eq('id', editingId);
+      // Update role
+      const { data: existingRole } = await supabase.from('user_roles').select('id').eq('user_id', editingId).single();
+      if (existingRole) {
+        await supabase.from('user_roles').update({ role: form.role }).eq('user_id', editingId);
+      } else {
+        await supabase.from('user_roles').insert({ user_id: editingId, role: form.role });
+      }
+      toast.success('Usuário atualizado!');
     } else {
-      const exists = users.find(u => u.email === form.email);
-      if (exists) {
-        return;
+      if (!form.password || form.password.length < 4) {
+        toast.error('Senha deve ter no mínimo 4 caracteres');
         return;
       }
-      setUsers(prev => [...prev, { id: crypto.randomUUID(), ...form }]);
-      
+      // Create new user via signUp
+      const { data: signUpData, error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: { data: { name: form.name } },
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      if (signUpData.user) {
+        // Assign role
+        await supabase.from('user_roles').insert({ user_id: signUpData.user.id, role: form.role });
+        toast.success('Usuário criado!');
+      }
     }
     resetForm();
+    // Refetch after a short delay to allow trigger to create profile
+    setTimeout(fetchUsers, 500);
   };
 
-  const handleEdit = (id: string) => {
-    const u = users.find(u => u.id === id);
-    if (!u) return;
-    setForm({ name: u.name, email: u.email, role: u.role, pin: u.pin });
-    setEditingId(id);
+  const handleEdit = (u: UserRow) => {
+    setForm({ name: u.name, email: u.email, role: u.role, password: '' });
+    setEditingId(u.id);
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
-    setUsers(prev => prev.filter(u => u.id !== id));
-    
+  const handleDelete = async (id: string) => {
+    // Note: deleting auth users requires admin API (service role).
+    // For now, we just remove the role so they can't access.
+    await supabase.from('user_roles').delete().eq('user_id', id);
+    toast.success('Acesso do usuário removido');
+    fetchUsers();
   };
 
   return (
@@ -167,11 +213,11 @@ function UsuariosTab() {
               </div>
               <div className="space-y-1">
                 <Label>Email</Label>
-                <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com" />
+                <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com" disabled={!!editingId} />
               </div>
               <div className="space-y-1">
                 <Label>Função</Label>
-                <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as UserRole }))}>
+                <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as AppRole }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Administrador</SelectItem>
@@ -180,10 +226,12 @@ function UsuariosTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label>Senha / PIN</Label>
-                <Input type="password" value={form.pin} onChange={e => setForm(f => ({ ...f, pin: e.target.value }))} placeholder="••••" />
-              </div>
+              {!editingId && (
+                <div className="space-y-1">
+                  <Label>Senha</Label>
+                  <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button size="sm" onClick={handleSave}><Check className="h-4 w-4 mr-1" /> {editingId ? 'Atualizar' : 'Criar'}</Button>
@@ -192,25 +240,29 @@ function UsuariosTab() {
           </div>
         )}
 
-        <div className="space-y-2">
-          {users.map(u => (
-            <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
-              <div>
-                <p className="font-medium text-foreground">{u.name}</p>
-                <p className="text-sm text-muted-foreground">{u.email}</p>
+        {loadingUsers ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
+        ) : (
+          <div className="space-y-2">
+            {users.map(u => (
+              <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
+                <div>
+                  <p className="font-medium text-foreground">{u.name}</p>
+                  <p className="text-sm text-muted-foreground">{u.email}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{roleLabels[u.role]}</Badge>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(u)}>
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(u.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{roleLabels[u.role]}</Badge>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(u.id)}>
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(u.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -229,15 +281,9 @@ function CuponsTab() {
   };
 
   const handleSave = () => {
-    if (!form.code || !form.value) {
-      return;
-      return;
-    }
+    if (!form.code || !form.value) return;
     const val = parseFloat(form.value.replace(',', '.'));
-    if (isNaN(val) || val <= 0) {
-      return;
-      return;
-    }
+    if (isNaN(val) || val <= 0) return;
 
     const coupon: DiscountCoupon = {
       id: editingId || crypto.randomUUID(),
@@ -251,10 +297,8 @@ function CuponsTab() {
 
     if (editingId) {
       setCoupons(prev => prev.map(c => c.id === editingId ? coupon : c));
-      
     } else {
       setCoupons(prev => [...prev, coupon]);
-      
     }
     resetForm();
   };
@@ -265,7 +309,6 @@ function CuponsTab() {
 
   const handleDelete = (id: string) => {
     setCoupons(prev => prev.filter(c => c.id !== id));
-    
   };
 
   const handleEdit = (coupon: DiscountCoupon) => {
