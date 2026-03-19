@@ -196,79 +196,90 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const getCategoryById = useCallback((id: string) => categories.find(c => c.id === id), [categories]);
 
-  // ============ Wrapped setters that sync to DB ============
+  // ============ Wrapped setters: optimistic local update + DB sync (realtime propagates to all devices) ============
+  // We keep optimistic local updates for responsive UX, but the realtime listener
+  // will overwrite with the DB truth, ensuring consistency across devices.
+
+  const productsRef = useRef(products);
+  productsRef.current = products;
+  const categoriesRef = useRef(categories);
+  categoriesRef.current = categories;
+  const customersRef = useRef(customers);
+  customersRef.current = customers;
+  const suppliersRef = useRef(suppliers);
+  suppliersRef.current = suppliers;
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
+  const salesRef = useRef(sales);
+  salesRef.current = sales;
+  const stockEntriesRef = useRef(stockEntries);
+  stockEntriesRef.current = stockEntries;
+  const tablesRef = useRef(tables);
+  tablesRef.current = tables;
+  const couponsRef = useRef(coupons);
+  couponsRef.current = coupons;
 
   const setProductsWrapped: typeof setProducts = useCallback((updater) => {
-    setProducts(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      // Sync changes to DB
-      syncProducts(prev, next);
-      return next;
-    });
+    const prev = productsRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setProducts(next); // optimistic
+    syncProducts(prev, next);
   }, []);
 
   const setCategoriesWrapped: typeof setCategories = useCallback((updater) => {
-    setCategories(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      syncCategories(prev, next);
-      return next;
-    });
+    const prev = categoriesRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setCategories(next);
+    syncCategories(prev, next);
   }, []);
 
   const setCustomersWrapped: typeof setCustomers = useCallback((updater) => {
-    setCustomers(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      syncCustomers(prev, next);
-      return next;
-    });
+    const prev = customersRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setCustomers(next);
+    syncCustomers(prev, next);
   }, []);
 
   const setSuppliersWrapped: typeof setSuppliers = useCallback((updater) => {
-    setSuppliers(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      syncSuppliers(prev, next);
-      return next;
-    });
+    const prev = suppliersRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setSuppliers(next);
+    syncSuppliers(prev, next);
   }, []);
 
   const setOrdersWrapped: typeof setOrders = useCallback((updater) => {
-    setOrders(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      syncOrders(prev, next);
-      return next;
-    });
+    const prev = ordersRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setOrders(next);
+    syncOrders(prev, next);
   }, []);
 
   const setSalesWrapped: typeof setSales = useCallback((updater) => {
-    setSales(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      syncSales(prev, next);
-      return next;
-    });
+    const prev = salesRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setSales(next);
+    syncSales(prev, next);
   }, []);
 
   const setStockEntriesWrapped: typeof setStockEntries = useCallback((updater) => {
-    setStockEntries(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      syncStockEntries(prev, next);
-      return next;
-    });
+    const prev = stockEntriesRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setStockEntries(next);
+    syncStockEntries(prev, next);
   }, []);
 
   const setTablesWrapped: typeof setTables = useCallback((updater) => {
-    setTables(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      syncTables(prev, next);
-      return next;
-    });
+    const prev = tablesRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setTables(next);
+    syncTables(prev, next);
   }, []);
 
   const setCouponsWrapped: typeof setCoupons = useCallback((updater) => {
-    setCoupons(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      syncCoupons(prev, next);
-      return next;
-    });
+    const prev = couponsRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setCoupons(next);
+    syncCoupons(prev, next);
   }, []);
 
   const updateTableCount = useCallback(async (count: number) => {
