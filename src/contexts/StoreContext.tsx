@@ -342,7 +342,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         const eligibleCount = order.items.filter(item => {
           const product = products.find(p => p.id === item.productId);
-          return product && acaiCategoryIds.includes(product.categoryId) && item.weight && item.weight >= 0.3;
+          if (!product || !product.loyaltyEligible) return false;
+          if (product.type === 'weight') return item.weight && item.weight >= 0.3;
+          return true; // unit products: each unit = 1 point
         }).length;
 
         const pointsToSubtract = (order.loyaltyRedemptions || 0) * 10;
