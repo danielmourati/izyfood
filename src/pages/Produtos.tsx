@@ -106,6 +106,7 @@ const Produtos = () => {
       unit: form.type === 'weight' ? 'kg' : 'un',
       stock: parseFloat(form.stock) || 0,
       image: form.image || undefined,
+      loyaltyEligible: form.loyaltyEligible,
     };
     if (editingId) {
       setProducts(prev => prev.map(p => p.id === editingId ? product : p));
