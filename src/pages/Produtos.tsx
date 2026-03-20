@@ -21,6 +21,7 @@ const emptyProductForm = {
   unit: 'un',
   stock: '',
   image: '',
+  loyaltyEligible: false,
 };
 
 const emptyCategoryForm = { name: '' };
