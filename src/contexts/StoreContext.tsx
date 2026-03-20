@@ -37,7 +37,7 @@ const StoreContext = createContext<StoreContextType | null>(null);
 // ============ DB <-> App mappers ============
 
 function dbToProduct(r: any): Product {
-  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined };
+  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false };
 }
 function dbToCategory(r: any): ProductCategory {
   return { id: r.id, name: r.name };
