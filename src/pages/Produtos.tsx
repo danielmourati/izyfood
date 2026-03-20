@@ -249,10 +249,15 @@ const Produtos = () => {
                   {product.type === 'weight' && <span className="text-xs text-muted-foreground font-normal">/kg</span>}
                 </p>
                 {product.description && <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>}
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center justify-between pt-1 flex-wrap gap-1">
                   <Badge variant="outline" className="text-[10px]">
                     {cat ? cat.name : 'Sem categoria'}
                   </Badge>
+                  {product.loyaltyEligible && (
+                    <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                      ⭐ Fidelidade
+                    </Badge>
+                  )}
                   <Badge variant={product.stock <= 5 ? 'destructive' : 'secondary'} className="text-[10px]">
                     {product.stock} {product.unit}
                   </Badge>
