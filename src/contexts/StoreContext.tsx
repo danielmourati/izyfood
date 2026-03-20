@@ -37,7 +37,7 @@ const StoreContext = createContext<StoreContextType | null>(null);
 // ============ DB <-> App mappers ============
 
 function dbToProduct(r: any): Product {
-  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined };
+  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false };
 }
 function dbToCategory(r: any): ProductCategory {
   return { id: r.id, name: r.name };
@@ -342,7 +342,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         const eligibleCount = order.items.filter(item => {
           const product = products.find(p => p.id === item.productId);
-          return product && acaiCategoryIds.includes(product.categoryId) && item.weight && item.weight >= 0.3;
+          if (!product || !product.loyaltyEligible) return false;
+          if (product.type === 'weight') return item.weight && item.weight >= 0.3;
+          return true; // unit products: each unit = 1 point
         }).length;
 
         const pointsToSubtract = (order.loyaltyRedemptions || 0) * 10;
@@ -409,12 +411,14 @@ async function syncProducts(prev: Product[], next: Product[]) {
     await supabase.from('products').insert({
       id: p.id, name: p.name, description: p.description || null, price: p.price,
       category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
+      loyalty_eligible: p.loyaltyEligible,
     });
   }
   for (const p of updated) {
     await supabase.from('products').update({
       name: p.name, description: p.description || null, price: p.price,
       category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
+      loyalty_eligible: p.loyaltyEligible,
     }).eq('id', p.id);
   }
   for (const p of removed) {

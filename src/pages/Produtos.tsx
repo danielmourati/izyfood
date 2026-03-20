@@ -21,6 +21,7 @@ const emptyProductForm = {
   unit: 'un',
   stock: '',
   image: '',
+  loyaltyEligible: false,
 };
 
 const emptyCategoryForm = { name: '' };
@@ -71,6 +72,7 @@ const Produtos = () => {
       unit: p.unit,
       stock: String(p.stock),
       image: p.image || '',
+      loyaltyEligible: p.loyaltyEligible,
     });
     setDialogOpen(true);
   };
@@ -104,6 +106,7 @@ const Produtos = () => {
       unit: form.type === 'weight' ? 'kg' : 'un',
       stock: parseFloat(form.stock) || 0,
       image: form.image || undefined,
+      loyaltyEligible: form.loyaltyEligible,
     };
     if (editingId) {
       setProducts(prev => prev.map(p => p.id === editingId ? product : p));
@@ -246,10 +249,15 @@ const Produtos = () => {
                   {product.type === 'weight' && <span className="text-xs text-muted-foreground font-normal">/kg</span>}
                 </p>
                 {product.description && <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>}
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center justify-between pt-1 flex-wrap gap-1">
                   <Badge variant="outline" className="text-[10px]">
                     {cat ? cat.name : 'Sem categoria'}
                   </Badge>
+                  {product.loyaltyEligible && (
+                    <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                      ⭐ Fidelidade
+                    </Badge>
+                  )}
                   <Badge variant={product.stock <= 5 ? 'destructive' : 'secondary'} className="text-[10px]">
                     {product.stock} {product.unit}
                   </Badge>
@@ -331,6 +339,17 @@ const Produtos = () => {
                   <option value="weight">Peso (kg)</option>
                 </select>
               </div>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.loyaltyEligible}
+                  onChange={e => setForm(f => ({ ...f, loyaltyEligible: e.target.checked }))}
+                  className="rounded border-border"
+                />
+                <span className="text-sm">⭐ Elegível para pontuação fidelidade</span>
+              </label>
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>

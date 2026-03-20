@@ -198,6 +198,7 @@ export type Database = {
           description: string | null
           id: string
           image: string | null
+          loyalty_eligible: boolean
           name: string
           price: number
           stock: number
@@ -211,6 +212,7 @@ export type Database = {
           description?: string | null
           id?: string
           image?: string | null
+          loyalty_eligible?: boolean
           name: string
           price?: number
           stock?: number
@@ -224,6 +226,7 @@ export type Database = {
           description?: string | null
           id?: string
           image?: string | null
+          loyalty_eligible?: boolean
           name?: string
           price?: number
           stock?: number

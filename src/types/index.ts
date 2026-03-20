@@ -21,6 +21,7 @@ export interface Product {
   unit: string;
   stock: number;
   image?: string;
+  loyaltyEligible: boolean;
 }
 
 export interface OrderItem {
