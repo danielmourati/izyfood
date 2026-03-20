@@ -411,12 +411,14 @@ async function syncProducts(prev: Product[], next: Product[]) {
     await supabase.from('products').insert({
       id: p.id, name: p.name, description: p.description || null, price: p.price,
       category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
+      loyalty_eligible: p.loyaltyEligible,
     });
   }
   for (const p of updated) {
     await supabase.from('products').update({
       name: p.name, description: p.description || null, price: p.price,
       category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
+      loyalty_eligible: p.loyaltyEligible,
     }).eq('id', p.id);
   }
   for (const p of removed) {

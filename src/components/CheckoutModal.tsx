@@ -49,24 +49,21 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     [customers, selectedCustomer]
   );
 
-  const acaiCategoryIds = useMemo(() =>
-    categories.filter(c => c.name.toLowerCase().includes('açaí') || c.name.toLowerCase().includes('acai')).map(c => c.id),
-    [categories]
-  );
-
   const redeemableCount = customerObj ? Math.floor((customerObj.loyaltyPoints || 0) / 10) : 0;
 
-  // Calculate açaí redemption discount
+  // Calculate redemption discount based on eligible items
   const acaiRedemptionDiscount = useMemo(() => {
     if (redeemCount <= 0 || !order) return 0;
-    const acaiItems = order.items.filter(item => {
+    const eligibleItems = order.items.filter(item => {
       const product = products.find(p => p.id === item.productId);
-      return product && acaiCategoryIds.includes(product.categoryId) && item.weight;
+      if (!product || !product.loyaltyEligible) return false;
+      if (product.type === 'weight') return item.weight;
+      return true;
     });
-    if (acaiItems.length === 0) return 0;
-    const cheapestPrice = Math.min(...acaiItems.map(i => i.price));
+    if (eligibleItems.length === 0) return 0;
+    const cheapestPrice = Math.min(...eligibleItems.map(i => i.price));
     return cheapestPrice * 0.3 * redeemCount;
-  }, [redeemCount, order, products, acaiCategoryIds]);
+  }, [redeemCount, order, products]);
 
   const subtotal = order?.total ?? 0;
 

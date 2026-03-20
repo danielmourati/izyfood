@@ -325,15 +325,12 @@ function CartContent({
     return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q));
   }, [customers, customerSearch]);
 
-  // Check if cart has açaí items eligible for loyalty
-  const acaiCategoryIds = useMemo(() =>
-    categories.filter(c => c.name.toLowerCase().includes('açaí') || c.name.toLowerCase().includes('acai')).map(c => c.id),
-    [categories]
-  );
-
+  // Check if cart has items eligible for loyalty
   const isItemEligible = (item: OrderItem) => {
     const product = products.find(p => p.id === item.productId);
-    return product && acaiCategoryIds.includes(product.categoryId) && item.weight && item.weight >= 0.3;
+    if (!product || !product.loyaltyEligible) return false;
+    if (product.type === 'weight') return item.weight && item.weight >= 0.3;
+    return true;
   };
 
   const hasEligibleAcaiInCart = cart.some(isItemEligible);

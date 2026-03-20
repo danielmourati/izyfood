@@ -340,6 +340,17 @@ const Produtos = () => {
                 </select>
               </div>
             </div>
+            <div className="flex items-center gap-3 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.loyaltyEligible}
+                  onChange={e => setForm(f => ({ ...f, loyaltyEligible: e.target.checked }))}
+                  className="rounded border-border"
+                />
+                <span className="text-sm">⭐ Elegível para pontuação fidelidade</span>
+              </label>
+            </div>
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
               <Button onClick={save}>{editingId ? 'Salvar' : 'Cadastrar'}</Button>
