@@ -72,6 +72,7 @@ const Produtos = () => {
       unit: p.unit,
       stock: String(p.stock),
       image: p.image || '',
+      loyaltyEligible: p.loyaltyEligible,
     });
     setDialogOpen(true);
   };
