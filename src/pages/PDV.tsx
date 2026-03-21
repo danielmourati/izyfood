@@ -62,9 +62,9 @@ const PDV = () => {
     if (cart.length === 0) return;
     const total = cart.reduce((s, i) => s + i.subtotal, 0);
     setOrders(prev => prev.map(o =>
-      o.id === pedidoParam ? { ...o, items: cart, total } : o
+      o.id === pedidoParam ? { ...o, items: cart, total, customerId: selectedCustomerId || undefined } : o
     ));
-  }, [cart, pedidoParam, initialized, setOrders]);
+  }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId]);
 
   const filteredProducts = useMemo(() => products.filter(p => p.categoryId === activeCategoryId), [products, activeCategoryId]);
   const total = useMemo(() => cart.reduce((s, i) => s + i.subtotal, 0), [cart]);
@@ -149,7 +149,19 @@ const PDV = () => {
 
   const holdOrder = () => {
     if (cart.length === 0) return;
-    if (!pedidoParam) {
+    if (pedidoParam) {
+      // Update existing order with current cart, customer, and held status
+      setOrders(prev => prev.map(o =>
+        o.id === pedidoParam ? {
+          ...o,
+          items: cart,
+          total,
+          status: 'segurado' as const,
+          customerId: selectedCustomerId || undefined,
+          heldAt: new Date().toISOString(),
+        } : o
+      ));
+    } else {
       const order: Order = {
         id: currentOrderId,
         items: cart,
