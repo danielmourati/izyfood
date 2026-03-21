@@ -1,42 +1,42 @@
 
 
-## Produto elegível para pontuação de fidelidade
+## Correção: Persistência de cliente, liberação de mesa e estabilidade do realtime
 
-### Problema atual
-A elegibilidade para pontos de fidelidade está hardcoded: só produtos da categoria "Açaí" com peso >= 300g pontuam. Não há como marcar outros produtos como elegíveis.
+### Problemas identificados
+
+**1. Cliente some ao segurar/salvar mesa**
+No `PDV.tsx`, o `useEffect` (linha 60-67) que sincroniza o carrinho com o pedido existente só atualiza `items` e `total`, mas **não persiste o `customerId`**. Além disso, o `holdOrder` quando já existe um `pedidoParam` (mesa) simplesmente limpa o carrinho sem atualizar o pedido no banco com o `customerId` e status `segurado`.
+
+**2. Mesa não volta para "Disponível" ao finalizar**
+O `completeSale` no `StoreContext.tsx` faz `supabase.from('store_tables').update(...)` diretamente no banco (linha 361-363), mas o `onComplete` do `CheckoutModal` no `PDV.tsx` chama `setCart([])` e navega para `/`. Porém, o `useEffect` de sincronização do carrinho (linha 60-67) **não atualiza o status da mesa** — e a navegação acontece antes do realtime propagar a mudança. O problema real é que o `completeSale` usa `order.tableNumber`, mas este pode estar `undefined` se o `currentOrder` montado na linha 171-180 não receber corretamente o `tableNumber` do URL param em certos fluxos.
+
+**3. Mesas desaparecem do realtime**
+O handler de `DELETE` no realtime de `store_tables` (linha 179) remove mesas do estado local. Isso acontece legitimamente quando o admin reduz a quantidade de mesas em `updateTableCount`, mas também pode ser disparado por **race conditions**: se dois dispositivos estiverem sincronizando tabelas simultaneamente, ou se o `updateTableCount` deletar e recriar mesas rapidamente, o realtime pode enviar DELETE sem o INSERT subsequente ter chegado ainda.
+
+---
 
 ### Solução
 
-Adicionar um campo `loyalty_eligible` (boolean) na tabela `products` e no tipo `Product`, com um toggle no formulário de cadastro/edição de produto. A lógica de pontuação será atualizada para usar esse campo em vez de filtrar por nome de categoria.
+**Arquivo: `src/pages/PDV.tsx`**
 
-### Mudanças
+1. **Sincronizar `customerId` no useEffect do carrinho** — adicionar `customerId` e `customerName` ao objeto atualizado no `setOrders` (useEffect linha 60-67).
 
-**1. Migration SQL**
-- Adicionar coluna `loyalty_eligible boolean not null default false` na tabela `products`
-- Atualizar produtos existentes da categoria Açaí para `loyalty_eligible = true`
+2. **Corrigir `holdOrder` para pedidos existentes** — quando `pedidoParam` existe, atualizar o pedido no estado com `status: 'segurado'`, `customerId` e `heldAt`, em vez de simplesmente ignorar.
 
-**2. `src/types/index.ts`**
-- Adicionar `loyaltyEligible: boolean` na interface `Product`
+3. **Garantir que `onComplete` do CheckoutModal não interfira** — o `completeSale` já libera a mesa no DB. O `onComplete` só precisa limpar estado local e navegar.
 
-**3. `src/contexts/StoreContext.tsx`**
-- Atualizar `dbToProduct()` para mapear `loyalty_eligible` → `loyaltyEligible`
-- Atualizar `syncProducts()` para incluir `loyalty_eligible` nos inserts/updates
-- Substituir a lógica de `eligibleCount` (que filtra por categoria Açaí) para usar `product.loyaltyEligible` diretamente
-- Manter a regra de peso >= 0.3kg para produtos do tipo weight
+**Arquivo: `src/contexts/StoreContext.tsx`**
 
-**4. `src/pages/Produtos.tsx`**
-- Adicionar campo `loyaltyEligible` no formulário (Switch/Checkbox)
-- Exibir badge de fidelidade nos cards dos produtos elegíveis
-- Incluir no `emptyProductForm` e nas funções `openEdit`/`save`
+4. **Proteger contra DELETE espúrio de mesas** — no handler realtime de `store_tables`, ignorar DELETEs de mesas que tenham `status: 'occupied'` (mesa ocupada nunca deveria ser deletada). Alternativamente, ao receber DELETE, só remover se o número da mesa for maior que o `tableCount` atual.
 
-**5. `src/pages/PDV.tsx`**
-- Substituir `acaiCategoryIds` + filtro por categoria por `product.loyaltyEligible`
-- `isItemEligible`: checar `product.loyaltyEligible && (product.type !== 'weight' || (item.weight && item.weight >= 0.3))`
+5. **Garantir que `completeSale` funcione corretamente** — verificar que `order.tableNumber` está definido antes de tentar liberar a mesa, e logar erros do Supabase para diagnóstico.
 
-**6. `src/components/CheckoutModal.tsx`**
-- Mesma atualização: usar `product.loyaltyEligible` em vez de filtro por categoria Açaí
+---
 
-### Regra de negócio atualizada
-- Produto por **peso**: pontua se `loyaltyEligible === true` E peso >= 300g
-- Produto por **unidade**: pontua se `loyaltyEligible === true` (cada unidade = 1 ponto)
+### Resumo das mudanças
+
+| Arquivo | Mudança |
+|---|---|
+| `src/pages/PDV.tsx` | Sincronizar `customerId` no useEffect; corrigir `holdOrder` para pedidos existentes |
+| `src/contexts/StoreContext.tsx` | Proteger handler DELETE de mesas no realtime; melhorar robustez do `completeSale` |
 
