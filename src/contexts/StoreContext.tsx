@@ -175,8 +175,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, (payload) => {
         if (payload.eventType === 'UPDATE') setTables(prev => prev.map(t => t.number === payload.new.number ? dbToTable(payload.new) : t));
-        else if (payload.eventType === 'INSERT') setTables(prev => [...prev, dbToTable(payload.new)].sort((a, b) => a.number - b.number));
-        else if (payload.eventType === 'DELETE') setTables(prev => prev.filter(t => t.number !== payload.old.number));
+        else if (payload.eventType === 'INSERT') setTables(prev => {
+          // Avoid duplicates
+          if (prev.some(t => t.number === payload.new.number)) {
+            return prev.map(t => t.number === payload.new.number ? dbToTable(payload.new) : t);
+          }
+          return [...prev, dbToTable(payload.new)].sort((a, b) => a.number - b.number);
+        });
+        else if (payload.eventType === 'DELETE') {
+          // Only remove if the table is not occupied (protect against race conditions)
+          const old = payload.old as any;
+          if (old.status === 'occupied') return;
+          setTables(prev => prev.filter(t => t.number !== old.number));
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons' }, (payload) => {
         if (payload.eventType === 'INSERT') setCoupons(prev => [...prev, dbToCoupon(payload.new)]);
