@@ -369,8 +369,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     // Free table
-    if (order.tableNumber) {
-      await supabase.from('store_tables').update({ status: 'available', order_id: null }).eq('number', order.tableNumber);
+    if (order.tableNumber != null) {
+      const { error: tableError } = await supabase.from('store_tables').update({ status: 'available', order_id: null }).eq('number', order.tableNumber);
+      if (tableError) console.error('Error freeing table:', tableError);
     }
 
     // Update order status

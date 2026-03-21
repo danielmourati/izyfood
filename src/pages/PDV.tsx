@@ -149,7 +149,19 @@ const PDV = () => {
 
   const holdOrder = () => {
     if (cart.length === 0) return;
-    if (!pedidoParam) {
+    if (pedidoParam) {
+      // Update existing order with current cart, customer, and held status
+      setOrders(prev => prev.map(o =>
+        o.id === pedidoParam ? {
+          ...o,
+          items: cart,
+          total,
+          status: 'segurado' as const,
+          customerId: selectedCustomerId || undefined,
+          heldAt: new Date().toISOString(),
+        } : o
+      ));
+    } else {
       const order: Order = {
         id: currentOrderId,
         items: cart,
