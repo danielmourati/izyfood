@@ -43,7 +43,9 @@ const PDV = () => {
   const [currentOrderId, setCurrentOrderId] = useState<string>(() => crypto.randomUUID());
   const [initialized, setInitialized] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Initialize from existing order or create new one immediately
   useEffect(() => {
     if (initialized) return;
     if (existingOrder) {
@@ -51,20 +53,51 @@ const PDV = () => {
       setOrderType(existingOrder.orderType);
       setCurrentOrderId(existingOrder.id);
       if (existingOrder.customerId) setSelectedCustomerId(existingOrder.customerId);
-    } else if (tableNumber) {
-      setOrderType('mesa');
+      setInitialized(true);
+    } else if (pedidoParam) {
+      // pedidoParam exists but order not found yet (loading from realtime)
+      // Wait for it
+    } else {
+      // No pedidoParam — create order immediately in DB
+      const newId = currentOrderId;
+      const newOrderType = tableNumber ? 'mesa' as const : 'balcao' as const;
+      if (tableNumber) setOrderType('mesa');
+      const order: Order = {
+        id: newId,
+        items: [],
+        total: 0,
+        orderType: newOrderType,
+        status: 'aberto',
+        tableNumber,
+        createdAt: new Date().toISOString(),
+      };
+      setOrders(prev => [...prev, order]);
+      // Redirect to include pedido param so auto-save works
+      const params = new URLSearchParams(searchParams);
+      params.set('pedido', newId);
+      navigate(`/pdv?${params.toString()}`, { replace: true });
+      setInitialized(true);
     }
-    setInitialized(true);
-  }, [existingOrder, tableNumber, initialized]);
+  }, [existingOrder, tableNumber, initialized, pedidoParam]);
 
+  // Debounced auto-save: sync cart + customer to order in DB
   useEffect(() => {
     if (!pedidoParam || !initialized) return;
-    if (cart.length === 0) return;
-    const total = cart.reduce((s, i) => s + i.subtotal, 0);
-    setOrders(prev => prev.map(o =>
-      o.id === pedidoParam ? { ...o, items: cart, total, customerId: selectedCustomerId || undefined } : o
-    ));
-  }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const currentTotal = cart.reduce((s, i) => s + i.subtotal, 0);
+      setOrders(prev => prev.map(o =>
+        o.id === pedidoParam ? {
+          ...o,
+          items: cart,
+          total: currentTotal,
+          customerId: selectedCustomerId || undefined,
+          orderType,
+        } : o
+      ));
+    }, 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType]);
 
   const filteredProducts = useMemo(() => products.filter(p => p.categoryId === activeCategoryId), [products, activeCategoryId]);
   const total = useMemo(() => cart.reduce((s, i) => s + i.subtotal, 0), [cart]);
