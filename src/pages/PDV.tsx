@@ -150,15 +150,19 @@ const PDV = () => {
   const removeItem = (id: string) => setCart(prev => prev.filter(i => i.id !== id));
 
   const cancelOrder = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     setCart([]);
     setSelectedCustomerId(null);
-    if (tableNumber && pedidoParam) {
+    const orderId = pedidoParam || currentOrderId;
+    if (tableNumber) {
       setTables(prev => prev.map(t =>
         t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
       ));
-      setOrders(prev => prev.filter(o => o.id !== pedidoParam));
     }
+    // Remove the auto-created order from DB
+    setOrders(prev => prev.filter(o => o.id !== orderId));
     if (tableNumber) navigate('/');
+    else navigate('/pdv', { replace: true });
   };
 
   const handleSelectTable = (table: TableInfo) => {
