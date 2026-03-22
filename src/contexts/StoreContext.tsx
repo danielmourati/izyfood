@@ -137,7 +137,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ============ Realtime subscriptions ============
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const channel = supabase.channel('store-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
