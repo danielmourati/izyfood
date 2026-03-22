@@ -204,7 +204,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     channelRef.current = channel;
     return () => { supabase.removeChannel(channel); };
-  }, [user]);
+  }, [userId]);
 
   const getCategoryById = useCallback((id: string) => categories.find(c => c.id === id), [categories]);
 
