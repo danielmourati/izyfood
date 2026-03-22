@@ -190,32 +190,36 @@ const PDV = () => {
 
   const holdOrder = () => {
     if (cart.length === 0) return;
-    if (pedidoParam) {
-      // Update existing order with current cart, customer, and held status
-      setOrders(prev => prev.map(o =>
-        o.id === pedidoParam ? {
-          ...o,
-          items: cart,
-          total,
-          status: 'segurado' as const,
-          customerId: selectedCustomerId || undefined,
-          heldAt: new Date().toISOString(),
-        } : o
-      ));
-    } else {
-      const order: Order = {
-        id: currentOrderId,
+    const orderId = pedidoParam || currentOrderId;
+    // Flush debounce and update with held status
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setOrders(prev => {
+      const exists = prev.some(o => o.id === orderId);
+      if (exists) {
+        return prev.map(o =>
+          o.id === orderId ? {
+            ...o,
+            items: cart,
+            total,
+            status: 'segurado' as const,
+            customerId: selectedCustomerId || undefined,
+            heldAt: new Date().toISOString(),
+          } : o
+        );
+      }
+      // Fallback: create if somehow not yet in state
+      return [...prev, {
+        id: orderId,
         items: cart,
         total,
         orderType,
-        status: 'segurado',
+        status: 'segurado' as const,
         tableNumber,
         customerId: selectedCustomerId || undefined,
         createdAt: new Date().toISOString(),
         heldAt: new Date().toISOString(),
-      };
-      setOrders(prev => [...prev, order]);
-    }
+      }];
+    });
     setCart([]);
     setSelectedCustomerId(null);
     if (tableNumber) navigate('/');
