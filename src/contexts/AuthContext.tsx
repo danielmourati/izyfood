@@ -49,12 +49,16 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const initializedRef = React.useRef(false);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'INITIAL_SESSION') {
+        // Handled by getSession below
+        return;
+      }
       if (session?.user) {
-        // Use setTimeout to avoid Supabase deadlock
         setTimeout(async () => {
           const appUser = await fetchAppUser(session.user);
           setUser(appUser);
@@ -66,8 +70,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // THEN check existing session
+    // Check existing session (runs once)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (initializedRef.current) return;
+      initializedRef.current = true;
       if (session?.user) {
         const appUser = await fetchAppUser(session.user);
         setUser(appUser);
