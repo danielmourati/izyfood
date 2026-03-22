@@ -163,20 +163,28 @@ const PDV = () => {
 
   const handleSelectTable = (table: TableInfo) => {
     const orderId = currentOrderId;
-    const order: Order = {
-      id: orderId,
-      items: cart,
-      total,
-      orderType: 'mesa',
-      status: 'aberto',
-      tableNumber: table.number,
-      customerId: selectedCustomerId || undefined,
-      createdAt: new Date().toISOString(),
-    };
-    setOrders(prev => [...prev, order]);
+    if (pedidoParam) {
+      // Order already exists in DB — just update it with table info
+      setOrders(prev => prev.map(o =>
+        o.id === orderId ? { ...o, orderType: 'mesa', tableNumber: table.number, customerId: selectedCustomerId || undefined } : o
+      ));
+    } else {
+      const order: Order = {
+        id: orderId,
+        items: cart,
+        total,
+        orderType: 'mesa',
+        status: 'aberto',
+        tableNumber: table.number,
+        customerId: selectedCustomerId || undefined,
+        createdAt: new Date().toISOString(),
+      };
+      setOrders(prev => [...prev, order]);
+    }
     setTables(prev => prev.map(t =>
       t.number === table.number ? { ...t, status: 'occupied', orderId } : t
     ));
+    setOrderType('mesa');
     navigate(`/pdv?mesa=${table.number}&pedido=${orderId}`);
   };
 
