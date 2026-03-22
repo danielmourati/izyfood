@@ -91,8 +91,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   // ============ Initial data fetch ============
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) { setLoading(false); return; }
+    if (!userId) { setLoading(false); return; }
     let cancelled = false;
 
     async function fetchAll() {
@@ -132,7 +133,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     fetchAll();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [userId]);
 
   // ============ Realtime subscriptions ============
   useEffect(() => {
