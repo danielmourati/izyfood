@@ -91,8 +91,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   // ============ Initial data fetch ============
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) { setLoading(false); return; }
+    if (!userId) { setLoading(false); return; }
     let cancelled = false;
 
     async function fetchAll() {
@@ -132,11 +133,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     fetchAll();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [userId]);
 
   // ============ Realtime subscriptions ============
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const channel = supabase.channel('store-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
@@ -203,7 +204,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     channelRef.current = channel;
     return () => { supabase.removeChannel(channel); };
-  }, [user]);
+  }, [userId]);
 
   const getCategoryById = useCallback((id: string) => categories.find(c => c.id === id), [categories]);
 
