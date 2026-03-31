@@ -1,5 +1,5 @@
 import {
-  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, LogOut, Truck, UtensilsCrossed, Settings
+  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, LogOut, Truck, UtensilsCrossed, Settings, DollarSign
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
