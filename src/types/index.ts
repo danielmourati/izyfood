@@ -126,3 +126,17 @@ export interface DiscountCoupon {
 export interface StoreSettings {
   tableCount: number;
 }
+
+export interface CashRegister {
+  id: string;
+  openedBy: string;
+  openedAt: string;
+  closedAt?: string;
+  initialAmount: number;
+  totalCash: number;
+  totalPix: number;
+  totalCard: number;
+  totalFiado: number;
+  totalSales: number;
+  notes: string;
+}

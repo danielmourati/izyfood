@@ -13,6 +13,7 @@ import Estoque from "./pages/Estoque";
 import Produtos from "./pages/Produtos";
 import Relatorios from "./pages/Relatorios";
 import Entregas from "./pages/Entregas";
+import Caixa from "./pages/Caixa";
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
@@ -55,6 +56,7 @@ function AppRoutes() {
         <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
         <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
         <Route path="/entregas" element={<ProtectedRoute><Entregas /></ProtectedRoute>} />
+        <Route path="/caixa" element={<ProtectedRoute><Caixa /></ProtectedRoute>} />
         <Route path="/clientes" element={<ProtectedRoute adminOnly><Clientes /></ProtectedRoute>} />
         <Route path="/produtos" element={<ProtectedRoute adminOnly><Produtos /></ProtectedRoute>} />
         <Route path="/estoque" element={<ProtectedRoute adminOnly><Estoque /></ProtectedRoute>} />
