@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      cash_registers: {
+        Row: {
+          closed_at: string | null
+          id: string
+          initial_amount: number
+          notes: string | null
+          opened_at: string
+          opened_by: string
+          total_card: number
+          total_cash: number
+          total_fiado: number
+          total_pix: number
+          total_sales: number
+        }
+        Insert: {
+          closed_at?: string | null
+          id?: string
+          initial_amount?: number
+          notes?: string | null
+          opened_at?: string
+          opened_by: string
+          total_card?: number
+          total_cash?: number
+          total_fiado?: number
+          total_pix?: number
+          total_sales?: number
+        }
+        Update: {
+          closed_at?: string | null
+          id?: string
+          initial_amount?: number
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string
+          total_card?: number
+          total_cash?: number
+          total_fiado?: number
+          total_pix?: number
+          total_sales?: number
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
