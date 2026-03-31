@@ -188,7 +188,7 @@ export default function Caixa() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <DollarSign className="h-5 w-5 text-green-500" /> Caixa Aberto
+              <DollarSign className="h-5 w-5 text-primary" /> Caixa Aberto
             </CardTitle>
             <p className="text-sm text-muted-foreground">
               Aberto em {new Date(currentRegister.openedAt).toLocaleString('pt-BR')}
