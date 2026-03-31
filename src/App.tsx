@@ -13,6 +13,7 @@ import Estoque from "./pages/Estoque";
 import Produtos from "./pages/Produtos";
 import Relatorios from "./pages/Relatorios";
 import Entregas from "./pages/Entregas";
+import Caixa from "./pages/Caixa";
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
