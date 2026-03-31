@@ -15,6 +15,7 @@ const allItems = [
   { title: 'PDV', url: '/pdv', icon: ShoppingCart, adminOnly: false },
   { title: 'Pedidos', url: '/pedidos', icon: ClipboardList, adminOnly: false },
   { title: 'Delivery', url: '/entregas', icon: Truck, adminOnly: false },
+  { title: 'Caixa', url: '/caixa', icon: DollarSign, adminOnly: false },
   { title: 'Clientes', url: '/clientes', icon: Users, adminOnly: true },
   { title: 'Produtos', url: '/produtos', icon: UtensilsCrossed, adminOnly: true },
   { title: 'Estoque', url: '/estoque', icon: Package, adminOnly: true },
