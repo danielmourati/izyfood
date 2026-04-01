@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
-import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory, DiscountCoupon, StoreSettings } from '@/types';
+import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory, DiscountCoupon, StoreSettings, PaymentSplit } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -63,7 +63,7 @@ function dbToOrder(r: any): Order {
   };
 }
 function dbToSale(r: any): Sale {
-  return { id: r.id, orderId: r.order_id, total: Number(r.total), paymentMethod: r.payment_method, customerId: r.customer_id || undefined, date: r.date, items: r.items as OrderItem[] };
+  return { id: r.id, orderId: r.order_id, total: Number(r.total), paymentMethod: r.payment_method, customerId: r.customer_id || undefined, date: r.date, items: r.items as OrderItem[], paymentSplits: r.payment_splits as PaymentSplit[] | undefined };
 }
 function dbToStockEntry(r: any): StockEntry {
   return { id: r.id, productId: r.product_id, quantity: Number(r.quantity), supplierId: r.supplier_id || '', date: r.date };
@@ -344,6 +344,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       payment_method: order.paymentMethod!,
       customer_id: order.customerId || null,
       items: order.items as any,
+      payment_splits: order.paymentSplits && order.paymentSplits.length > 0 ? order.paymentSplits as any : null,
     });
 
     // Deduct stock

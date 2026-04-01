@@ -98,6 +98,7 @@ export interface Sale {
   customerId?: string;
   date: string;
   items: OrderItem[];
+  paymentSplits?: PaymentSplit[];
 }
 
 export interface User {

@@ -318,6 +318,7 @@ export type Database = {
           items: Json
           order_id: string | null
           payment_method: Database["public"]["Enums"]["payment_method"]
+          payment_splits: Json | null
           total: number
         }
         Insert: {
@@ -327,6 +328,7 @@ export type Database = {
           items?: Json
           order_id?: string | null
           payment_method: Database["public"]["Enums"]["payment_method"]
+          payment_splits?: Json | null
           total?: number
         }
         Update: {
@@ -336,6 +338,7 @@ export type Database = {
           items?: Json
           order_id?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
+          payment_splits?: Json | null
           total?: number
         }
         Relationships: [
