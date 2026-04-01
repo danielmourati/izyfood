@@ -149,12 +149,23 @@ export default function Caixa() {
     const filtered = sales.filter(s => new Date(s.date) >= openedAt);
     let cash = 0, pix = 0, card = 0, fiado = 0;
     for (const s of filtered) {
-      const amt = Number(s.total);
-      switch (s.paymentMethod) {
-        case 'dinheiro': cash += amt; break;
-        case 'pix': pix += amt; break;
-        case 'cartao': card += amt; break;
-        case 'fiado': fiado += amt; break;
+      if (s.paymentSplits && s.paymentSplits.length > 0) {
+        for (const sp of s.paymentSplits) {
+          switch (sp.method) {
+            case 'dinheiro': cash += sp.amount; break;
+            case 'pix': pix += sp.amount; break;
+            case 'cartao': card += sp.amount; break;
+            case 'fiado': fiado += sp.amount; break;
+          }
+        }
+      } else {
+        const amt = Number(s.total);
+        switch (s.paymentMethod) {
+          case 'dinheiro': cash += amt; break;
+          case 'pix': pix += amt; break;
+          case 'cartao': card += amt; break;
+          case 'fiado': fiado += amt; break;
+        }
       }
     }
     return { cash, pix, card, fiado, total: cash + pix + card + fiado };
