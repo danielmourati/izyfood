@@ -114,6 +114,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('store_tables').select('*').order('number'),
         supabase.from('coupons').select('*'),
         supabase.from('store_settings').select('*').limit(1),
+        supabase.from('cash_registers').select('id').is('closed_at', null).limit(1),
       ]);
 
       if (cancelled) return;
