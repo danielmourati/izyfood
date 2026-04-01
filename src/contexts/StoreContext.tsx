@@ -419,7 +419,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tables, setTables: setTablesWrapped, suppliers, setSuppliers: setSuppliersWrapped,
       sales, setSales: setSalesWrapped, stockEntries, setStockEntries: setStockEntriesWrapped,
       coupons, setCoupons: setCouponsWrapped, settings, setSettings,
-      completeSale, deductStock, getCategoryById, updateTableCount, loading,
+      completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
     }}>
       {children}
     </StoreContext.Provider>
