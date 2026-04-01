@@ -29,6 +29,7 @@ interface StoreContextType {
   deductStock: (items: OrderItem[]) => void;
   getCategoryById: (id: string) => ProductCategory | undefined;
   updateTableCount: (count: number) => void;
+  isCashRegisterOpen: boolean;
   loading: boolean;
 }
 
