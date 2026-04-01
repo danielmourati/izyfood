@@ -344,6 +344,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       payment_method: order.paymentMethod!,
       customer_id: order.customerId || null,
       items: order.items as any,
+      payment_splits: order.paymentSplits && order.paymentSplits.length > 0 ? order.paymentSplits as any : null,
     });
 
     // Deduct stock
