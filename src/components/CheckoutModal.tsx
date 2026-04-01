@@ -409,7 +409,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
         <div className="flex gap-2 pt-2">
           <Button variant="outline" className="flex-1 h-12" onClick={onClose}>Voltar</Button>
-          <Button className="flex-1 h-12" onClick={handleFinalize}>Finalizar Venda</Button>
+          <Button className="flex-1 h-12" onClick={handleFinalize} disabled={!isCashRegisterOpen}>Finalizar Venda</Button>
         </div>
       </DialogContent>
     </Dialog>
