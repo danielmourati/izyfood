@@ -89,6 +89,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [coupons, setCoupons] = useState<DiscountCoupon[]>([]);
   const [settings, setSettings] = useState<StoreSettings>({ tableCount: 20 });
+  const [isCashRegisterOpen, setIsCashRegisterOpen] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   // ============ Initial data fetch ============
