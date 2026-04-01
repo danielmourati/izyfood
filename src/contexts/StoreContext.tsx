@@ -102,7 +102,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const [
         { data: cats }, { data: prods }, { data: custs }, { data: supps },
         { data: ords }, { data: sls }, { data: stks }, { data: tbls },
-        { data: cpns }, { data: setts },
+        { data: cpns }, { data: setts }, { data: cashRegs },
       ] = await Promise.all([
         supabase.from('categories').select('*'),
         supabase.from('products').select('*'),
