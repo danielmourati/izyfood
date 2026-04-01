@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useStore } from '@/contexts/StoreContext';
 import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
-import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star } from 'lucide-react';
+import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle } from 'lucide-react';
 
 interface CheckoutModalProps {
   open: boolean;
@@ -25,7 +26,7 @@ const methods: { key: PaymentMethod; label: string; icon: React.ElementType }[] 
 ];
 
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
-  const { completeSale, customers, coupons, products } = useStore();
+  const { completeSale, customers, coupons, products, isCashRegisterOpen } = useStore();
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
   const [addingMethod, setAddingMethod] = useState<PaymentMethod | null>(null);
   const [addingAmount, setAddingAmount] = useState('');
@@ -120,6 +121,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   };
 
   const handleFinalize = () => {
+    if (!isCashRegisterOpen) return;
     if (finalTotal > 0 && splits.length === 0) return;
     if (finalTotal > 0 && Math.abs(remaining) > 0.01 && remaining > 0) return;
     if (hasFiado && !selectedCustomer) return;
@@ -165,6 +167,16 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
         <DialogHeader>
           <DialogTitle>Pagamento</DialogTitle>
         </DialogHeader>
+
+        {/* Cash register warning */}
+        {!isCashRegisterOpen && (
+          <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-sm font-medium">
+              O caixa não está aberto. Abra o caixa antes de finalizar uma venda.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Customer info */}
         {customerObj && (
@@ -397,7 +409,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
         <div className="flex gap-2 pt-2">
           <Button variant="outline" className="flex-1 h-12" onClick={onClose}>Voltar</Button>
-          <Button className="flex-1 h-12" onClick={handleFinalize}>Finalizar Venda</Button>
+          <Button className="flex-1 h-12" onClick={handleFinalize} disabled={!isCashRegisterOpen}>Finalizar Venda</Button>
         </div>
       </DialogContent>
     </Dialog>

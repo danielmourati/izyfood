@@ -29,6 +29,7 @@ interface StoreContextType {
   deductStock: (items: OrderItem[]) => void;
   getCategoryById: (id: string) => ProductCategory | undefined;
   updateTableCount: (count: number) => void;
+  isCashRegisterOpen: boolean;
   loading: boolean;
 }
 
@@ -88,6 +89,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [coupons, setCoupons] = useState<DiscountCoupon[]>([]);
   const [settings, setSettings] = useState<StoreSettings>({ tableCount: 20 });
+  const [isCashRegisterOpen, setIsCashRegisterOpen] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   // ============ Initial data fetch ============
@@ -100,7 +102,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const [
         { data: cats }, { data: prods }, { data: custs }, { data: supps },
         { data: ords }, { data: sls }, { data: stks }, { data: tbls },
-        { data: cpns }, { data: setts },
+        { data: cpns }, { data: setts }, { data: cashRegs },
       ] = await Promise.all([
         supabase.from('categories').select('*'),
         supabase.from('products').select('*'),
@@ -112,6 +114,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('store_tables').select('*').order('number'),
         supabase.from('coupons').select('*'),
         supabase.from('store_settings').select('*').limit(1),
+        supabase.from('cash_registers').select('id').is('closed_at', null).limit(1),
       ]);
 
       if (cancelled) return;
@@ -128,6 +131,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (setts && setts.length > 0) {
         setSettings({ tableCount: setts[0].table_count });
       }
+      setIsCashRegisterOpen(!!(cashRegs && cashRegs.length > 0));
       setLoading(false);
     }
 
@@ -203,6 +207,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
           setSettings({ tableCount: payload.new.table_count });
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_registers' }, (payload) => {
+        if (payload.eventType === 'INSERT' && !payload.new.closed_at) {
+          setIsCashRegisterOpen(true);
+        } else if (payload.eventType === 'UPDATE' && payload.new.closed_at) {
+          setIsCashRegisterOpen(false);
+        } else if (payload.eventType === 'DELETE') {
+          // Re-check by querying
+          supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
+            setIsCashRegisterOpen(!!(data && data.length > 0));
+          });
         }
       })
       .subscribe();
@@ -403,7 +419,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tables, setTables: setTablesWrapped, suppliers, setSuppliers: setSuppliersWrapped,
       sales, setSales: setSalesWrapped, stockEntries, setStockEntries: setStockEntriesWrapped,
       coupons, setCoupons: setCouponsWrapped, settings, setSettings,
-      completeSale, deductStock, getCategoryById, updateTableCount, loading,
+      completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
     }}>
       {children}
     </StoreContext.Provider>
