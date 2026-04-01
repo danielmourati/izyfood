@@ -99,12 +99,23 @@ export default function Caixa() {
 
     let totalCash = 0, totalPix = 0, totalCard = 0, totalFiado = 0;
     for (const s of salesInPeriod) {
-      const amt = Number(s.total);
-      switch (s.paymentMethod) {
-        case 'dinheiro': totalCash += amt; break;
-        case 'pix': totalPix += amt; break;
-        case 'cartao': totalCard += amt; break;
-        case 'fiado': totalFiado += amt; break;
+      if (s.paymentSplits && s.paymentSplits.length > 0) {
+        for (const sp of s.paymentSplits) {
+          switch (sp.method) {
+            case 'dinheiro': totalCash += sp.amount; break;
+            case 'pix': totalPix += sp.amount; break;
+            case 'cartao': totalCard += sp.amount; break;
+            case 'fiado': totalFiado += sp.amount; break;
+          }
+        }
+      } else {
+        const amt = Number(s.total);
+        switch (s.paymentMethod) {
+          case 'dinheiro': totalCash += amt; break;
+          case 'pix': totalPix += amt; break;
+          case 'cartao': totalCard += amt; break;
+          case 'fiado': totalFiado += amt; break;
+        }
       }
     }
     const totalSales = totalCash + totalPix + totalCard + totalFiado;
