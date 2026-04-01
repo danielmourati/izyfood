@@ -63,7 +63,7 @@ function dbToOrder(r: any): Order {
   };
 }
 function dbToSale(r: any): Sale {
-  return { id: r.id, orderId: r.order_id, total: Number(r.total), paymentMethod: r.payment_method, customerId: r.customer_id || undefined, date: r.date, items: r.items as OrderItem[] };
+  return { id: r.id, orderId: r.order_id, total: Number(r.total), paymentMethod: r.payment_method, customerId: r.customer_id || undefined, date: r.date, items: r.items as OrderItem[], paymentSplits: r.payment_splits as PaymentSplit[] | undefined };
 }
 function dbToStockEntry(r: any): StockEntry {
   return { id: r.id, productId: r.product_id, quantity: Number(r.quantity), supplierId: r.supplier_id || '', date: r.date };
