@@ -131,6 +131,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (setts && setts.length > 0) {
         setSettings({ tableCount: setts[0].table_count });
       }
+      setIsCashRegisterOpen(!!(cashRegs && cashRegs.length > 0));
       setLoading(false);
     }
 
