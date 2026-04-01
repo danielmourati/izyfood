@@ -121,6 +121,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   };
 
   const handleFinalize = () => {
+    if (!isCashRegisterOpen) return;
     if (finalTotal > 0 && splits.length === 0) return;
     if (finalTotal > 0 && Math.abs(remaining) > 0.01 && remaining > 0) return;
     if (hasFiado && !selectedCustomer) return;
