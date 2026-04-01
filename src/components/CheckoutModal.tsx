@@ -167,6 +167,16 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           <DialogTitle>Pagamento</DialogTitle>
         </DialogHeader>
 
+        {/* Cash register warning */}
+        {!isCashRegisterOpen && (
+          <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-sm font-medium">
+              O caixa não está aberto. Abra o caixa antes de finalizar uma venda.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Customer info */}
         {customerObj && (
           <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
