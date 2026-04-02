@@ -160,7 +160,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         else if (payload.eventType === 'DELETE') setCustomers(prev => prev.filter(c => c.id !== payload.old.id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers' }, (payload) => {
-        if (payload.eventType === 'INSERT') setSuppliers(prev => [...prev, dbToSupplier(payload.new)]);
+        if (payload.eventType === 'INSERT') setSuppliers(prev => prev.some(s => s.id === payload.new.id) ? prev : [...prev, dbToSupplier(payload.new)]);
         else if (payload.eventType === 'UPDATE') setSuppliers(prev => prev.map(s => s.id === payload.new.id ? dbToSupplier(payload.new) : s));
         else if (payload.eventType === 'DELETE') setSuppliers(prev => prev.filter(s => s.id !== payload.old.id));
       })
