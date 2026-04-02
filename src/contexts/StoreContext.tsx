@@ -145,22 +145,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     const channel = supabase.channel('store-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
-        if (payload.eventType === 'INSERT') setProducts(prev => [...prev, dbToProduct(payload.new)]);
+        if (payload.eventType === 'INSERT') setProducts(prev => prev.some(p => p.id === payload.new.id) ? prev : [...prev, dbToProduct(payload.new)]);
         else if (payload.eventType === 'UPDATE') setProducts(prev => prev.map(p => p.id === payload.new.id ? dbToProduct(payload.new) : p));
         else if (payload.eventType === 'DELETE') setProducts(prev => prev.filter(p => p.id !== payload.old.id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, (payload) => {
-        if (payload.eventType === 'INSERT') setCategories(prev => [...prev, dbToCategory(payload.new)]);
+        if (payload.eventType === 'INSERT') setCategories(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, dbToCategory(payload.new)]);
         else if (payload.eventType === 'UPDATE') setCategories(prev => prev.map(c => c.id === payload.new.id ? dbToCategory(payload.new) : c));
         else if (payload.eventType === 'DELETE') setCategories(prev => prev.filter(c => c.id !== payload.old.id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, (payload) => {
-        if (payload.eventType === 'INSERT') setCustomers(prev => [...prev, dbToCustomer(payload.new)]);
+        if (payload.eventType === 'INSERT') setCustomers(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, dbToCustomer(payload.new)]);
         else if (payload.eventType === 'UPDATE') setCustomers(prev => prev.map(c => c.id === payload.new.id ? dbToCustomer(payload.new) : c));
         else if (payload.eventType === 'DELETE') setCustomers(prev => prev.filter(c => c.id !== payload.old.id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers' }, (payload) => {
-        if (payload.eventType === 'INSERT') setSuppliers(prev => [...prev, dbToSupplier(payload.new)]);
+        if (payload.eventType === 'INSERT') setSuppliers(prev => prev.some(s => s.id === payload.new.id) ? prev : [...prev, dbToSupplier(payload.new)]);
         else if (payload.eventType === 'UPDATE') setSuppliers(prev => prev.map(s => s.id === payload.new.id ? dbToSupplier(payload.new) : s));
         else if (payload.eventType === 'DELETE') setSuppliers(prev => prev.filter(s => s.id !== payload.old.id));
       })

@@ -8,7 +8,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useStore } from '@/contexts/StoreContext';
 import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
-import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle } from 'lucide-react';
+import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface CheckoutModalProps {
   open: boolean;
@@ -26,6 +27,7 @@ const methods: { key: PaymentMethod; label: string; icon: React.ElementType }[] 
 ];
 
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
+  const navigate = useNavigate();
   const { completeSale, customers, coupons, products, isCashRegisterOpen } = useStore();
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
   const [addingMethod, setAddingMethod] = useState<PaymentMethod | null>(null);
@@ -172,8 +174,17 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
         {!isCashRegisterOpen && (
           <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="text-sm font-medium">
-              O caixa não está aberto. Abra o caixa antes de finalizar uma venda.
+            <AlertDescription className="text-sm font-medium flex items-center justify-between gap-2">
+              <span>O caixa não está aberto. Abra o caixa antes de finalizar uma venda.</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-destructive/50 text-destructive hover:bg-destructive/10"
+                onClick={() => { onClose(); navigate('/caixa'); }}
+              >
+                <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                Abrir Caixa
+              </Button>
             </AlertDescription>
           </Alert>
         )}
