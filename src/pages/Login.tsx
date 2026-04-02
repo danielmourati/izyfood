@@ -125,9 +125,8 @@ const Login = () => {
       {/* Right side - Login form */}
       <div className="flex-1 flex flex-col items-center justify-center bg-background p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-8">
-          {/* Mobile logo */}
-          <div className="text-center lg:hidden">
-            <img src="/logo.png" alt="Carnaúba" className="h-20 mx-auto mb-2 object-contain" />
+          <div className="text-center">
+            <img src="/logo.png" alt="Carnaúba" className="h-24 mx-auto mb-2 object-contain" />
           </div>
 
           <div className="space-y-2">
