@@ -27,6 +27,7 @@ const methods: { key: PaymentMethod; label: string; icon: React.ElementType }[] 
 ];
 
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
+  const navigate = useNavigate();
   const { completeSale, customers, coupons, products, isCashRegisterOpen } = useStore();
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
   const [addingMethod, setAddingMethod] = useState<PaymentMethod | null>(null);
