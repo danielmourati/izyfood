@@ -79,9 +79,8 @@ const Login = () => {
 
         {/* Overlay content */}
         <div className="relative z-10 flex flex-col justify-between h-full p-8">
-          <div>
-            <img src="/logo.png" alt="Carnaúba" className="h-20 object-contain drop-shadow-lg" />
-          </div>
+          <div />
+
           <div className="space-y-4">
             <h2 className="text-3xl font-bold text-white drop-shadow-lg">
               Sabor que encanta,<br />gestão que funciona.
