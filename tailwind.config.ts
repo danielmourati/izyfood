@@ -59,6 +59,8 @@ export default {
         },
         login: {
           bg: "hsl(var(--login-bg))",
+          accent: "hsl(var(--login-accent))",
+          green: "hsl(var(--login-green))",
         },
       },
       borderRadius: {
