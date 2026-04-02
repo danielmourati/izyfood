@@ -150,7 +150,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         else if (payload.eventType === 'DELETE') setProducts(prev => prev.filter(p => p.id !== payload.old.id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, (payload) => {
-        if (payload.eventType === 'INSERT') setCategories(prev => [...prev, dbToCategory(payload.new)]);
+        if (payload.eventType === 'INSERT') setCategories(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, dbToCategory(payload.new)]);
         else if (payload.eventType === 'UPDATE') setCategories(prev => prev.map(c => c.id === payload.new.id ? dbToCategory(payload.new) : c));
         else if (payload.eventType === 'DELETE') setCategories(prev => prev.filter(c => c.id !== payload.old.id));
       })
