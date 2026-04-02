@@ -1,0 +1,13 @@
+DELETE FROM sales;
+DELETE FROM stock_entries;
+DELETE FROM orders;
+DELETE FROM store_tables;
+DELETE FROM store_settings;
+DELETE FROM cash_registers;
+DELETE FROM customers;
+DELETE FROM products;
+DELETE FROM categories;
+DELETE FROM suppliers;
+DELETE FROM coupons;
+DELETE FROM user_roles WHERE role != 'admin';
+DELETE FROM profiles WHERE id != '64a611f5-9c60-4b8e-8dc3-4294a506c82a';
