@@ -155,7 +155,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         else if (payload.eventType === 'DELETE') setCategories(prev => prev.filter(c => c.id !== payload.old.id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, (payload) => {
-        if (payload.eventType === 'INSERT') setCustomers(prev => [...prev, dbToCustomer(payload.new)]);
+        if (payload.eventType === 'INSERT') setCustomers(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, dbToCustomer(payload.new)]);
         else if (payload.eventType === 'UPDATE') setCustomers(prev => prev.map(c => c.id === payload.new.id ? dbToCustomer(payload.new) : c));
         else if (payload.eventType === 'DELETE') setCustomers(prev => prev.filter(c => c.id !== payload.old.id));
       })
