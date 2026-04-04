@@ -36,7 +36,7 @@ const PDV = () => {
     return undefined;
   }, [pedidoParam, orders]);
 
-  const [activeCategoryId, setActiveCategoryId] = useState<string>(() => categories[0]?.id || '');
+  const [activeCategoryId, setActiveCategoryId] = useState<string>('all');
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('balcao');
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
