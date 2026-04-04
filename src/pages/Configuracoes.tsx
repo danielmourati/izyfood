@@ -149,6 +149,7 @@ interface UserRow {
   email: string;
   phone: string;
   role: AppRole;
+  commission: number;
 }
 
 function UsuariosTab() {
