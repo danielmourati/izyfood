@@ -43,14 +43,18 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [redeemCount, setRedeemCount] = useState(0);
   const [occupantCount, setOccupantCount] = useState('');
+  const [serviceFeePercentage, setServiceFeePercentage] = useState(0);
   
 
-  // Re-check cash register status when modal opens
+  // Re-check cash register status and fetch service fee when modal opens
   useEffect(() => {
     if (open) {
       supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
         setLocalCashOpen(!!(data && data.length > 0));
         setCashRegisterChecked(true);
+      });
+      supabase.from('store_settings').select('service_fee_percentage').limit(1).then(({ data }) => {
+        if (data && data.length > 0) setServiceFeePercentage(Number((data[0] as any).service_fee_percentage || 0));
       });
     } else {
       setCashRegisterChecked(false);
@@ -99,7 +103,9 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     return discountType === 'percentage' ? (subtotal * val) / 100 : val;
   }, [discountValue, discountType, subtotal, appliedCoupon, coupons]);
 
-  const finalTotal = Math.max(0, subtotal - discountAmount - acaiRedemptionDiscount);
+  const isMesa = order?.orderType === 'mesa';
+  const serviceFeeAmount = isMesa && serviceFeePercentage > 0 ? (subtotal * serviceFeePercentage) / 100 : 0;
+  const finalTotal = Math.max(0, subtotal - discountAmount - acaiRedemptionDiscount + serviceFeeAmount);
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
   const remaining = finalTotal - totalAssigned;
   const hasFiado = splits.some(s => s.method === 'fiado');
@@ -164,6 +170,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       couponId: appliedCoupon || undefined,
       customerId: selectedCustomer || order.customerId,
       loyaltyRedemptions: redeemCount > 0 ? redeemCount : undefined,
+      serviceFee: serviceFeeAmount > 0 ? serviceFeeAmount : undefined,
     };
 
     completeSale(finalOrder);
@@ -316,9 +323,15 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </div>
             </>
           )}
-          {(discountAmount + acaiRedemptionDiscount) > 0 && (
+          {serviceFeeAmount > 0 && (
+            <div className="flex justify-between text-sm bg-amber-500/10 rounded px-3 py-2">
+              <span className="text-amber-700 dark:text-amber-400">Taxa de serviço ({serviceFeePercentage}%)</span>
+              <span className="font-medium text-amber-700 dark:text-amber-400">+R$ {fmt(serviceFeeAmount)}</span>
+            </div>
+          )}
+          {(discountAmount + acaiRedemptionDiscount + serviceFeeAmount) > 0 && (
             <p className="text-sm text-primary font-semibold text-right">
-              Total com desconto: R$ {fmt(finalTotal)}
+              Total final: R$ {fmt(finalTotal)}
             </p>
           )}
         </div>

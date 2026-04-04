@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,10 @@ import { Product, OrderItem, Order, OrderType, TableInfo, Customer } from '@/typ
 import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const orderTypeLabels: Record<OrderType, string> = {
   balcao: '🏪 Balcão',
@@ -23,6 +27,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 
 const PDV = () => {
   const { products, categories, orders, setOrders, tables, setTables, getCategoryById } = useStore();
+  const { user, isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useTenantNavigate();
   const [showCart, setShowCart] = useState(false);
@@ -123,9 +128,9 @@ const PDV = () => {
       return;
     }
     setCart(prev => {
-      const existing = prev.find(i => i.productId === product.id);
+      const existing = prev.find(i => i.productId === product.id && !i.weight);
       if (existing) {
-        return prev.map(i => i.productId === product.id
+        return prev.map(i => i.productId === product.id && !i.weight
           ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.price }
           : i
         );
@@ -137,6 +142,8 @@ const PDV = () => {
         price: product.price,
         quantity: 1,
         subtotal: product.price,
+        addedBy: user?.id,
+        addedByName: user?.name,
       }];
     });
   };
@@ -151,6 +158,8 @@ const PDV = () => {
       quantity: 1,
       weight,
       subtotal: weight * product.price,
+      addedBy: user?.id,
+      addedByName: user?.name,
     }]);
   };
 
@@ -254,6 +263,8 @@ const PDV = () => {
     if (tableNumber) navigate('/');
   };
 
+  const isHeldMesa = !!(existingOrder && existingOrder.orderType === 'mesa' && (existingOrder.status === 'segurado' || (existingOrder.status === 'aberto' && existingOrder.items.length > 0)));
+
   const currentOrder: Order = {
     id: currentOrderId,
     items: cart,
@@ -356,7 +367,7 @@ const PDV = () => {
         <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
           updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
           tables={tables} onSelectTable={(t) => handleSelectTable(t)}
-          selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} />
+          selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa} />
       </div>
 
       {showCart && (
@@ -375,7 +386,7 @@ const PDV = () => {
               holdOrder={() => { holdOrder(); setShowCart(false); }}
               setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }}
               tables={tables} onSelectTable={(t) => { setShowCart(false); handleSelectTable(t); }}
-              selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} />
+              selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa} />
           </div>
         </div>
       )}
@@ -397,15 +408,17 @@ const PDV = () => {
 
 function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
-  selectedCustomerId, onSelectCustomer,
+  selectedCustomerId, onSelectCustomer, isHeldMesa,
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
   cancelOrder: () => void; holdOrder: () => void; setCheckoutOpen: (v: boolean) => void;
   tables: TableInfo[]; onSelectTable: (t: TableInfo) => void;
   selectedCustomerId: string | null; onSelectCustomer: (id: string | null) => void;
+  isHeldMesa: boolean;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
+  const { isAdmin } = useAuth();
   const [tableModalOpen, setTableModalOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
@@ -414,6 +427,13 @@ function CartContent({
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Admin auth for mesa item removal
+  const [adminAuthModal, setAdminAuthModal] = useState<{ open: boolean; action: 'remove' | 'cancel'; itemId?: string }>({ open: false, action: 'remove' });
+  const [adminAuthEmail, setAdminAuthEmail] = useState('');
+  const [adminAuthPassword, setAdminAuthPassword] = useState('');
+  const [adminAuthChecking, setAdminAuthChecking] = useState(false);
+
+  const needsAdminAuth = isHeldMesa && !isAdmin;
 
   const availableTables = tables.filter(t => t.status === 'available');
   const customerObj = useMemo(() => customers.find(c => c.id === selectedCustomerId), [customers, selectedCustomerId]);
@@ -433,6 +453,50 @@ function CartContent({
 
   const hasEligibleAcaiInCart = cart.some(isItemEligible);
   const redeemableCount = customerObj ? Math.floor((customerObj.loyaltyPoints || 0) / 10) : 0;
+
+  const handleProtectedRemove = (itemId: string) => {
+    if (needsAdminAuth) {
+      setAdminAuthModal({ open: true, action: 'remove', itemId });
+    } else {
+      removeItem(itemId);
+    }
+  };
+
+  const handleProtectedCancel = () => {
+    if (needsAdminAuth) {
+      setAdminAuthModal({ open: true, action: 'cancel' });
+    } else {
+      cancelOrder();
+    }
+  };
+
+  const handleAdminAuth = async () => {
+    if (!adminAuthEmail.trim() || !adminAuthPassword.trim()) {
+      toast.error('Informe email e senha do administrador');
+      return;
+    }
+    setAdminAuthChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-admin-password', {
+        body: { email: adminAuthEmail, password: adminAuthPassword },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Credenciais inválidas');
+        setAdminAuthChecking(false);
+        return;
+      }
+      const { action, itemId } = adminAuthModal;
+      setAdminAuthModal({ open: false, action: 'remove' });
+      setAdminAuthEmail('');
+      setAdminAuthPassword('');
+      setAdminAuthChecking(false);
+      if (action === 'remove' && itemId) removeItem(itemId);
+      else if (action === 'cancel') cancelOrder();
+    } catch {
+      toast.error('Erro ao verificar credenciais');
+      setAdminAuthChecking(false);
+    }
+  };
 
   const handleOrderTypeClick = (key: OrderType) => {
     if (key === 'mesa') {
@@ -563,8 +627,9 @@ function CartContent({
                     )}
                   </div>
                   {item.weight && <p className="text-xs text-muted-foreground">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>}
+                  {item.addedByName && <p className="text-[10px] text-muted-foreground">por {item.addedByName}</p>}
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(item.id)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleProtectedRemove(item.id)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -589,7 +654,7 @@ function CartContent({
         </div>
         {orderType === 'balcao' ? (
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="destructive" className="h-12 text-xs" onClick={cancelOrder} disabled={cart.length === 0}>
+            <Button variant="destructive" className="h-12 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0}>
               <X className="h-4 w-4 mr-1" /> Cancelar
             </Button>
             <Button className="h-12 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
@@ -598,7 +663,7 @@ function CartContent({
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
-            <Button variant="destructive" className="h-12 text-xs" onClick={cancelOrder} disabled={cart.length === 0 && !tableNumber}>
+            <Button variant="destructive" className="h-12 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
               <X className="h-4 w-4 mr-1" /> Cancelar
             </Button>
             <Button variant="outline" className="h-12 text-xs" onClick={holdOrder} disabled={cart.length === 0}>
@@ -659,6 +724,43 @@ function CartContent({
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={() => setNewCustomerOpen(false)}>Cancelar</Button>
             <Button className="flex-1" onClick={handleCreateCustomer} disabled={!newName.trim()}>Cadastrar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin auth for mesa item removal / cancel */}
+      <Dialog open={adminAuthModal.open} onOpenChange={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" /> Autorização necessária
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Alert className="border-amber-500/50 bg-amber-500/10">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-sm">
+                {adminAuthModal.action === 'cancel'
+                  ? 'Cancelar um pedido de mesa requer autorização de um administrador.'
+                  : 'Remover itens de um pedido de mesa requer autorização de um administrador.'}
+              </AlertDescription>
+            </Alert>
+            <div>
+              <Label>Email do administrador</Label>
+              <Input type="email" placeholder="admin@email.com" value={adminAuthEmail} onChange={e => setAdminAuthEmail(e.target.value)} />
+            </div>
+            <div>
+              <Label>Senha do administrador</Label>
+              <Input type="password" placeholder="••••••" value={adminAuthPassword} onChange={e => setAdminAuthPassword(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }}>
+              Cancelar
+            </Button>
+            <Button className="flex-1" onClick={handleAdminAuth} disabled={adminAuthChecking}>
+              {adminAuthChecking ? 'Verificando...' : 'Autorizar'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

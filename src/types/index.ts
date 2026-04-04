@@ -32,6 +32,8 @@ export interface OrderItem {
   quantity: number;
   weight?: number;
   subtotal: number;
+  addedBy?: string;
+  addedByName?: string;
 }
 
 export interface Order {
@@ -62,6 +64,7 @@ export interface Order {
   productionTime?: string;
   pickupTime?: string;
   pickupNotes?: string;
+  serviceFee?: number;
 }
 
 export interface Customer {

@@ -347,6 +347,7 @@ export type Database = {
           pickup_person: string | null
           pickup_time: string | null
           production_time: string | null
+          service_fee: number | null
           status: Database["public"]["Enums"]["order_status"]
           table_number: number | null
           tenant_id: string
@@ -379,6 +380,7 @@ export type Database = {
           pickup_person?: string | null
           pickup_time?: string | null
           production_time?: string | null
+          service_fee?: number | null
           status?: Database["public"]["Enums"]["order_status"]
           table_number?: number | null
           tenant_id?: string
@@ -411,6 +413,7 @@ export type Database = {
           pickup_person?: string | null
           pickup_time?: string | null
           production_time?: string | null
+          service_fee?: number | null
           status?: Database["public"]["Enums"]["order_status"]
           table_number?: number | null
           tenant_id?: string
@@ -633,18 +636,21 @@ export type Database = {
       store_settings: {
         Row: {
           id: string
+          service_fee_percentage: number
           table_count: number
           tenant_id: string
           updated_at: string
         }
         Insert: {
           id?: string
+          service_fee_percentage?: number
           table_count?: number
           tenant_id?: string
           updated_at?: string
         }
         Update: {
           id?: string
+          service_fee_percentage?: number
           table_count?: number
           tenant_id?: string
           updated_at?: string
@@ -732,6 +738,7 @@ export type Database = {
       }
       tenant_members: {
         Row: {
+          commission_percentage: number
           created_at: string
           id: string
           role: Database["public"]["Enums"]["app_role"]
@@ -739,6 +746,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          commission_percentage?: number
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
@@ -746,6 +754,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          commission_percentage?: number
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]

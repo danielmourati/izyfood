@@ -352,6 +352,7 @@ export default function Caixa() {
           </CardContent>
         </Card>
       ) : (
+        <>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -464,6 +465,10 @@ export default function Caixa() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Service fee & commission section */}
+        <ServiceFeeCommissionCard salesInPeriod={sales.filter(s => new Date(s.date) >= new Date(currentRegister.openedAt))} orders={orders} currentRegister={currentRegister} />
+        </>
       )}
 
       {history.length > 0 && (
@@ -672,5 +677,95 @@ export default function Caixa() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function ServiceFeeCommissionCard({ salesInPeriod, orders, currentRegister }: { salesInPeriod: any[]; orders: any[]; currentRegister: CashRegister }) {
+  const [attendants, setAttendants] = useState<{ id: string; name: string; commission: number }[]>([]);
+
+  useEffect(() => {
+    async function fetchAttendants() {
+      const { data: members } = await supabase.from('tenant_members').select('user_id, commission_percentage, role');
+      const { data: profiles } = await supabase.from('profiles').select('id, name');
+      if (!members || !profiles) return;
+      const atts = members
+        .filter(m => (m as any).role === 'atendente' || (m as any).role === 'admin')
+        .map(m => {
+          const p = profiles.find(pr => pr.id === m.user_id);
+          return { id: m.user_id, name: p?.name || 'Desconhecido', commission: Number((m as any).commission_percentage || 0) };
+        });
+      setAttendants(atts);
+    }
+    fetchAttendants();
+  }, []);
+
+  // Calculate service fee total from mesa orders in this period
+  const mesaSalesInPeriod = salesInPeriod.filter(s => {
+    const order = orders.find((o: any) => o.id === s.orderId);
+    return order?.orderType === 'mesa';
+  });
+
+  const totalServiceFee = mesaSalesInPeriod.reduce((sum: number, s: any) => {
+    const order = orders.find((o: any) => o.id === s.orderId);
+    return sum + (order?.serviceFee || 0);
+  }, 0);
+
+  // Calculate per-attendant sales from item tracking
+  const attendantSales: Record<string, number> = {};
+  for (const sale of salesInPeriod) {
+    const items = sale.items || [];
+    for (const item of items) {
+      if (item.addedBy) {
+        attendantSales[item.addedBy] = (attendantSales[item.addedBy] || 0) + (item.subtotal || 0);
+      }
+    }
+  }
+
+  if (totalServiceFee === 0 && attendants.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <DollarSign className="h-5 w-5" /> Taxa de Serviço & Comissões
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-lg bg-amber-500/10 p-3">
+          <p className="text-xs text-muted-foreground">Total Taxa de Serviço (Mesa)</p>
+          <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{fmt(totalServiceFee)}</p>
+        </div>
+
+        {attendants.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">Vendas e comissões por atendente:</p>
+            <div className="space-y-2">
+              {attendants.map(att => {
+                const vendido = attendantSales[att.id] || 0;
+                const comissao = att.commission > 0 ? (vendido * att.commission) / 100 : 0;
+                return (
+                  <div key={att.id} className="bg-muted/50 rounded-lg p-3 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-sm text-foreground">{att.name}</span>
+                      <span className="text-xs text-muted-foreground">{att.commission}% comissão</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Vendeu</span>
+                      <span className="font-medium text-foreground">{fmt(vendido)}</span>
+                    </div>
+                    {comissao > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Comissão</span>
+                        <span className="font-medium text-primary">{fmt(comissao)}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

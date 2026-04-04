@@ -65,6 +65,7 @@ function dbToOrder(r: any): Order {
     productionTime: r.production_time || undefined,
     pickupTime: r.pickup_time || undefined,
     pickupNotes: r.pickup_notes || undefined,
+    serviceFee: r.service_fee ? Number(r.service_fee) : undefined,
   };
 }
 function dbToSale(r: any): Sale {
@@ -419,6 +420,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       coupon_id: order.couponId || null,
       customer_id: order.customerId || null,
       loyalty_redemptions: order.loyaltyRedemptions || null,
+      service_fee: order.serviceFee || null,
     };
     // Auto-finalize delivery status for delivery/retirada orders
     if (order.orderType === 'delivery' || order.orderType === 'retirada') {

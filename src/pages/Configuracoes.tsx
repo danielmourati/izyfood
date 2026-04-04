@@ -82,21 +82,34 @@ const Configuracoes = () => {
 function GeralTab() {
   const { settings, updateTableCount } = useStore();
   const [tableCount, setTableCount] = useState(settings.tableCount.toString());
+  const [serviceFee, setServiceFee] = useState('');
 
-  const handleSave = () => {
+  useEffect(() => {
+    supabase.from('store_settings').select('service_fee_percentage').limit(1).then(({ data }) => {
+      if (data && data.length > 0) setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
+    });
+  }, []);
+
+  const handleSave = async () => {
     const count = parseInt(tableCount);
     if (isNaN(count) || count < 5 || count > 100) {
       toast.error('Mínimo de 5 mesas');
       return;
     }
     updateTableCount(count);
+
+    const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
+    const { data: existing } = await supabase.from('store_settings').select('id').limit(1);
+    if (existing && existing.length > 0) {
+      await supabase.from('store_settings').update({ service_fee_percentage: fee } as any).eq('id', existing[0].id);
+    }
     toast.success('Configuração salva!');
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Grid3X3 className="h-5 w-5" /> Mesas</CardTitle>
+        <CardTitle className="flex items-center gap-2"><Grid3X3 className="h-5 w-5" /> Configurações Gerais</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-end gap-3 max-w-xs">
@@ -110,8 +123,21 @@ function GeralTab() {
               onChange={e => setTableCount(e.target.value)}
             />
           </div>
-          <Button onClick={handleSave}>Salvar</Button>
         </div>
+        <div className="flex items-end gap-3 max-w-xs">
+          <div className="flex-1 space-y-2">
+            <Label>Taxa de serviço / comissão (%)</Label>
+            <p className="text-xs text-muted-foreground">Aplicada apenas em pedidos do tipo Mesa</p>
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="Ex: 10"
+              value={serviceFee}
+              onChange={e => setServiceFee(e.target.value)}
+            />
+          </div>
+        </div>
+        <Button onClick={handleSave}>Salvar</Button>
       </CardContent>
     </Card>
   );
@@ -123,13 +149,14 @@ interface UserRow {
   email: string;
   phone: string;
   role: AppRole;
+  commission: number;
 }
 
 function UsuariosTab() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'atendente' as AppRole, password: '' });
+  const [form, setForm] = useState({ name: '', email: '', role: 'atendente' as AppRole, password: '', commission: '' });
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [resetModal, setResetModal] = useState<UserRow | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -138,11 +165,13 @@ function UsuariosTab() {
   const fetchUsers = useCallback(async () => {
     const { data: profiles } = await supabase.from('profiles').select('id, name, email, phone');
     const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+    const { data: members } = await supabase.from('tenant_members').select('user_id, commission_percentage');
 
     if (profiles) {
       const userList: UserRow[] = profiles.map(p => {
         const userRole = roles?.find(r => r.user_id === p.id);
-        return { id: p.id, name: p.name, email: p.email, phone: p.phone || '', role: (userRole?.role as AppRole) || 'atendente' };
+        const member = members?.find(m => m.user_id === p.id);
+        return { id: p.id, name: p.name, email: p.email, phone: p.phone || '', role: (userRole?.role as AppRole) || 'atendente', commission: Number((member as any)?.commission_percentage || 0) };
       });
       setUsers(userList);
     }
@@ -152,7 +181,7 @@ function UsuariosTab() {
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   const resetForm = () => {
-    setForm({ name: '', email: '', role: 'atendente', password: '' });
+    setForm({ name: '', email: '', role: 'atendente', password: '', commission: '' });
     setShowForm(false);
     setEditingId(null);
   };
@@ -162,6 +191,8 @@ function UsuariosTab() {
       toast.error('Preencha nome e email');
       return;
     }
+
+    const commissionVal = parseFloat(form.commission.replace(',', '.')) || 0;
 
     if (editingId) {
       // Update profile name
@@ -173,6 +204,8 @@ function UsuariosTab() {
       } else {
         await supabase.from('user_roles').insert({ user_id: editingId, role: form.role });
       }
+      // Update commission
+      await supabase.from('tenant_members').update({ commission_percentage: commissionVal } as any).eq('user_id', editingId);
       toast.success('Usuário atualizado!');
     } else {
       if (!form.password || form.password.length < 4) {
@@ -201,7 +234,7 @@ function UsuariosTab() {
   };
 
   const handleEdit = (u: UserRow) => {
-    setForm({ name: u.name, email: u.email, role: u.role, password: '' });
+    setForm({ name: u.name, email: u.email, role: u.role, password: '', commission: u.commission.toString() });
     setEditingId(u.id);
     setShowForm(true);
   };
@@ -250,6 +283,12 @@ function UsuariosTab() {
                 <div className="space-y-1">
                   <Label>Senha</Label>
                   <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+                </div>
+              )}
+              {(form.role === 'atendente') && (
+                <div className="space-y-1">
+                  <Label>Comissão (%)</Label>
+                  <Input type="text" inputMode="decimal" value={form.commission} onChange={e => setForm(f => ({ ...f, commission: e.target.value }))} placeholder="Ex: 5" />
                 </div>
               )}
             </div>
