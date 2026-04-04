@@ -653,6 +653,24 @@ export default function Caixa() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Close confirmation */}
+      <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fechar Caixa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja fechar o caixa? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setCloseConfirmOpen(false); doClose(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Confirmar Fechamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
