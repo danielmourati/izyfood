@@ -49,7 +49,7 @@ function TenantRoutes() {
         <Route path="/produtos" element={<ProtectedRoute adminOnly><Produtos /></ProtectedRoute>} />
         <Route path="/estoque" element={<ProtectedRoute adminOnly><Estoque /></ProtectedRoute>} />
         <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
-        <Route path="/configuracoes" element={<ProtectedRoute adminOnly><Configuracoes /></ProtectedRoute>} />
+        <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute superadminOnly><SuperAdmin /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
