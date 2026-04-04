@@ -473,7 +473,15 @@ const Entregas = () => {
                   key={s}
                   variant={isActive ? 'default' : 'outline'}
                   className="w-full justify-start gap-3 h-12"
-                  onClick={() => statusDialogOrder && changeStatus(statusDialogOrder.id, s)}
+                  onClick={() => {
+                    if (!statusDialogOrder) return;
+                    if (s === 'finalizado' && !statusDialogOrder.paymentMethod) {
+                      setStatusDialogOrder(null);
+                      navigate(`/pdv?pedido=${statusDialogOrder.id}`);
+                      return;
+                    }
+                    changeStatus(statusDialogOrder.id, s);
+                  }}
                 >
                   <Icon className="h-5 w-5" />
                   <span className="font-medium">{cfg.label}</span>
