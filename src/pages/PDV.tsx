@@ -281,6 +281,13 @@ const PDV = () => {
         )}
 
         <div className="flex gap-2 mb-3 md:mb-4 overflow-x-auto pb-1">
+          <Button
+            variant={activeCategoryId === 'all' ? 'default' : 'outline'}
+            className="h-10 md:h-12 px-3 md:px-5 text-sm md:text-base whitespace-nowrap shrink-0"
+            onClick={() => setActiveCategoryId('all')}
+          >
+            Todos
+          </Button>
           {categories.map(cat => (
             <Button
               key={cat.id}
