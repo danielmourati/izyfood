@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 2) return digits.length ? `(${digits}` : '';
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
 import { toast } from 'sonner';
 import { User, Save, Loader2, Store, Shield } from 'lucide-react';
 
@@ -124,7 +131,7 @@ export function MeuPerfilTab() {
 
           <div className="space-y-2">
             <Label>Telefone / WhatsApp</Label>
-            <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="(00) 00000-0000" />
+            <Input value={phone} onChange={e => setPhone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" maxLength={15} />
           </div>
 
           <div className="pt-3 border-t space-y-3">
