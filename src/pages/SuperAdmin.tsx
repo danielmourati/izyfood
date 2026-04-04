@@ -275,6 +275,7 @@ const SuperAdmin = () => {
 
       {activeTab === 'dashboard' && <DashboardTab metrics={metrics} loading={loading} />}
       {activeTab === 'tenants' && <TenantsTab tenants={tenants} onToggle={handleToggleTenant} />}
+      {activeTab === 'usuarios' && <SuperAdminUsersTab />}
       {activeTab === 'criar' && <CreateTab onCreated={() => { setActiveTab('tenants'); fetchData(); }} />}
     </div>
   );
