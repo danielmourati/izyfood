@@ -7,8 +7,18 @@ import { CashRegisterReceipt } from '@/components/CashRegisterReceipt';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Lock, Unlock, History } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface CashMovement {
+  id: string;
+  type: 'entrada' | 'saida';
+  amount: number;
+  description: string;
+  createdAt: string;
+}
 
 function dbToCashRegister(r: any): CashRegister {
   return {
@@ -20,23 +30,32 @@ function dbToCashRegister(r: any): CashRegister {
   };
 }
 
+function dbToMovement(r: any): CashMovement {
+  return { id: r.id, type: r.type, amount: Number(r.amount), description: r.description, createdAt: r.created_at };
+}
+
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export default function Caixa() {
   const { user } = useAuth();
-  const { sales } = useStore();
+  const { sales, orders, tables } = useStore();
   const [currentRegister, setCurrentRegister] = useState<CashRegister | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialAmount, setInitialAmount] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [closedRegister, setClosedRegister] = useState<CashRegister | null>(null);
   const [history, setHistory] = useState<CashRegister[]>([]);
+  const [movements, setMovements] = useState<CashMovement[]>([]);
+  const [movementModal, setMovementModal] = useState<{ open: boolean; type: 'entrada' | 'saida' }>({ open: false, type: 'entrada' });
+  const [movementAmount, setMovementAmount] = useState('');
+  const [movementDescription, setMovementDescription] = useState('');
+  const [adminConfirmModal, setAdminConfirmModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminConfirming, setAdminConfirming] = useState(false);
 
-  useEffect(() => {
-    fetchCurrent();
-  }, []);
+  useEffect(() => { fetchCurrent(); }, []);
 
   async function fetchCurrent() {
     setLoading(true);
@@ -48,9 +67,17 @@ export default function Caixa() {
       .limit(1);
 
     if (data && data.length > 0) {
-      setCurrentRegister(dbToCashRegister(data[0]));
+      const reg = dbToCashRegister(data[0]);
+      setCurrentRegister(reg);
+      const { data: movs } = await supabase
+        .from('cash_movements')
+        .select('*')
+        .eq('cash_register_id', data[0].id)
+        .order('created_at', { ascending: false });
+      setMovements((movs || []).map(dbToMovement));
     } else {
       setCurrentRegister(null);
+      setMovements([]);
     }
 
     const { data: hist } = await supabase
@@ -83,10 +110,43 @@ export default function Caixa() {
 
     setCurrentRegister(dbToCashRegister(data));
     setInitialAmount('');
+    setMovements([]);
     toast.success('Caixa aberto com sucesso!');
   }
 
-  async function handleClose() {
+  function checkPendingBeforeClose() {
+    const openOrders = orders.filter(o => o.status === 'aberto' || o.status === 'segurado');
+    const occupiedTables = tables.filter(t => t.status === 'occupied');
+
+    if (openOrders.length > 0 || occupiedTables.length > 0) {
+      setAdminConfirmModal(true);
+      return;
+    }
+    doClose();
+  }
+
+  async function handleAdminConfirm() {
+    if (!adminPassword) {
+      toast.error('Informe a senha do administrador');
+      return;
+    }
+    setAdminConfirming(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: user!.email,
+      password: adminPassword,
+    });
+    setAdminConfirming(false);
+
+    if (error) {
+      toast.error('Senha incorreta');
+      return;
+    }
+    setAdminConfirmModal(false);
+    setAdminPassword('');
+    doClose();
+  }
+
+  async function doClose() {
     if (!currentRegister) return;
 
     const openedAt = new Date(currentRegister.openedAt);
@@ -137,9 +197,41 @@ export default function Caixa() {
     const closed = dbToCashRegister(data);
     setClosedRegister(closed);
     setCurrentRegister(null);
+    setMovements([]);
     setShowReceipt(true);
     toast.success('Caixa fechado com sucesso!');
     fetchCurrent();
+  }
+
+  async function handleAddMovement() {
+    if (!currentRegister) return;
+    const amount = parseFloat(movementAmount.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Informe um valor válido');
+      return;
+    }
+    if (!movementDescription.trim()) {
+      toast.error('Informe a descrição/destino');
+      return;
+    }
+
+    const { data, error } = await supabase.from('cash_movements').insert({
+      cash_register_id: currentRegister.id,
+      type: movementModal.type,
+      amount,
+      description: movementDescription.trim(),
+    }).select().single();
+
+    if (error) {
+      toast.error('Erro ao registrar movimentação');
+      return;
+    }
+
+    setMovements(prev => [dbToMovement(data), ...prev]);
+    setMovementAmount('');
+    setMovementDescription('');
+    setMovementModal({ open: false, type: 'entrada' });
+    toast.success(movementModal.type === 'entrada' ? 'Entrada registrada!' : 'Saída registrada!');
   }
 
   // Live totals for open register
@@ -170,6 +262,9 @@ export default function Caixa() {
     }
     return { cash, pix, card, fiado, total: cash + pix + card + fiado };
   })();
+
+  const totalEntradas = movements.filter(m => m.type === 'entrada').reduce((s, m) => s + m.amount, 0);
+  const totalSaidas = movements.filter(m => m.type === 'saida').reduce((s, m) => s + m.amount, 0);
 
   if (loading) {
     return (
@@ -250,12 +345,71 @@ export default function Caixa() {
               </div>
             </div>
 
+            {/* Cash movements summary */}
+            {(totalEntradas > 0 || totalSaidas > 0) && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Movimentações:</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="flex justify-between bg-green-500/10 rounded px-3 py-2">
+                    <span className="text-green-700 dark:text-green-400">Entradas</span>
+                    <span className="font-medium text-green-700 dark:text-green-400">{fmt(totalEntradas)}</span>
+                  </div>
+                  <div className="flex justify-between bg-red-500/10 rounded px-3 py-2">
+                    <span className="text-red-700 dark:text-red-400">Saídas</span>
+                    <span className="font-medium text-red-700 dark:text-red-400">{fmt(totalSaidas)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-lg bg-primary/10 p-3">
-              <p className="text-xs text-muted-foreground">Saldo em Caixa (Fundo + Dinheiro)</p>
-              <p className="text-xl font-bold text-primary">{fmt(currentRegister.initialAmount + liveTotals.cash)}</p>
+              <p className="text-xs text-muted-foreground">Saldo em Caixa (Fundo + Dinheiro + Entradas - Saídas)</p>
+              <p className="text-xl font-bold text-primary">{fmt(currentRegister.initialAmount + liveTotals.cash + totalEntradas - totalSaidas)}</p>
             </div>
 
-            <Button onClick={handleClose} variant="destructive" className="w-full gap-2">
+            {/* Movement buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => setMovementModal({ open: true, type: 'entrada' })}
+              >
+                <ArrowDownCircle className="h-4 w-4 text-green-600" /> Entrada
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => setMovementModal({ open: true, type: 'saida' })}
+              >
+                <ArrowUpCircle className="h-4 w-4 text-red-600" /> Saída / Sangria
+              </Button>
+            </div>
+
+            {/* Movement history */}
+            {movements.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Histórico de movimentações:</p>
+                <div className="space-y-1 max-h-40 overflow-auto">
+                  {movements.map(m => (
+                    <div key={m.id} className="flex items-center justify-between text-sm bg-muted/50 rounded px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        {m.type === 'entrada' ? (
+                          <Plus className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <Minus className="h-3.5 w-3.5 text-red-600" />
+                        )}
+                        <span className="text-foreground">{m.description}</span>
+                      </div>
+                      <span className={`font-medium ${m.type === 'entrada' ? 'text-green-600' : 'text-red-600'}`}>
+                        {m.type === 'entrada' ? '+' : '-'}{fmt(m.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button onClick={checkPendingBeforeClose} variant="destructive" className="w-full gap-2">
               <Lock className="h-4 w-4" /> Fechar Caixa
             </Button>
           </CardContent>
@@ -303,6 +457,78 @@ export default function Caixa() {
           onClose={() => setShowReceipt(false)}
         />
       )}
+
+      {/* Movement Modal */}
+      <Dialog open={movementModal.open} onOpenChange={() => setMovementModal({ open: false, type: 'entrada' })}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {movementModal.type === 'entrada' ? '📥 Registrar Entrada' : '📤 Registrar Saída / Sangria'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Valor (R$)</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={movementAmount}
+                onChange={e => setMovementAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Descrição / Destino *</Label>
+              <Input
+                placeholder={movementModal.type === 'entrada' ? 'Ex: Fundo de troco adicional' : 'Ex: Pagamento fornecedor, Sangria'}
+                value={movementDescription}
+                onChange={e => setMovementDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setMovementModal({ open: false, type: 'entrada' })}>
+              Cancelar
+            </Button>
+            <Button className="flex-1" onClick={handleAddMovement}>
+              Registrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin confirmation modal */}
+      <Dialog open={adminConfirmModal} onOpenChange={setAdminConfirmModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" /> Confirmação necessária
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Existem pedidos não finalizados ou mesas abertas. Para fechar o caixa mesmo assim, confirme com a senha do administrador.
+            </p>
+            <div>
+              <Label>Senha do administrador</Label>
+              <Input
+                type="password"
+                placeholder="••••••"
+                value={adminPassword}
+                onChange={e => setAdminPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setAdminConfirmModal(false); setAdminPassword(''); }}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" className="flex-1" onClick={handleAdminConfirm} disabled={adminConfirming}>
+              {adminConfirming ? 'Verificando...' : 'Confirmar e Fechar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

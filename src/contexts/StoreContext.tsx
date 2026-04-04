@@ -316,26 +316,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateTableCount = useCallback(async (count: number) => {
-    setSettings(prev => ({ ...prev, tableCount: count }));
-    // Update settings in DB
+    const validCount = Math.max(5, count);
+    setSettings(prev => ({ ...prev, tableCount: validCount }));
     const { data: existing } = await supabase.from('store_settings').select('id').limit(1);
     if (existing && existing.length > 0) {
-      await supabase.from('store_settings').update({ table_count: count }).eq('id', existing[0].id);
+      await supabase.from('store_settings').update({ table_count: validCount }).eq('id', existing[0].id);
     }
     // Add/remove tables
     const currentTables = await supabase.from('store_tables').select('number').order('number');
     const currentNumbers = (currentTables.data || []).map(t => t.number);
     const maxCurrent = currentNumbers.length;
 
-    if (count > maxCurrent) {
-      const newTables = Array.from({ length: count - maxCurrent }, (_, i) => ({
+    if (validCount > maxCurrent) {
+      const newTables = Array.from({ length: validCount - maxCurrent }, (_, i) => ({
         number: maxCurrent + i + 1,
         status: 'available' as const,
       }));
       await supabase.from('store_tables').insert(newTables);
-    } else if (count < maxCurrent) {
-      // Remove tables with numbers > count
-      await supabase.from('store_tables').delete().gt('number', count);
+    } else if (validCount < maxCurrent) {
+      await supabase.from('store_tables').delete().gt('number', validCount);
     }
     // Refetch tables
     const { data: tbls } = await supabase.from('store_tables').select('*').order('number');

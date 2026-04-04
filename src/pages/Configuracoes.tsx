@@ -25,12 +25,13 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { MeuPerfilTab } from '@/components/MeuPerfilTab';
 
-type Tab = 'perfil' | 'geral' | 'usuarios' | 'cupons' | 'impressora';
+type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora';
 
 const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean }[] = [
   { key: 'perfil', label: 'Meu Perfil', icon: User, adminOnly: false },
   { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true },
   { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true },
+  { key: 'permissoes', label: 'Permissões', icon: KeyRound, adminOnly: true },
   { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
   { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true },
 ];
@@ -68,6 +69,7 @@ const Configuracoes = () => {
       {activeTab === 'perfil' && <MeuPerfilTab />}
       {activeTab === 'geral' && <GeralTab />}
       {activeTab === 'usuarios' && <UsuariosTab />}
+      {activeTab === 'permissoes' && <PermissoesTab />}
       {activeTab === 'cupons' && <CuponsTab />}
       {activeTab === 'impressora' && <ImpressoraTab />}
     </div>
@@ -80,7 +82,10 @@ function GeralTab() {
 
   const handleSave = () => {
     const count = parseInt(tableCount);
-    if (isNaN(count) || count < 1 || count > 100) return;
+    if (isNaN(count) || count < 5 || count > 100) {
+      toast.error('Mínimo de 5 mesas');
+      return;
+    }
     updateTableCount(count);
     toast.success('Configuração salva!');
   };
@@ -93,10 +98,10 @@ function GeralTab() {
       <CardContent className="space-y-4">
         <div className="flex items-end gap-3 max-w-xs">
           <div className="flex-1 space-y-2">
-            <Label>Quantidade de mesas</Label>
+            <Label>Quantidade de mesas (mín. 5)</Label>
             <Input
               type="number"
-              min={1}
+              min={5}
               max={100}
               value={tableCount}
               onChange={e => setTableCount(e.target.value)}
@@ -450,6 +455,197 @@ function CuponsTab() {
             </div>
           ))}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const permissionLabels: Record<string, string> = {
+  manage_categories: 'Cadastrar/editar categorias',
+  manage_products: 'Cadastrar/editar produtos',
+  edit_prices: 'Alterar preços e descrições',
+  manage_stock: 'Dar entrada no estoque',
+  remove_order_items: 'Remover itens do pedido',
+  cancel_orders: 'Cancelar pedidos',
+  apply_discounts: 'Aplicar descontos',
+  manage_customers: 'Gerenciar clientes',
+};
+
+const permissionKeys = Object.keys(permissionLabels);
+
+interface AttendantPermissions {
+  id?: string;
+  user_id: string;
+  [key: string]: any;
+}
+
+function PermissoesTab() {
+  const [users, setUsers] = useState<{ id: string; name: string; email: string; role: string }[]>([]);
+  const [permissions, setPermissions] = useState<Record<string, AttendantPermissions>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [copySource, setCopySource] = useState('');
+
+  const fetchData = useCallback(async () => {
+    const { data: profiles } = await supabase.from('profiles').select('id, name, email');
+    const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+    const { data: perms } = await supabase.from('attendant_permissions').select('*');
+
+    const attendants = (profiles || []).filter(p => {
+      const role = roles?.find(r => r.user_id === p.id);
+      return role?.role === 'atendente';
+    }).map(p => ({ id: p.id, name: p.name, email: p.email, role: 'atendente' }));
+
+    setUsers(attendants);
+
+    const permMap: Record<string, AttendantPermissions> = {};
+    for (const perm of (perms || [])) {
+      permMap[perm.user_id] = perm;
+    }
+    setPermissions(permMap);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const togglePermission = async (userId: string, key: string) => {
+    setSaving(userId);
+    const existing = permissions[userId];
+    const currentVal = existing?.[key] ?? false;
+    const newVal = !currentVal;
+
+    if (existing?.id) {
+      await supabase.from('attendant_permissions').update({ [key]: newVal }).eq('id', existing.id);
+    } else {
+      const newPerms: any = { user_id: userId };
+      permissionKeys.forEach(k => newPerms[k] = k === key ? newVal : false);
+      const { data } = await supabase.from('attendant_permissions').insert(newPerms).select().single();
+      if (data) {
+        setPermissions(prev => ({ ...prev, [userId]: data }));
+        setSaving(null);
+        return;
+      }
+    }
+
+    setPermissions(prev => ({
+      ...prev,
+      [userId]: { ...prev[userId], user_id: userId, [key]: newVal },
+    }));
+    setSaving(null);
+  };
+
+  const toggleAll = async (userId: string, enable: boolean) => {
+    setSaving(userId);
+    const updates: any = {};
+    permissionKeys.forEach(k => updates[k] = enable);
+
+    const existing = permissions[userId];
+    if (existing?.id) {
+      await supabase.from('attendant_permissions').update(updates).eq('id', existing.id);
+    } else {
+      const { data } = await supabase.from('attendant_permissions').insert({ user_id: userId, ...updates }).select().single();
+      if (data) {
+        setPermissions(prev => ({ ...prev, [userId]: data }));
+        setSaving(null);
+        return;
+      }
+    }
+    setPermissions(prev => ({
+      ...prev,
+      [userId]: { ...prev[userId], user_id: userId, ...updates },
+    }));
+    setSaving(null);
+  };
+
+  const copyPermissions = async (targetUserId: string) => {
+    if (!copySource) return;
+    const source = permissions[copySource];
+    if (!source) return;
+
+    setSaving(targetUserId);
+    const updates: any = {};
+    permissionKeys.forEach(k => updates[k] = source[k] ?? false);
+
+    const existing = permissions[targetUserId];
+    if (existing?.id) {
+      await supabase.from('attendant_permissions').update(updates).eq('id', existing.id);
+    } else {
+      const { data } = await supabase.from('attendant_permissions').insert({ user_id: targetUserId, ...updates }).select().single();
+      if (data) {
+        setPermissions(prev => ({ ...prev, [targetUserId]: data }));
+        setSaving(null);
+        toast.success('Permissões copiadas!');
+        return;
+      }
+    }
+    setPermissions(prev => ({
+      ...prev,
+      [targetUserId]: { ...prev[targetUserId], user_id: targetUserId, ...updates },
+    }));
+    setSaving(null);
+    toast.success('Permissões copiadas!');
+  };
+
+  if (loading) return <p className="text-sm text-muted-foreground text-center py-8">Carregando...</p>;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" /> Permissões de Atendentes</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {users.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-4">Nenhum atendente cadastrado.</p>
+        )}
+        {users.map(u => (
+          <div key={u.id} className="border rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-foreground">{u.name}</p>
+                <p className="text-xs text-muted-foreground">{u.email}</p>
+              </div>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => toggleAll(u.id, true)}>
+                  Marcar todos
+                </Button>
+                <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => toggleAll(u.id, false)}>
+                  Desmarcar
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {permissionKeys.map(key => (
+                <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Switch
+                    checked={permissions[u.id]?.[key] ?? false}
+                    onCheckedChange={() => togglePermission(u.id, key)}
+                    disabled={saving === u.id}
+                  />
+                  <span className="text-foreground">{permissionLabels[key]}</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Copy from another attendant */}
+            {users.length > 1 && (
+              <div className="flex gap-2 items-center pt-1 border-t">
+                <span className="text-xs text-muted-foreground">Copiar de:</span>
+                <Select value={copySource} onValueChange={setCopySource}>
+                  <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                  <SelectContent>
+                    {users.filter(x => x.id !== u.id).map(x => (
+                      <SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => copyPermissions(u.id)} disabled={!copySource}>
+                  Copiar
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
       </CardContent>
     </Card>
   );

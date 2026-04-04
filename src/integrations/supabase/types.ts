@@ -14,6 +14,101 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendant_permissions: {
+        Row: {
+          apply_discounts: boolean
+          cancel_orders: boolean
+          edit_prices: boolean
+          id: string
+          manage_categories: boolean
+          manage_customers: boolean
+          manage_products: boolean
+          manage_stock: boolean
+          remove_order_items: boolean
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          apply_discounts?: boolean
+          cancel_orders?: boolean
+          edit_prices?: boolean
+          id?: string
+          manage_categories?: boolean
+          manage_customers?: boolean
+          manage_products?: boolean
+          manage_stock?: boolean
+          remove_order_items?: boolean
+          tenant_id?: string
+          user_id: string
+        }
+        Update: {
+          apply_discounts?: boolean
+          cancel_orders?: boolean
+          edit_prices?: boolean
+          id?: string
+          manage_categories?: boolean
+          manage_customers?: boolean
+          manage_products?: boolean
+          manage_stock?: boolean
+          remove_order_items?: boolean
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendant_permissions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_movements: {
+        Row: {
+          amount: number
+          cash_register_id: string
+          created_at: string
+          description: string
+          id: string
+          tenant_id: string
+          type: Database["public"]["Enums"]["cash_movement_type"]
+        }
+        Insert: {
+          amount?: number
+          cash_register_id: string
+          created_at?: string
+          description?: string
+          id?: string
+          tenant_id?: string
+          type: Database["public"]["Enums"]["cash_movement_type"]
+        }
+        Update: {
+          amount?: number
+          cash_register_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          tenant_id?: string
+          type?: Database["public"]["Enums"]["cash_movement_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_movements_cash_register_id_fkey"
+            columns: ["cash_register_id"]
+            isOneToOne: false
+            referencedRelation: "cash_registers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_movements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_registers: {
         Row: {
           closed_at: string | null
@@ -678,6 +773,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "atendente" | "motoboy" | "superadmin"
+      cash_movement_type: "entrada" | "saida"
       delivery_status: "pendente" | "pronto" | "finalizado"
       discount_type: "percentage" | "fixed"
       order_source:
@@ -826,6 +922,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "atendente", "motoboy", "superadmin"],
+      cash_movement_type: ["entrada", "saida"],
       delivery_status: ["pendente", "pronto", "finalizado"],
       discount_type: ["percentage", "fixed"],
       order_source: [
