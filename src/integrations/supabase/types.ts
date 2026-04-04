@@ -465,6 +465,65 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          logo: string | null
+          name: string
+          slug: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          logo?: string | null
+          name: string
+          slug: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          logo?: string | null
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -488,6 +547,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_tenant_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -497,7 +557,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "atendente" | "motoboy"
+      app_role: "admin" | "atendente" | "motoboy" | "superadmin"
       delivery_status: "pendente" | "pronto" | "finalizado"
       discount_type: "percentage" | "fixed"
       order_source:
@@ -645,7 +705,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "atendente", "motoboy"],
+      app_role: ["admin", "atendente", "motoboy", "superadmin"],
       delivery_status: ["pendente", "pronto", "finalizado"],
       discount_type: ["percentage", "fixed"],
       order_source: [
