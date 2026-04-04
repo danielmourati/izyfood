@@ -654,7 +654,7 @@ function CartContent({
         </div>
         {orderType === 'balcao' ? (
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="destructive" className="h-12 text-xs" onClick={cancelOrder} disabled={cart.length === 0}>
+            <Button variant="destructive" className="h-12 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0}>
               <X className="h-4 w-4 mr-1" /> Cancelar
             </Button>
             <Button className="h-12 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
@@ -663,7 +663,7 @@ function CartContent({
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
-            <Button variant="destructive" className="h-12 text-xs" onClick={cancelOrder} disabled={cart.length === 0 && !tableNumber}>
+            <Button variant="destructive" className="h-12 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
               <X className="h-4 w-4 mr-1" /> Cancelar
             </Button>
             <Button variant="outline" className="h-12 text-xs" onClick={holdOrder} disabled={cart.length === 0}>
