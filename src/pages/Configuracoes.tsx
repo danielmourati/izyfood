@@ -101,7 +101,9 @@ function GeralTab() {
     const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
     const { data: existing } = await supabase.from('store_settings').select('id').limit(1);
     if (existing && existing.length > 0) {
-      await supabase.from('store_settings').update({ service_fee_percentage: fee } as any).eq('id', existing[0].id);
+      await supabase.from('store_settings').update({ service_fee_percentage: fee, table_count: count } as any).eq('id', existing[0].id);
+    } else {
+      await supabase.from('store_settings').insert({ table_count: count, service_fee_percentage: fee } as any);
     }
     toast.success('Configuração salva!');
   };
