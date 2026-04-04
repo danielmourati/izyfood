@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore } from '@/contexts/StoreContext';
-import { useNavigate } from 'react-router-dom';
+import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 
 
 const Mesas = () => {
