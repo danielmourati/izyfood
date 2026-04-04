@@ -1,0 +1,6 @@
+ALTER TABLE public.cash_registers REPLICA IDENTITY FULL;
+ALTER TABLE public.cash_movements REPLICA IDENTITY FULL;
+ALTER TABLE public.attendant_permissions REPLICA IDENTITY FULL;
+ALTER TABLE public.tenant_members REPLICA IDENTITY FULL;
+ALTER TABLE public.audit_logs REPLICA IDENTITY FULL;
+ALTER TABLE public.tenants REPLICA IDENTITY FULL;
