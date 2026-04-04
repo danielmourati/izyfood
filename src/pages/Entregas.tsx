@@ -57,6 +57,12 @@ const Entregas = () => {
   const [productionTime, setProductionTime] = useState('');
   const [pickupTime, setPickupTime] = useState('');
   const [pickupNotes, setPickupNotes] = useState('');
+  // Cancel dialog state
+  const [cancelDialogOrder, setCancelDialogOrder] = useState<Order | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return [];
