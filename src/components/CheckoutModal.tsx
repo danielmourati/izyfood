@@ -208,7 +208,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           <DialogTitle>Pagamento</DialogTitle>
         </DialogHeader>
 
-        {!isCashRegisterOpen && (
+        {!effectiveCashOpen && (
           <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-sm font-medium flex items-center justify-between gap-2">
