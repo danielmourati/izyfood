@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -52,8 +52,15 @@ export function useAttendantPermissions() {
   const { user, isAdmin } = useAuth();
   const [permissions, setPermissions] = useState<AttendantPermissions>(defaultPermissions);
   const [loading, setLoading] = useState(true);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
+    // Clean up any previous channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
     if (!user) {
       setPermissions(defaultPermissions);
       setLoading(false);
@@ -81,9 +88,10 @@ export function useAttendantPermissions() {
 
     fetchPermissions();
 
-    // Realtime subscription for this user's permissions
+    // Realtime subscription with unique channel name
+    const channelName = `perms-${user.id}-${Date.now()}`;
     const channel = supabase
-      .channel(`permissions-${user.id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -102,8 +110,11 @@ export function useAttendantPermissions() {
       )
       .subscribe();
 
+    channelRef.current = channel;
+
     return () => {
       supabase.removeChannel(channel);
+      channelRef.current = null;
     };
   }, [user?.id, isAdmin]);
 
