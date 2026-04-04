@@ -454,6 +454,50 @@ function CartContent({
   const hasEligibleAcaiInCart = cart.some(isItemEligible);
   const redeemableCount = customerObj ? Math.floor((customerObj.loyaltyPoints || 0) / 10) : 0;
 
+  const handleProtectedRemove = (itemId: string) => {
+    if (needsAdminAuth) {
+      setAdminAuthModal({ open: true, action: 'remove', itemId });
+    } else {
+      removeItem(itemId);
+    }
+  };
+
+  const handleProtectedCancel = () => {
+    if (needsAdminAuth) {
+      setAdminAuthModal({ open: true, action: 'cancel' });
+    } else {
+      cancelOrder();
+    }
+  };
+
+  const handleAdminAuth = async () => {
+    if (!adminAuthEmail.trim() || !adminAuthPassword.trim()) {
+      toast.error('Informe email e senha do administrador');
+      return;
+    }
+    setAdminAuthChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-admin-password', {
+        body: { email: adminAuthEmail, password: adminAuthPassword },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Credenciais inválidas');
+        setAdminAuthChecking(false);
+        return;
+      }
+      const { action, itemId } = adminAuthModal;
+      setAdminAuthModal({ open: false, action: 'remove' });
+      setAdminAuthEmail('');
+      setAdminAuthPassword('');
+      setAdminAuthChecking(false);
+      if (action === 'remove' && itemId) removeItem(itemId);
+      else if (action === 'cancel') cancelOrder();
+    } catch {
+      toast.error('Erro ao verificar credenciais');
+      setAdminAuthChecking(false);
+    }
+  };
+
   const handleOrderTypeClick = (key: OrderType) => {
     if (key === 'mesa') {
       setTableModalOpen(true);
