@@ -323,9 +323,15 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </div>
             </>
           )}
-          {(discountAmount + acaiRedemptionDiscount) > 0 && (
+          {serviceFeeAmount > 0 && (
+            <div className="flex justify-between text-sm bg-amber-500/10 rounded px-3 py-2">
+              <span className="text-amber-700 dark:text-amber-400">Taxa de serviço ({serviceFeePercentage}%)</span>
+              <span className="font-medium text-amber-700 dark:text-amber-400">+R$ {fmt(serviceFeeAmount)}</span>
+            </div>
+          )}
+          {(discountAmount + acaiRedemptionDiscount + serviceFeeAmount) > 0 && (
             <p className="text-sm text-primary font-semibold text-right">
-              Total com desconto: R$ {fmt(finalTotal)}
+              Total final: R$ {fmt(finalTotal)}
             </p>
           )}
         </div>
