@@ -349,32 +349,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           </div>
         </div>
 
-        {/* Partial payments ("a ver") */}
-        {partialPayments.length > 0 && (
-          <div className="space-y-2 border rounded-lg p-3">
-            <p className="text-sm font-semibold text-foreground">Pagamentos parciais registrados</p>
-            <div className="space-y-1.5">
-              {partialPayments.map((p, i) => (
-                <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    {React.createElement(methods.find(m => m.key === p.method)?.icon || QrCode, { className: 'h-4 w-4' })}
-                    <span className="text-sm font-medium">{methods.find(m => m.key === p.method)?.label}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-green-600">R$ {fmt(p.amount)}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePartialPayment(i)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="bg-accent/10 rounded-lg px-3 py-2 text-center">
-              <p className="text-xs text-muted-foreground">Falta receber</p>
-              <p className="text-lg font-bold text-destructive">R$ {fmt(Math.max(0, remainingAfterPartial))} de R$ {fmt(finalTotal)}</p>
-            </div>
-          </div>
-        )}
 
         {/* Payment splits */}
         <div className="space-y-2">
