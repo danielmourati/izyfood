@@ -349,11 +349,17 @@ const Entregas = () => {
                         </span>
                       </div>
                     )}
-                    {order.pickupNotes && (
+                    {order.pickupNotes && !order.pickupNotes.startsWith('CANCELADO') && (
                       <div className="text-xs text-muted-foreground italic mt-1 pl-5">
                         {order.pickupNotes}
                       </div>
                     )}
+                    {/* Payment status indicator */}
+                    <p className={`text-xs italic mt-1 pl-5 ${order.paymentMethod ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                      {order.paymentMethod
+                        ? `✅ Pago (${order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod === 'cartao' ? 'Cartão' : order.paymentMethod === 'dinheiro' ? 'Dinheiro' : 'Fiado'})`
+                        : order.orderType === 'retirada' ? 'Paga na retirada' : 'Paga na entrega'}
+                    </p>
                   </div>
 
                   {/* Items summary */}
@@ -419,7 +425,16 @@ const Entregas = () => {
                         <Button
                           size="sm"
                           className="flex-1 gap-1"
-                          onClick={() => changeStatus(order.id, ds === 'pendente' ? 'pronto' : 'finalizado')}
+                          onClick={() => {
+                            if (ds === 'pendente') {
+                              changeStatus(order.id, 'pronto');
+                            } else if (ds === 'pronto' && !order.paymentMethod) {
+                              // Unpaid — go to PDV for payment
+                              navigate(`/pdv?pedido=${order.id}`);
+                            } else {
+                              changeStatus(order.id, 'finalizado');
+                            }
+                          }}
                         >
                           {ds === 'pendente' ? 'Marcar Pronto' : 'Finalizar'}
                           <ChevronRight className="h-3.5 w-3.5" />
@@ -458,7 +473,15 @@ const Entregas = () => {
                   key={s}
                   variant={isActive ? 'default' : 'outline'}
                   className="w-full justify-start gap-3 h-12"
-                  onClick={() => statusDialogOrder && changeStatus(statusDialogOrder.id, s)}
+                  onClick={() => {
+                    if (!statusDialogOrder) return;
+                    if (s === 'finalizado' && !statusDialogOrder.paymentMethod) {
+                      setStatusDialogOrder(null);
+                      navigate(`/pdv?pedido=${statusDialogOrder.id}`);
+                      return;
+                    }
+                    changeStatus(statusDialogOrder.id, s);
+                  }}
                 >
                   <Icon className="h-5 w-5" />
                   <span className="font-medium">{cfg.label}</span>
