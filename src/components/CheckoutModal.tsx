@@ -170,6 +170,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       couponId: appliedCoupon || undefined,
       customerId: selectedCustomer || order.customerId,
       loyaltyRedemptions: redeemCount > 0 ? redeemCount : undefined,
+      serviceFee: serviceFeeAmount > 0 ? serviceFeeAmount : undefined,
     };
 
     completeSale(finalOrder);
