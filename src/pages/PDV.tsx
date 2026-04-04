@@ -210,7 +210,7 @@ const PDV = () => {
             items: cart,
             total,
             status: 'segurado' as const,
-            customerId: selectedCustomerId || undefined,
+            customerId: selectedCustomerId || o.customerId,
             heldAt: new Date().toISOString(),
           } : o
         );
