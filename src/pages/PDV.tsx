@@ -582,17 +582,28 @@ function CartContent({
           <span className="text-lg font-semibold text-foreground">Total</span>
           <span className="text-2xl font-bold text-primary">R$ {fmt(total)}</span>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <Button variant="destructive" className="h-12 text-xs" onClick={cancelOrder} disabled={cart.length === 0 && !tableNumber}>
-            <X className="h-4 w-4 mr-1" /> Cancelar
-          </Button>
-          <Button variant="outline" className="h-12 text-xs" onClick={holdOrder} disabled={cart.length === 0}>
-            <Pause className="h-4 w-4 mr-1" /> Segurar
-          </Button>
-          <Button className="h-12 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-            <ShoppingCart className="h-4 w-4 mr-1" /> Pagar
-          </Button>
-        </div>
+        {orderType === 'balcao' ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="destructive" className="h-12 text-xs" onClick={cancelOrder} disabled={cart.length === 0}>
+              <X className="h-4 w-4 mr-1" /> Cancelar
+            </Button>
+            <Button className="h-12 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+              <ShoppingCart className="h-4 w-4 mr-1" /> Pagar
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            <Button variant="destructive" className="h-12 text-xs" onClick={cancelOrder} disabled={cart.length === 0 && !tableNumber}>
+              <X className="h-4 w-4 mr-1" /> Cancelar
+            </Button>
+            <Button variant="outline" className="h-12 text-xs" onClick={holdOrder} disabled={cart.length === 0}>
+              <Pause className="h-4 w-4 mr-1" /> Segurar
+            </Button>
+            <Button className="h-12 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+              <ShoppingCart className="h-4 w-4 mr-1" /> Pagar
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Table selection dialog */}
