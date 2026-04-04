@@ -3,6 +3,7 @@ import {
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu,
@@ -10,15 +11,26 @@ import {
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 
-const navItems = [
+type PermissionKey = 'manage_customers' | 'manage_products' | 'manage_stock';
+
+interface NavItem {
+  title: string;
+  path: string;
+  icon: React.ElementType;
+  adminOnly: boolean;
+  /** If set, attendants need this permission to see the item */
+  permissionKey?: PermissionKey;
+}
+
+const navItems: NavItem[] = [
   { title: 'Mesas', path: '', icon: Grid3X3, adminOnly: false },
   { title: 'PDV', path: '/pdv', icon: ShoppingCart, adminOnly: false },
   { title: 'Pedidos', path: '/pedidos', icon: ClipboardList, adminOnly: false },
   { title: 'Delivery', path: '/entregas', icon: Truck, adminOnly: false },
   { title: 'Caixa', path: '/caixa', icon: DollarSign, adminOnly: false },
-  { title: 'Clientes', path: '/clientes', icon: Users, adminOnly: true },
-  { title: 'Produtos', path: '/produtos', icon: UtensilsCrossed, adminOnly: true },
-  { title: 'Estoque', path: '/estoque', icon: Package, adminOnly: true },
+  { title: 'Clientes', path: '/clientes', icon: Users, adminOnly: true, permissionKey: 'manage_customers' },
+  { title: 'Produtos', path: '/produtos', icon: UtensilsCrossed, adminOnly: true, permissionKey: 'manage_products' },
+  { title: 'Estoque', path: '/estoque', icon: Package, adminOnly: true, permissionKey: 'manage_stock' },
   { title: 'Relatórios', path: '/relatorios', icon: BarChart3, adminOnly: true },
 ];
 
@@ -26,9 +38,20 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const { user, logout, isAdmin } = useAuth();
+  const { permissions } = useAttendantPermissions();
 
   const slug = user?.tenantSlug || '';
-  const items = navItems.filter(i => isAdmin || !i.adminOnly);
+
+  const items = navItems.filter(item => {
+    // Admins see everything
+    if (isAdmin) return true;
+    // Non-admin-only items are always visible
+    if (!item.adminOnly) return true;
+    // Admin-only items with a permissionKey: check attendant permission
+    if (item.permissionKey) return permissions[item.permissionKey];
+    // Admin-only without permissionKey: hidden for non-admins
+    return false;
+  });
 
   const initials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
