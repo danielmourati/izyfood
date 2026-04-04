@@ -1,17 +1,21 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { fmt } from '@/lib/utils';
 import { Order, OrderType, DeliveryStatus, OrderSource } from '@/types';
+import { toast } from 'sonner';
 
-import { Plus, Phone, MapPin, User, Truck, Package, CheckCircle2, Clock, Search, ChevronRight, Bike } from 'lucide-react';
+import { Plus, Phone, MapPin, User, Truck, Package, CheckCircle2, Clock, Search, ChevronRight, Bike, XCircle, Ban } from 'lucide-react';
 
 const statusConfig: Record<DeliveryStatus, { label: string; color: string; icon: React.ElementType }> = {
   pendente: { label: 'Pendente', color: 'bg-warning text-warning-foreground', icon: Clock },
