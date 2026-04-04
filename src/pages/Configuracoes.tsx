@@ -230,7 +230,7 @@ function UsuariosTab() {
   };
 
   const handleEdit = (u: UserRow) => {
-    setForm({ name: u.name, email: u.email, role: u.role, password: '' });
+    setForm({ name: u.name, email: u.email, role: u.role, password: '', commission: u.commission.toString() });
     setEditingId(u.id);
     setShowForm(true);
   };
