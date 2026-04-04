@@ -69,6 +69,7 @@ const Configuracoes = () => {
       {activeTab === 'perfil' && <MeuPerfilTab />}
       {activeTab === 'geral' && <GeralTab />}
       {activeTab === 'usuarios' && <UsuariosTab />}
+      {activeTab === 'permissoes' && <PermissoesTab />}
       {activeTab === 'cupons' && <CuponsTab />}
       {activeTab === 'impressora' && <ImpressoraTab />}
     </div>
