@@ -386,7 +386,7 @@ const PDV = () => {
               holdOrder={() => { holdOrder(); setShowCart(false); }}
               setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }}
               tables={tables} onSelectTable={(t) => { setShowCart(false); handleSelectTable(t); }}
-              selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} />
+              selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa} />
           </div>
         </div>
       )}
