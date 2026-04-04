@@ -41,8 +41,9 @@ function fmt(v: number) {
 }
 
 export default function Caixa() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { sales, orders, tables } = useStore();
+  const { permissions } = useAttendantPermissions();
   const [currentRegister, setCurrentRegister] = useState<CashRegister | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialAmount, setInitialAmount] = useState('');
@@ -56,6 +57,11 @@ export default function Caixa() {
   const [adminConfirmModal, setAdminConfirmModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminConfirming, setAdminConfirming] = useState(false);
+  // Admin auth for movement when attendant lacks manage_cash permission
+  const [movementAuthModal, setMovementAuthModal] = useState<{ open: boolean; type: 'entrada' | 'saida' }>({ open: false, type: 'entrada' });
+  const [movementAuthEmail, setMovementAuthEmail] = useState('');
+  const [movementAuthPassword, setMovementAuthPassword] = useState('');
+  const [movementAuthChecking, setMovementAuthChecking] = useState(false);
 
   useEffect(() => { fetchCurrent(); }, []);
 
