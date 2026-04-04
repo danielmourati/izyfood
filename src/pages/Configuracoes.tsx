@@ -82,21 +82,34 @@ const Configuracoes = () => {
 function GeralTab() {
   const { settings, updateTableCount } = useStore();
   const [tableCount, setTableCount] = useState(settings.tableCount.toString());
+  const [serviceFee, setServiceFee] = useState('');
 
-  const handleSave = () => {
+  useEffect(() => {
+    supabase.from('store_settings').select('service_fee_percentage').limit(1).then(({ data }) => {
+      if (data && data.length > 0) setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
+    });
+  }, []);
+
+  const handleSave = async () => {
     const count = parseInt(tableCount);
     if (isNaN(count) || count < 5 || count > 100) {
       toast.error('Mínimo de 5 mesas');
       return;
     }
     updateTableCount(count);
+
+    const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
+    const { data: existing } = await supabase.from('store_settings').select('id').limit(1);
+    if (existing && existing.length > 0) {
+      await supabase.from('store_settings').update({ service_fee_percentage: fee } as any).eq('id', existing[0].id);
+    }
     toast.success('Configuração salva!');
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Grid3X3 className="h-5 w-5" /> Mesas</CardTitle>
+        <CardTitle className="flex items-center gap-2"><Grid3X3 className="h-5 w-5" /> Configurações Gerais</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-end gap-3 max-w-xs">
@@ -110,8 +123,21 @@ function GeralTab() {
               onChange={e => setTableCount(e.target.value)}
             />
           </div>
-          <Button onClick={handleSave}>Salvar</Button>
         </div>
+        <div className="flex items-end gap-3 max-w-xs">
+          <div className="flex-1 space-y-2">
+            <Label>Taxa de serviço / comissão (%)</Label>
+            <p className="text-xs text-muted-foreground">Aplicada apenas em pedidos do tipo Mesa</p>
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="Ex: 10"
+              value={serviceFee}
+              onChange={e => setServiceFee(e.target.value)}
+            />
+          </div>
+        </div>
+        <Button onClick={handleSave}>Salvar</Button>
       </CardContent>
     </Card>
   );
