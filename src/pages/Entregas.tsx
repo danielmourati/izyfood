@@ -47,6 +47,11 @@ const Entregas = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>();
   const [statusDialogOrder, setStatusDialogOrder] = useState<Order | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  // Retirada-specific fields
+  const [pickupPerson, setPickupPerson] = useState('');
+  const [productionTime, setProductionTime] = useState('');
+  const [pickupTime, setPickupTime] = useState('');
+  const [pickupNotes, setPickupNotes] = useState('');
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return [];
@@ -86,15 +91,13 @@ const Entregas = () => {
   const handleCreateOrder = () => {
     if (!customerName.trim()) {
       return;
-      return;
     }
     if (!customerPhone.trim()) {
-      return;
       return;
     }
     if (selectedType === 'delivery' && !customerAddress.trim()) {
       return;
-      return;
+    }
     }
 
     const fee = parseFloat(deliveryFee.replace(',', '.')) || 0;
@@ -113,11 +116,14 @@ const Entregas = () => {
       deliveryStatus: 'pendente',
       orderSource,
       motoboyName: motoboyName.trim() || undefined,
+      pickupPerson: selectedType === 'retirada' ? pickupPerson.trim() || undefined : undefined,
+      productionTime: selectedType === 'retirada' ? productionTime || undefined : undefined,
+      pickupTime: selectedType === 'retirada' ? pickupTime || undefined : undefined,
+      pickupNotes: selectedType === 'retirada' ? pickupNotes.trim() || undefined : undefined,
       createdAt: new Date().toISOString(),
     };
 
     setOrders(prev => [...prev, newOrder]);
-    
 
     // Reset form
     setCustomerName('');
@@ -128,6 +134,10 @@ const Entregas = () => {
     setOrderSource('whatsapp');
     setSelectedCustomerId(undefined);
     setCustomerSearch('');
+    setPickupPerson('');
+    setProductionTime('');
+    setPickupTime('');
+    setPickupNotes('');
     setNewOrderOpen(false);
 
     navigate(`/pdv?pedido=${newOrder.id}`);
@@ -267,6 +277,27 @@ const Entregas = () => {
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Bike className="h-3.5 w-3.5" />
                         <span>{order.motoboyName}</span>
+                      </div>
+                    )}
+                    {order.pickupPerson && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <User className="h-3.5 w-3.5" />
+                        <span>Retirar: {order.pickupPerson}</span>
+                      </div>
+                    )}
+                    {(order.productionTime || order.pickupTime) && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>
+                          {order.productionTime && `Produção: ${order.productionTime}`}
+                          {order.productionTime && order.pickupTime && ' • '}
+                          {order.pickupTime && `Retirada: ${order.pickupTime}`}
+                        </span>
+                      </div>
+                    )}
+                    {order.pickupNotes && (
+                      <div className="text-xs text-muted-foreground italic mt-1 pl-5">
+                        {order.pickupNotes}
                       </div>
                     )}
                   </div>
@@ -508,6 +539,49 @@ const Entregas = () => {
                     placeholder="Nome do motoboy (opcional)"
                     value={motoboyName}
                     onChange={e => setMotoboyName(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            {selectedType === 'retirada' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pickupPerson">Responsável pela retirada</Label>
+                  <Input
+                    id="pickupPerson"
+                    placeholder="Nome de quem vai retirar (opcional)"
+                    value={pickupPerson}
+                    onChange={e => setPickupPerson(e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="productionTime">Horário de produção</Label>
+                    <Input
+                      id="productionTime"
+                      type="time"
+                      value={productionTime}
+                      onChange={e => setProductionTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pickupTime">Horário previsto de retirada</Label>
+                    <Input
+                      id="pickupTime"
+                      type="time"
+                      value={pickupTime}
+                      onChange={e => setPickupTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pickupNotes">Observações</Label>
+                  <Input
+                    id="pickupNotes"
+                    placeholder="Ex: cliente paga na retirada, preparar às 15h..."
+                    value={pickupNotes}
+                    onChange={e => setPickupNotes(e.target.value)}
                   />
                 </div>
               </>

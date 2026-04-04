@@ -61,6 +61,10 @@ function dbToOrder(r: any): Order {
     discountType: r.discount_type || undefined, couponId: r.coupon_id || undefined,
     createdAt: r.created_at, heldAt: r.held_at || undefined, completedAt: r.completed_at || undefined,
     loyaltyRedemptions: r.loyalty_redemptions || undefined,
+    pickupPerson: r.pickup_person || undefined,
+    productionTime: r.production_time || undefined,
+    pickupTime: r.pickup_time || undefined,
+    pickupNotes: r.pickup_notes || undefined,
   };
 }
 function dbToSale(r: any): Sale {
@@ -520,6 +524,8 @@ async function syncOrders(prev: Order[], next: Order[]) {
       payment_splits: o.paymentSplits as any || null, discount: o.discount || null,
       discount_type: o.discountType || null, coupon_id: o.couponId || null,
       loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
+      pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
+      pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
     });
   }
   for (const o of updated) {
@@ -534,6 +540,8 @@ async function syncOrders(prev: Order[], next: Order[]) {
       discount_type: o.discountType || null, coupon_id: o.couponId || null,
       loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
       completed_at: o.completedAt || null,
+      pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
+      pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
     }).eq('id', o.id);
   }
   for (const o of removed) await supabase.from('orders').delete().eq('id', o.id);

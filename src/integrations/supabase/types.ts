@@ -304,6 +304,10 @@ export type Database = {
           order_type: Database["public"]["Enums"]["order_type"]
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_splits: Json | null
+          pickup_notes: string | null
+          pickup_person: string | null
+          pickup_time: string | null
+          production_time: string | null
           status: Database["public"]["Enums"]["order_status"]
           table_number: number | null
           tenant_id: string
@@ -332,6 +336,10 @@ export type Database = {
           order_type?: Database["public"]["Enums"]["order_type"]
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_splits?: Json | null
+          pickup_notes?: string | null
+          pickup_person?: string | null
+          pickup_time?: string | null
+          production_time?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           table_number?: number | null
           tenant_id?: string
@@ -360,6 +368,10 @@ export type Database = {
           order_type?: Database["public"]["Enums"]["order_type"]
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_splits?: Json | null
+          pickup_notes?: string | null
+          pickup_person?: string | null
+          pickup_time?: string | null
+          production_time?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           table_number?: number | null
           tenant_id?: string
