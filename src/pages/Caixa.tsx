@@ -415,14 +415,14 @@ export default function Caixa() {
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => setMovementModal({ open: true, type: 'entrada' })}
+                onClick={() => handleMovementClick('entrada')}
               >
                 <ArrowDownCircle className="h-4 w-4 text-green-600" /> Entrada
               </Button>
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => setMovementModal({ open: true, type: 'saida' })}
+                onClick={() => handleMovementClick('saida')}
               >
                 <ArrowUpCircle className="h-4 w-4 text-red-600" /> Saída / Sangria
               </Button>
