@@ -1,34 +1,39 @@
 
-# Painel Superadmin
+## Funcionalidades solicitadas
 
-## Escopo
+### 1. Mesas — Mínimo 5 mesas padrão
+- Garantir que ao criar um tenant, pelo menos 5 mesas sejam cadastradas automaticamente.
 
-Criar um painel exclusivo para usuários com role `superadmin`, acessível via rota `/:slug/admin`, com as seguintes funcionalidades:
+### 2. Transferência de mesa
+- Permitir transferir um pedido de uma mesa para outra (ex: mesa 1 → mesa 5), liberando a mesa antiga automaticamente.
 
-### 1. Dashboard com Métricas Globais
-- Total de tenants ativos
-- Total de usuários cadastrados
-- Total de vendas (todas as lojas)
-- Receita total do período
+### 3. Mesclar/Juntar mesas
+- Duas mesas ocupadas podem ter seus itens combinados em uma única mesa, liberando a outra.
 
-### 2. Gestão de Tenants
-- Lista de todos os tenants (nome, slug, status ativo/inativo, data de criação)
-- Criar novo tenant (nome, slug, logo)
-- Ativar/desativar tenant
+### 4. Divisão de pagamento por ocupantes
+- No checkout, informar número de ocupantes para calcular valor por pessoa automaticamente.
 
-### 3. Criar Novo Estabelecimento (fluxo completo)
-- Formulário: nome do estabelecimento, slug, email e senha do admin
-- Ao criar, a edge function cria: tenant + usuário admin + profile + tenant_members + user_roles + store_settings
+### 5. Pagamentos parciais ("a ver")
+- Registrar pagamentos avulsos que são decrementados do total, exibindo "Falta R$XX de R$XXX".
 
-### Páginas e Componentes
-- `src/pages/SuperAdmin.tsx` — página principal com abas (Dashboard, Tenants, Criar Tenant)
-- `supabase/functions/create-tenant/index.ts` — edge function para criação segura do tenant + admin
-- Rota protegida: só acessível por `superadmin`
+### 6. Permissões granulares por atendente
+- Admin pode configurar quais ações cada atendente pode realizar (cadastrar produtos, alterar preços, dar entrada no estoque, remover itens, cancelar pedidos, etc).
+- Possibilidade de copiar permissões de outro atendente existente.
+- Por padrão, apenas admin pode excluir/cancelar.
 
-### Pré-requisitos
-- Criar um usuário superadmin no sistema (ou promover um existente)
+### 7. Fechamento de caixa com validação
+- Ao fechar o caixa com pedidos não finalizados ou mesas abertas, exigir confirmação do admin com senha.
 
-### Fora do escopo (futuro)
-- Edição de dados de tenants existentes
-- Gestão de usuários de cada tenant
-- Relatórios financeiros detalhados por tenant
+### 8. Movimentações de caixa (entradas e saídas)
+- Registrar entradas avulsas (fundo de troco adicional, pagamentos recebidos).
+- Registrar saídas/sangrias (despesas, pagamento de fornecedor, compra de insumos).
+- Sempre informando o destino/motivo do valor.
+
+## Ordem de implementação sugerida
+1. Mesas (itens 1-3) — migração DB + UI
+2. Checkout melhorado (itens 4-5) — UI + lógica
+3. Movimentações de caixa (item 8) — migração DB + UI
+4. Fechamento de caixa com validação (item 7) — lógica + UI
+5. Permissões granulares (item 6) — migração DB + UI + lógica
+
+Cada etapa será implementada e testada antes de seguir para a próxima.
