@@ -25,12 +25,13 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { MeuPerfilTab } from '@/components/MeuPerfilTab';
 
-type Tab = 'perfil' | 'geral' | 'usuarios' | 'cupons' | 'impressora';
+type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora';
 
 const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean }[] = [
   { key: 'perfil', label: 'Meu Perfil', icon: User, adminOnly: false },
   { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true },
   { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true },
+  { key: 'permissoes', label: 'Permissões', icon: KeyRound, adminOnly: true },
   { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
   { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true },
 ];
