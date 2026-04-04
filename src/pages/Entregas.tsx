@@ -98,7 +98,6 @@ const Entregas = () => {
     if (selectedType === 'delivery' && !customerAddress.trim()) {
       return;
     }
-    }
 
     const fee = parseFloat(deliveryFee.replace(',', '.')) || 0;
 
