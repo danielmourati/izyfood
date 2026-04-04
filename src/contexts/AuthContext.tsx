@@ -2,13 +2,16 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
-export type AppRole = 'admin' | 'atendente' | 'motoboy';
+export type AppRole = 'admin' | 'atendente' | 'motoboy' | 'superadmin';
 
 export interface AppUser {
   id: string;
   name: string;
   email: string;
   role: AppRole;
+  tenantId: string;
+  tenantSlug: string;
+  tenantName: string;
 }
 
 interface AuthContextType {
@@ -36,13 +39,26 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
     .eq('user_id', supaUser.id)
     .single();
 
+  // Fetch tenant membership + tenant info
+  const { data: memberData } = await supabase
+    .from('tenant_members')
+    .select('tenant_id, role, tenants(id, name, slug)')
+    .eq('user_id', supaUser.id)
+    .limit(1)
+    .single();
+
   if (!profile) return null;
+
+  const tenant = memberData?.tenants as any;
 
   return {
     id: supaUser.id,
     name: profile.name,
     email: profile.email,
     role: (roleData?.role as AppRole) || 'atendente',
+    tenantId: tenant?.id || '',
+    tenantSlug: tenant?.slug || 'loja-padrao',
+    tenantName: tenant?.name || 'Loja',
   };
 }
 
@@ -96,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin: user?.role === 'admin' || user?.role === 'superadmin' }}>
       {children}
     </AuthContext.Provider>
   );
