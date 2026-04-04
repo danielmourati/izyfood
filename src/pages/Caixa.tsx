@@ -123,6 +123,7 @@ export default function Caixa() {
     setInitialAmount('');
     setMovements([]);
     toast.success('Caixa aberto com sucesso!');
+    logAudit({ userId: user!.id, userName: user!.name, action: 'open', entityType: 'cash_register', entityId: data.id, details: { fundo_troco: amount } });
   }
 
   function checkPendingBeforeClose() {
