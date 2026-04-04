@@ -408,18 +408,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     // Update order status
-    await supabase.from('orders').update({
+    const orderUpdate: Record<string, any> = {
       status: 'finalizado',
       completed_at: new Date().toISOString(),
       total: order.total,
       payment_method: order.paymentMethod,
-      payment_splits: order.paymentSplits as any || null,
+      payment_splits: order.paymentSplits && order.paymentSplits.length > 0 ? order.paymentSplits as any : null,
       discount: order.discount || null,
       discount_type: order.discountType || null,
       coupon_id: order.couponId || null,
       customer_id: order.customerId || null,
       loyalty_redemptions: order.loyaltyRedemptions || null,
-    }).eq('id', order.id);
+    };
+    // Auto-finalize delivery status for delivery/retirada orders
+    if (order.orderType === 'delivery' || order.orderType === 'retirada') {
+      orderUpdate.delivery_status = 'finalizado';
+    }
+    await supabase.from('orders').update(orderUpdate).eq('id', order.id);
   }, [deductStock, products, categories]);
 
   return (

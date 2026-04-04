@@ -380,7 +380,12 @@ const PDV = () => {
       <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)}
         order={cart.length > 0 ? currentOrder : null}
         selectedCustomerId={selectedCustomerId}
-        onComplete={() => { setCart([]); setSelectedCustomerId(null); if (tableNumber) navigate('/'); }} />
+        onComplete={() => {
+          const isDeliveryOrPickup = orderType === 'delivery' || orderType === 'retirada';
+          setCart([]); setSelectedCustomerId(null);
+          if (isDeliveryOrPickup) { navigate('/entregas'); }
+          else if (tableNumber) { navigate('/'); }
+        }} />
     </div>
   );
 };
