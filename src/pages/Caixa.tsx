@@ -246,7 +246,7 @@ export default function Caixa() {
     setMovementDescription('');
     setMovementModal({ open: false, type: 'entrada' });
     toast.success(movementModal.type === 'entrada' ? 'Entrada registrada!' : 'Saída registrada!');
-  }
+    logAudit({ userId: user!.id, userName: user!.name, action: movementModal.type, entityType: 'cash_movement', entityId: data.id, details: { valor: amount, descricao: movementDescription.trim() } });
 
   function handleMovementClick(type: 'entrada' | 'saida') {
     if (isAdmin || permissions.manage_cash) {
