@@ -43,7 +43,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [redeemCount, setRedeemCount] = useState(0);
   const [occupantCount, setOccupantCount] = useState('');
-  const [partialPayments, setPartialPayments] = useState<{ amount: number; method: PaymentMethod }[]>([]);
+  
 
   // Re-check cash register status when modal opens
   useEffect(() => {
@@ -100,14 +100,12 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   }, [discountValue, discountType, subtotal, appliedCoupon, coupons]);
 
   const finalTotal = Math.max(0, subtotal - discountAmount - acaiRedemptionDiscount);
-  const totalPartialPaid = partialPayments.reduce((s, p) => s + p.amount, 0);
-  const remainingAfterPartial = finalTotal - totalPartialPaid;
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
-  const remaining = remainingAfterPartial - totalAssigned;
-  const hasFiado = splits.some(s => s.method === 'fiado') || partialPayments.some(p => p.method === 'fiado');
+  const remaining = finalTotal - totalAssigned;
+  const hasFiado = splits.some(s => s.method === 'fiado');
 
   const occupants = parseInt(occupantCount) || 0;
-  const perPerson = occupants > 1 ? remainingAfterPartial / occupants : 0;
+  const perPerson = occupants > 1 ? remaining / occupants : 0;
 
   if (!order) return null;
 
@@ -129,18 +127,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     setSplits(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const addPartialPayment = () => {
-    if (!addingMethod) return;
-    const amount = parseFloat(addingAmount.replace(',', '.'));
-    if (isNaN(amount) || amount <= 0) return;
-    setPartialPayments(prev => [...prev, { method: addingMethod, amount }]);
-    setAddingMethod(null);
-    setAddingAmount('');
-  };
-
-  const removePartialPayment = (idx: number) => {
-    setPartialPayments(prev => prev.filter((_, i) => i !== idx));
-  };
 
   const applyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
@@ -159,21 +145,20 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   const handleFinalize = () => {
     if (!effectiveCashOpen) return;
-    const allSplits = [...partialPayments.map(p => ({ method: p.method, amount: p.amount })), ...splits];
-    if (finalTotal > 0 && allSplits.length === 0) return;
-    const totalPaid = allSplits.reduce((s, p) => s + p.amount, 0);
+    if (finalTotal > 0 && splits.length === 0) return;
+    const totalPaid = splits.reduce((s, p) => s + p.amount, 0);
     if (finalTotal > 0 && totalPaid < finalTotal - 0.01) return;
     if (hasFiado && !selectedCustomer) return;
 
-    const primaryMethod = allSplits.length > 0
-      ? allSplits.reduce((a, b) => a.amount >= b.amount ? a : b).method
+    const primaryMethod = splits.length > 0
+      ? splits.reduce((a, b) => a.amount >= b.amount ? a : b).method
       : 'pix';
 
     const finalOrder: Order = {
       ...order,
       total: finalTotal,
       paymentMethod: primaryMethod,
-      paymentSplits: allSplits,
+      paymentSplits: splits,
       discount: (discountAmount + acaiRedemptionDiscount) > 0 ? discountAmount + acaiRedemptionDiscount : undefined,
       discountType: discountAmount > 0 ? discountType : undefined,
       couponId: appliedCoupon || undefined,
@@ -193,7 +178,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     setCouponCode('');
     setRedeemCount(0);
     setOccupantCount('');
-    setPartialPayments([]);
     onComplete();
     onClose();
   };
@@ -364,32 +348,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           </div>
         </div>
 
-        {/* Partial payments ("a ver") */}
-        {partialPayments.length > 0 && (
-          <div className="space-y-2 border rounded-lg p-3">
-            <p className="text-sm font-semibold text-foreground">Pagamentos parciais registrados</p>
-            <div className="space-y-1.5">
-              {partialPayments.map((p, i) => (
-                <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    {React.createElement(methods.find(m => m.key === p.method)?.icon || QrCode, { className: 'h-4 w-4' })}
-                    <span className="text-sm font-medium">{methods.find(m => m.key === p.method)?.label}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-green-600">R$ {fmt(p.amount)}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePartialPayment(i)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="bg-accent/10 rounded-lg px-3 py-2 text-center">
-              <p className="text-xs text-muted-foreground">Falta receber</p>
-              <p className="text-lg font-bold text-destructive">R$ {fmt(Math.max(0, remainingAfterPartial))} de R$ {fmt(finalTotal)}</p>
-            </div>
-          </div>
-        )}
 
         {/* Payment splits */}
         <div className="space-y-2">
@@ -466,37 +424,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
             </div>
           )}
 
-          {/* Register partial payment ("a ver") */}
-          {remaining > 0.01 && (
-            <div className="border-t pt-2 mt-2">
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Registrar pagamento avulso (a ver)</Label>
-                  <div className="flex gap-1.5">
-                    <select
-                      className="h-9 rounded-md border bg-background px-2 text-sm"
-                      value={addingMethod || ''}
-                      onChange={e => setAddingMethod(e.target.value as PaymentMethod)}
-                    >
-                      <option value="">Método</option>
-                      {methods.map(m => (
-                        <option key={m.key} value={m.key}>{m.label}</option>
-                      ))}
-                    </select>
-                    <Input
-                      className="h-9 flex-1"
-                      placeholder="Valor avulso"
-                      value={addingAmount}
-                      onChange={e => setAddingAmount(e.target.value)}
-                    />
-                    <Button size="sm" variant="secondary" className="h-9" onClick={addPartialPayment} disabled={!addingMethod || !addingAmount}>
-                      A ver
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Fiado customer selection */}
