@@ -388,14 +388,24 @@ const Entregas = () => {
                   {/* Actions */}
                   <div className="flex gap-2">
                     {order.items.length === 0 ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => navigate(`/pdv?pedido=${order.id}`)}
-                      >
-                        Adicionar Itens
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => navigate(`/pdv?pedido=${order.id}`)}
+                        >
+                          Adicionar Itens
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setCancelDialogOrder(order)}
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
                     ) : ds !== 'finalizado' ? (
                       <>
                         <Button
@@ -413,6 +423,14 @@ const Entregas = () => {
                         >
                           {ds === 'pendente' ? 'Marcar Pronto' : 'Finalizar'}
                           <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setCancelDialogOrder(order)}
+                        >
+                          <Ban className="h-3.5 w-3.5" />
                         </Button>
                       </>
                     ) : null}
