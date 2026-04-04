@@ -601,6 +601,51 @@ export default function Caixa() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Movement authorization modal (for attendants without manage_cash) */}
+      <Dialog open={movementAuthModal.open} onOpenChange={() => { setMovementAuthModal({ open: false, type: 'entrada' }); setMovementAuthEmail(''); setMovementAuthPassword(''); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" /> Autorização necessária
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Alert className="border-amber-500/50 bg-amber-500/10">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-sm">
+                Você não tem permissão para realizar movimentações no caixa. Solicite a autorização de um administrador.
+              </AlertDescription>
+            </Alert>
+            <div>
+              <Label>Email do administrador</Label>
+              <Input
+                type="email"
+                placeholder="admin@email.com"
+                value={movementAuthEmail}
+                onChange={e => setMovementAuthEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Senha do administrador</Label>
+              <Input
+                type="password"
+                placeholder="••••••"
+                value={movementAuthPassword}
+                onChange={e => setMovementAuthPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setMovementAuthModal({ open: false, type: 'entrada' }); setMovementAuthEmail(''); setMovementAuthPassword(''); }}>
+              Cancelar
+            </Button>
+            <Button className="flex-1" onClick={handleMovementAuth} disabled={movementAuthChecking}>
+              {movementAuthChecking ? 'Verificando...' : 'Autorizar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
