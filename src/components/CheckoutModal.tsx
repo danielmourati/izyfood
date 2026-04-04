@@ -158,7 +158,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       ...order,
       total: finalTotal,
       paymentMethod: primaryMethod,
-      paymentSplits: allSplits,
+      paymentSplits: splits,
       discount: (discountAmount + acaiRedemptionDiscount) > 0 ? discountAmount + acaiRedemptionDiscount : undefined,
       discountType: discountAmount > 0 ? discountType : undefined,
       couponId: appliedCoupon || undefined,
