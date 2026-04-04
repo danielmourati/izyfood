@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 import { fmt } from '@/lib/utils';
 import {
-  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2
+  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText
 } from 'lucide-react';
 import {
   Select,
@@ -24,8 +24,9 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { MeuPerfilTab } from '@/components/MeuPerfilTab';
+import { AuditLogsTab } from '@/components/AuditLogsTab';
 
-type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora';
+type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora' | 'logs';
 
 const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean }[] = [
   { key: 'perfil', label: 'Meu Perfil', icon: User, adminOnly: false },
@@ -34,6 +35,7 @@ const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: bo
   { key: 'permissoes', label: 'Permissões', icon: KeyRound, adminOnly: true },
   { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
   { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true },
+  { key: 'logs', label: 'Auditoria', icon: FileText, adminOnly: true },
 ];
 
 const roleLabels: Record<AppRole, string> = {
@@ -72,6 +74,7 @@ const Configuracoes = () => {
       {activeTab === 'permissoes' && <PermissoesTab />}
       {activeTab === 'cupons' && <CuponsTab />}
       {activeTab === 'impressora' && <ImpressoraTab />}
+      {activeTab === 'logs' && <AuditLogsTab />}
     </div>
   );
 };

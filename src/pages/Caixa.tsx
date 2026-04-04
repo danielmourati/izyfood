@@ -11,8 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
+import { logAudit } from '@/lib/audit';
 
 interface CashMovement {
   id: string;
@@ -62,6 +64,7 @@ export default function Caixa() {
   const [movementAuthEmail, setMovementAuthEmail] = useState('');
   const [movementAuthPassword, setMovementAuthPassword] = useState('');
   const [movementAuthChecking, setMovementAuthChecking] = useState(false);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
   useEffect(() => { fetchCurrent(); }, []);
 
@@ -120,6 +123,7 @@ export default function Caixa() {
     setInitialAmount('');
     setMovements([]);
     toast.success('Caixa aberto com sucesso!');
+    logAudit({ userId: user!.id, userName: user!.name, action: 'open', entityType: 'cash_register', entityId: data.id, details: { fundo_troco: amount } });
   }
 
   function checkPendingBeforeClose() {
@@ -130,7 +134,7 @@ export default function Caixa() {
       setAdminConfirmModal(true);
       return;
     }
-    doClose();
+    setCloseConfirmOpen(true);
   }
 
   async function handleAdminConfirm() {
@@ -151,6 +155,7 @@ export default function Caixa() {
     }
     setAdminConfirmModal(false);
     setAdminPassword('');
+    logAudit({ userId: user!.id, userName: user!.name, action: 'admin_auth', entityType: 'cash_register', details: { motivo: 'Fechamento com pedidos/mesas pendentes' } });
     doClose();
   }
 
@@ -208,6 +213,7 @@ export default function Caixa() {
     setMovements([]);
     setShowReceipt(true);
     toast.success('Caixa fechado com sucesso!');
+    logAudit({ userId: user!.id, userName: user!.name, action: 'close', entityType: 'cash_register', entityId: currentRegister.id, details: { total_vendas: totalSales, dinheiro: totalCash, pix: totalPix, cartao: totalCard, fiado: totalFiado } });
     fetchCurrent();
   }
 
@@ -240,6 +246,7 @@ export default function Caixa() {
     setMovementDescription('');
     setMovementModal({ open: false, type: 'entrada' });
     toast.success(movementModal.type === 'entrada' ? 'Entrada registrada!' : 'Saída registrada!');
+    logAudit({ userId: user!.id, userName: user!.name, action: movementModal.type, entityType: 'cash_movement', entityId: data.id, details: { valor: amount, descricao: movementDescription.trim() } });
   }
 
   function handleMovementClick(type: 'entrada' | 'saida') {
@@ -646,6 +653,24 @@ export default function Caixa() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Close confirmation */}
+      <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fechar Caixa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja fechar o caixa? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setCloseConfirmOpen(false); doClose(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Confirmar Fechamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
