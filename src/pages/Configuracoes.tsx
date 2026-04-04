@@ -9,10 +9,11 @@ import { useAuth, AppRole } from '@/contexts/AuthContext';
 import { DiscountCoupon } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 import { fmt } from '@/lib/utils';
 import {
-  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X
+  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2
 } from 'lucide-react';
 import {
   Select,
@@ -22,14 +23,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { MeuPerfilTab } from '@/components/MeuPerfilTab';
 
-type Tab = 'geral' | 'usuarios' | 'cupons' | 'impressora';
+type Tab = 'perfil' | 'geral' | 'usuarios' | 'cupons' | 'impressora';
 
-const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
-  { key: 'geral', label: 'Geral', icon: Settings },
-  { key: 'usuarios', label: 'Usuários', icon: Users },
-  { key: 'cupons', label: 'Cupons', icon: Ticket },
-  { key: 'impressora', label: 'Impressora', icon: Printer },
+const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean }[] = [
+  { key: 'perfil', label: 'Meu Perfil', icon: User, adminOnly: false },
+  { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true },
+  { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true },
+  { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
+  { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true },
 ];
 
 const roleLabels: Record<AppRole, string> = {
