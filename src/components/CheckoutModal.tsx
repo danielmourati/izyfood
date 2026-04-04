@@ -150,8 +150,8 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     if (finalTotal > 0 && totalPaid < finalTotal - 0.01) return;
     if (hasFiado && !selectedCustomer) return;
 
-    const primaryMethod = allSplits.length > 0
-      ? allSplits.reduce((a, b) => a.amount >= b.amount ? a : b).method
+    const primaryMethod = splits.length > 0
+      ? splits.reduce((a, b) => a.amount >= b.amount ? a : b).method
       : 'pix';
 
     const finalOrder: Order = {
