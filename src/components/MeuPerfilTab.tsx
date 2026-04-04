@@ -131,7 +131,7 @@ export function MeuPerfilTab() {
 
           <div className="space-y-2">
             <Label>Telefone / WhatsApp</Label>
-            <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="(00) 00000-0000" />
+            <Input value={phone} onChange={e => setPhone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" maxLength={15} />
           </div>
 
           <div className="pt-3 border-t space-y-3">
