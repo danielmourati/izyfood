@@ -263,6 +263,8 @@ const PDV = () => {
     if (tableNumber) navigate('/');
   };
 
+  const isHeldMesa = !!(existingOrder && existingOrder.orderType === 'mesa' && (existingOrder.status === 'segurado' || (existingOrder.status === 'aberto' && existingOrder.items.length > 0)));
+
   const currentOrder: Order = {
     id: currentOrderId,
     items: cart,
