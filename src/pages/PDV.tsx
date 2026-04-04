@@ -367,7 +367,7 @@ const PDV = () => {
         <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
           updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
           tables={tables} onSelectTable={(t) => handleSelectTable(t)}
-          selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} />
+          selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa} />
       </div>
 
       {showCart && (
