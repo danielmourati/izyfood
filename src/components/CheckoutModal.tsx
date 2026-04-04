@@ -9,7 +9,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
 import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle, ExternalLink } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 
 interface CheckoutModalProps {
   open: boolean;
