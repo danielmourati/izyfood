@@ -627,8 +627,9 @@ function CartContent({
                     )}
                   </div>
                   {item.weight && <p className="text-xs text-muted-foreground">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>}
+                  {item.addedByName && <p className="text-[10px] text-muted-foreground">por {item.addedByName}</p>}
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(item.id)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleProtectedRemove(item.id)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
