@@ -1,46 +1,34 @@
 
+# Painel Superadmin
 
-# Fase 1: Tabelas `tenants` e `tenant_members`
+## Escopo
 
-Criar a base de dados para multi-tenancy sem alterar o frontend.
+Criar um painel exclusivo para usuários com role `superadmin`, acessível via rota `/:slug/admin`, com as seguintes funcionalidades:
 
-## Migration SQL
+### 1. Dashboard com Métricas Globais
+- Total de tenants ativos
+- Total de usuários cadastrados
+- Total de vendas (todas as lojas)
+- Receita total do período
 
-### 1. Tabela `tenants`
-- `id UUID PK DEFAULT gen_random_uuid()`
-- `name TEXT NOT NULL`
-- `slug TEXT NOT NULL UNIQUE` (identificador na URL, ex: "acainograu")
-- `logo TEXT` (opcional)
-- `active BOOLEAN DEFAULT true`
-- `created_at TIMESTAMPTZ DEFAULT now()`
+### 2. Gestão de Tenants
+- Lista de todos os tenants (nome, slug, status ativo/inativo, data de criação)
+- Criar novo tenant (nome, slug, logo)
+- Ativar/desativar tenant
 
-### 2. Adicionar `superadmin` ao enum `app_role`
-- `ALTER TYPE app_role ADD VALUE 'superadmin'`
+### 3. Criar Novo Estabelecimento (fluxo completo)
+- Formulário: nome do estabelecimento, slug, email e senha do admin
+- Ao criar, a edge function cria: tenant + usuário admin + profile + tenant_members + user_roles + store_settings
 
-### 3. Tabela `tenant_members`
-- `id UUID PK DEFAULT gen_random_uuid()`
-- `tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE`
-- `user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE`
-- `role app_role NOT NULL DEFAULT 'atendente'`
-- `created_at TIMESTAMPTZ DEFAULT now()`
-- `UNIQUE(tenant_id, user_id)`
+### Páginas e Componentes
+- `src/pages/SuperAdmin.tsx` — página principal com abas (Dashboard, Tenants, Criar Tenant)
+- `supabase/functions/create-tenant/index.ts` — edge function para criação segura do tenant + admin
+- Rota protegida: só acessível por `superadmin`
 
-### 4. Função helper `get_user_tenant_id()`
-Função `SECURITY DEFINER` que retorna o `tenant_id` do usuário autenticado. Será usada nas RLS policies futuras quando adicionarmos `tenant_id` às demais tabelas.
+### Pré-requisitos
+- Criar um usuário superadmin no sistema (ou promover um existente)
 
-### 5. RLS policies
-- **tenants**: superadmin pode tudo; membros podem ler seu próprio tenant
-- **tenant_members**: superadmin pode tudo; membros podem ler registros do seu tenant
-
-### 6. Tenant padrão + migração de dados
-- Inserir um tenant padrão (slug: "loja-padrao") via INSERT na migration
-- Vincular todos os usuários existentes em `user_roles` como membros desse tenant
-
-## Arquivos afetados
-
-| Arquivo | Ação |
-|---------|------|
-| Migration SQL | Criar tabelas, enum, função, RLS, dados iniciais |
-
-Nenhuma alteração no frontend nesta fase.
-
+### Fora do escopo (futuro)
+- Edição de dados de tenants existentes
+- Gestão de usuários de cada tenant
+- Relatórios financeiros detalhados por tenant
