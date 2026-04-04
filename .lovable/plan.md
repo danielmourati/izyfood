@@ -1,48 +1,46 @@
 
 
-## Contabilização correta de pagamentos divididos no Caixa
+# Fase 1: Tabelas `tenants` e `tenant_members`
 
-### Problema
+Criar a base de dados para multi-tenancy sem alterar o frontend.
 
-Quando uma venda é paga com duas formas (ex: R$15 Dinheiro + R$12 PIX), o sistema grava apenas **uma** linha na tabela `sales` com o método de pagamento principal (`paymentMethod`). O caixa então atribui o total inteiro da venda a esse único método, ignorando a divisão real.
+## Migration SQL
 
-### Solução
+### 1. Tabela `tenants`
+- `id UUID PK DEFAULT gen_random_uuid()`
+- `name TEXT NOT NULL`
+- `slug TEXT NOT NULL UNIQUE` (identificador na URL, ex: "acainograu")
+- `logo TEXT` (opcional)
+- `active BOOLEAN DEFAULT true`
+- `created_at TIMESTAMPTZ DEFAULT now()`
 
-Gravar o campo `payment_splits` na tabela `sales` e usar esses dados no cálculo do caixa.
+### 2. Adicionar `superadmin` ao enum `app_role`
+- `ALTER TYPE app_role ADD VALUE 'superadmin'`
 
-### Mudanças
+### 3. Tabela `tenant_members`
+- `id UUID PK DEFAULT gen_random_uuid()`
+- `tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE`
+- `user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE`
+- `role app_role NOT NULL DEFAULT 'atendente'`
+- `created_at TIMESTAMPTZ DEFAULT now()`
+- `UNIQUE(tenant_id, user_id)`
 
-**1. Migration SQL — adicionar coluna `payment_splits` à tabela `sales`**
-- `ALTER TABLE sales ADD COLUMN payment_splits jsonb DEFAULT NULL`
-- Quando `payment_splits` é `NULL`, o comportamento legado (usar `payment_method` + `total`) é mantido
+### 4. Função helper `get_user_tenant_id()`
+Função `SECURITY DEFINER` que retorna o `tenant_id` do usuário autenticado. Será usada nas RLS policies futuras quando adicionarmos `tenant_id` às demais tabelas.
 
-**2. `src/types/index.ts` — atualizar tipo `Sale`**
-- Adicionar campo opcional `paymentSplits?: PaymentSplit[]`
+### 5. RLS policies
+- **tenants**: superadmin pode tudo; membros podem ler seu próprio tenant
+- **tenant_members**: superadmin pode tudo; membros podem ler registros do seu tenant
 
-**3. `src/contexts/StoreContext.tsx` — gravar splits na venda**
-- Na função `completeSale`, incluir `payment_splits: order.paymentSplits` no insert do `sales`
-- Atualizar o mapper `dbToSale` para ler `payment_splits`
+### 6. Tenant padrão + migração de dados
+- Inserir um tenant padrão (slug: "loja-padrao") via INSERT na migration
+- Vincular todos os usuários existentes em `user_roles` como membros desse tenant
 
-**4. `src/pages/Caixa.tsx` — calcular totais usando splits**
-- Tanto em `liveTotals` quanto em `handleClose`, ao iterar as vendas:
-  - Se a venda tem `paymentSplits` com itens, distribuir cada split no método correto
-  - Se não tem splits (vendas legadas), usar `paymentMethod` + `total` como fallback
-
-### Exemplo do cálculo corrigido
-
-```text
-Venda: R$ 27,00 (splits: [{dinheiro, 15}, {pix, 12}])
-
-Antes: totalCash += 27  (errado)
-Depois: totalCash += 15, totalPix += 12  (correto)
-```
-
-### Resumo de arquivos
+## Arquivos afetados
 
 | Arquivo | Ação |
-|---|---|
-| Migration SQL | Adicionar coluna `payment_splits` em `sales` |
-| `src/types/index.ts` | Adicionar `paymentSplits` ao tipo `Sale` |
-| `src/contexts/StoreContext.tsx` | Gravar splits no insert + atualizar mapper |
-| `src/pages/Caixa.tsx` | Usar splits no cálculo de totais |
+|---------|------|
+| Migration SQL | Criar tabelas, enum, função, RLS, dados iniciais |
+
+Nenhuma alteração no frontend nesta fase.
 
