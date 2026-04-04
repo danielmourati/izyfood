@@ -316,7 +316,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateTableCount = useCallback(async (count: number) => {
-    setSettings(prev => ({ ...prev, tableCount: count }));
+    const validCount = Math.max(5, count);
     // Update settings in DB
     const { data: existing } = await supabase.from('store_settings').select('id').limit(1);
     if (existing && existing.length > 0) {
