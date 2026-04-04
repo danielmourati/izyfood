@@ -56,7 +56,7 @@ export function useAttendantPermissions() {
   const { user, isAdmin } = useAuth();
   const [permissions, setPermissions] = useState<AttendantPermissions>(defaultPermissions);
   const [loading, setLoading] = useState(true);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  
 
   useEffect(() => {
     if (!user) {
