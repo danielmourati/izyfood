@@ -166,16 +166,21 @@ const PDV = () => {
 
   const cancelOrder = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    const orderId = pedidoParam || currentOrderId;
+    const order = orders.find(o => o.id === orderId);
     setCart([]);
     setSelectedCustomerId(null);
-    const orderId = pedidoParam || currentOrderId;
     if (tableNumber) {
       setTables(prev => prev.map(t =>
         t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
       ));
     }
-    // Remove the auto-created order from DB
-    setOrders(prev => prev.filter(o => o.id !== orderId));
+    // If order has no value, discard it entirely; otherwise mark as canceled
+    if (!order || order.total === 0) {
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+    } else {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelado' } : o));
+    }
     if (tableNumber) navigate('/');
     else navigate('/pdv', { replace: true });
   };
