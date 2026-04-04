@@ -192,6 +192,8 @@ function UsuariosTab() {
       return;
     }
 
+    const commissionVal = parseFloat(form.commission.replace(',', '.')) || 0;
+
     if (editingId) {
       // Update profile name
       await supabase.from('profiles').update({ name: form.name }).eq('id', editingId);
@@ -202,6 +204,8 @@ function UsuariosTab() {
       } else {
         await supabase.from('user_roles').insert({ user_id: editingId, role: form.role });
       }
+      // Update commission
+      await supabase.from('tenant_members').update({ commission_percentage: commissionVal } as any).eq('user_id', editingId);
       toast.success('Usuário atualizado!');
     } else {
       if (!form.password || form.password.length < 4) {
