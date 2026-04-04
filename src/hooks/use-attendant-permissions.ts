@@ -48,6 +48,7 @@ function mapRow(data: any): AttendantPermissions {
     cancel_orders: data.cancel_orders,
     apply_discounts: data.apply_discounts,
     manage_customers: data.manage_customers,
+    manage_cash: data.manage_cash,
   };
 }
 

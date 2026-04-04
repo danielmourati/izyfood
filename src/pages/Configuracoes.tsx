@@ -469,6 +469,7 @@ const permissionLabels: Record<string, string> = {
   cancel_orders: 'Cancelar pedidos',
   apply_discounts: 'Aplicar descontos',
   manage_customers: 'Gerenciar clientes',
+  manage_cash: 'Movimentar caixa (entradas/saídas)',
 };
 
 const permissionKeys = Object.keys(permissionLabels);
