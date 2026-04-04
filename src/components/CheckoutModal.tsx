@@ -43,7 +43,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [redeemCount, setRedeemCount] = useState(0);
   const [occupantCount, setOccupantCount] = useState('');
-  // partialPayments removed — unified into splits
+  
 
   // Re-check cash register status when modal opens
   useEffect(() => {
