@@ -145,9 +145,8 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   const handleFinalize = () => {
     if (!effectiveCashOpen) return;
-    const allSplits = [...partialPayments.map(p => ({ method: p.method, amount: p.amount })), ...splits];
-    if (finalTotal > 0 && allSplits.length === 0) return;
-    const totalPaid = allSplits.reduce((s, p) => s + p.amount, 0);
+    if (finalTotal > 0 && splits.length === 0) return;
+    const totalPaid = splits.reduce((s, p) => s + p.amount, 0);
     if (finalTotal > 0 && totalPaid < finalTotal - 0.01) return;
     if (hasFiado && !selectedCustomer) return;
 
