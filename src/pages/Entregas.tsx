@@ -118,6 +118,10 @@ const Entregas = () => {
       deliveryStatus: 'pendente',
       orderSource,
       motoboyName: motoboyName.trim() || undefined,
+      pickupPerson: selectedType === 'retirada' ? pickupPerson.trim() || undefined : undefined,
+      productionTime: selectedType === 'retirada' ? productionTime || undefined : undefined,
+      pickupTime: selectedType === 'retirada' ? pickupTime || undefined : undefined,
+      pickupNotes: selectedType === 'retirada' ? pickupNotes.trim() || undefined : undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -133,6 +137,10 @@ const Entregas = () => {
     setOrderSource('whatsapp');
     setSelectedCustomerId(undefined);
     setCustomerSearch('');
+    setPickupPerson('');
+    setProductionTime('');
+    setPickupTime('');
+    setPickupNotes('');
     setNewOrderOpen(false);
 
     navigate(`/pdv?pedido=${newOrder.id}`);
