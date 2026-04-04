@@ -123,15 +123,18 @@ function UsuariosTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', email: '', role: 'atendente' as AppRole, password: '' });
   const [loadingUsers, setLoadingUsers] = useState(true);
+  const [resetModal, setResetModal] = useState<UserRow | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetting, setResetting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
-    const { data: profiles } = await supabase.from('profiles').select('id, name, email');
+    const { data: profiles } = await supabase.from('profiles').select('id, name, email, phone');
     const { data: roles } = await supabase.from('user_roles').select('user_id, role');
 
     if (profiles) {
       const userList: UserRow[] = profiles.map(p => {
         const userRole = roles?.find(r => r.user_id === p.id);
-        return { id: p.id, name: p.name, email: p.email, role: (userRole?.role as AppRole) || 'atendente' };
+        return { id: p.id, name: p.name, email: p.email, phone: p.phone || '', role: (userRole?.role as AppRole) || 'atendente' };
       });
       setUsers(userList);
     }
