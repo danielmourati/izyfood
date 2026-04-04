@@ -464,6 +464,9 @@ export default function Caixa() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Service fee & commission section */}
+        <ServiceFeeCommissionCard salesInPeriod={sales.filter(s => new Date(s.date) >= new Date(currentRegister.openedAt))} orders={orders} currentRegister={currentRegister} />
       )}
 
       {history.length > 0 && (
