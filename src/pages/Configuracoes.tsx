@@ -153,6 +153,7 @@ interface UserRow {
 }
 
 function UsuariosTab() {
+  const { user } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -163,14 +164,18 @@ function UsuariosTab() {
   const [resetting, setResetting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
-    const { data: profiles } = await supabase.from('profiles').select('id, name, email, phone');
-    const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+    // tenant_members is already filtered by RLS to current tenant
     const { data: members } = await supabase.from('tenant_members').select('user_id, commission_percentage');
+    if (!members || members.length === 0) { setUsers([]); setLoadingUsers(false); return; }
+
+    const memberUserIds = members.map(m => m.user_id);
+    const { data: profiles } = await supabase.from('profiles').select('id, name, email, phone').in('id', memberUserIds);
+    const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('user_id', memberUserIds);
 
     if (profiles) {
       const userList: UserRow[] = profiles.map(p => {
         const userRole = roles?.find(r => r.user_id === p.id);
-        const member = members?.find(m => m.user_id === p.id);
+        const member = members.find(m => m.user_id === p.id);
         return { id: p.id, name: p.name, email: p.email, phone: p.phone || '', role: (userRole?.role as AppRole) || 'atendente', commission: Number((member as any)?.commission_percentage || 0) };
       });
       setUsers(userList);
@@ -216,7 +221,7 @@ function UsuariosTab() {
       const { data: signUpData, error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
-        options: { data: { name: form.name } },
+        options: { data: { name: form.name, tenant_id: user?.tenantId, role: form.role } },
       });
       if (error) {
         toast.error(error.message);
@@ -530,8 +535,13 @@ function PermissoesTab() {
   const [copySource, setCopySource] = useState('');
 
   const fetchData = useCallback(async () => {
-    const { data: profiles } = await supabase.from('profiles').select('id, name, email');
-    const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+    // Filter by tenant via tenant_members (RLS-filtered)
+    const { data: members } = await supabase.from('tenant_members').select('user_id');
+    if (!members || members.length === 0) { setUsers([]); setLoading(false); return; }
+    const memberIds = members.map(m => m.user_id);
+
+    const { data: profiles } = await supabase.from('profiles').select('id, name, email').in('id', memberIds);
+    const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('user_id', memberIds);
     const { data: perms } = await supabase.from('attendant_permissions').select('*');
 
     const attendants = (profiles || []).filter(p => {
