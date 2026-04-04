@@ -534,8 +534,13 @@ function PermissoesTab() {
   const [copySource, setCopySource] = useState('');
 
   const fetchData = useCallback(async () => {
-    const { data: profiles } = await supabase.from('profiles').select('id, name, email');
-    const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+    // Filter by tenant via tenant_members (RLS-filtered)
+    const { data: members } = await supabase.from('tenant_members').select('user_id');
+    if (!members || members.length === 0) { setUsers([]); setLoading(false); return; }
+    const memberIds = members.map(m => m.user_id);
+
+    const { data: profiles } = await supabase.from('profiles').select('id, name, email').in('id', memberIds);
+    const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('user_id', memberIds);
     const { data: perms } = await supabase.from('attendant_permissions').select('*');
 
     const attendants = (profiles || []).filter(p => {
