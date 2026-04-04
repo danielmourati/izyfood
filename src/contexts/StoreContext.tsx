@@ -327,15 +327,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const currentNumbers = (currentTables.data || []).map(t => t.number);
     const maxCurrent = currentNumbers.length;
 
-    if (count > maxCurrent) {
-      const newTables = Array.from({ length: count - maxCurrent }, (_, i) => ({
+    if (validCount > maxCurrent) {
+      const newTables = Array.from({ length: validCount - maxCurrent }, (_, i) => ({
         number: maxCurrent + i + 1,
         status: 'available' as const,
       }));
       await supabase.from('store_tables').insert(newTables);
-    } else if (count < maxCurrent) {
-      // Remove tables with numbers > count
-      await supabase.from('store_tables').delete().gt('number', count);
+    } else if (validCount < maxCurrent) {
+      await supabase.from('store_tables').delete().gt('number', validCount);
     }
     // Refetch tables
     const { data: tbls } = await supabase.from('store_tables').select('*').order('number');
