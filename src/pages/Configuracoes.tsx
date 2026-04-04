@@ -43,7 +43,9 @@ const roleLabels: Record<AppRole, string> = {
 };
 
 const Configuracoes = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('geral');
+  const [activeTab, setActiveTab] = useState<Tab>('perfil');
+  const { isAdmin } = useAuth();
+  const tabs = allTabs.filter(t => !t.adminOnly || isAdmin);
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -63,6 +65,7 @@ const Configuracoes = () => {
         ))}
       </div>
 
+      {activeTab === 'perfil' && <MeuPerfilTab />}
       {activeTab === 'geral' && <GeralTab />}
       {activeTab === 'usuarios' && <UsuariosTab />}
       {activeTab === 'cupons' && <CuponsTab />}
