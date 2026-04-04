@@ -685,6 +685,88 @@ const Entregas = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Cancel Order Dialog */}
+      <Dialog open={!!cancelDialogOrder} onOpenChange={(open) => {
+        if (!open) {
+          setCancelDialogOrder(null);
+          setCancelReason('');
+          setAdminEmail('');
+          setAdminPassword('');
+        }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <XCircle className="h-5 w-5" />
+              Cancelar Pedido #{cancelDialogOrder?.id.slice(0, 6)}
+            </DialogTitle>
+          </DialogHeader>
+
+          {cancelDialogOrder && (
+            <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+              <p><strong>Cliente:</strong> {cancelDialogOrder.customerName || '—'}</p>
+              <p><strong>Tipo:</strong> {cancelDialogOrder.orderType === 'delivery' ? '🛵 Delivery' : '📦 Retirada'}</p>
+              <p><strong>Total:</strong> R$ {fmt(cancelDialogOrder.total + (cancelDialogOrder.deliveryFee || 0))}</p>
+              <p><strong>Status:</strong> {cancelDialogOrder.deliveryStatus || 'pendente'}</p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cancelReason">Motivo do cancelamento *</Label>
+              <Textarea
+                id="cancelReason"
+                placeholder="Informe o motivo do cancelamento..."
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                maxLength={500}
+                rows={3}
+              />
+            </div>
+
+            <div className="border-t pt-3 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">Autorização do Administrador</p>
+              <div className="space-y-1.5">
+                <Label htmlFor="adminEmail">Email do admin *</Label>
+                <Input
+                  id="adminEmail"
+                  type="email"
+                  placeholder="admin@email.com"
+                  value={adminEmail}
+                  onChange={e => setAdminEmail(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="adminPass">Senha *</Label>
+                <Input
+                  id="adminPass"
+                  type="password"
+                  placeholder="••••••"
+                  value={adminPassword}
+                  onChange={e => setAdminPassword(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setCancelDialogOrder(null)} disabled={cancelLoading}>
+              Voltar
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={handleCancelOrder}
+              disabled={cancelLoading || !cancelReason.trim() || !adminEmail.trim() || !adminPassword.trim()}
+            >
+              {cancelLoading ? 'Verificando...' : 'Confirmar Cancelamento'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
