@@ -103,7 +103,9 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     return discountType === 'percentage' ? (subtotal * val) / 100 : val;
   }, [discountValue, discountType, subtotal, appliedCoupon, coupons]);
 
-  const finalTotal = Math.max(0, subtotal - discountAmount - acaiRedemptionDiscount);
+  const isMesa = order?.orderType === 'mesa';
+  const serviceFeeAmount = isMesa && serviceFeePercentage > 0 ? (subtotal * serviceFeePercentage) / 100 : 0;
+  const finalTotal = Math.max(0, subtotal - discountAmount - acaiRedemptionDiscount + serviceFeeAmount);
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
   const remaining = finalTotal - totalAssigned;
   const hasFiado = splits.some(s => s.method === 'fiado');
