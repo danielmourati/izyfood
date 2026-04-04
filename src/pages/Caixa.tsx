@@ -155,6 +155,7 @@ export default function Caixa() {
     }
     setAdminConfirmModal(false);
     setAdminPassword('');
+    logAudit({ userId: user!.id, userName: user!.name, action: 'admin_auth', entityType: 'cash_register', details: { motivo: 'Fechamento com pedidos/mesas pendentes' } });
     doClose();
   }
 
