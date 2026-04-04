@@ -61,6 +61,10 @@ function dbToOrder(r: any): Order {
     discountType: r.discount_type || undefined, couponId: r.coupon_id || undefined,
     createdAt: r.created_at, heldAt: r.held_at || undefined, completedAt: r.completed_at || undefined,
     loyaltyRedemptions: r.loyalty_redemptions || undefined,
+    pickupPerson: r.pickup_person || undefined,
+    productionTime: r.production_time || undefined,
+    pickupTime: r.pickup_time || undefined,
+    pickupNotes: r.pickup_notes || undefined,
   };
 }
 function dbToSale(r: any): Sale {
