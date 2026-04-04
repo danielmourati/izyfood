@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '@/contexts/StoreContext';
-import { fmt } from '@/lib/utils';
+import { fmt, maskPhone } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
