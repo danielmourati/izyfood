@@ -1,11 +1,11 @@
 import React from 'react';
 import { useStore } from '@/contexts/StoreContext';
-import { useNavigate } from 'react-router-dom';
+import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 
 
 const Mesas = () => {
   const { tables, setTables, orders, setOrders } = useStore();
-  const navigate = useNavigate();
+  const navigate = useTenantNavigate();
 
   const handleTableClick = (tableNum: number) => {
     const table = tables.find(t => t.number === tableNum);

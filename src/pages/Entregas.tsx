@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useStore } from '@/contexts/StoreContext';
-import { useNavigate } from 'react-router-dom';
+import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +31,7 @@ const orderSourceLabels: Record<OrderSource, string> = {
 
 const Entregas = () => {
   const { orders, setOrders, customers } = useStore();
-  const navigate = useNavigate();
+  const navigate = useTenantNavigate();
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<'delivery' | 'retirada'>('delivery');
   const [customerName, setCustomerName] = useState('');

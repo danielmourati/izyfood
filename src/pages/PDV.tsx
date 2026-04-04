@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStore } from '@/contexts/StoreContext';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 const PDV = () => {
   const { products, categories, orders, setOrders, tables, setTables, getCategoryById } = useStore();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const navigate = useTenantNavigate();
   const [showCart, setShowCart] = useState(false);
 
   const mesaParam = searchParams.get('mesa');

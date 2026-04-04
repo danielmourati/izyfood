@@ -36,6 +36,7 @@ const roleLabels: Record<AppRole, string> = {
   admin: 'Administrador',
   atendente: 'Atendente',
   motoboy: 'Motoboy',
+  superadmin: 'Super Admin',
 };
 
 const Configuracoes = () => {
