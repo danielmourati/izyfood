@@ -9,10 +9,11 @@ import { useAuth, AppRole } from '@/contexts/AuthContext';
 import { DiscountCoupon } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 import { fmt } from '@/lib/utils';
 import {
-  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X
+  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2
 } from 'lucide-react';
 import {
   Select,
@@ -22,14 +23,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { MeuPerfilTab } from '@/components/MeuPerfilTab';
 
-type Tab = 'geral' | 'usuarios' | 'cupons' | 'impressora';
+type Tab = 'perfil' | 'geral' | 'usuarios' | 'cupons' | 'impressora';
 
-const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
-  { key: 'geral', label: 'Geral', icon: Settings },
-  { key: 'usuarios', label: 'Usuários', icon: Users },
-  { key: 'cupons', label: 'Cupons', icon: Ticket },
-  { key: 'impressora', label: 'Impressora', icon: Printer },
+const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean }[] = [
+  { key: 'perfil', label: 'Meu Perfil', icon: User, adminOnly: false },
+  { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true },
+  { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true },
+  { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
+  { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true },
 ];
 
 const roleLabels: Record<AppRole, string> = {
@@ -40,7 +43,9 @@ const roleLabels: Record<AppRole, string> = {
 };
 
 const Configuracoes = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('geral');
+  const [activeTab, setActiveTab] = useState<Tab>('perfil');
+  const { isAdmin } = useAuth();
+  const tabs = allTabs.filter(t => !t.adminOnly || isAdmin);
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -60,6 +65,7 @@ const Configuracoes = () => {
         ))}
       </div>
 
+      {activeTab === 'perfil' && <MeuPerfilTab />}
       {activeTab === 'geral' && <GeralTab />}
       {activeTab === 'usuarios' && <UsuariosTab />}
       {activeTab === 'cupons' && <CuponsTab />}
@@ -107,6 +113,7 @@ interface UserRow {
   id: string;
   name: string;
   email: string;
+  phone: string;
   role: AppRole;
 }
 
@@ -116,15 +123,18 @@ function UsuariosTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', email: '', role: 'atendente' as AppRole, password: '' });
   const [loadingUsers, setLoadingUsers] = useState(true);
+  const [resetModal, setResetModal] = useState<UserRow | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetting, setResetting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
-    const { data: profiles } = await supabase.from('profiles').select('id, name, email');
+    const { data: profiles } = await supabase.from('profiles').select('id, name, email, phone');
     const { data: roles } = await supabase.from('user_roles').select('user_id, role');
 
     if (profiles) {
       const userList: UserRow[] = profiles.map(p => {
         const userRole = roles?.find(r => r.user_id === p.id);
-        return { id: p.id, name: p.name, email: p.email, role: (userRole?.role as AppRole) || 'atendente' };
+        return { id: p.id, name: p.name, email: p.email, phone: p.phone || '', role: (userRole?.role as AppRole) || 'atendente' };
       });
       setUsers(userList);
     }
@@ -197,6 +207,7 @@ function UsuariosTab() {
   };
 
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Usuários</CardTitle>
@@ -256,6 +267,9 @@ function UsuariosTab() {
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(u)}>
                     <Edit2 className="h-4 w-4" />
                   </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setResetModal(u)} title="Redefinir senha">
+                    <KeyRound className="h-4 w-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(u.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -266,6 +280,45 @@ function UsuariosTab() {
         )}
       </CardContent>
     </Card>
+
+    <Dialog open={!!resetModal} onOpenChange={() => { setResetModal(null); setNewPassword(''); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Redefinir Senha</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Usuário: <strong>{resetModal?.name}</strong> ({resetModal?.email})
+        </p>
+        <div className="space-y-2">
+          <Label>Nova Senha</Label>
+          <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+        </div>
+        <Button onClick={async () => {
+          if (!resetModal || !newPassword || newPassword.length < 6) {
+            toast.error('Senha deve ter pelo menos 6 caracteres');
+            return;
+          }
+          setResetting(true);
+          try {
+            const { data, error } = await supabase.functions.invoke('reset-user-password', {
+              body: { user_id: resetModal.id, new_password: newPassword },
+            });
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+            toast.success(`Senha de ${resetModal.name} redefinida!`);
+            setResetModal(null);
+            setNewPassword('');
+          } catch (err: any) {
+            toast.error(err.message || 'Erro ao redefinir senha');
+          } finally {
+            setResetting(false);
+          }
+        }} disabled={resetting} className="w-full">
+          {resetting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Redefinindo...</> : 'Redefinir Senha'}
+        </Button>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
