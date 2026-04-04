@@ -173,6 +173,50 @@ const Entregas = () => {
     ));
   };
 
+  const handleCancelOrder = async () => {
+    if (!cancelDialogOrder) return;
+    if (!cancelReason.trim()) {
+      toast.error('Informe o motivo do cancelamento');
+      return;
+    }
+    if (!adminEmail.trim() || !adminPassword.trim()) {
+      toast.error('Informe email e senha do administrador');
+      return;
+    }
+
+    setCancelLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-admin-password', {
+        body: { email: adminEmail.trim(), password: adminPassword },
+      });
+
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Falha na verificação do administrador');
+        setCancelLoading(false);
+        return;
+      }
+
+      setOrders(prev => prev.map(o =>
+        o.id === cancelDialogOrder.id ? {
+          ...o,
+          status: 'cancelado' as const,
+          deliveryStatus: undefined,
+          pickupNotes: `${o.pickupNotes ? o.pickupNotes + ' | ' : ''}CANCELADO: ${cancelReason.trim()}`,
+        } : o
+      ));
+
+      toast.success(`Pedido #${cancelDialogOrder.id.slice(0, 6)} cancelado`);
+      setCancelDialogOrder(null);
+      setCancelReason('');
+      setAdminEmail('');
+      setAdminPassword('');
+    } catch (err: any) {
+      toast.error('Erro ao verificar credenciais');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
   const pendingCount = orders.filter(o => (o.orderType === 'delivery' || o.orderType === 'retirada') && o.deliveryStatus === 'pendente').length;
   const readyCount = orders.filter(o => (o.orderType === 'delivery' || o.orderType === 'retirada') && o.deliveryStatus === 'pronto').length;
 
