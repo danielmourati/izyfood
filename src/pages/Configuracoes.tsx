@@ -285,6 +285,12 @@ function UsuariosTab() {
                   <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
                 </div>
               )}
+              {(form.role === 'atendente') && (
+                <div className="space-y-1">
+                  <Label>Comissão (%)</Label>
+                  <Input type="text" inputMode="decimal" value={form.commission} onChange={e => setForm(f => ({ ...f, commission: e.target.value }))} placeholder="Ex: 5" />
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button size="sm" onClick={handleSave}><Check className="h-4 w-4 mr-1" /> {editingId ? 'Atualizar' : 'Criar'}</Button>
