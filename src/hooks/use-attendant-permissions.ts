@@ -11,6 +11,7 @@ export interface AttendantPermissions {
   cancel_orders: boolean;
   apply_discounts: boolean;
   manage_customers: boolean;
+  manage_cash: boolean;
 }
 
 const allTrue: AttendantPermissions = {
@@ -22,6 +23,7 @@ const allTrue: AttendantPermissions = {
   cancel_orders: true,
   apply_discounts: true,
   manage_customers: true,
+  manage_cash: true,
 };
 
 const defaultPermissions: AttendantPermissions = {
@@ -33,6 +35,7 @@ const defaultPermissions: AttendantPermissions = {
   cancel_orders: false,
   apply_discounts: false,
   manage_customers: false,
+  manage_cash: false,
 };
 
 function mapRow(data: any): AttendantPermissions {
