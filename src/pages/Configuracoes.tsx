@@ -155,7 +155,7 @@ function UsuariosTab() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'atendente' as AppRole, password: '' });
+  const [form, setForm] = useState({ name: '', email: '', role: 'atendente' as AppRole, password: '', commission: '' });
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [resetModal, setResetModal] = useState<UserRow | null>(null);
   const [newPassword, setNewPassword] = useState('');
