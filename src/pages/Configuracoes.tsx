@@ -164,11 +164,13 @@ function UsuariosTab() {
   const fetchUsers = useCallback(async () => {
     const { data: profiles } = await supabase.from('profiles').select('id, name, email, phone');
     const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+    const { data: members } = await supabase.from('tenant_members').select('user_id, commission_percentage');
 
     if (profiles) {
       const userList: UserRow[] = profiles.map(p => {
         const userRole = roles?.find(r => r.user_id === p.id);
-        return { id: p.id, name: p.name, email: p.email, phone: p.phone || '', role: (userRole?.role as AppRole) || 'atendente' };
+        const member = members?.find(m => m.user_id === p.id);
+        return { id: p.id, name: p.name, email: p.email, phone: p.phone || '', role: (userRole?.role as AppRole) || 'atendente', commission: Number((member as any)?.commission_percentage || 0) };
       });
       setUsers(userList);
     }
