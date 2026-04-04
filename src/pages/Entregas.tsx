@@ -91,15 +91,13 @@ const Entregas = () => {
   const handleCreateOrder = () => {
     if (!customerName.trim()) {
       return;
-      return;
     }
     if (!customerPhone.trim()) {
-      return;
       return;
     }
     if (selectedType === 'delivery' && !customerAddress.trim()) {
       return;
-      return;
+    }
     }
 
     const fee = parseFloat(deliveryFee.replace(',', '.')) || 0;
