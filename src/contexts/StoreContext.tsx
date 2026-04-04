@@ -540,6 +540,8 @@ async function syncOrders(prev: Order[], next: Order[]) {
       discount_type: o.discountType || null, coupon_id: o.couponId || null,
       loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
       completed_at: o.completedAt || null,
+      pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
+      pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
     }).eq('id', o.id);
   }
   for (const o of removed) await supabase.from('orders').delete().eq('id', o.id);
