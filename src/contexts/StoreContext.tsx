@@ -317,10 +317,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateTableCount = useCallback(async (count: number) => {
     const validCount = Math.max(5, count);
-    // Update settings in DB
+    setSettings(prev => ({ ...prev, tableCount: validCount }));
     const { data: existing } = await supabase.from('store_settings').select('id').limit(1);
     if (existing && existing.length > 0) {
-      await supabase.from('store_settings').update({ table_count: count }).eq('id', existing[0].id);
+      await supabase.from('store_settings').update({ table_count: validCount }).eq('id', existing[0].id);
     }
     // Add/remove tables
     const currentTables = await supabase.from('store_tables').select('number').order('number');
