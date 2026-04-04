@@ -27,6 +27,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 
 const PDV = () => {
   const { products, categories, orders, setOrders, tables, setTables, getCategoryById } = useStore();
+  const { user, isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useTenantNavigate();
   const [showCart, setShowCart] = useState(false);
