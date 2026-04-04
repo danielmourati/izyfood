@@ -100,11 +100,9 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   }, [discountValue, discountType, subtotal, appliedCoupon, coupons]);
 
   const finalTotal = Math.max(0, subtotal - discountAmount - acaiRedemptionDiscount);
-  const totalPartialPaid = partialPayments.reduce((s, p) => s + p.amount, 0);
-  const remainingAfterPartial = finalTotal - totalPartialPaid;
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
-  const remaining = remainingAfterPartial - totalAssigned;
-  const hasFiado = splits.some(s => s.method === 'fiado') || partialPayments.some(p => p.method === 'fiado');
+  const remaining = finalTotal - totalAssigned;
+  const hasFiado = splits.some(s => s.method === 'fiado');
 
   const occupants = parseInt(occupantCount) || 0;
   const perPerson = occupants > 1 ? remainingAfterPartial / occupants : 0;
