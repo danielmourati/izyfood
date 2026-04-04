@@ -1,17 +1,21 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { fmt } from '@/lib/utils';
 import { Order, OrderType, DeliveryStatus, OrderSource } from '@/types';
+import { toast } from 'sonner';
 
-import { Plus, Phone, MapPin, User, Truck, Package, CheckCircle2, Clock, Search, ChevronRight, Bike } from 'lucide-react';
+import { Plus, Phone, MapPin, User, Truck, Package, CheckCircle2, Clock, Search, ChevronRight, Bike, XCircle, Ban } from 'lucide-react';
 
 const statusConfig: Record<DeliveryStatus, { label: string; color: string; icon: React.ElementType }> = {
   pendente: { label: 'Pendente', color: 'bg-warning text-warning-foreground', icon: Clock },
@@ -31,6 +35,7 @@ const orderSourceLabels: Record<OrderSource, string> = {
 
 const Entregas = () => {
   const { orders, setOrders, customers } = useStore();
+  const { user, isAdmin } = useAuth();
   const navigate = useTenantNavigate();
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<'delivery' | 'retirada'>('delivery');
@@ -52,6 +57,12 @@ const Entregas = () => {
   const [productionTime, setProductionTime] = useState('');
   const [pickupTime, setPickupTime] = useState('');
   const [pickupNotes, setPickupNotes] = useState('');
+  // Cancel dialog state
+  const [cancelDialogOrder, setCancelDialogOrder] = useState<Order | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return [];
@@ -160,6 +171,50 @@ const Entregas = () => {
     setOrders(prev => prev.map(o =>
       o.id === orderId ? { ...o, [field]: value } : o
     ));
+  };
+
+  const handleCancelOrder = async () => {
+    if (!cancelDialogOrder) return;
+    if (!cancelReason.trim()) {
+      toast.error('Informe o motivo do cancelamento');
+      return;
+    }
+    if (!adminEmail.trim() || !adminPassword.trim()) {
+      toast.error('Informe email e senha do administrador');
+      return;
+    }
+
+    setCancelLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-admin-password', {
+        body: { email: adminEmail.trim(), password: adminPassword },
+      });
+
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Falha na verificação do administrador');
+        setCancelLoading(false);
+        return;
+      }
+
+      setOrders(prev => prev.map(o =>
+        o.id === cancelDialogOrder.id ? {
+          ...o,
+          status: 'cancelado' as const,
+          deliveryStatus: undefined,
+          pickupNotes: `${o.pickupNotes ? o.pickupNotes + ' | ' : ''}CANCELADO: ${cancelReason.trim()}`,
+        } : o
+      ));
+
+      toast.success(`Pedido #${cancelDialogOrder.id.slice(0, 6)} cancelado`);
+      setCancelDialogOrder(null);
+      setCancelReason('');
+      setAdminEmail('');
+      setAdminPassword('');
+    } catch (err: any) {
+      toast.error('Erro ao verificar credenciais');
+    } finally {
+      setCancelLoading(false);
+    }
   };
 
   const pendingCount = orders.filter(o => (o.orderType === 'delivery' || o.orderType === 'retirada') && o.deliveryStatus === 'pendente').length;
@@ -333,14 +388,24 @@ const Entregas = () => {
                   {/* Actions */}
                   <div className="flex gap-2">
                     {order.items.length === 0 ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => navigate(`/pdv?pedido=${order.id}`)}
-                      >
-                        Adicionar Itens
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => navigate(`/pdv?pedido=${order.id}`)}
+                        >
+                          Adicionar Itens
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setCancelDialogOrder(order)}
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
                     ) : ds !== 'finalizado' ? (
                       <>
                         <Button
@@ -358,6 +423,14 @@ const Entregas = () => {
                         >
                           {ds === 'pendente' ? 'Marcar Pronto' : 'Finalizar'}
                           <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setCancelDialogOrder(order)}
+                        >
+                          <Ban className="h-3.5 w-3.5" />
                         </Button>
                       </>
                     ) : null}
@@ -608,6 +681,88 @@ const Entregas = () => {
             </Button>
             <Button className="flex-1" onClick={handleCreateOrder}>
               Criar e Adicionar Itens
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Order Dialog */}
+      <Dialog open={!!cancelDialogOrder} onOpenChange={(open) => {
+        if (!open) {
+          setCancelDialogOrder(null);
+          setCancelReason('');
+          setAdminEmail('');
+          setAdminPassword('');
+        }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <XCircle className="h-5 w-5" />
+              Cancelar Pedido #{cancelDialogOrder?.id.slice(0, 6)}
+            </DialogTitle>
+          </DialogHeader>
+
+          {cancelDialogOrder && (
+            <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+              <p><strong>Cliente:</strong> {cancelDialogOrder.customerName || '—'}</p>
+              <p><strong>Tipo:</strong> {cancelDialogOrder.orderType === 'delivery' ? '🛵 Delivery' : '📦 Retirada'}</p>
+              <p><strong>Total:</strong> R$ {fmt(cancelDialogOrder.total + (cancelDialogOrder.deliveryFee || 0))}</p>
+              <p><strong>Status:</strong> {cancelDialogOrder.deliveryStatus || 'pendente'}</p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cancelReason">Motivo do cancelamento *</Label>
+              <Textarea
+                id="cancelReason"
+                placeholder="Informe o motivo do cancelamento..."
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                maxLength={500}
+                rows={3}
+              />
+            </div>
+
+            <div className="border-t pt-3 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">Autorização do Administrador</p>
+              <div className="space-y-1.5">
+                <Label htmlFor="adminEmail">Email do admin *</Label>
+                <Input
+                  id="adminEmail"
+                  type="email"
+                  placeholder="admin@email.com"
+                  value={adminEmail}
+                  onChange={e => setAdminEmail(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="adminPass">Senha *</Label>
+                <Input
+                  id="adminPass"
+                  type="password"
+                  placeholder="••••••"
+                  value={adminPassword}
+                  onChange={e => setAdminPassword(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setCancelDialogOrder(null)} disabled={cancelLoading}>
+              Voltar
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={handleCancelOrder}
+              disabled={cancelLoading || !cancelReason.trim() || !adminEmail.trim() || !adminPassword.trim()}
+            >
+              {cancelLoading ? 'Verificando...' : 'Confirmar Cancelamento'}
             </Button>
           </div>
         </DialogContent>
