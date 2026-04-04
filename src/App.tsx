@@ -15,13 +15,15 @@ import Relatorios from "./pages/Relatorios";
 import Entregas from "./pages/Entregas";
 import Caixa from "./pages/Caixa";
 import Configuracoes from "./pages/Configuracoes";
+import SuperAdmin from "./pages/SuperAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
+function ProtectedRoute({ children, adminOnly = false, superadminOnly = false }: { children: React.ReactNode; adminOnly?: boolean; superadminOnly?: boolean }) {
   const { user, isAdmin } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (superadminOnly && user.role !== 'superadmin') return <Navigate to={`/${user.tenantSlug}`} replace />;
   if (adminOnly && !isAdmin) return <Navigate to={`/${user.tenantSlug}`} replace />;
   return <>{children}</>;
 }
@@ -48,6 +50,7 @@ function TenantRoutes() {
         <Route path="/estoque" element={<ProtectedRoute adminOnly><Estoque /></ProtectedRoute>} />
         <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute adminOnly><Configuracoes /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute superadminOnly><SuperAdmin /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>

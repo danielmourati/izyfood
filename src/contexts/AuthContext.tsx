@@ -32,12 +32,16 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
     .eq('id', supaUser.id)
     .single();
 
-  // Fetch role
-  const { data: roleData } = await supabase
+  // Fetch roles (pick highest: superadmin > admin > others)
+  const { data: rolesData } = await supabase
     .from('user_roles')
     .select('role')
-    .eq('user_id', supaUser.id)
-    .single();
+    .eq('user_id', supaUser.id);
+
+  const roles = (rolesData || []).map(r => r.role as AppRole);
+  const bestRole = roles.includes('superadmin') ? 'superadmin'
+    : roles.includes('admin') ? 'admin'
+    : roles[0] || 'atendente';
 
   // Fetch tenant membership + tenant info
   const { data: memberData } = await supabase
@@ -55,7 +59,7 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
     id: supaUser.id,
     name: profile.name,
     email: profile.email,
-    role: (roleData?.role as AppRole) || 'atendente',
+    role: bestRole,
     tenantId: tenant?.id || '',
     tenantSlug: tenant?.slug || 'loja-padrao',
     tenantName: tenant?.name || 'Loja',
