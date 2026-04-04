@@ -546,6 +546,49 @@ const Entregas = () => {
               </>
             )}
 
+            {selectedType === 'retirada' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pickupPerson">Responsável pela retirada</Label>
+                  <Input
+                    id="pickupPerson"
+                    placeholder="Nome de quem vai retirar (opcional)"
+                    value={pickupPerson}
+                    onChange={e => setPickupPerson(e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="productionTime">Horário de produção</Label>
+                    <Input
+                      id="productionTime"
+                      type="time"
+                      value={productionTime}
+                      onChange={e => setProductionTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pickupTime">Horário previsto de retirada</Label>
+                    <Input
+                      id="pickupTime"
+                      type="time"
+                      value={pickupTime}
+                      onChange={e => setPickupTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pickupNotes">Observações</Label>
+                  <Input
+                    id="pickupNotes"
+                    placeholder="Ex: cliente paga na retirada, preparar às 15h..."
+                    value={pickupNotes}
+                    onChange={e => setPickupNotes(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
             {/* Order source */}
             <div className="space-y-1.5">
               <Label>Origem do pedido</Label>
