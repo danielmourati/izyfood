@@ -349,11 +349,17 @@ const Entregas = () => {
                         </span>
                       </div>
                     )}
-                    {order.pickupNotes && (
+                    {order.pickupNotes && !order.pickupNotes.startsWith('CANCELADO') && (
                       <div className="text-xs text-muted-foreground italic mt-1 pl-5">
                         {order.pickupNotes}
                       </div>
                     )}
+                    {/* Payment status indicator */}
+                    <p className={`text-xs italic mt-1 pl-5 ${order.paymentMethod ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                      {order.paymentMethod
+                        ? `✅ Pago (${order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod === 'cartao' ? 'Cartão' : order.paymentMethod === 'dinheiro' ? 'Dinheiro' : 'Fiado'})`
+                        : order.orderType === 'retirada' ? 'Paga na retirada' : 'Paga na entrega'}
+                    </p>
                   </div>
 
                   {/* Items summary */}
