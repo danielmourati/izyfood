@@ -524,6 +524,8 @@ async function syncOrders(prev: Order[], next: Order[]) {
       payment_splits: o.paymentSplits as any || null, discount: o.discount || null,
       discount_type: o.discountType || null, coupon_id: o.couponId || null,
       loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
+      pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
+      pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
     });
   }
   for (const o of updated) {
