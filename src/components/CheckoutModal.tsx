@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useStore } from '@/contexts/StoreContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
 import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle, ExternalLink, Users } from 'lucide-react';
@@ -29,6 +30,8 @@ const methods: { key: PaymentMethod; label: string; icon: React.ElementType }[] 
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
   const navigate = useTenantNavigate();
   const { completeSale, customers, coupons, products, isCashRegisterOpen } = useStore();
+  const [cashRegisterChecked, setCashRegisterChecked] = useState(false);
+  const [localCashOpen, setLocalCashOpen] = useState(false);
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
   const [addingMethod, setAddingMethod] = useState<PaymentMethod | null>(null);
   const [addingAmount, setAddingAmount] = useState('');
