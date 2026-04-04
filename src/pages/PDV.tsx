@@ -215,18 +215,22 @@ const PDV = () => {
     setOrders(prev => {
       const exists = prev.some(o => o.id === orderId);
       if (exists) {
-        return prev.map(o =>
-          o.id === orderId ? {
+        return prev.map(o => {
+          if (o.id !== orderId) return o;
+          const custId = selectedCustomerId || o.customerId;
+          return {
             ...o,
             items: cart,
             total,
             status: 'segurado' as const,
-            customerId: selectedCustomerId || o.customerId,
+            customerId: custId,
+            ...resolveCustomer(custId),
             heldAt: new Date().toISOString(),
-          } : o
-        );
+          };
+        });
       }
       // Fallback: create if somehow not yet in state
+      const custId = selectedCustomerId || undefined;
       return [...prev, {
         id: orderId,
         items: cart,
@@ -234,7 +238,8 @@ const PDV = () => {
         orderType,
         status: 'segurado' as const,
         tableNumber,
-        customerId: selectedCustomerId || undefined,
+        customerId: custId,
+        ...resolveCustomer(custId),
         createdAt: new Date().toISOString(),
         heldAt: new Date().toISOString(),
       }];
