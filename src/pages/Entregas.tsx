@@ -425,7 +425,16 @@ const Entregas = () => {
                         <Button
                           size="sm"
                           className="flex-1 gap-1"
-                          onClick={() => changeStatus(order.id, ds === 'pendente' ? 'pronto' : 'finalizado')}
+                          onClick={() => {
+                            if (ds === 'pendente') {
+                              changeStatus(order.id, 'pronto');
+                            } else if (ds === 'pronto' && !order.paymentMethod) {
+                              // Unpaid — go to PDV for payment
+                              navigate(`/pdv?pedido=${order.id}`);
+                            } else {
+                              changeStatus(order.id, 'finalizado');
+                            }
+                          }}
                         >
                           {ds === 'pendente' ? 'Marcar Pronto' : 'Finalizar'}
                           <ChevronRight className="h-3.5 w-3.5" />
