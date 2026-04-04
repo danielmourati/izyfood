@@ -153,6 +153,7 @@ interface UserRow {
 }
 
 function UsuariosTab() {
+  const { user } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
