@@ -45,6 +45,20 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [occupantCount, setOccupantCount] = useState('');
   const [partialPayments, setPartialPayments] = useState<{ amount: number; method: PaymentMethod }[]>([]);
 
+  // Re-check cash register status when modal opens
+  useEffect(() => {
+    if (open) {
+      supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
+        setLocalCashOpen(!!(data && data.length > 0));
+        setCashRegisterChecked(true);
+      });
+    } else {
+      setCashRegisterChecked(false);
+    }
+  }, [open]);
+
+  const effectiveCashOpen = cashRegisterChecked ? localCashOpen : isCashRegisterOpen;
+
   useEffect(() => {
     if (open && selectedCustomerId) {
       setSelectedCustomer(selectedCustomerId);
