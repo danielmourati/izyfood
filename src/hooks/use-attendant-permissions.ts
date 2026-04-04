@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -56,15 +56,9 @@ export function useAttendantPermissions() {
   const { user, isAdmin } = useAuth();
   const [permissions, setPermissions] = useState<AttendantPermissions>(defaultPermissions);
   const [loading, setLoading] = useState(true);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  
 
   useEffect(() => {
-    // Clean up any previous channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
     if (!user) {
       setPermissions(defaultPermissions);
       setLoading(false);
@@ -77,6 +71,8 @@ export function useAttendantPermissions() {
       return;
     }
 
+    let cancelled = false;
+
     // Initial fetch
     const fetchPermissions = async () => {
       const { data } = await supabase
@@ -86,14 +82,16 @@ export function useAttendantPermissions() {
         .limit(1)
         .maybeSingle();
 
-      setPermissions(data ? mapRow(data) : defaultPermissions);
-      setLoading(false);
+      if (!cancelled) {
+        setPermissions(data ? mapRow(data) : defaultPermissions);
+        setLoading(false);
+      }
     };
 
     fetchPermissions();
 
     // Realtime subscription with unique channel name
-    const channelName = `perms-${user.id}-${Date.now()}`;
+    const channelName = `perms-${user.id}-${Date.now()}-${Math.random()}`;
     const channel = supabase
       .channel(channelName)
       .on(
@@ -105,6 +103,7 @@ export function useAttendantPermissions() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
+          if (cancelled) return;
           if (payload.eventType === 'DELETE') {
             setPermissions(defaultPermissions);
           } else {
@@ -114,11 +113,9 @@ export function useAttendantPermissions() {
       )
       .subscribe();
 
-    channelRef.current = channel;
-
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
-      channelRef.current = null;
     };
   }, [user?.id, isAdmin]);
 
