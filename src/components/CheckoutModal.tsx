@@ -178,7 +178,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     setCouponCode('');
     setRedeemCount(0);
     setOccupantCount('');
-    setPartialPayments([]);
+    // partialPayments removed
     onComplete();
     onClose();
   };
