@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/contexts/StoreContext';
+import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
 import { CashRegister } from '@/types';
 import { CashRegisterReceipt } from '@/components/CashRegisterReceipt';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface CashMovement {
@@ -39,8 +41,9 @@ function fmt(v: number) {
 }
 
 export default function Caixa() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { sales, orders, tables } = useStore();
+  const { permissions } = useAttendantPermissions();
   const [currentRegister, setCurrentRegister] = useState<CashRegister | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialAmount, setInitialAmount] = useState('');
@@ -54,6 +57,11 @@ export default function Caixa() {
   const [adminConfirmModal, setAdminConfirmModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminConfirming, setAdminConfirming] = useState(false);
+  // Admin auth for movement when attendant lacks manage_cash permission
+  const [movementAuthModal, setMovementAuthModal] = useState<{ open: boolean; type: 'entrada' | 'saida' }>({ open: false, type: 'entrada' });
+  const [movementAuthEmail, setMovementAuthEmail] = useState('');
+  const [movementAuthPassword, setMovementAuthPassword] = useState('');
+  const [movementAuthChecking, setMovementAuthChecking] = useState(false);
 
   useEffect(() => { fetchCurrent(); }, []);
 
@@ -234,6 +242,41 @@ export default function Caixa() {
     toast.success(movementModal.type === 'entrada' ? 'Entrada registrada!' : 'Saída registrada!');
   }
 
+  function handleMovementClick(type: 'entrada' | 'saida') {
+    if (isAdmin || permissions.manage_cash) {
+      setMovementModal({ open: true, type });
+    } else {
+      setMovementAuthModal({ open: true, type });
+    }
+  }
+
+  async function handleMovementAuth() {
+    if (!movementAuthEmail.trim() || !movementAuthPassword.trim()) {
+      toast.error('Informe email e senha do administrador');
+      return;
+    }
+    setMovementAuthChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-admin-password', {
+        body: { email: movementAuthEmail, password: movementAuthPassword },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Credenciais inválidas ou sem permissão');
+        setMovementAuthChecking(false);
+        return;
+      }
+      setMovementAuthChecking(false);
+      const type = movementAuthModal.type;
+      setMovementAuthModal({ open: false, type: 'entrada' });
+      setMovementAuthEmail('');
+      setMovementAuthPassword('');
+      setMovementModal({ open: true, type });
+    } catch {
+      toast.error('Erro ao verificar credenciais');
+      setMovementAuthChecking(false);
+    }
+  }
+
   // Live totals for open register
   const liveTotals = (() => {
     if (!currentRegister) return { cash: 0, pix: 0, card: 0, fiado: 0, total: 0 };
@@ -372,14 +415,14 @@ export default function Caixa() {
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => setMovementModal({ open: true, type: 'entrada' })}
+                onClick={() => handleMovementClick('entrada')}
               >
                 <ArrowDownCircle className="h-4 w-4 text-green-600" /> Entrada
               </Button>
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => setMovementModal({ open: true, type: 'saida' })}
+                onClick={() => handleMovementClick('saida')}
               >
                 <ArrowUpCircle className="h-4 w-4 text-red-600" /> Saída / Sangria
               </Button>
@@ -554,6 +597,51 @@ export default function Caixa() {
             </Button>
             <Button variant="destructive" className="flex-1" onClick={handleAdminConfirm} disabled={adminConfirming}>
               {adminConfirming ? 'Verificando...' : 'Confirmar e Fechar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Movement authorization modal (for attendants without manage_cash) */}
+      <Dialog open={movementAuthModal.open} onOpenChange={() => { setMovementAuthModal({ open: false, type: 'entrada' }); setMovementAuthEmail(''); setMovementAuthPassword(''); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" /> Autorização necessária
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Alert className="border-amber-500/50 bg-amber-500/10">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-sm">
+                Você não tem permissão para realizar movimentações no caixa. Solicite a autorização de um administrador.
+              </AlertDescription>
+            </Alert>
+            <div>
+              <Label>Email do administrador</Label>
+              <Input
+                type="email"
+                placeholder="admin@email.com"
+                value={movementAuthEmail}
+                onChange={e => setMovementAuthEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Senha do administrador</Label>
+              <Input
+                type="password"
+                placeholder="••••••"
+                value={movementAuthPassword}
+                onChange={e => setMovementAuthPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setMovementAuthModal({ open: false, type: 'entrada' }); setMovementAuthEmail(''); setMovementAuthPassword(''); }}>
+              Cancelar
+            </Button>
+            <Button className="flex-1" onClick={handleMovementAuth} disabled={movementAuthChecking}>
+              {movementAuthChecking ? 'Verificando...' : 'Autorizar'}
             </Button>
           </div>
         </DialogContent>

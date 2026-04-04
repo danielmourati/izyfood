@@ -20,6 +20,7 @@ export type Database = {
           cancel_orders: boolean
           edit_prices: boolean
           id: string
+          manage_cash: boolean
           manage_categories: boolean
           manage_customers: boolean
           manage_products: boolean
@@ -33,6 +34,7 @@ export type Database = {
           cancel_orders?: boolean
           edit_prices?: boolean
           id?: string
+          manage_cash?: boolean
           manage_categories?: boolean
           manage_customers?: boolean
           manage_products?: boolean
@@ -46,6 +48,7 @@ export type Database = {
           cancel_orders?: boolean
           edit_prices?: boolean
           id?: string
+          manage_cash?: boolean
           manage_categories?: boolean
           manage_customers?: boolean
           manage_products?: boolean
