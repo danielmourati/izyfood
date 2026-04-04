@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useStore } from '@/contexts/StoreContext';
 import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
-import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle, ExternalLink } from 'lucide-react';
+import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle, ExternalLink, Users } from 'lucide-react';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 
 interface CheckoutModalProps {
@@ -39,8 +39,9 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [redeemCount, setRedeemCount] = useState(0);
+  const [occupantCount, setOccupantCount] = useState('');
+  const [partialPayments, setPartialPayments] = useState<{ amount: number; method: PaymentMethod }[]>([]);
 
-  // Sync selectedCustomer from prop
   useEffect(() => {
     if (open && selectedCustomerId) {
       setSelectedCustomer(selectedCustomerId);
@@ -54,7 +55,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   const redeemableCount = customerObj ? Math.floor((customerObj.loyaltyPoints || 0) / 10) : 0;
 
-  // Calculate redemption discount based on eligible items
   const acaiRedemptionDiscount = useMemo(() => {
     if (redeemCount <= 0 || !order) return 0;
     const eligibleItems = order.items.filter(item => {
@@ -83,9 +83,14 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   }, [discountValue, discountType, subtotal, appliedCoupon, coupons]);
 
   const finalTotal = Math.max(0, subtotal - discountAmount - acaiRedemptionDiscount);
+  const totalPartialPaid = partialPayments.reduce((s, p) => s + p.amount, 0);
+  const remainingAfterPartial = finalTotal - totalPartialPaid;
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
-  const remaining = finalTotal - totalAssigned;
-  const hasFiado = splits.some(s => s.method === 'fiado');
+  const remaining = remainingAfterPartial - totalAssigned;
+  const hasFiado = splits.some(s => s.method === 'fiado') || partialPayments.some(p => p.method === 'fiado');
+
+  const occupants = parseInt(occupantCount) || 0;
+  const perPerson = occupants > 1 ? remainingAfterPartial / occupants : 0;
 
   if (!order) return null;
 
@@ -107,6 +112,19 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     setSplits(prev => prev.filter((_, i) => i !== idx));
   };
 
+  const addPartialPayment = () => {
+    if (!addingMethod) return;
+    const amount = parseFloat(addingAmount.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) return;
+    setPartialPayments(prev => [...prev, { method: addingMethod, amount }]);
+    setAddingMethod(null);
+    setAddingAmount('');
+  };
+
+  const removePartialPayment = (idx: number) => {
+    setPartialPayments(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const applyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
     const coupon = coupons.find(c => c.code === code && c.active);
@@ -124,19 +142,21 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   const handleFinalize = () => {
     if (!isCashRegisterOpen) return;
-    if (finalTotal > 0 && splits.length === 0) return;
-    if (finalTotal > 0 && Math.abs(remaining) > 0.01 && remaining > 0) return;
+    const allSplits = [...partialPayments.map(p => ({ method: p.method, amount: p.amount })), ...splits];
+    if (finalTotal > 0 && allSplits.length === 0) return;
+    const totalPaid = allSplits.reduce((s, p) => s + p.amount, 0);
+    if (finalTotal > 0 && totalPaid < finalTotal - 0.01) return;
     if (hasFiado && !selectedCustomer) return;
 
-    const primaryMethod = splits.length > 0
-      ? splits.reduce((a, b) => a.amount >= b.amount ? a : b).method
+    const primaryMethod = allSplits.length > 0
+      ? allSplits.reduce((a, b) => a.amount >= b.amount ? a : b).method
       : 'pix';
 
     const finalOrder: Order = {
       ...order,
       total: finalTotal,
       paymentMethod: primaryMethod,
-      paymentSplits: splits,
+      paymentSplits: allSplits,
       discount: (discountAmount + acaiRedemptionDiscount) > 0 ? discountAmount + acaiRedemptionDiscount : undefined,
       discountType: discountAmount > 0 ? discountType : undefined,
       couponId: appliedCoupon || undefined,
@@ -146,7 +166,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
     completeSale(finalOrder);
 
-    // Reset
     setSplits([]);
     setAddingMethod(null);
     setAddingAmount('');
@@ -156,6 +175,8 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     setAppliedCoupon(null);
     setCouponCode('');
     setRedeemCount(0);
+    setOccupantCount('');
+    setPartialPayments([]);
     onComplete();
     onClose();
   };
@@ -170,7 +191,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           <DialogTitle>Pagamento</DialogTitle>
         </DialogHeader>
 
-        {/* Cash register warning */}
         {!isCashRegisterOpen && (
           <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
             <AlertTriangle className="h-4 w-4" />
@@ -189,7 +209,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           </Alert>
         )}
 
-        {/* Customer info */}
         {customerObj && (
           <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
             <span className="text-sm font-medium text-foreground">{customerObj.name}</span>
@@ -199,7 +218,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           </div>
         )}
 
-        {/* Subtotal */}
         <div className="bg-primary/10 rounded-xl p-3 text-center">
           <p className="text-sm text-muted-foreground">Subtotal</p>
           <p className="text-3xl font-bold text-primary">R$ {fmt(subtotal)}</p>
@@ -304,6 +322,58 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           )}
         </div>
 
+        {/* Occupant split calculator */}
+        <div className="space-y-2 border rounded-lg p-3">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold text-foreground">Divisão por ocupantes</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Input
+              className="h-9 w-24"
+              type="number"
+              min={2}
+              placeholder="Nº"
+              value={occupantCount}
+              onChange={e => setOccupantCount(e.target.value)}
+            />
+            <span className="text-xs text-muted-foreground">pessoas</span>
+            {perPerson > 0 && (
+              <div className="ml-auto text-right">
+                <p className="text-xs text-muted-foreground">Cada pessoa paga</p>
+                <p className="text-lg font-bold text-primary">R$ {fmt(perPerson)}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Partial payments ("a ver") */}
+        {partialPayments.length > 0 && (
+          <div className="space-y-2 border rounded-lg p-3">
+            <p className="text-sm font-semibold text-foreground">Pagamentos parciais registrados</p>
+            <div className="space-y-1.5">
+              {partialPayments.map((p, i) => (
+                <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    {React.createElement(methods.find(m => m.key === p.method)?.icon || QrCode, { className: 'h-4 w-4' })}
+                    <span className="text-sm font-medium">{methods.find(m => m.key === p.method)?.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-green-600">R$ {fmt(p.amount)}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePartialPayment(i)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="bg-accent/10 rounded-lg px-3 py-2 text-center">
+              <p className="text-xs text-muted-foreground">Falta receber</p>
+              <p className="text-lg font-bold text-destructive">R$ {fmt(Math.max(0, remainingAfterPartial))} de R$ {fmt(finalTotal)}</p>
+            </div>
+          </div>
+        )}
+
         {/* Payment splits */}
         <div className="space-y-2">
           <p className="text-sm font-semibold text-foreground">Formas de pagamento</p>
@@ -378,9 +448,41 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </div>
             </div>
           )}
+
+          {/* Register partial payment ("a ver") */}
+          {remaining > 0.01 && (
+            <div className="border-t pt-2 mt-2">
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label className="text-xs text-muted-foreground">Registrar pagamento avulso (a ver)</Label>
+                  <div className="flex gap-1.5">
+                    <select
+                      className="h-9 rounded-md border bg-background px-2 text-sm"
+                      value={addingMethod || ''}
+                      onChange={e => setAddingMethod(e.target.value as PaymentMethod)}
+                    >
+                      <option value="">Método</option>
+                      {methods.map(m => (
+                        <option key={m.key} value={m.key}>{m.label}</option>
+                      ))}
+                    </select>
+                    <Input
+                      className="h-9 flex-1"
+                      placeholder="Valor avulso"
+                      value={addingAmount}
+                      onChange={e => setAddingAmount(e.target.value)}
+                    />
+                    <Button size="sm" variant="secondary" className="h-9" onClick={addPartialPayment} disabled={!addingMethod || !addingAmount}>
+                      A ver
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Fiado customer selection (fallback if no customer pre-selected) */}
+        {/* Fiado customer selection */}
         {hasFiado && !selectedCustomer && (
           <div className="space-y-2">
             <p className="text-sm font-medium">Selecionar cliente (fiado):</p>
