@@ -279,6 +279,45 @@ function UsuariosTab() {
         )}
       </CardContent>
     </Card>
+
+    <Dialog open={!!resetModal} onOpenChange={() => { setResetModal(null); setNewPassword(''); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Redefinir Senha</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Usuário: <strong>{resetModal?.name}</strong> ({resetModal?.email})
+        </p>
+        <div className="space-y-2">
+          <Label>Nova Senha</Label>
+          <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+        </div>
+        <Button onClick={async () => {
+          if (!resetModal || !newPassword || newPassword.length < 6) {
+            toast.error('Senha deve ter pelo menos 6 caracteres');
+            return;
+          }
+          setResetting(true);
+          try {
+            const { data, error } = await supabase.functions.invoke('reset-user-password', {
+              body: { user_id: resetModal.id, new_password: newPassword },
+            });
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+            toast.success(`Senha de ${resetModal.name} redefinida!`);
+            setResetModal(null);
+            setNewPassword('');
+          } catch (err: any) {
+            toast.error(err.message || 'Erro ao redefinir senha');
+          } finally {
+            setResetting(false);
+          }
+        }} disabled={resetting} className="w-full">
+          {resetting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Redefinindo...</> : 'Redefinir Senha'}
+        </Button>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
