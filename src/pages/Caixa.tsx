@@ -134,7 +134,7 @@ export default function Caixa() {
       setAdminConfirmModal(true);
       return;
     }
-    doClose();
+    setCloseConfirmOpen(true);
   }
 
   async function handleAdminConfirm() {
