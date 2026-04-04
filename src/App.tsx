@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { StoreProvider } from "@/contexts/StoreContext";
+import { useAttendantPermissions, AttendantPermissions } from "@/hooks/use-attendant-permissions";
 import { Layout } from "@/components/Layout";
 import Login from "./pages/Login";
 import PDV from "./pages/PDV";
@@ -20,11 +21,19 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children, adminOnly = false, superadminOnly = false }: { children: React.ReactNode; adminOnly?: boolean; superadminOnly?: boolean }) {
+type PermissionKey = keyof AttendantPermissions;
+
+function ProtectedRoute({ children, adminOnly = false, superadminOnly = false, permissionKey }: { children: React.ReactNode; adminOnly?: boolean; superadminOnly?: boolean; permissionKey?: PermissionKey }) {
   const { user, isAdmin } = useAuth();
+  const { permissions } = useAttendantPermissions();
   if (!user) return <Navigate to="/login" replace />;
   if (superadminOnly && user.role !== 'superadmin') return <Navigate to={`/${user.tenantSlug}`} replace />;
-  if (adminOnly && !isAdmin) return <Navigate to={`/${user.tenantSlug}`} replace />;
+  // For admin-only routes with a permissionKey, allow if admin OR has permission
+  if (adminOnly && !isAdmin) {
+    if (!permissionKey || !permissions[permissionKey]) {
+      return <Navigate to={`/${user.tenantSlug}`} replace />;
+    }
+  }
   return <>{children}</>;
 }
 
