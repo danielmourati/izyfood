@@ -425,37 +425,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
             </div>
           )}
 
-          {/* Register partial payment ("a ver") */}
-          {remaining > 0.01 && (
-            <div className="border-t pt-2 mt-2">
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Registrar pagamento avulso (a ver)</Label>
-                  <div className="flex gap-1.5">
-                    <select
-                      className="h-9 rounded-md border bg-background px-2 text-sm"
-                      value={addingMethod || ''}
-                      onChange={e => setAddingMethod(e.target.value as PaymentMethod)}
-                    >
-                      <option value="">Método</option>
-                      {methods.map(m => (
-                        <option key={m.key} value={m.key}>{m.label}</option>
-                      ))}
-                    </select>
-                    <Input
-                      className="h-9 flex-1"
-                      placeholder="Valor avulso"
-                      value={addingAmount}
-                      onChange={e => setAddingAmount(e.target.value)}
-                    />
-                    <Button size="sm" variant="secondary" className="h-9" onClick={addPartialPayment} disabled={!addingMethod || !addingAmount}>
-                      A ver
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Fiado customer selection */}
