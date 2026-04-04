@@ -46,12 +46,15 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [serviceFeePercentage, setServiceFeePercentage] = useState(0);
   
 
-  // Re-check cash register status when modal opens
+  // Re-check cash register status and fetch service fee when modal opens
   useEffect(() => {
     if (open) {
       supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
         setLocalCashOpen(!!(data && data.length > 0));
         setCashRegisterChecked(true);
+      });
+      supabase.from('store_settings').select('service_fee_percentage').limit(1).then(({ data }) => {
+        if (data && data.length > 0) setServiceFeePercentage(Number((data[0] as any).service_fee_percentage || 0));
       });
     } else {
       setCashRegisterChecked(false);
