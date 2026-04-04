@@ -282,6 +282,27 @@ const Entregas = () => {
                         <span>{order.motoboyName}</span>
                       </div>
                     )}
+                    {order.pickupPerson && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <User className="h-3.5 w-3.5" />
+                        <span>Retirar: {order.pickupPerson}</span>
+                      </div>
+                    )}
+                    {(order.productionTime || order.pickupTime) && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>
+                          {order.productionTime && `Produção: ${order.productionTime}`}
+                          {order.productionTime && order.pickupTime && ' • '}
+                          {order.pickupTime && `Retirada: ${order.pickupTime}`}
+                        </span>
+                      </div>
+                    )}
+                    {order.pickupNotes && (
+                      <div className="text-xs text-muted-foreground italic mt-1 pl-5">
+                        {order.pickupNotes}
+                      </div>
+                    )}
                   </div>
 
                   {/* Items summary */}
