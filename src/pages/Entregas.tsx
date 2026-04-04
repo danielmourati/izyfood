@@ -35,6 +35,7 @@ const orderSourceLabels: Record<OrderSource, string> = {
 
 const Entregas = () => {
   const { orders, setOrders, customers } = useStore();
+  const { user, isAdmin } = useAuth();
   const navigate = useTenantNavigate();
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<'delivery' | 'retirada'>('delivery');
