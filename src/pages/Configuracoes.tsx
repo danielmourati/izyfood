@@ -180,7 +180,7 @@ function UsuariosTab() {
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   const resetForm = () => {
-    setForm({ name: '', email: '', role: 'atendente', password: '' });
+    setForm({ name: '', email: '', role: 'atendente', password: '', commission: '' });
     setShowForm(false);
     setEditingId(null);
   };
