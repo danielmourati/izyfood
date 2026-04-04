@@ -89,6 +89,8 @@ const PDV = () => {
       const currentTotal = cart.reduce((s, i) => s + i.subtotal, 0);
       setOrders(prev => prev.map(o => {
         if (o.id !== pedidoParam) return o;
+        // Don't overwrite held/finalized/cancelled orders with auto-save
+        if (o.status === 'segurado' || o.status === 'finalizado' || o.status === 'cancelado') return o;
         return {
           ...o,
           items: cart,
@@ -208,7 +210,7 @@ const PDV = () => {
             items: cart,
             total,
             status: 'segurado' as const,
-            customerId: selectedCustomerId || undefined,
+            customerId: selectedCustomerId || o.customerId,
             heldAt: new Date().toISOString(),
           } : o
         );
