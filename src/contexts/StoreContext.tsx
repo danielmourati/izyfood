@@ -227,17 +227,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setSettings({ tableCount: payload.new.table_count });
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_registers' }, (payload) => {
-        if (payload.eventType === 'INSERT' && !payload.new.closed_at) {
-          setIsCashRegisterOpen(true);
-        } else if (payload.eventType === 'UPDATE' && payload.new.closed_at) {
-          setIsCashRegisterOpen(false);
-        } else if (payload.eventType === 'DELETE') {
-          // Re-check by querying
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_registers' }, () => {
           supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
             setIsCashRegisterOpen(!!(data && data.length > 0));
           });
-        }
       })
       .subscribe();
 

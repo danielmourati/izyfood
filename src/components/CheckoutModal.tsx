@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useStore } from '@/contexts/StoreContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
 import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle, ExternalLink, Users } from 'lucide-react';
@@ -29,6 +30,8 @@ const methods: { key: PaymentMethod; label: string; icon: React.ElementType }[] 
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
   const navigate = useTenantNavigate();
   const { completeSale, customers, coupons, products, isCashRegisterOpen } = useStore();
+  const [cashRegisterChecked, setCashRegisterChecked] = useState(false);
+  const [localCashOpen, setLocalCashOpen] = useState(false);
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
   const [addingMethod, setAddingMethod] = useState<PaymentMethod | null>(null);
   const [addingAmount, setAddingAmount] = useState('');
@@ -41,6 +44,20 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [redeemCount, setRedeemCount] = useState(0);
   const [occupantCount, setOccupantCount] = useState('');
   const [partialPayments, setPartialPayments] = useState<{ amount: number; method: PaymentMethod }[]>([]);
+
+  // Re-check cash register status when modal opens
+  useEffect(() => {
+    if (open) {
+      supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
+        setLocalCashOpen(!!(data && data.length > 0));
+        setCashRegisterChecked(true);
+      });
+    } else {
+      setCashRegisterChecked(false);
+    }
+  }, [open]);
+
+  const effectiveCashOpen = cashRegisterChecked ? localCashOpen : isCashRegisterOpen;
 
   useEffect(() => {
     if (open && selectedCustomerId) {
@@ -141,7 +158,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   };
 
   const handleFinalize = () => {
-    if (!isCashRegisterOpen) return;
+    if (!effectiveCashOpen) return;
     const allSplits = [...partialPayments.map(p => ({ method: p.method, amount: p.amount })), ...splits];
     if (finalTotal > 0 && allSplits.length === 0) return;
     const totalPaid = allSplits.reduce((s, p) => s + p.amount, 0);
@@ -191,7 +208,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           <DialogTitle>Pagamento</DialogTitle>
         </DialogHeader>
 
-        {!isCashRegisterOpen && (
+        {!effectiveCashOpen && (
           <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-sm font-medium flex items-center justify-between gap-2">
@@ -522,7 +539,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
         <div className="flex gap-2 pt-2">
           <Button variant="outline" className="flex-1 h-12" onClick={onClose}>Voltar</Button>
-          <Button className="flex-1 h-12" onClick={handleFinalize} disabled={!isCashRegisterOpen}>Finalizar Venda</Button>
+          <Button className="flex-1 h-12" onClick={handleFinalize} disabled={!effectiveCashOpen}>Finalizar Venda</Button>
         </div>
       </DialogContent>
     </Dialog>
