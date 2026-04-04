@@ -10,16 +10,16 @@ import {
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 
-const allItems = [
-  { title: 'Mesas', url: '/', icon: Grid3X3, adminOnly: false },
-  { title: 'PDV', url: '/pdv', icon: ShoppingCart, adminOnly: false },
-  { title: 'Pedidos', url: '/pedidos', icon: ClipboardList, adminOnly: false },
-  { title: 'Delivery', url: '/entregas', icon: Truck, adminOnly: false },
-  { title: 'Caixa', url: '/caixa', icon: DollarSign, adminOnly: false },
-  { title: 'Clientes', url: '/clientes', icon: Users, adminOnly: true },
-  { title: 'Produtos', url: '/produtos', icon: UtensilsCrossed, adminOnly: true },
-  { title: 'Estoque', url: '/estoque', icon: Package, adminOnly: true },
-  { title: 'Relatórios', url: '/relatorios', icon: BarChart3, adminOnly: true },
+const navItems = [
+  { title: 'Mesas', path: '', icon: Grid3X3, adminOnly: false },
+  { title: 'PDV', path: '/pdv', icon: ShoppingCart, adminOnly: false },
+  { title: 'Pedidos', path: '/pedidos', icon: ClipboardList, adminOnly: false },
+  { title: 'Delivery', path: '/entregas', icon: Truck, adminOnly: false },
+  { title: 'Caixa', path: '/caixa', icon: DollarSign, adminOnly: false },
+  { title: 'Clientes', path: '/clientes', icon: Users, adminOnly: true },
+  { title: 'Produtos', path: '/produtos', icon: UtensilsCrossed, adminOnly: true },
+  { title: 'Estoque', path: '/estoque', icon: Package, adminOnly: true },
+  { title: 'Relatórios', path: '/relatorios', icon: BarChart3, adminOnly: true },
 ];
 
 export function AppSidebar() {
@@ -27,7 +27,8 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { user, logout, isAdmin } = useAuth();
 
-  const items = allItems.filter(i => isAdmin || !i.adminOnly);
+  const slug = user?.tenantSlug || '';
+  const items = navItems.filter(i => isAdmin || !i.adminOnly);
 
   const initials = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -59,8 +60,8 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
-                      to={item.url}
-                      end={item.url === '/'}
+                      to={`/${slug}${item.path}`}
+                      end={item.path === ''}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
                       activeClassName="bg-sidebar-primary text-sidebar-primary-foreground font-semibold shadow-sm"
                     >
@@ -82,7 +83,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <NavLink
-                to="/configuracoes"
+                to={`/${slug}/configuracoes`}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
                 activeClassName="bg-sidebar-primary text-sidebar-primary-foreground font-semibold shadow-sm"
               >
