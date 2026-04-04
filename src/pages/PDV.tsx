@@ -128,9 +128,9 @@ const PDV = () => {
       return;
     }
     setCart(prev => {
-      const existing = prev.find(i => i.productId === product.id);
+      const existing = prev.find(i => i.productId === product.id && !i.weight);
       if (existing) {
-        return prev.map(i => i.productId === product.id
+        return prev.map(i => i.productId === product.id && !i.weight
           ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.price }
           : i
         );
@@ -142,6 +142,8 @@ const PDV = () => {
         price: product.price,
         quantity: 1,
         subtotal: product.price,
+        addedBy: user?.id,
+        addedByName: user?.name,
       }];
     });
   };
@@ -156,6 +158,8 @@ const PDV = () => {
       quantity: 1,
       weight,
       subtotal: weight * product.price,
+      addedBy: user?.id,
+      addedByName: user?.name,
     }]);
   };
 
