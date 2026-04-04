@@ -64,6 +64,7 @@ export interface Order {
   productionTime?: string;
   pickupTime?: string;
   pickupNotes?: string;
+  serviceFee?: number;
 }
 
 export interface Customer {
