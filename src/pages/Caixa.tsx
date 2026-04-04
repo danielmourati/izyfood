@@ -242,6 +242,41 @@ export default function Caixa() {
     toast.success(movementModal.type === 'entrada' ? 'Entrada registrada!' : 'Saída registrada!');
   }
 
+  function handleMovementClick(type: 'entrada' | 'saida') {
+    if (isAdmin || permissions.manage_cash) {
+      setMovementModal({ open: true, type });
+    } else {
+      setMovementAuthModal({ open: true, type });
+    }
+  }
+
+  async function handleMovementAuth() {
+    if (!movementAuthEmail.trim() || !movementAuthPassword.trim()) {
+      toast.error('Informe email e senha do administrador');
+      return;
+    }
+    setMovementAuthChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-admin-password', {
+        body: { email: movementAuthEmail, password: movementAuthPassword },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Credenciais inválidas ou sem permissão');
+        setMovementAuthChecking(false);
+        return;
+      }
+      setMovementAuthChecking(false);
+      const type = movementAuthModal.type;
+      setMovementAuthModal({ open: false, type: 'entrada' });
+      setMovementAuthEmail('');
+      setMovementAuthPassword('');
+      setMovementModal({ open: true, type });
+    } catch {
+      toast.error('Erro ao verificar credenciais');
+      setMovementAuthChecking(false);
+    }
+  }
+
   // Live totals for open register
   const liveTotals = (() => {
     if (!currentRegister) return { cash: 0, pix: 0, card: 0, fiado: 0, total: 0 };
