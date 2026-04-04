@@ -133,7 +133,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           number: i + 1,
           status: 'available' as const,
         }));
-        const { data: inserted } = await supabase.from('store_tables').insert(defaultTables).select();
+        const { data: inserted, error: insertErr } = await supabase.from('store_tables').insert(defaultTables).select();
+        if (insertErr) {
+          console.error('Error auto-seeding tables:', insertErr);
+        }
         setTables((inserted || []).map(dbToTable));
       } else {
         setTables(tbls.map(dbToTable));
