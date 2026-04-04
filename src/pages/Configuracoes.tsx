@@ -80,7 +80,10 @@ function GeralTab() {
 
   const handleSave = () => {
     const count = parseInt(tableCount);
-    if (isNaN(count) || count < 1 || count > 100) return;
+    if (isNaN(count) || count < 5 || count > 100) {
+      toast.error('Mínimo de 5 mesas');
+      return;
+    }
     updateTableCount(count);
     toast.success('Configuração salva!');
   };
@@ -93,10 +96,10 @@ function GeralTab() {
       <CardContent className="space-y-4">
         <div className="flex items-end gap-3 max-w-xs">
           <div className="flex-1 space-y-2">
-            <Label>Quantidade de mesas</Label>
+            <Label>Quantidade de mesas (mín. 5)</Label>
             <Input
               type="number"
-              min={1}
+              min={5}
               max={100}
               value={tableCount}
               onChange={e => setTableCount(e.target.value)}
