@@ -36,7 +36,7 @@ const PDV = () => {
     return undefined;
   }, [pedidoParam, orders]);
 
-  const [activeCategoryId, setActiveCategoryId] = useState<string>(() => categories[0]?.id || '');
+  const [activeCategoryId, setActiveCategoryId] = useState<string>('all');
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('balcao');
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
@@ -114,7 +114,7 @@ const PDV = () => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType, resolveCustomer]);
 
-  const filteredProducts = useMemo(() => products.filter(p => p.categoryId === activeCategoryId), [products, activeCategoryId]);
+  const filteredProducts = useMemo(() => activeCategoryId === 'all' ? products : products.filter(p => p.categoryId === activeCategoryId), [products, activeCategoryId]);
   const total = useMemo(() => cart.reduce((s, i) => s + i.subtotal, 0), [cart]);
 
   const addToCart = (product: Product) => {
@@ -281,6 +281,13 @@ const PDV = () => {
         )}
 
         <div className="flex gap-2 mb-3 md:mb-4 overflow-x-auto pb-1">
+          <Button
+            variant={activeCategoryId === 'all' ? 'default' : 'outline'}
+            className="h-10 md:h-12 px-3 md:px-5 text-sm md:text-base whitespace-nowrap shrink-0"
+            onClick={() => setActiveCategoryId('all')}
+          >
+            Todos
+          </Button>
           {categories.map(cat => (
             <Button
               key={cat.id}
