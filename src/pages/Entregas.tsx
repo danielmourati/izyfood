@@ -47,6 +47,11 @@ const Entregas = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>();
   const [statusDialogOrder, setStatusDialogOrder] = useState<Order | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  // Retirada-specific fields
+  const [pickupPerson, setPickupPerson] = useState('');
+  const [productionTime, setProductionTime] = useState('');
+  const [pickupTime, setPickupTime] = useState('');
+  const [pickupNotes, setPickupNotes] = useState('');
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return [];
