@@ -24,7 +24,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 const PDV = () => {
   const { products, categories, orders, setOrders, tables, setTables, getCategoryById } = useStore();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const navigate = useTenantNavigate();
   const [showCart, setShowCart] = useState(false);
 
   const mesaParam = searchParams.get('mesa');

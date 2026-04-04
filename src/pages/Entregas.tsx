@@ -31,7 +31,7 @@ const orderSourceLabels: Record<OrderSource, string> = {
 
 const Entregas = () => {
   const { orders, setOrders, customers } = useStore();
-  const navigate = useNavigate();
+  const navigate = useTenantNavigate();
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<'delivery' | 'retirada'>('delivery');
   const [customerName, setCustomerName] = useState('');
