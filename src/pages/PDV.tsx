@@ -727,6 +727,43 @@ function CartContent({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Admin auth for mesa item removal / cancel */}
+      <Dialog open={adminAuthModal.open} onOpenChange={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" /> Autorização necessária
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Alert className="border-amber-500/50 bg-amber-500/10">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-sm">
+                {adminAuthModal.action === 'cancel'
+                  ? 'Cancelar um pedido de mesa requer autorização de um administrador.'
+                  : 'Remover itens de um pedido de mesa requer autorização de um administrador.'}
+              </AlertDescription>
+            </Alert>
+            <div>
+              <Label>Email do administrador</Label>
+              <Input type="email" placeholder="admin@email.com" value={adminAuthEmail} onChange={e => setAdminAuthEmail(e.target.value)} />
+            </div>
+            <div>
+              <Label>Senha do administrador</Label>
+              <Input type="password" placeholder="••••••" value={adminAuthPassword} onChange={e => setAdminAuthPassword(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }}>
+              Cancelar
+            </Button>
+            <Button className="flex-1" onClick={handleAdminAuth} disabled={adminAuthChecking}>
+              {adminAuthChecking ? 'Verificando...' : 'Autorizar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
