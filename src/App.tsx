@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { StoreProvider } from "@/contexts/StoreContext";
@@ -22,8 +22,36 @@ const queryClient = new QueryClient();
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
   const { user, isAdmin } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (adminOnly && !isAdmin) return <Navigate to="/" replace />;
+  if (adminOnly && !isAdmin) return <Navigate to={`/${user.tenantSlug}`} replace />;
   return <>{children}</>;
+}
+
+function TenantRoutes() {
+  const { slug } = useParams<{ slug: string }>();
+  const { user } = useAuth();
+
+  // If the slug doesn't match the user's tenant, redirect to correct one
+  if (user && slug !== user.tenantSlug) {
+    return <Navigate to={`/${user.tenantSlug}`} replace />;
+  }
+
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<ProtectedRoute><Mesas /></ProtectedRoute>} />
+        <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
+        <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
+        <Route path="/entregas" element={<ProtectedRoute><Entregas /></ProtectedRoute>} />
+        <Route path="/caixa" element={<ProtectedRoute><Caixa /></ProtectedRoute>} />
+        <Route path="/clientes" element={<ProtectedRoute adminOnly><Clientes /></ProtectedRoute>} />
+        <Route path="/produtos" element={<ProtectedRoute adminOnly><Produtos /></ProtectedRoute>} />
+        <Route path="/estoque" element={<ProtectedRoute adminOnly><Estoque /></ProtectedRoute>} />
+        <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
+        <Route path="/configuracoes" element={<ProtectedRoute adminOnly><Configuracoes /></ProtectedRoute>} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Layout>
+  );
 }
 
 function AppRoutes() {
@@ -50,22 +78,12 @@ function AppRoutes() {
   }
 
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<ProtectedRoute><Mesas /></ProtectedRoute>} />
-        <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
-        <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
-        <Route path="/entregas" element={<ProtectedRoute><Entregas /></ProtectedRoute>} />
-        <Route path="/caixa" element={<ProtectedRoute><Caixa /></ProtectedRoute>} />
-        <Route path="/clientes" element={<ProtectedRoute adminOnly><Clientes /></ProtectedRoute>} />
-        <Route path="/produtos" element={<ProtectedRoute adminOnly><Produtos /></ProtectedRoute>} />
-        <Route path="/estoque" element={<ProtectedRoute adminOnly><Estoque /></ProtectedRoute>} />
-        <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
-        <Route path="/configuracoes" element={<ProtectedRoute adminOnly><Configuracoes /></ProtectedRoute>} />
-        <Route path="/login" element={<Navigate to="/" replace />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Layout>
+    <Routes>
+      <Route path="/login" element={<Navigate to={`/${user.tenantSlug}`} replace />} />
+      <Route path="/:slug/*" element={<TenantRoutes />} />
+      <Route path="/" element={<Navigate to={`/${user.tenantSlug}`} replace />} />
+      <Route path="*" element={<Navigate to={`/${user.tenantSlug}`} replace />} />
+    </Routes>
   );
 }
 
