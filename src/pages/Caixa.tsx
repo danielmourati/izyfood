@@ -44,7 +44,7 @@ function fmt(v: number) {
 
 export default function Caixa() {
   const { user, isAdmin } = useAuth();
-  const { sales, orders, tables } = useStore();
+  const { sales, orders } = useStore();
   const { permissions } = useAttendantPermissions();
   const [currentRegister, setCurrentRegister] = useState<CashRegister | null>(null);
   const [loading, setLoading] = useState(true);
