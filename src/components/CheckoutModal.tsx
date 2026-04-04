@@ -127,18 +127,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     setSplits(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const addPartialPayment = () => {
-    if (!addingMethod) return;
-    const amount = parseFloat(addingAmount.replace(',', '.'));
-    if (isNaN(amount) || amount <= 0) return;
-    setPartialPayments(prev => [...prev, { method: addingMethod, amount }]);
-    setAddingMethod(null);
-    setAddingAmount('');
-  };
-
-  const removePartialPayment = (idx: number) => {
-    setPartialPayments(prev => prev.filter((_, i) => i !== idx));
-  };
 
   const applyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
