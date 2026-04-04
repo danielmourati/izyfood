@@ -221,7 +221,7 @@ function UsuariosTab() {
       const { data: signUpData, error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
-        options: { data: { name: form.name } },
+        options: { data: { name: form.name, tenant_id: user?.tenantId, role: form.role } },
       });
       if (error) {
         toast.error(error.message);
