@@ -87,15 +87,16 @@ const PDV = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const currentTotal = cart.reduce((s, i) => s + i.subtotal, 0);
-      setOrders(prev => prev.map(o =>
-        o.id === pedidoParam ? {
+      setOrders(prev => prev.map(o => {
+        if (o.id !== pedidoParam) return o;
+        return {
           ...o,
           items: cart,
           total: currentTotal,
-          customerId: selectedCustomerId || undefined,
+          customerId: selectedCustomerId || o.customerId,
           orderType,
-        } : o
-      ));
+        };
+      }));
     }, 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType]);

@@ -58,6 +58,10 @@ export interface Order {
   heldAt?: string;
   completedAt?: string;
   loyaltyRedemptions?: number;
+  pickupPerson?: string;
+  productionTime?: string;
+  pickupTime?: string;
+  pickupNotes?: string;
 }
 
 export interface Customer {
