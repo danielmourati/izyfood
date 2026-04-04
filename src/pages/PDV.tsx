@@ -406,15 +406,17 @@ const PDV = () => {
 
 function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
-  selectedCustomerId, onSelectCustomer,
+  selectedCustomerId, onSelectCustomer, isHeldMesa,
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
   cancelOrder: () => void; holdOrder: () => void; setCheckoutOpen: (v: boolean) => void;
   tables: TableInfo[]; onSelectTable: (t: TableInfo) => void;
   selectedCustomerId: string | null; onSelectCustomer: (id: string | null) => void;
+  isHeldMesa: boolean;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
+  const { isAdmin } = useAuth();
   const [tableModalOpen, setTableModalOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
