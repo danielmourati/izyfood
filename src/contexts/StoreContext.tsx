@@ -420,6 +420,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       coupon_id: order.couponId || null,
       customer_id: order.customerId || null,
       loyalty_redemptions: order.loyaltyRedemptions || null,
+      service_fee: order.serviceFee || null,
     };
     // Auto-finalize delivery status for delivery/retirada orders
     if (order.orderType === 'delivery' || order.orderType === 'retirada') {
