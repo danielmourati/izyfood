@@ -128,9 +128,9 @@ const PDV = () => {
       return;
     }
     setCart(prev => {
-      const existing = prev.find(i => i.productId === product.id && !i.weight);
+      const existing = prev.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id);
       if (existing) {
-        return prev.map(i => i.productId === product.id && !i.weight
+        return prev.map(i => i.id === existing.id
           ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.price }
           : i
         );
