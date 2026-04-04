@@ -230,6 +230,57 @@ export type Database = {
           },
         ]
       }
+      commission_records: {
+        Row: {
+          cash_register_id: string
+          commission_amount: number
+          commission_percentage: number
+          created_at: string
+          id: string
+          tenant_id: string
+          total_sales: number
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          cash_register_id: string
+          commission_amount?: number
+          commission_percentage?: number
+          created_at?: string
+          id?: string
+          tenant_id?: string
+          total_sales?: number
+          user_id: string
+          user_name?: string
+        }
+        Update: {
+          cash_register_id?: string
+          commission_amount?: number
+          commission_percentage?: number
+          created_at?: string
+          id?: string
+          tenant_id?: string
+          total_sales?: number
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_records_cash_register_id_fkey"
+            columns: ["cash_register_id"]
+            isOneToOne: false
+            referencedRelation: "cash_registers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_records_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coupons: {
         Row: {
           active: boolean
