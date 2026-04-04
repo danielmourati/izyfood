@@ -20,9 +20,10 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
+function ProtectedRoute({ children, adminOnly = false, superadminOnly = false }: { children: React.ReactNode; adminOnly?: boolean; superadminOnly?: boolean }) {
   const { user, isAdmin } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (superadminOnly && user.role !== 'superadmin') return <Navigate to={`/${user.tenantSlug}`} replace />;
   if (adminOnly && !isAdmin) return <Navigate to={`/${user.tenantSlug}`} replace />;
   return <>{children}</>;
 }
