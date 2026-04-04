@@ -427,6 +427,13 @@ function CartContent({
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Admin auth for mesa item removal
+  const [adminAuthModal, setAdminAuthModal] = useState<{ open: boolean; action: 'remove' | 'cancel'; itemId?: string }>({ open: false, action: 'remove' });
+  const [adminAuthEmail, setAdminAuthEmail] = useState('');
+  const [adminAuthPassword, setAdminAuthPassword] = useState('');
+  const [adminAuthChecking, setAdminAuthChecking] = useState(false);
+
+  const needsAdminAuth = isHeldMesa && !isAdmin;
 
   const availableTables = tables.filter(t => t.status === 'available');
   const customerObj = useMemo(() => customers.find(c => c.id === selectedCustomerId), [customers, selectedCustomerId]);
