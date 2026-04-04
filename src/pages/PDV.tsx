@@ -114,7 +114,7 @@ const PDV = () => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType, resolveCustomer]);
 
-  const filteredProducts = useMemo(() => products.filter(p => p.categoryId === activeCategoryId), [products, activeCategoryId]);
+  const filteredProducts = useMemo(() => activeCategoryId === 'all' ? products : products.filter(p => p.categoryId === activeCategoryId), [products, activeCategoryId]);
   const total = useMemo(() => cart.reduce((s, i) => s + i.subtotal, 0), [cart]);
 
   const addToCart = (product: Product) => {
