@@ -126,7 +126,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setOrders((ords || []).map(dbToOrder));
       setSales((sls || []).map(dbToSale));
       setStockEntries((stks || []).map(dbToStockEntry));
-      setTables((tbls || []).map(dbToTable));
+
+      // Auto-seed 5 default tables if none exist
+      if (!tbls || tbls.length === 0) {
+        const defaultTables = Array.from({ length: 5 }, (_, i) => ({
+          number: i + 1,
+          status: 'available' as const,
+        }));
+        const { data: inserted } = await supabase.from('store_tables').insert(defaultTables).select();
+        setTables((inserted || []).map(dbToTable));
+      } else {
+        setTables(tbls.map(dbToTable));
+      }
       setCoupons((cpns || []).map(dbToCoupon));
       if (setts && setts.length > 0) {
         setSettings({ tableCount: setts[0].table_count });
