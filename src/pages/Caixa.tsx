@@ -467,6 +467,27 @@ export default function Caixa() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            {movementModal.type === 'saida' && currentRegister && (() => {
+              const cashBalance = currentRegister.initialAmount + liveTotals.cash + totalEntradas - totalSaidas;
+              const parsedAmount = parseFloat(movementAmount.replace(',', '.'));
+              const exceedsBalance = !isNaN(parsedAmount) && parsedAmount > 0 && parsedAmount > cashBalance;
+              return (
+                <>
+                  <div className="rounded-lg bg-primary/10 p-3">
+                    <p className="text-xs text-muted-foreground">Saldo em Dinheiro no Caixa</p>
+                    <p className="text-lg font-bold text-primary">{fmt(cashBalance)}</p>
+                  </div>
+                  {exceedsBalance && (
+                    <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+                      <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                      <p className="text-sm text-destructive">
+                        O valor informado ({fmt(parsedAmount)}) é maior que o saldo atual em caixa ({fmt(cashBalance)}).
+                      </p>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             <div>
               <Label>Valor (R$)</Label>
               <Input
@@ -490,7 +511,15 @@ export default function Caixa() {
             <Button variant="outline" className="flex-1" onClick={() => setMovementModal({ open: false, type: 'entrada' })}>
               Cancelar
             </Button>
-            <Button className="flex-1" onClick={handleAddMovement}>
+            <Button
+              className="flex-1"
+              onClick={handleAddMovement}
+              disabled={movementModal.type === 'saida' && (() => {
+                const parsedAmount = parseFloat(movementAmount.replace(',', '.'));
+                const cashBalance = currentRegister ? currentRegister.initialAmount + liveTotals.cash + totalEntradas - totalSaidas : 0;
+                return !isNaN(parsedAmount) && parsedAmount > cashBalance;
+              })()}
+            >
               Registrar
             </Button>
           </div>
