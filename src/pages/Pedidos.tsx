@@ -16,7 +16,8 @@ const Pedidos = () => {
   const { orders, setOrders } = useStore();
   const [filter, setFilter] = useState<string>('all');
 
-  const filtered = filter === 'all' ? orders : orders.filter(o => o.status === filter);
+  const nonEmpty = orders.filter(o => o.total > 0 || (o.status !== 'cancelado' && o.items.length > 0));
+  const filtered = filter === 'all' ? nonEmpty : nonEmpty.filter(o => o.status === filter);
   const sorted = [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const cancelOrder = (id: string) => {
