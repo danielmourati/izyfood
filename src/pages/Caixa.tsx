@@ -64,6 +64,7 @@ export default function Caixa() {
   const [movementAuthEmail, setMovementAuthEmail] = useState('');
   const [movementAuthPassword, setMovementAuthPassword] = useState('');
   const [movementAuthChecking, setMovementAuthChecking] = useState(false);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
   useEffect(() => { fetchCurrent(); }, []);
 
