@@ -213,6 +213,7 @@ export default function Caixa() {
     setMovements([]);
     setShowReceipt(true);
     toast.success('Caixa fechado com sucesso!');
+    logAudit({ userId: user!.id, userName: user!.name, action: 'close', entityType: 'cash_register', entityId: currentRegister.id, details: { total_vendas: totalSales, dinheiro: totalCash, pix: totalPix, cartao: totalCard, fiado: totalFiado } });
     fetchCurrent();
   }
 
