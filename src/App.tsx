@@ -54,9 +54,9 @@ function TenantRoutes() {
         <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
         <Route path="/entregas" element={<ProtectedRoute><Entregas /></ProtectedRoute>} />
         <Route path="/caixa" element={<ProtectedRoute><Caixa /></ProtectedRoute>} />
-        <Route path="/clientes" element={<ProtectedRoute adminOnly><Clientes /></ProtectedRoute>} />
-        <Route path="/produtos" element={<ProtectedRoute adminOnly><Produtos /></ProtectedRoute>} />
-        <Route path="/estoque" element={<ProtectedRoute adminOnly><Estoque /></ProtectedRoute>} />
+        <Route path="/clientes" element={<ProtectedRoute adminOnly permissionKey="manage_customers"><Clientes /></ProtectedRoute>} />
+        <Route path="/produtos" element={<ProtectedRoute adminOnly permissionKey="manage_products"><Produtos /></ProtectedRoute>} />
+        <Route path="/estoque" element={<ProtectedRoute adminOnly permissionKey="manage_stock"><Estoque /></ProtectedRoute>} />
         <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute superadminOnly><SuperAdmin /></ProtectedRoute>} />
