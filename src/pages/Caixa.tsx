@@ -217,6 +217,47 @@ export default function Caixa() {
       return;
     }
 
+    // Save commission records
+    try {
+      const { data: members } = await supabase.from('tenant_members').select('user_id, commission_percentage, role');
+      const { data: profiles } = await supabase.from('profiles').select('id, name');
+      if (members && profiles) {
+        // Calculate per-attendant sales
+        const attendantSales: Record<string, number> = {};
+        for (const sale of salesInPeriod) {
+          const items = (sale as any).items || [];
+          for (const item of items) {
+            if (item.addedBy) {
+              attendantSales[item.addedBy] = (attendantSales[item.addedBy] || 0) + (item.subtotal || 0);
+            }
+          }
+        }
+
+        const commissionRecords = members
+          .filter(m => ['atendente', 'admin'].includes(m.role))
+          .map(m => {
+            const p = profiles.find(pr => pr.id === m.user_id);
+            const vendido = attendantSales[m.user_id] || 0;
+            const pct = Number(m.commission_percentage || 0);
+            return {
+              cash_register_id: currentRegister.id,
+              user_id: m.user_id,
+              user_name: p?.name || 'Desconhecido',
+              total_sales: vendido,
+              commission_percentage: pct,
+              commission_amount: pct > 0 ? (vendido * pct) / 100 : 0,
+            };
+          })
+          .filter(r => r.total_sales > 0 || r.commission_amount > 0);
+
+        if (commissionRecords.length > 0) {
+          await supabase.from('commission_records').insert(commissionRecords as any);
+        }
+      }
+    } catch (e) {
+      console.error('Error saving commission records:', e);
+    }
+
     const closed = dbToCashRegister(data);
     setClosedRegister(closed);
     setCurrentRegister(null);
