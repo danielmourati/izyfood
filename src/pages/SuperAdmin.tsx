@@ -10,12 +10,14 @@ import { toast } from 'sonner';
 import {
   LayoutDashboard, Building2, Plus, Store, Users, DollarSign, TrendingUp, Loader2
 } from 'lucide-react';
+import { SuperAdminUsersTab } from '@/components/SuperAdminUsersTab';
 
-type Tab = 'dashboard' | 'tenants' | 'criar';
+type Tab = 'dashboard' | 'tenants' | 'usuarios' | 'criar';
 
 const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'tenants', label: 'Tenants', icon: Building2 },
+  { key: 'usuarios', label: 'Usuários', icon: Users },
   { key: 'criar', label: 'Novo Tenant', icon: Plus },
 ];
 
