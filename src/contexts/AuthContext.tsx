@@ -59,7 +59,7 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
     id: supaUser.id,
     name: profile.name,
     email: profile.email,
-    role: (roleData?.role as AppRole) || 'atendente',
+    role: bestRole,
     tenantId: tenant?.id || '',
     tenantSlug: tenant?.slug || 'loja-padrao',
     tenantName: tenant?.name || 'Loja',
