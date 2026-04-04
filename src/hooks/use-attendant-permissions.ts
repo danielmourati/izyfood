@@ -13,6 +13,17 @@ export interface AttendantPermissions {
   manage_customers: boolean;
 }
 
+const allTrue: AttendantPermissions = {
+  manage_categories: true,
+  manage_products: true,
+  edit_prices: true,
+  manage_stock: true,
+  remove_order_items: true,
+  cancel_orders: true,
+  apply_discounts: true,
+  manage_customers: true,
+};
+
 const defaultPermissions: AttendantPermissions = {
   manage_categories: false,
   manage_products: false,
@@ -23,6 +34,19 @@ const defaultPermissions: AttendantPermissions = {
   apply_discounts: false,
   manage_customers: false,
 };
+
+function mapRow(data: any): AttendantPermissions {
+  return {
+    manage_categories: data.manage_categories,
+    manage_products: data.manage_products,
+    edit_prices: data.edit_prices,
+    manage_stock: data.manage_stock,
+    remove_order_items: data.remove_order_items,
+    cancel_orders: data.cancel_orders,
+    apply_discounts: data.apply_discounts,
+    manage_customers: data.manage_customers,
+  };
+}
 
 export function useAttendantPermissions() {
   const { user, isAdmin } = useAuth();
@@ -36,22 +60,13 @@ export function useAttendantPermissions() {
       return;
     }
 
-    // Admins/superadmins have all permissions
     if (isAdmin) {
-      setPermissions({
-        manage_categories: true,
-        manage_products: true,
-        edit_prices: true,
-        manage_stock: true,
-        remove_order_items: true,
-        cancel_orders: true,
-        apply_discounts: true,
-        manage_customers: true,
-      });
+      setPermissions(allTrue);
       setLoading(false);
       return;
     }
 
+    // Initial fetch
     const fetchPermissions = async () => {
       const { data } = await supabase
         .from('attendant_permissions')
@@ -60,25 +75,37 @@ export function useAttendantPermissions() {
         .limit(1)
         .maybeSingle();
 
-      if (data) {
-        setPermissions({
-          manage_categories: data.manage_categories,
-          manage_products: data.manage_products,
-          edit_prices: data.edit_prices,
-          manage_stock: data.manage_stock,
-          remove_order_items: data.remove_order_items,
-          cancel_orders: data.cancel_orders,
-          apply_discounts: data.apply_discounts,
-          manage_customers: data.manage_customers,
-        });
-      } else {
-        setPermissions(defaultPermissions);
-      }
+      setPermissions(data ? mapRow(data) : defaultPermissions);
       setLoading(false);
     };
 
     fetchPermissions();
-  }, [user, isAdmin]);
+
+    // Realtime subscription for this user's permissions
+    const channel = supabase
+      .channel(`permissions-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendant_permissions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            setPermissions(defaultPermissions);
+          } else {
+            setPermissions(mapRow(payload.new));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, isAdmin]);
 
   return { permissions, loading };
 }
