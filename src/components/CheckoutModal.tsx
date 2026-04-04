@@ -105,7 +105,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const hasFiado = splits.some(s => s.method === 'fiado');
 
   const occupants = parseInt(occupantCount) || 0;
-  const perPerson = occupants > 1 ? remainingAfterPartial / occupants : 0;
+  const perPerson = occupants > 1 ? remaining / occupants : 0;
 
   if (!order) return null;
 
