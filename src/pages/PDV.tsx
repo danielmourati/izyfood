@@ -81,6 +81,15 @@ const PDV = () => {
     }
   }, [existingOrder, tableNumber, initialized, pedidoParam]);
 
+  // Helper: resolve customer details from ID
+  const { customers } = useStore();
+  const resolveCustomer = useCallback((custId: string | null | undefined) => {
+    if (!custId) return {};
+    const c = customers.find(cx => cx.id === custId);
+    if (!c) return {};
+    return { customerName: c.name, customerPhone: c.phone, customerAddress: c.address };
+  }, [customers]);
+
   // Debounced auto-save: sync cart + customer to order in DB
   useEffect(() => {
     if (!pedidoParam || !initialized) return;
@@ -91,17 +100,19 @@ const PDV = () => {
         if (o.id !== pedidoParam) return o;
         // Don't overwrite held/finalized/cancelled orders with auto-save
         if (o.status === 'segurado' || o.status === 'finalizado' || o.status === 'cancelado') return o;
+        const custId = selectedCustomerId || o.customerId;
         return {
           ...o,
           items: cart,
           total: currentTotal,
-          customerId: selectedCustomerId || o.customerId,
+          customerId: custId,
+          ...resolveCustomer(custId),
           orderType,
         };
       }));
     }, 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType]);
+  }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType, resolveCustomer]);
 
   const filteredProducts = useMemo(() => products.filter(p => p.categoryId === activeCategoryId), [products, activeCategoryId]);
   const total = useMemo(() => cart.reduce((s, i) => s + i.subtotal, 0), [cart]);
