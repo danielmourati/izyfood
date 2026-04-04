@@ -126,11 +126,21 @@ export default function Caixa() {
     logAudit({ userId: user!.id, userName: user!.name, action: 'open', entityType: 'cash_register', entityId: data.id, details: { fundo_troco: amount } });
   }
 
-  function checkPendingBeforeClose() {
-    const openOrders = orders.filter(o => o.status === 'aberto' || o.status === 'segurado');
-    const occupiedTables = tables.filter(t => t.status === 'occupied');
+  async function checkPendingBeforeClose() {
+    // Query the database directly for accurate state
+    const { data: openOrders } = await supabase
+      .from('orders')
+      .select('id')
+      .in('status', ['aberto', 'segurado'])
+      .limit(1);
 
-    if (openOrders.length > 0 || occupiedTables.length > 0) {
+    const { data: occupiedTables } = await supabase
+      .from('store_tables')
+      .select('id')
+      .eq('status', 'occupied')
+      .limit(1);
+
+    if ((openOrders && openOrders.length > 0) || (occupiedTables && occupiedTables.length > 0)) {
       setAdminConfirmModal(true);
       return;
     }
