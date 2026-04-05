@@ -4,7 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { fmt, fmtWeight } from '@/lib/utils';
@@ -15,8 +14,11 @@ import { CheckoutModal } from '@/components/CheckoutModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CategoryBar } from '@/components/CategoryBar';
+import { ProductCard } from '@/components/ProductCard';
+import { TableBar } from '@/components/TableBar';
 
 const orderTypeLabels: Record<OrderType, string> = {
   balcao: '🏪 Balcão',
@@ -31,6 +33,7 @@ const PDV = () => {
   const [searchParams] = useSearchParams();
   const navigate = useTenantNavigate();
   const [showCart, setShowCart] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const mesaParam = searchParams.get('mesa');
   const pedidoParam = searchParams.get('pedido');
@@ -51,7 +54,6 @@ const PDV = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Initialize from existing order or create new one immediately
   useEffect(() => {
     if (initialized) return;
     if (existingOrder) {
@@ -61,24 +63,16 @@ const PDV = () => {
       if (existingOrder.customerId) setSelectedCustomerId(existingOrder.customerId);
       setInitialized(true);
     } else if (pedidoParam) {
-      // pedidoParam exists but order not found yet (loading from realtime)
-      // Wait for it
+      // Wait for realtime
     } else {
-      // No pedidoParam — create order immediately in DB
       const newId = currentOrderId;
       const newOrderType = tableNumber ? 'mesa' as const : 'balcao' as const;
       if (tableNumber) setOrderType('mesa');
       const order: Order = {
-        id: newId,
-        items: [],
-        total: 0,
-        orderType: newOrderType,
-        status: 'aberto',
-        tableNumber,
-        createdAt: new Date().toISOString(),
+        id: newId, items: [], total: 0, orderType: newOrderType, status: 'aberto',
+        tableNumber, createdAt: new Date().toISOString(),
       };
       setOrders(prev => [...prev, order]);
-      // Redirect to include pedido param so auto-save works
       const params = new URLSearchParams(searchParams);
       params.set('pedido', newId);
       navigate(`/pdv?${params.toString()}`, { replace: true });
@@ -86,7 +80,6 @@ const PDV = () => {
     }
   }, [existingOrder, tableNumber, initialized, pedidoParam]);
 
-  // Helper: resolve customer details from ID
   const { customers } = useStore();
   const resolveCustomer = useCallback((custId: string | null | undefined) => {
     if (!custId) return {};
@@ -95,7 +88,6 @@ const PDV = () => {
     return { customerName: c.name, customerPhone: c.phone, customerAddress: c.address };
   }, [customers]);
 
-  // Debounced auto-save: sync cart + customer to order in DB
   useEffect(() => {
     if (!pedidoParam || !initialized) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -103,23 +95,31 @@ const PDV = () => {
       const currentTotal = cart.reduce((s, i) => s + i.subtotal, 0);
       setOrders(prev => prev.map(o => {
         if (o.id !== pedidoParam) return o;
-        // Don't overwrite held/finalized/cancelled orders with auto-save
         if (o.status === 'segurado' || o.status === 'finalizado' || o.status === 'cancelado') return o;
         const custId = selectedCustomerId || o.customerId;
-        return {
-          ...o,
-          items: cart,
-          total: currentTotal,
-          customerId: custId,
-          ...resolveCustomer(custId),
-          orderType,
-        };
+        return { ...o, items: cart, total: currentTotal, customerId: custId, ...resolveCustomer(custId), orderType };
       }));
     }, 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType, resolveCustomer]);
 
-  const filteredProducts = useMemo(() => activeCategoryId === 'all' ? products : products.filter(p => p.categoryId === activeCategoryId), [products, activeCategoryId]);
+  const filteredProducts = useMemo(() => {
+    let list = activeCategoryId === 'all' ? products : products.filter(p => p.categoryId === activeCategoryId);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(q));
+    }
+    return list;
+  }, [products, activeCategoryId, searchQuery]);
+
+  const productCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of products) {
+      counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+    }
+    return counts;
+  }, [products]);
+
   const total = useMemo(() => cart.reduce((s, i) => s + i.subtotal, 0), [cart]);
 
   const addToCart = (product: Product) => {
@@ -136,14 +136,8 @@ const PDV = () => {
         );
       }
       return [...prev, {
-        id: crypto.randomUUID(),
-        productId: product.id,
-        name: product.name,
-        price: product.price,
-        quantity: 1,
-        subtotal: product.price,
-        addedBy: user?.id,
-        addedByName: user?.name,
+        id: crypto.randomUUID(), productId: product.id, name: product.name, price: product.price,
+        quantity: 1, subtotal: product.price, addedBy: user?.id, addedByName: user?.name,
       }];
     });
   };
@@ -151,15 +145,8 @@ const PDV = () => {
   const addWeightItem = (weight: number) => {
     const product = weightModal.product!;
     setCart(prev => [...prev, {
-      id: crypto.randomUUID(),
-      productId: product.id,
-      name: product.name,
-      price: product.price,
-      quantity: 1,
-      weight,
-      subtotal: weight * product.price,
-      addedBy: user?.id,
-      addedByName: user?.name,
+      id: crypto.randomUUID(), productId: product.id, name: product.name, price: product.price,
+      quantity: 1, weight, subtotal: weight * product.price, addedBy: user?.id, addedByName: user?.name,
     }]);
   };
 
@@ -184,7 +171,6 @@ const PDV = () => {
         t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
       ));
     }
-    // If order has no value, discard it entirely; otherwise mark as canceled
     if (!order || order.total === 0) {
       setOrders(prev => prev.filter(o => o.id !== orderId));
     } else {
@@ -197,20 +183,13 @@ const PDV = () => {
   const handleSelectTable = (table: TableInfo) => {
     const orderId = currentOrderId;
     if (pedidoParam) {
-      // Order already exists in DB — just update it with table info
       setOrders(prev => prev.map(o =>
         o.id === orderId ? { ...o, orderType: 'mesa', tableNumber: table.number, customerId: selectedCustomerId || undefined } : o
       ));
     } else {
       const order: Order = {
-        id: orderId,
-        items: cart,
-        total,
-        orderType: 'mesa',
-        status: 'aberto',
-        tableNumber: table.number,
-        customerId: selectedCustomerId || undefined,
-        createdAt: new Date().toISOString(),
+        id: orderId, items: cart, total, orderType: 'mesa', status: 'aberto',
+        tableNumber: table.number, customerId: selectedCustomerId || undefined, createdAt: new Date().toISOString(),
       };
       setOrders(prev => [...prev, order]);
     }
@@ -224,7 +203,6 @@ const PDV = () => {
   const holdOrder = () => {
     if (cart.length === 0) return;
     const orderId = pedidoParam || currentOrderId;
-    // Flush debounce and update with held status
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setOrders(prev => {
       const exists = prev.some(o => o.id === orderId);
@@ -232,30 +210,13 @@ const PDV = () => {
         return prev.map(o => {
           if (o.id !== orderId) return o;
           const custId = selectedCustomerId || o.customerId;
-          return {
-            ...o,
-            items: cart,
-            total,
-            status: 'segurado' as const,
-            customerId: custId,
-            ...resolveCustomer(custId),
-            heldAt: new Date().toISOString(),
-          };
+          return { ...o, items: cart, total, status: 'segurado' as const, customerId: custId, ...resolveCustomer(custId), heldAt: new Date().toISOString() };
         });
       }
-      // Fallback: create if somehow not yet in state
       const custId = selectedCustomerId || undefined;
       return [...prev, {
-        id: orderId,
-        items: cart,
-        total,
-        orderType,
-        status: 'segurado' as const,
-        tableNumber,
-        customerId: custId,
-        ...resolveCustomer(custId),
-        createdAt: new Date().toISOString(),
-        heldAt: new Date().toISOString(),
+        id: orderId, items: cart, total, orderType, status: 'segurado' as const,
+        tableNumber, customerId: custId, ...resolveCustomer(custId), createdAt: new Date().toISOString(), heldAt: new Date().toISOString(),
       }];
     });
     setCart([]);
@@ -266,110 +227,106 @@ const PDV = () => {
   const isHeldMesa = !!(existingOrder && existingOrder.orderType === 'mesa' && (existingOrder.status === 'segurado' || (existingOrder.status === 'aberto' && existingOrder.items.length > 0)));
 
   const currentOrder: Order = {
-    id: currentOrderId,
-    items: cart,
-    total,
-    orderType,
-    status: 'aberto',
-    tableNumber,
-    customerId: selectedCustomerId || undefined,
-    createdAt: new Date().toISOString(),
+    id: currentOrderId, items: cart, total, orderType, status: 'aberto',
+    tableNumber, customerId: selectedCustomerId || undefined, createdAt: new Date().toISOString(),
+  };
+
+  const handleTableBarSelect = (table: TableInfo) => {
+    if (table.orderId) {
+      navigate(`/pdv?mesa=${table.number}&pedido=${table.orderId}`);
+    }
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-3rem)]">
-      <div className="flex-1 flex flex-col p-3 md:p-4 overflow-hidden">
-        {tableNumber && (
-          <div className="flex items-center gap-3 mb-3">
-            <Button variant="ghost" size="icon" onClick={() => {
-              if (cart.length === 0 && pedidoParam) {
-                setTables(prev => prev.map(t =>
-                  t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
-                ));
-                setOrders(prev => prev.filter(o => o.id !== pedidoParam));
-              }
-              navigate('/');
-            }}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <h2 className="text-lg font-bold text-foreground">Mesa {tableNumber}</h2>
-          </div>
-        )}
-
-        <div className="flex gap-2 mb-3 md:mb-4 overflow-x-auto pb-1">
-          <Button
-            variant={activeCategoryId === 'all' ? 'default' : 'outline'}
-            className="h-10 md:h-12 px-3 md:px-5 text-sm md:text-base whitespace-nowrap shrink-0"
-            onClick={() => setActiveCategoryId('all')}
-          >
-            Todos
-          </Button>
-          {categories.map(cat => (
-            <Button
-              key={cat.id}
-              variant={activeCategoryId === cat.id ? 'default' : 'outline'}
-              className="h-10 md:h-12 px-3 md:px-5 text-sm md:text-base whitespace-nowrap shrink-0"
-              onClick={() => setActiveCategoryId(cat.id)}
-            >
-              {cat.name}
-            </Button>
-          ))}
-        </div>
-
-        <div className="flex-1 overflow-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3">
-            {filteredProducts.map(product => {
-              const cat = getCategoryById(product.categoryId);
-              return (
-                <Card
-                  key={product.id}
-                  className="cursor-pointer hover:shadow-lg hover:border-primary/40 transition-all active:scale-95 select-none"
-                  onClick={() => addToCart(product)}
-                >
-                  <div className="p-3 md:p-4 text-center space-y-1 md:space-y-2">
-                    {product.image ? (
-                      <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl overflow-hidden">
-                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="h-12 w-12 md:h-16 md:w-16 mx-auto rounded-xl bg-primary/10 flex items-center justify-center text-sm md:text-base font-bold text-primary">
-                        {cat?.name?.charAt(0) || '?'}
-                      </div>
-                    )}
-                    <h3 className="font-semibold text-xs md:text-sm leading-tight text-foreground">{product.name}</h3>
-                    <p className="text-primary font-bold text-sm">
-                      R$ {fmt(product.price)}
-                      {product.type === 'weight' && <span className="text-xs text-muted-foreground">/kg</span>}
-                    </p>
-                    {product.stock <= 5 && (
-                      <Badge variant="destructive" className="text-[10px]">Estoque baixo</Badge>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="lg:hidden fixed bottom-4 right-4 z-50">
-          <Button size="lg" className="h-14 w-14 rounded-full shadow-lg relative" onClick={() => setShowCart(true)}>
-            <ShoppingCart className="h-6 w-6" />
-            {cart.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                {cart.length}
-              </span>
+    <div className="flex flex-col h-[calc(100vh-3rem)]">
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main product area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Top bar */}
+          <div className="px-4 pt-4 pb-2 space-y-3">
+            {tableNumber && (
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="icon" onClick={() => {
+                  if (cart.length === 0 && pedidoParam) {
+                    setTables(prev => prev.map(t =>
+                      t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
+                    ));
+                    setOrders(prev => prev.filter(o => o.id !== pedidoParam));
+                  }
+                  navigate('/');
+                }}>
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <h2 className="text-lg font-bold text-foreground">Mesa {tableNumber}</h2>
+              </div>
             )}
-          </Button>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar produtos..."
+                className="pl-10 h-10 bg-card"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Category bar */}
+            <CategoryBar
+              categories={categories}
+              activeCategoryId={activeCategoryId}
+              onSelect={setActiveCategoryId}
+              productCounts={productCounts}
+            />
+          </div>
+
+          {/* Product grid */}
+          <div className="flex-1 overflow-auto px-4 pb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+              {filteredProducts.map(product => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  category={getCategoryById(product.categoryId)}
+                  onAdd={addToCart}
+                />
+              ))}
+            </div>
+            {filteredProducts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                <Search className="h-12 w-12 mb-2 opacity-30" />
+                <p className="text-sm">Nenhum produto encontrado</p>
+              </div>
+            )}
+          </div>
+
+          {/* Table bar */}
+          <TableBar tables={tables} onSelectTable={handleTableBarSelect} />
+        </div>
+
+        {/* Cart panel - desktop */}
+        <div className="hidden lg:flex w-80 xl:w-96 border-l bg-card flex-col">
+          <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
+            updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
+            tables={tables} onSelectTable={(t) => handleSelectTable(t)}
+            selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa} />
         </div>
       </div>
 
-      <div className="hidden lg:flex w-80 xl:w-96 border-l bg-card flex-col">
-        <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
-          updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
-          tables={tables} onSelectTable={(t) => handleSelectTable(t)}
-          selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa} />
+      {/* Mobile cart FAB */}
+      <div className="lg:hidden fixed bottom-4 right-4 z-50">
+        <Button size="lg" className="h-14 w-14 rounded-full shadow-lg relative" onClick={() => setShowCart(true)}>
+          <ShoppingCart className="h-6 w-6" />
+          {cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+              {cart.length}
+            </span>
+          )}
+        </Button>
       </div>
 
+      {/* Mobile cart drawer */}
       {showCart && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowCart(false)} />
@@ -406,6 +363,8 @@ const PDV = () => {
   );
 };
 
+// ============ CartContent (kept inline for compatibility) ============
+
 function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
   selectedCustomerId, onSelectCustomer, isHeldMesa,
@@ -427,14 +386,12 @@ function CartContent({
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
-  // Admin auth for mesa item removal
   const [adminAuthModal, setAdminAuthModal] = useState<{ open: boolean; action: 'remove' | 'cancel'; itemId?: string }>({ open: false, action: 'remove' });
   const [adminAuthEmail, setAdminAuthEmail] = useState('');
   const [adminAuthPassword, setAdminAuthPassword] = useState('');
   const [adminAuthChecking, setAdminAuthChecking] = useState(false);
 
   const needsAdminAuth = isHeldMesa && !isAdmin;
-
   const availableTables = tables.filter(t => t.status === 'available');
   const customerObj = useMemo(() => customers.find(c => c.id === selectedCustomerId), [customers, selectedCustomerId]);
 
@@ -443,7 +400,6 @@ function CartContent({
     return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q));
   }, [customers, customerSearch]);
 
-  // Check if cart has items eligible for loyalty
   const isItemEligible = (item: OrderItem) => {
     const product = products.find(p => p.id === item.productId);
     if (!product || !product.loyaltyEligible) return false;
@@ -509,24 +465,18 @@ function CartContent({
   const handleCreateCustomer = () => {
     if (!newName.trim()) return;
     const newCustomer: Customer = {
-      id: crypto.randomUUID(),
-      name: newName.trim(),
-      phone: newPhone.trim(),
-      address: newAddress.trim(),
-      notes: '',
-      creditBalance: 0,
-      loyaltyPoints: 0,
+      id: crypto.randomUUID(), name: newName.trim(), phone: newPhone.trim(),
+      address: newAddress.trim(), notes: '', creditBalance: 0, loyaltyPoints: 0,
     };
     setCustomers(prev => [...prev, newCustomer]);
     onSelectCustomer(newCustomer.id);
     setNewCustomerOpen(false);
-    setNewName('');
-    setNewPhone('');
-    setNewAddress('');
+    setNewName(''); setNewPhone(''); setNewAddress('');
   };
 
   return (
     <>
+      {/* Order type / table header */}
       <div className="p-3 border-b">
         {tableNumber ? (
           <div className="text-center py-1"><Badge className="text-sm px-3 py-1">🪑 Mesa {tableNumber}</Badge></div>
@@ -554,9 +504,7 @@ function CartContent({
             <User className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate text-foreground">{customerObj.name}</p>
-              <p className="text-xs text-muted-foreground">
-                ⭐ {customerObj.loyaltyPoints || 0} pontos
-              </p>
+              <p className="text-xs text-muted-foreground">⭐ {customerObj.loyaltyPoints || 0} pontos</p>
             </div>
             <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => onSelectCustomer(null)}>
               <X className="h-3 w-3" />
@@ -564,27 +512,16 @@ function CartContent({
           </div>
         ) : (
           <div className="relative" ref={dropdownRef}>
-            <Input
-              placeholder="Buscar cliente..."
-              className="h-8 text-xs"
-              value={customerSearch}
+            <Input placeholder="Buscar cliente..." className="h-8 text-xs" value={customerSearch}
               onChange={e => { setCustomerSearch(e.target.value); setCustomerDropdownOpen(true); }}
               onFocus={() => setCustomerDropdownOpen(true)}
-              onBlur={() => setTimeout(() => setCustomerDropdownOpen(false), 200)}
-            />
+              onBlur={() => setTimeout(() => setCustomerDropdownOpen(false), 200)} />
             {customerDropdownOpen && customerSearch.length > 0 && (
               <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-md shadow-md max-h-40 overflow-auto">
                 {filteredCustomers.map(c => (
-                  <button
-                    key={c.id}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                  <button key={c.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
                     onMouseDown={e => e.preventDefault()}
-                    onClick={() => {
-                      onSelectCustomer(c.id);
-                      setCustomerSearch('');
-                      setCustomerDropdownOpen(false);
-                    }}
-                  >
+                    onClick={() => { onSelectCustomer(c.id); setCustomerSearch(''); setCustomerDropdownOpen(false); }}>
                     <span className="font-medium">{c.name}</span>
                     <span className="text-xs text-muted-foreground ml-2">{c.phone}</span>
                   </button>
@@ -597,16 +534,16 @@ function CartContent({
           </div>
         )}
 
-        {/* Loyalty alert */}
         {selectedCustomerId && customerObj && redeemableCount > 0 && hasEligibleAcaiInCart && (
-          <div className="bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2 text-center animate-in fade-in">
-            <p className="text-xs font-semibold text-green-700 dark:text-green-400">
+          <div className="bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 text-center animate-in fade-in">
+            <p className="text-xs font-semibold text-primary">
               🎉 {redeemableCount} resgate{redeemableCount > 1 ? 's' : ''} de açaí 300g grátis disponível!
             </p>
           </div>
         )}
       </div>
 
+      {/* Cart items */}
       <div className="flex-1 overflow-auto p-3 space-y-2">
         {cart.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -615,13 +552,13 @@ function CartContent({
         ) : cart.map(item => {
           const eligible = isItemEligible(item);
           return (
-            <div key={item.id} className="bg-muted/50 rounded-lg p-3 space-y-1">
+            <div key={item.id} className="bg-muted/40 rounded-xl p-3 space-y-1">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center gap-1.5">
                     <p className="font-medium text-sm text-foreground">{item.name}</p>
                     {eligible && selectedCustomerId && (
-                      <Badge variant="outline" className="text-[10px] border-green-500/50 text-green-600 dark:text-green-400 px-1 py-0">
+                      <Badge variant="outline" className="text-[10px] border-primary/50 text-primary px-1 py-0">
                         <Star className="h-2.5 w-2.5 mr-0.5" />+1 pt
                       </Badge>
                     )}
@@ -636,9 +573,9 @@ function CartContent({
               <div className="flex items-center justify-between">
                 {!item.weight ? (
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, -1)}><Minus className="h-3 w-3" /></Button>
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.id, -1)}><Minus className="h-3 w-3" /></Button>
                     <span className="w-8 text-center font-semibold text-sm">{item.quantity}</span>
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(item.id, 1)}><Plus className="h-3 w-3" /></Button>
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.id, 1)}><Plus className="h-3 w-3" /></Button>
                   </div>
                 ) : <div />}
                 <p className="font-bold text-primary text-sm">R$ {fmt(item.subtotal)}</p>
@@ -647,29 +584,35 @@ function CartContent({
           );
         })}
       </div>
-      <div className="border-t p-3 space-y-3">
+
+      {/* Footer totals + actions */}
+      <div className="border-t p-3 space-y-3 bg-card">
         <div className="flex justify-between items-center">
-          <span className="text-lg font-semibold text-foreground">Total</span>
+          <span className="text-sm font-medium text-muted-foreground">Subtotal</span>
+          <span className="text-sm text-foreground">R$ {fmt(total)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-lg font-bold text-foreground">Total</span>
           <span className="text-2xl font-bold text-primary">R$ {fmt(total)}</span>
         </div>
         {orderType === 'balcao' ? (
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="destructive" className="h-12 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0}>
+            <Button variant="destructive" className="h-11 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0}>
               <X className="h-4 w-4 mr-1" /> Cancelar
             </Button>
-            <Button className="h-12 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+            <Button className="h-11 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
               <ShoppingCart className="h-4 w-4 mr-1" /> Pagar
             </Button>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
-            <Button variant="destructive" className="h-12 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
+            <Button variant="destructive" className="h-11 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
               <X className="h-4 w-4 mr-1" /> Cancelar
             </Button>
-            <Button variant="outline" className="h-12 text-xs" onClick={holdOrder} disabled={cart.length === 0}>
+            <Button variant="outline" className="h-11 text-xs" onClick={holdOrder} disabled={cart.length === 0}>
               <Pause className="h-4 w-4 mr-1" /> Segurar
             </Button>
-            <Button className="h-12 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+            <Button className="h-11 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
               <ShoppingCart className="h-4 w-4 mr-1" /> Pagar
             </Button>
           </div>
@@ -679,20 +622,15 @@ function CartContent({
       {/* Table selection dialog */}
       <Dialog open={tableModalOpen} onOpenChange={setTableModalOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Selecionar Mesa</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Selecionar Mesa</DialogTitle></DialogHeader>
           {availableTables.length === 0 ? (
             <p className="text-center text-muted-foreground py-6">Nenhuma mesa disponível</p>
           ) : (
             <div className="grid grid-cols-4 gap-2">
               {availableTables.map(t => (
-                <Button
-                  key={t.number}
-                  variant="outline"
+                <Button key={t.number} variant="outline"
                   className="h-14 text-base font-semibold hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => { setTableModalOpen(false); onSelectTable(t); }}
-                >
+                  onClick={() => { setTableModalOpen(false); onSelectTable(t); }}>
                   {t.number}
                 </Button>
               ))}
@@ -704,22 +642,11 @@ function CartContent({
       {/* New customer dialog */}
       <Dialog open={newCustomerOpen} onOpenChange={setNewCustomerOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Novo Cliente</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Novo Cliente</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div>
-              <Label className="text-xs">Nome *</Label>
-              <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nome do cliente" className="h-9" />
-            </div>
-            <div>
-              <Label className="text-xs">Telefone</Label>
-              <Input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="(00) 00000-0000" className="h-9" />
-            </div>
-            <div>
-              <Label className="text-xs">Endereço</Label>
-              <Input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Endereço completo" className="h-9" />
-            </div>
+            <div><Label className="text-xs">Nome *</Label><Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nome do cliente" className="h-9" /></div>
+            <div><Label className="text-xs">Telefone</Label><Input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="(00) 00000-0000" className="h-9" /></div>
+            <div><Label className="text-xs">Endereço</Label><Input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Endereço completo" className="h-9" /></div>
           </div>
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={() => setNewCustomerOpen(false)}>Cancelar</Button>
@@ -728,36 +655,28 @@ function CartContent({
         </DialogContent>
       </Dialog>
 
-      {/* Admin auth for mesa item removal / cancel */}
+      {/* Admin auth */}
       <Dialog open={adminAuthModal.open} onOpenChange={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-amber-500" /> Autorização necessária
+              <ShieldAlert className="h-5 w-5 text-warning" /> Autorização necessária
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Alert className="border-amber-500/50 bg-amber-500/10">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <Alert className="border-warning/50 bg-warning/10">
+              <AlertTriangle className="h-4 w-4 text-warning" />
               <AlertDescription className="text-sm">
                 {adminAuthModal.action === 'cancel'
                   ? 'Cancelar um pedido de mesa requer autorização de um administrador.'
                   : 'Remover itens de um pedido de mesa requer autorização de um administrador.'}
               </AlertDescription>
             </Alert>
-            <div>
-              <Label>Email do administrador</Label>
-              <Input type="email" placeholder="admin@email.com" value={adminAuthEmail} onChange={e => setAdminAuthEmail(e.target.value)} />
-            </div>
-            <div>
-              <Label>Senha do administrador</Label>
-              <Input type="password" placeholder="••••••" value={adminAuthPassword} onChange={e => setAdminAuthPassword(e.target.value)} />
-            </div>
+            <div><Label>Email do administrador</Label><Input type="email" placeholder="admin@email.com" value={adminAuthEmail} onChange={e => setAdminAuthEmail(e.target.value)} /></div>
+            <div><Label>Senha do administrador</Label><Input type="password" placeholder="••••••" value={adminAuthPassword} onChange={e => setAdminAuthPassword(e.target.value)} /></div>
           </div>
           <div className="flex gap-2 pt-2">
-            <Button variant="outline" className="flex-1" onClick={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }}>
-              Cancelar
-            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }}>Cancelar</Button>
             <Button className="flex-1" onClick={handleAdminAuth} disabled={adminAuthChecking}>
               {adminAuthChecking ? 'Verificando...' : 'Autorizar'}
             </Button>

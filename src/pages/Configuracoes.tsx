@@ -81,14 +81,46 @@ const Configuracoes = () => {
 
 function GeralTab() {
   const { settings, updateTableCount } = useStore();
+  const { user } = useAuth();
   const [tableCount, setTableCount] = useState(settings.tableCount.toString());
   const [serviceFee, setServiceFee] = useState('');
+  const [tenantName, setTenantName] = useState('');
+  const [tenantLogo, setTenantLogo] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     supabase.from('store_settings').select('service_fee_percentage').limit(1).then(({ data }) => {
       if (data && data.length > 0) setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
     });
-  }, []);
+    if (user?.tenantId) {
+      supabase.from('tenants').select('name, logo').eq('id', user.tenantId).single().then(({ data }) => {
+        if (data) {
+          setTenantName(data.name);
+          setTenantLogo(data.logo);
+        }
+      });
+    }
+  }, [user?.tenantId]);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.tenantId) return;
+    setUploading(true);
+    const ext = file.name.split('.').pop();
+    const path = `${user.tenantId}/logo.${ext}`;
+    const { error: uploadError } = await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true });
+    if (uploadError) {
+      toast.error('Erro ao enviar logo');
+      setUploading(false);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path);
+    const logoUrl = urlData.publicUrl + '?t=' + Date.now();
+    await supabase.from('tenants').update({ logo: logoUrl }).eq('id', user.tenantId);
+    setTenantLogo(logoUrl);
+    toast.success('Logo atualizada!');
+    setUploading(false);
+  };
 
   const handleSave = async () => {
     const count = parseInt(tableCount);
@@ -97,6 +129,11 @@ function GeralTab() {
       return;
     }
     updateTableCount(count);
+
+    // Save tenant name
+    if (user?.tenantId && tenantName.trim()) {
+      await supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId);
+    }
 
     const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
     const { data: existing } = await supabase.from('store_settings').select('id').limit(1);
@@ -109,39 +146,57 @@ function GeralTab() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Grid3X3 className="h-5 w-5" /> Configurações Gerais</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-end gap-3 max-w-xs">
-          <div className="flex-1 space-y-2">
-            <Label>Quantidade de mesas (mín. 5)</Label>
-            <Input
-              type="number"
-              min={5}
-              max={100}
-              value={tableCount}
-              onChange={e => setTableCount(e.target.value)}
-            />
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5" /> Estabelecimento</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start gap-6">
+            <div className="space-y-2">
+              <Label>Logo</Label>
+              <div className="relative h-20 w-20 rounded-xl border-2 border-dashed border-border overflow-hidden bg-muted flex items-center justify-center">
+                {tenantLogo ? (
+                  <img src={tenantLogo} alt="Logo" className="h-full w-full object-contain" />
+                ) : (
+                  <span className="text-2xl text-muted-foreground">{tenantName?.charAt(0)?.toUpperCase() || '?'}</span>
+                )}
+              </div>
+              <label className="cursor-pointer">
+                <span className="text-xs text-primary hover:underline">{uploading ? 'Enviando...' : 'Alterar logo'}</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
+              </label>
+            </div>
+            <div className="flex-1 space-y-2">
+              <Label>Nome do Estabelecimento</Label>
+              <Input value={tenantName} onChange={e => setTenantName(e.target.value)} placeholder="Nome da sua loja" />
+            </div>
           </div>
-        </div>
-        <div className="flex items-end gap-3 max-w-xs">
-          <div className="flex-1 space-y-2">
-            <Label>Taxa de serviço / comissão (%)</Label>
-            <p className="text-xs text-muted-foreground">Aplicada apenas em pedidos do tipo Mesa</p>
-            <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="Ex: 10"
-              value={serviceFee}
-              onChange={e => setServiceFee(e.target.value)}
-            />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Grid3X3 className="h-5 w-5" /> Configurações Gerais</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-end gap-3 max-w-xs">
+            <div className="flex-1 space-y-2">
+              <Label>Quantidade de mesas (mín. 5)</Label>
+              <Input type="number" min={5} max={100} value={tableCount} onChange={e => setTableCount(e.target.value)} />
+            </div>
           </div>
-        </div>
-        <Button onClick={handleSave}>Salvar</Button>
-      </CardContent>
-    </Card>
+          <div className="flex items-end gap-3 max-w-xs">
+            <div className="flex-1 space-y-2">
+              <Label>Taxa de serviço / comissão (%)</Label>
+              <p className="text-xs text-muted-foreground">Aplicada apenas em pedidos do tipo Mesa</p>
+              <Input type="text" inputMode="decimal" placeholder="Ex: 10" value={serviceFee} onChange={e => setServiceFee(e.target.value)} />
+            </div>
+          </div>
+          <Button onClick={handleSave}>Salvar</Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
