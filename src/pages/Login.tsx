@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { useParams } from 'react-router-dom';
 
 const carouselImages = [
   '/carousel-1.jpg',
@@ -25,7 +25,22 @@ const Login = () => {
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [tenantLogo, setTenantLogo] = useState<string | null>(null);
+  const [tenantName, setTenantName] = useState<string>('');
   const { login } = useAuth();
+
+  // Try to get tenant slug from URL for dynamic logo
+  useEffect(() => {
+    const slug = window.location.pathname.split('/').filter(Boolean)[0];
+    if (slug) {
+      supabase.from('tenants').select('logo, name').eq('slug', slug).single().then(({ data }) => {
+        if (data) {
+          setTenantLogo(data.logo);
+          setTenantName(data.name);
+        }
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -70,27 +85,20 @@ const Login = () => {
             className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
             style={{ opacity: currentSlide === i ? 1 : 0 }}
           >
-            <img
-              src={img}
-              alt={`Slide ${i + 1}`}
-              className="h-full w-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[hsl(275,50%,20%,0.7)] via-transparent to-[hsl(275,50%,20%,0.3)]" />
+            <img src={img} alt={`Slide ${i + 1}`} className="h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[hsl(152,55%,14%,0.8)] via-transparent to-[hsl(152,55%,14%,0.3)]" />
           </div>
         ))}
 
-        {/* Overlay content */}
         <div className="relative z-10 flex flex-col justify-between h-full p-8">
           <div />
-
           <div className="space-y-4">
             <h2 className="text-3xl font-bold text-white drop-shadow-lg">
-              Sabor que encanta,<br />gestão que funciona.
+              Gestão inteligente,<br />resultados reais.
             </h2>
             <p className="text-white/80 text-sm max-w-xs">
-              Sistema completo para gerenciar sua loja de sorvetes e açaí.
+              Sistema completo de PDV para seu estabelecimento.
             </p>
-            {/* Dots */}
             <div className="flex gap-2 pt-2">
               {carouselImages.map((_, i) => (
                 <button
@@ -107,7 +115,6 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Nav arrows */}
         <button
           onClick={() => setCurrentSlide((prev) => (prev - 1 + carouselImages.length) % carouselImages.length)}
           className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm transition-colors"
@@ -126,7 +133,14 @@ const Login = () => {
       <div className="flex-1 flex flex-col items-center justify-center bg-background p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
-            <img src="/logo.png" alt="Carnaúba" className="h-24 mx-auto mb-2 object-contain" />
+            {tenantLogo ? (
+              <img src={tenantLogo} alt={tenantName} className="h-20 mx-auto mb-2 object-contain" />
+            ) : (
+              <div className="h-20 w-20 mx-auto mb-2 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <span className="text-3xl font-bold text-primary">{tenantName?.charAt(0)?.toUpperCase() || '🏪'}</span>
+              </div>
+            )}
+            {tenantName && <p className="text-sm font-medium text-muted-foreground">{tenantName}</p>}
           </div>
 
           <div className="space-y-2">
@@ -137,61 +151,38 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-12"
-                required
-              />
+              <Input id="email" type="email" placeholder="seu@email.com" value={email}
+                onChange={(e) => setEmail(e.target.value)} className="h-12" required />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Senha</Label>
-                <button
-                  type="button"
-                  className="text-xs text-[hsl(var(--login-bg))] hover:underline underline-offset-4 transition-colors"
-                  onClick={() => setForgotOpen(true)}
-                >
+                <button type="button" className="text-xs text-primary hover:underline underline-offset-4 transition-colors"
+                  onClick={() => setForgotOpen(true)}>
                   Esqueceu a senha?
                 </button>
               </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-12"
-                required
-              />
+              <Input id="password" type="password" placeholder="••••••••" value={password}
+                onChange={(e) => setPassword(e.target.value)} className="h-12" required />
             </div>
 
             {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
-            <Button
-              type="submit"
-              className="w-full h-12 text-base font-semibold bg-[hsl(var(--login-bg))] hover:bg-[hsl(275,50%,28%)] text-white"
-              disabled={isLoading}
-            >
+            <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={isLoading}>
               {isLoading ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
         </div>
 
         <footer className="mt-auto pt-8 text-center text-xs text-muted-foreground">
-          <p>© 2026 Carnaúba. Desenvolvido por Daniel Moura</p>
+          <p>© 2026 Desenvolvido por Daniel Moura</p>
         </footer>
       </div>
 
       {/* Forgot password dialog */}
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Recuperar Senha</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Recuperar Senha</DialogTitle></DialogHeader>
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="reset-email">Email cadastrado</Label>
