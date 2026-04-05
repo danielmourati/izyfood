@@ -1,39 +1,71 @@
 
-## Funcionalidades solicitadas
 
-### 1. Mesas — Mínimo 5 mesas padrão
-- Garantir que ao criar um tenant, pelo menos 5 mesas sejam cadastradas automaticamente.
+# Plano: Redesign UX/UI inspirado na referência
 
-### 2. Transferência de mesa
-- Permitir transferir um pedido de uma mesa para outra (ex: mesa 1 → mesa 5), liberando a mesa antiga automaticamente.
+## Resumo
+Redesenhar a interface do sistema seguindo o layout da imagem de referência (CHILI POS): sidebar clean com logo, PDV com categorias horizontais com ícones, grid de produtos com cards visuais (imagens), painel lateral de carrinho com resumo e pagamento. O admin poderá customizar apenas nome do estabelecimento e logotipo via Configurações — sem customização de cores.
 
-### 3. Mesclar/Juntar mesas
-- Duas mesas ocupadas podem ter seus itens combinados em uma única mesa, liberando a outra.
+---
 
-### 4. Divisão de pagamento por ocupantes
-- No checkout, informar número de ocupantes para calcular valor por pessoa automaticamente.
+## O que muda visualmente
 
-### 5. Pagamentos parciais ("a ver")
-- Registrar pagamentos avulsos que são decrementados do total, exibindo "Falta R$XX de R$XXX".
+**Sidebar** — Exibir logo do tenant no topo (carregada do campo `tenants.logo`). Manter navegação atual mas com visual mais limpo e espaçado, ícones menores, texto mais suave.
 
-### 6. Permissões granulares por atendente
-- Admin pode configurar quais ações cada atendente pode realizar (cadastrar produtos, alterar preços, dar entrada no estoque, remover itens, cancelar pedidos, etc).
-- Possibilidade de copiar permissões de outro atendente existente.
-- Por padrão, apenas admin pode excluir/cancelar.
+**PDV (tela principal)** — Layout inspirado na referência:
+- Barra de busca no topo
+- Categorias horizontais com ícones circulares + nome + contagem de itens
+- Grid de produtos em cards com: imagem do produto (ou placeholder com inicial da categoria), nome, preço, e botão "Adicionar"
+- Painel lateral direito (carrinho) mostrando itens com imagem miniatura, nome, preço unitário, quantidade, subtotal, taxa, total e botões de pagamento
+- Barra inferior mostrando mesas ocupadas com badges (como na referência: T1, T2, T3...)
 
-### 7. Fechamento de caixa com validação
-- Ao fechar o caixa com pedidos não finalizados ou mesas abertas, exigir confirmação do admin com senha.
+**Login** — Logo do tenant carregada dinamicamente (quando disponível via slug na URL).
 
-### 8. Movimentações de caixa (entradas e saídas)
-- Registrar entradas avulsas (fundo de troco adicional, pagamentos recebidos).
-- Registrar saídas/sangrias (despesas, pagamento de fornecedor, compra de insumos).
-- Sempre informando o destino/motivo do valor.
+**Paleta de cores** — Atualizar o `index.css` para usar tons de verde como na referência (verde escuro primary, verde claro accent), mantendo light/dark mode.
 
-## Ordem de implementação sugerida
-1. Mesas (itens 1-3) — migração DB + UI
-2. Checkout melhorado (itens 4-5) — UI + lógica
-3. Movimentações de caixa (item 8) — migração DB + UI
-4. Fechamento de caixa com validação (item 7) — lógica + UI
-5. Permissões granulares (item 6) — migração DB + UI + lógica
+---
 
-Cada etapa será implementada e testada antes de seguir para a próxima.
+## Customização pelo Admin
+
+Na aba "Geral" das Configurações, adicionar:
+- Campo **Nome do Estabelecimento** (salvo em `tenants.name`)
+- **Upload de Logo** (salvo em Storage bucket `tenant-assets`, URL em `tenants.logo`)
+- Preview da logo atual
+
+Sem seletor de cores — a paleta é fixa para todos os tenants.
+
+---
+
+## Mudanças técnicas
+
+### Banco de dados
+- Criar Storage bucket `tenant-assets` (público) para logos
+- Criar bucket `product-images` (público) para fotos dos produtos
+- RLS: upload restrito a membros do tenant, leitura pública
+
+### Arquivos novos
+| Arquivo | Propósito |
+|---|---|
+| `src/components/CategoryBar.tsx` | Barra de categorias horizontais com ícones |
+| `src/components/ProductCard.tsx` | Card de produto com imagem, nome, preço, botão |
+| `src/components/CartPanel.tsx` | Painel lateral do carrinho redesenhado |
+| `src/components/TableBar.tsx` | Barra inferior com mesas ocupadas |
+
+### Arquivos modificados
+| Arquivo | Mudança |
+|---|---|
+| `src/index.css` | Nova paleta verde (primary, accent, sidebar) |
+| `src/pages/PDV.tsx` | Redesign completo usando novos componentes |
+| `src/components/AppSidebar.tsx` | Logo do tenant no topo, visual mais clean |
+| `src/pages/Login.tsx` | Logo dinâmica do tenant |
+| `src/pages/Configuracoes.tsx` | Campos de nome e upload de logo na aba Geral |
+| `src/pages/Produtos.tsx` | Upload de imagem ao cadastrar/editar produto |
+
+### Ordem de implementação
+1. Storage buckets (migration) + paleta de cores (index.css)
+2. Sidebar com logo dinâmica
+3. Aba Geral com upload de logo e nome do estabelecimento
+4. Componentes do PDV (CategoryBar, ProductCard, CartPanel, TableBar)
+5. Redesign do PDV usando os novos componentes
+6. Upload de imagens nos produtos
+7. Login com logo dinâmica
+
