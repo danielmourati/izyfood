@@ -38,14 +38,14 @@
     --login-accent: 152 65% 42%;
     --login-green: 152 55% 42%;
 
-    --sidebar-background: 152 45% 14%;
-    --sidebar-foreground: 150 15% 92%;
-    --sidebar-primary: 152 55% 48%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 200 15% 15%;
+    --sidebar-primary: 152 55% 32%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 152 40% 20%;
-    --sidebar-accent-foreground: 150 15% 95%;
-    --sidebar-border: 152 30% 22%;
-    --sidebar-ring: 152 55% 48%;
+    --sidebar-accent: 150 20% 95%;
+    --sidebar-accent-foreground: 200 15% 15%;
+    --sidebar-border: 200 10% 90%;
+    --sidebar-ring: 152 55% 32%;
 
     --success: 152 55% 42%;
     --success-foreground: 0 0% 100%;
