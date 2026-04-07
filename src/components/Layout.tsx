@@ -36,7 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <p className="text-[11px] text-muted-foreground leading-tight">{user?.email}</p>
                 </div>
                 <Avatar className="h-9 w-9">
-                  <AvatarImage src={user?.avatarUrl} alt={user?.name} />
+                  <AvatarImage src={undefined} alt={user?.name} />
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
                     {initials}
                   </AvatarFallback>
