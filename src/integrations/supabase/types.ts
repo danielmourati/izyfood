@@ -827,6 +827,8 @@ export type Database = {
           active: boolean
           created_at: string
           id: string
+          login_carousel_images: Json | null
+          login_icon: string | null
           logo: string | null
           name: string
           slug: string
@@ -835,6 +837,8 @@ export type Database = {
           active?: boolean
           created_at?: string
           id?: string
+          login_carousel_images?: Json | null
+          login_icon?: string | null
           logo?: string | null
           name: string
           slug: string
@@ -843,6 +847,8 @@ export type Database = {
           active?: boolean
           created_at?: string
           id?: string
+          login_carousel_images?: Json | null
+          login_icon?: string | null
           logo?: string | null
           name?: string
           slug?: string

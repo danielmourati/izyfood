@@ -429,7 +429,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (order.orderType === 'delivery' || order.orderType === 'retirada') {
       orderUpdate.delivery_status = 'finalizado';
     }
-    await supabase.from('orders').update(orderUpdate).eq('id', order.id);
+    await supabase.from('orders').update(orderUpdate as any).eq('id', order.id);
   }, [deductStock, products, categories]);
 
   return (

@@ -7,9 +7,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { useParams } from 'react-router-dom';
 
-const carouselImages = [
+const defaultCarouselImages = [
   '/carousel-1.jpg',
   '/carousel-2.jpg',
   '/carousel-3.jpg',
@@ -27,16 +26,22 @@ const Login = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [tenantLogo, setTenantLogo] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string>('');
+  const [carouselImages, setCarouselImages] = useState<string[]>(defaultCarouselImages);
+  const [loginIcon, setLoginIcon] = useState<string | null>(null);
   const { login } = useAuth();
 
-  // Try to get tenant slug from URL for dynamic logo
   useEffect(() => {
     const slug = window.location.pathname.split('/').filter(Boolean)[0];
     if (slug) {
-      supabase.from('tenants').select('logo, name').eq('slug', slug).single().then(({ data }) => {
+      supabase.from('tenants').select('logo, name, login_icon, login_carousel_images').eq('slug', slug).single().then(({ data }) => {
         if (data) {
           setTenantLogo(data.logo);
           setTenantName(data.name);
+          if (data.login_icon) setLoginIcon(data.login_icon);
+          const imgs = data.login_carousel_images as string[] | null;
+          if (imgs && Array.isArray(imgs) && imgs.length > 0) {
+            setCarouselImages(imgs);
+          }
         }
       });
     }
@@ -47,7 +52,7 @@ const Login = () => {
       setCurrentSlide((prev) => (prev + 1) % carouselImages.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [carouselImages.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +79,8 @@ const Login = () => {
       setResetEmail('');
     }
   };
+
+  const displayIcon = loginIcon || tenantLogo;
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
@@ -133,8 +140,8 @@ const Login = () => {
       <div className="flex-1 flex flex-col items-center justify-center bg-background p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
-            {tenantLogo ? (
-              <img src={tenantLogo} alt={tenantName} className="h-20 mx-auto mb-2 object-contain" />
+            {displayIcon ? (
+              <img src={displayIcon} alt={tenantName} className="h-20 mx-auto mb-2 object-contain" />
             ) : (
               <div className="h-20 w-20 mx-auto mb-2 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <span className="text-3xl font-bold text-primary">{tenantName?.charAt(0)?.toUpperCase() || '🏪'}</span>
