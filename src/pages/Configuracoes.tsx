@@ -625,7 +625,7 @@ function PermissoesTab() {
     const newVal = !currentVal;
 
     if (existing?.id) {
-      await supabase.from('attendant_permissions').update({ [key]: newVal }).eq('id', existing.id);
+      await supabase.from('attendant_permissions').update({ [key]: newVal } as any).eq('id', existing.id);
     } else {
       const newPerms: any = { user_id: userId };
       permissionKeys.forEach(k => newPerms[k] = k === key ? newVal : false);
