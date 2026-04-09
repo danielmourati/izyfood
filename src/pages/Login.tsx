@@ -29,24 +29,23 @@ const Login = () => {
   const [tenantName, setTenantName] = useState<string>('');
   const [carouselImages, setCarouselImages] = useState<string[]>(defaultCarouselImages);
   const [loginIcon, setLoginIcon] = useState<string | null>(null);
+  const { slug } = useParams<{ slug: string }>();
   const { login } = useAuth();
 
   useEffect(() => {
-    const slug = window.location.pathname.split('/').filter(Boolean)[0];
-    if (slug) {
-      supabase.from('tenants').select('logo, name, login_icon, login_carousel_images').eq('slug', slug).single().then(({ data }) => {
-        if (data) {
-          setTenantLogo(data.logo);
-          setTenantName(data.name);
-          if (data.login_icon) setLoginIcon(data.login_icon);
-          const imgs = data.login_carousel_images as string[] | null;
-          if (imgs && Array.isArray(imgs) && imgs.length > 0) {
-            setCarouselImages(imgs);
-          }
+    if (!slug) return;
+    supabase.from('tenants').select('logo, name, login_icon, login_carousel_images').eq('slug', slug).single().then(({ data }) => {
+      if (data) {
+        setTenantLogo(data.logo);
+        setTenantName(data.name);
+        if (data.login_icon) setLoginIcon(data.login_icon);
+        const imgs = data.login_carousel_images as string[] | null;
+        if (imgs && Array.isArray(imgs) && imgs.length > 0) {
+          setCarouselImages(imgs);
         }
-      });
-    }
-  }, []);
+      }
+    });
+  }, [slug]);
 
   useEffect(() => {
     const interval = setInterval(() => {
