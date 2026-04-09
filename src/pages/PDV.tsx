@@ -277,7 +277,7 @@ const PDV = () => {
               categories={categories}
               activeCategoryId={activeCategoryId}
               onSelect={setActiveCategoryId}
-              productCounts={productCounts}
+              
             />
           </div>
 
