@@ -83,6 +83,7 @@ function AppRoutes() {
   if (!user) {
     return (
       <Routes>
+        <Route path="/:slug/login" element={<Login />} />
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
