@@ -36,6 +36,10 @@ function ProtectedRoute({ children, adminOnly = false, superadminOnly = false, p
   }
   return <>{children}</>;
 }
+function SlugRedirectToLogin() {
+  const { slug } = useParams<{ slug: string }>();
+  return <Navigate to={`/${slug}/login`} replace />;
+}
 
 function TenantRoutes() {
   const { slug } = useParams<{ slug: string }>();
@@ -83,6 +87,8 @@ function AppRoutes() {
   if (!user) {
     return (
       <Routes>
+        <Route path="/:slug/login" element={<Login />} />
+        <Route path="/:slug/*" element={<SlugRedirectToLogin />} />
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
