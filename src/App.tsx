@@ -84,6 +84,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/:slug/login" element={<Login />} />
+        <Route path="/:slug/*" element={<SlugRedirectToLogin />} />
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
