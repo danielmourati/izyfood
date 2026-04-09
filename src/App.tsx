@@ -42,6 +42,7 @@ function SlugRedirectToLogin() {
 }
 
 function TenantRoutes() {
+  const { slug } = useParams<{ slug: string }>();
   const { user } = useAuth();
 
   // If the slug doesn't match the user's tenant, redirect to correct one
