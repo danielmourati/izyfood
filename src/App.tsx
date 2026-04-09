@@ -36,8 +36,12 @@ function ProtectedRoute({ children, adminOnly = false, superadminOnly = false, p
   }
   return <>{children}</>;
 }
+function SlugRedirectToLogin() {
+  const { slug } = useParams<{ slug: string }>();
+  return <Navigate to={`/${slug}/login`} replace />;
+}
 
-function TenantRoutes() {
+
   const { slug } = useParams<{ slug: string }>();
   const { user } = useAuth();
 
