@@ -54,6 +54,7 @@ function TenantRoutes() {
     <Layout>
       <Routes>
         <Route path="/" element={<ProtectedRoute><Mesas /></ProtectedRoute>} />
+        <Route path="/login" element={<Navigate to={`/${slug}`} replace />} />
         <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
         <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
         <Route path="/entregas" element={<ProtectedRoute><Entregas /></ProtectedRoute>} />
