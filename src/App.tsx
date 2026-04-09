@@ -41,8 +41,7 @@ function SlugRedirectToLogin() {
   return <Navigate to={`/${slug}/login`} replace />;
 }
 
-
-  const { slug } = useParams<{ slug: string }>();
+function TenantRoutes() {
   const { user } = useAuth();
 
   // If the slug doesn't match the user's tenant, redirect to correct one
