@@ -2,6 +2,8 @@
  * Printer connection service — Web Bluetooth + browser fallback.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // Common Bluetooth SPP / thermal printer service UUIDs
 const PRINTER_SERVICE_UUIDS = [
   '000018f0-0000-1000-8000-00805f9b34fb', // common thermal
@@ -13,8 +15,8 @@ const PRINTER_CHAR_UUIDS = [
   '49535343-8841-43f4-a8d4-ecbe34729bb3',
 ];
 
-let _device: BluetoothDevice | null = null;
-let _characteristic: BluetoothRemoteGATTCharacteristic | null = null;
+let _device: any = null;
+let _characteristic: any = null;
 
 /**
  * Check if Web Bluetooth API is available.
