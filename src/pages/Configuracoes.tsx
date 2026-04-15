@@ -25,6 +25,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { MeuPerfilTab } from '@/components/MeuPerfilTab';
 import { AuditLogsTab } from '@/components/AuditLogsTab';
+import { ImpressoraTab } from '@/components/ImpressoraTab';
 
 type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora' | 'logs';
 
