@@ -487,6 +487,47 @@ export type Database = {
           },
         ]
       }
+      printer_configs: {
+        Row: {
+          address: string
+          connection_type: string
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          paper_width: number
+          tenant_id: string
+        }
+        Insert: {
+          address?: string
+          connection_type: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          paper_width?: number
+          tenant_id?: string
+        }
+        Update: {
+          address?: string
+          connection_type?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          paper_width?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "printer_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category_id: string | null

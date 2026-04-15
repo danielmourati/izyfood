@@ -25,6 +25,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { MeuPerfilTab } from '@/components/MeuPerfilTab';
 import { AuditLogsTab } from '@/components/AuditLogsTab';
+import { ImpressoraTab } from '@/components/ImpressoraTab';
 
 type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora' | 'logs';
 
@@ -866,17 +867,6 @@ function PermissoesTab() {
   );
 }
 
-function ImpressoraTab() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Printer className="h-5 w-5" /> Impressora</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">Configuração de impressora térmica em breve.</p>
-      </CardContent>
-    </Card>
-  );
-}
+// ImpressoraTab is now imported from @/components/ImpressoraTab
 
 export default Configuracoes;
