@@ -887,6 +887,15 @@ export type Database = {
         Returns: boolean
       }
       is_tenant_admin: { Args: { _user_id: string }; Returns: boolean }
+      log_audit_event: {
+        Args: {
+          p_action: string
+          p_details?: Json
+          p_entity_id?: string
+          p_entity_type: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "atendente" | "motoboy" | "superadmin"
