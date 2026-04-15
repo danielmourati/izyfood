@@ -30,14 +30,14 @@ export function isBluetoothAvailable(): boolean {
  * Returns the device name or throws on failure.
  */
 export async function connectBluetooth(): Promise<string> {
-  if (!navigator.bluetooth) throw new Error('Web Bluetooth não suportado neste navegador.');
+  const bt = (navigator as any).bluetooth;
+  if (!bt) throw new Error('Web Bluetooth não suportado neste navegador.');
 
-  const device = await navigator.bluetooth.requestDevice({
+  const device: any = await bt.requestDevice({
     filters: PRINTER_SERVICE_UUIDS.map(uuid => ({ services: [uuid] })),
     optionalServices: PRINTER_SERVICE_UUIDS,
   }).catch(() => {
-    // Fallback: accept any device
-    return navigator.bluetooth.requestDevice({
+    return bt.requestDevice({
       acceptAllDevices: true,
       optionalServices: PRINTER_SERVICE_UUIDS,
     });
