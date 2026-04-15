@@ -22,7 +22,7 @@ let _characteristic: any = null;
  * Check if Web Bluetooth API is available.
  */
 export function isBluetoothAvailable(): boolean {
-  return typeof navigator !== 'undefined' && !!navigator.bluetooth;
+  return typeof navigator !== 'undefined' && !!(navigator as any).bluetooth;
 }
 
 /**
