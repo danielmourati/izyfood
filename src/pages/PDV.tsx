@@ -14,11 +14,12 @@ import { CheckoutModal } from '@/components/CheckoutModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search } from 'lucide-react';
+import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search, Printer } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
 import { TableBar } from '@/components/TableBar';
+import { usePrinter } from '@/hooks/use-printer';
 
 const orderTypeLabels: Record<OrderType, string> = {
   balcao: '🏪 Balcão',
@@ -53,6 +54,8 @@ const PDV = () => {
   const [initialized, setInitialized] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { printOrder } = usePrinter();
 
   useEffect(() => {
     if (initialized) return;
@@ -231,6 +234,17 @@ const PDV = () => {
     tableNumber, customerId: selectedCustomerId || undefined, createdAt: new Date().toISOString(),
   };
 
+  const handlePrintOrder = async () => {
+    const cust = customers.find(c => c.id === currentOrder.customerId);
+    const orderData = {
+      ...currentOrder,
+      operatorName: user?.name,
+      customerName: cust?.name || undefined,
+    };
+    await printOrder(orderData);
+    toast.success('Comanda enviada para impressão!');
+  };
+
   const handleTableBarSelect = (table: TableInfo) => {
     if (table.orderId) {
       navigate(`/pdv?mesa=${table.number}&pedido=${table.orderId}`);
@@ -310,7 +324,8 @@ const PDV = () => {
           <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
             updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
             tables={tables} onSelectTable={(t) => handleSelectTable(t)}
-            selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa} />
+            selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
+            onPrintOrder={handlePrintOrder} />
         </div>
       </div>
 
@@ -343,7 +358,8 @@ const PDV = () => {
               holdOrder={() => { holdOrder(); setShowCart(false); }}
               setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }}
               tables={tables} onSelectTable={(t) => { setShowCart(false); handleSelectTable(t); }}
-              selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa} />
+              selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
+              onPrintOrder={handlePrintOrder} />
           </div>
         </div>
       )}
@@ -367,7 +383,7 @@ const PDV = () => {
 
 function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
-  selectedCustomerId, onSelectCustomer, isHeldMesa,
+  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
@@ -375,6 +391,7 @@ function CartContent({
   tables: TableInfo[]; onSelectTable: (t: TableInfo) => void;
   selectedCustomerId: string | null; onSelectCustomer: (id: string | null) => void;
   isHeldMesa: boolean;
+  onPrintOrder?: () => void;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
@@ -605,12 +622,15 @@ function CartContent({
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button variant="destructive" className="h-11 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
               <X className="h-4 w-4 mr-1" /> Cancelar
             </Button>
             <Button variant="outline" className="h-11 text-xs" onClick={holdOrder} disabled={cart.length === 0}>
               <Pause className="h-4 w-4 mr-1" /> Segurar
+            </Button>
+            <Button variant="secondary" className="h-11 text-xs" onClick={onPrintOrder} disabled={cart.length === 0}>
+              <Printer className="h-4 w-4 mr-1" /> Imprimir
             </Button>
             <Button className="h-11 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
               <ShoppingCart className="h-4 w-4 mr-1" /> Pagar

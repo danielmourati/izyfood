@@ -144,7 +144,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         setTables((inserted || []).map(dbToTable));
       } else {
-        setTables(tbls.map(dbToTable));
+        // Fix duplicate tables bug
+        const uniqueTbls = [];
+        const seen = new Set();
+        for (const t of tbls) {
+          if (!seen.has(t.number)) {
+            seen.add(t.number);
+            uniqueTbls.push(t);
+          }
+        }
+        setTables(uniqueTbls.map(dbToTable));
       }
       setCoupons((cpns || []).map(dbToCoupon));
       if (setts && setts.length > 0) {
@@ -230,9 +239,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_registers' }, () => {
-          supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
-            setIsCashRegisterOpen(!!(data && data.length > 0));
-          });
+        supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
+          setIsCashRegisterOpen(!!(data && data.length > 0));
+        });
       })
       .subscribe();
 
@@ -340,20 +349,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Add/remove tables
     const currentTables = await supabase.from('store_tables').select('number').order('number');
     const currentNumbers = (currentTables.data || []).map(t => t.number);
-    const maxCurrent = currentNumbers.length;
+    const maxNumber = currentNumbers.length > 0 ? Math.max(...currentNumbers) : 0;
 
-    if (validCount > maxCurrent) {
-      const newTables = Array.from({ length: validCount - maxCurrent }, (_, i) => ({
-        number: maxCurrent + i + 1,
+    if (validCount > currentNumbers.length) {
+      const newTables = Array.from({ length: validCount - currentNumbers.length }, (_, i) => ({
+        number: maxNumber + i + 1,
         status: 'available' as const,
       }));
       await supabase.from('store_tables').insert(newTables);
-    } else if (validCount < maxCurrent) {
-      await supabase.from('store_tables').delete().gt('number', validCount);
+    } else if (validCount < currentNumbers.length) {
+      // Find the tables to delete (the ones with the highest numbers)
+      const toDelete = currentNumbers.sort((a, b) => b - a).slice(0, currentNumbers.length - validCount);
+      if (toDelete.length > 0) {
+        await supabase.from('store_tables').delete().in('number', toDelete);
+      }
     }
     // Refetch tables
     const { data: tbls } = await supabase.from('store_tables').select('*').order('number');
-    setTables((tbls || []).map(dbToTable));
+
+    // Deduplicate in memory just to be safe during refetch mapping
+    const uniqueTbls = [];
+    const seen = new Set();
+    for (const t of (tbls || [])) {
+      if (!seen.has(t.number)) {
+        seen.add(t.number);
+        uniqueTbls.push(t);
+      }
+    }
+    setTables(uniqueTbls.map(dbToTable));
   }, []);
 
   const deductStock = useCallback(async (items: OrderItem[]) => {
