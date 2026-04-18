@@ -15,7 +15,7 @@ import { ItemNotesModal } from '@/components/ItemNotesModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search, Printer, FileEdit } from 'lucide-react';
+import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search, Printer, FileEdit, MoreHorizontal, Settings, ShieldCheck, Trash } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
@@ -49,16 +49,16 @@ const PDV = () => {
   const [activeCategoryId, setActiveCategoryId] = useState<string>('all');
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('balcao');
-  const [mobileView, setMobileView] = useState<'categories' | 'products' | 'cart'>(() => {
-    return new URLSearchParams(window.location.search).get('pedido') ? 'cart' : 'categories';
-  });
+  const [mobileView, setMobileView] = useState<'categories' | 'products' | 'cart'>('categories');
   const [mobileLastAddedId, setMobileLastAddedId] = useState<string | null>(null);
   const [editingItemNotesId, setEditingItemNotesId] = useState<string | null>(null);
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [currentOrderId, setCurrentOrderId] = useState<string>(() => crypto.randomUUID());
-  const [initialized, setInitialized] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [authAction, setAuthAction] = useState<{ type: 'delete'; orderId: string } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { printOrder } = usePrinter();
@@ -88,6 +88,26 @@ const PDV = () => {
       setInitialized(true);
     }
   }, [existingOrder, tableNumber, initialized, pedidoParam]);
+
+  // Clean ghost tables: occupied status but no items in order
+  useEffect(() => {
+    if (initialized) {
+      setTables(prev => {
+        let changed = false;
+        const next = prev.map(t => {
+          if (t.status === 'occupied' && t.orderId) {
+            const order = orders.find(o => o.id === t.orderId);
+            if (order && order.items.length === 0) {
+              changed = true;
+              return { ...t, status: 'available', orderId: undefined };
+            }
+          }
+          return t;
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [initialized, orders, setTables]);
 
   const { customers } = useStore();
   const resolveCustomer = useCallback((custId: string | null | undefined) => {
@@ -256,6 +276,31 @@ const PDV = () => {
 
   const isHeldMesa = !!(existingOrder && existingOrder.orderType === 'mesa' && (existingOrder.status === 'segurado' || (existingOrder.status === 'aberto' && existingOrder.items.length > 0)));
 
+  // Only go to cart view on mobile when opening an already held/occupied table
+  // (placed after isHeldMesa declaration to avoid TDZ ReferenceError)
+  useEffect(() => {
+    if (initialized && isHeldMesa) {
+      setMobileView('cart');
+    }
+  }, [initialized, isHeldMesa]);
+
+  const executeDeleteOrder = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+    if (order.tableNumber) {
+      setTables(prev => prev.map(t =>
+        t.number === order.tableNumber ? { ...t, status: 'available', orderId: undefined } : t
+      ));
+    }
+    setCart([]);
+    setSelectedCustomerId(null);
+    toast.success('Pedido excluído com sucesso!');
+    setMoreOptionsOpen(false);
+    navigate('/');
+  };
+
   const currentOrder: Order = {
     id: currentOrderId, items: cart, total, orderType, status: 'aberto',
     tableNumber, customerId: selectedCustomerId || undefined, createdAt: new Date().toISOString(),
@@ -361,7 +406,12 @@ const PDV = () => {
           <div className="flex-1 overflow-auto p-4 flex flex-col gap-4">
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-2xl font-black text-foreground drop-shadow-sm">Categorias</h2>
-              {tableNumber && <Badge variant="secondary" className="text-xs uppercase bg-primary text-primary-foreground font-bold">Mesa {tableNumber}</Badge>}
+              <div className="flex items-center gap-2">
+                {tableNumber && <Badge variant="secondary" className="text-xs uppercase bg-primary text-primary-foreground font-bold">Mesa {tableNumber}</Badge>}
+                <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => navigate('/')} title="Ver todas as mesas">
+                  <span className="text-base leading-none">⊞</span>
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 pb-8">
@@ -387,9 +437,12 @@ const PDV = () => {
               <Button variant="ghost" size="icon" onClick={() => setMobileView('categories')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <h2 className="text-lg font-bold truncate">
+              <h2 className="text-lg font-bold truncate flex-1">
                 {activeCategoryId === 'all' ? 'Todos os Produtos' : getCategoryById(activeCategoryId)?.name}
               </h2>
+              <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => navigate('/')} title="Ver mesas">
+                <span className="text-base leading-none">⊞</span>
+              </Button>
             </div>
 
             <div className="flex-1 overflow-auto px-3 py-3 pb-40 bg-muted/10">
@@ -452,9 +505,12 @@ const PDV = () => {
               <Button variant="ghost" size="icon" onClick={() => setMobileView('products')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <span className="font-semibold text-lg flex-1 text-center pr-8">
+              <span className="font-semibold text-lg flex-1 text-center">
                 {tableNumber ? `Mesa ${tableNumber}` : 'Revisar Pedido'}
               </span>
+              <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate('/')} title="Ver mesas">
+                <span className="text-base leading-none">⊞</span>
+              </Button>
             </div>
             <div className="flex-1 flex flex-col overflow-hidden bg-muted/10 pb-16">
               <CartContent
@@ -514,6 +570,7 @@ function CartContent({
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
   const [tableModalOpen, setTableModalOpen] = useState(false);
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
@@ -611,20 +668,22 @@ function CartContent({
 
   return (
     <>
-      {/* Order type / table header */}
-      <div className="px-3 py-1.5 border-b bg-muted/20">
-        {tableNumber ? (
-          <div className="text-center"><Badge variant="default" className="text-[10px] uppercase font-bold px-2 py-0.5 opacity-80">Mesa {tableNumber}</Badge></div>
-        ) : (
-          <div className="grid grid-cols-2 gap-1">
-            {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
-              <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-[10px] h-6" onClick={() => handleOrderTypeClick(key)}>
-                {label}
-              </Button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Order type / table header - hides badge in mobile (shown in page header) */}
+      {!isMobile && (
+        <div className="px-3 py-1.5 border-b bg-muted/20">
+          {tableNumber ? (
+            <div className="text-center"><Badge variant="default" className="text-[10px] uppercase font-bold px-2 py-0.5 opacity-80">Mesa {tableNumber}</Badge></div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1">
+              {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
+                <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-[10px] h-6" onClick={() => handleOrderTypeClick(key)}>
+                  {label}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Customer Selector */}
       <div className="px-3 py-2 border-b space-y-1">
@@ -645,27 +704,12 @@ function CartContent({
             </Button>
           </div>
         ) : (
-          <div className="relative" ref={dropdownRef}>
-            <Input placeholder="Buscar cliente..." className="h-8 text-xs" value={customerSearch}
-              onChange={e => { setCustomerSearch(e.target.value); setCustomerDropdownOpen(true); }}
-              onFocus={() => setCustomerDropdownOpen(true)}
-              onBlur={() => setTimeout(() => setCustomerDropdownOpen(false), 200)} />
-            {customerDropdownOpen && customerSearch.length > 0 && (
-              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-md shadow-md max-h-40 overflow-auto">
-                {filteredCustomers.map(c => (
-                  <button key={c.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
-                    onMouseDown={e => e.preventDefault()}
-                    onClick={() => { onSelectCustomer(c.id); setCustomerSearch(''); setCustomerDropdownOpen(false); }}>
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-xs text-muted-foreground ml-2">{c.phone}</span>
-                  </button>
-                ))}
-                {filteredCustomers.length === 0 && (
-                  <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum cliente encontrado</p>
-                )}
-              </div>
-            )}
-          </div>
+          <button
+            className="text-primary text-[11px] font-semibold hover:underline underline-offset-2 flex items-center gap-1"
+            onClick={() => setCustomerModalOpen(true)}
+          >
+            <User className="h-3 w-3" /> Vincular Cliente
+          </button>
         )}
 
         {selectedCustomerId && customerObj && redeemableCount > 0 && hasEligibleAcaiInCart && (
@@ -757,12 +801,20 @@ function CartContent({
         </div>
         {isMobile && tableNumber ? (
           <div className="grid grid-cols-4 gap-2 pt-2">
-            <Button variant="outline" className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-background border-muted-foreground/20 text-foreground" onClick={() => { window.location.href = '/'; }}>
+            <Button variant="outline" className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-background border-muted-foreground/20 text-foreground" onClick={() => {
+              if (cart.length === 0) cancelOrder();
+              else window.location.href = '/';
+            }}>
               <ArrowLeft className="h-4 w-4" /> VOLTAR
             </Button>
-            <Button className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
-              <Printer className="h-4 w-4" /> FECHAR
-            </Button>
+            <div className="flex flex-col gap-1.5">
+              <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+                <Printer className="h-4 w-4" /> FECHAR
+              </Button>
+              <Button variant="ghost" className="h-6 w-full text-[9px] p-0 opacity-80" onClick={() => (window as any).toggleMoreOptions && (window as any).toggleMoreOptions()}>
+                <MoreHorizontal className="h-3 w-3 mr-1" /> MAIS
+              </Button>
+            </div>
             <Button className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#673AB7] hover:bg-[#512DA8] text-white" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
               <span className="text-lg font-black leading-none">$</span> PAGAR
             </Button>
@@ -795,10 +847,10 @@ function CartContent({
             </Button>
           </div>
         )}
-      </div>
+      </div >
 
       {/* Table selection dialog */}
-      <Dialog open={tableModalOpen} onOpenChange={setTableModalOpen}>
+      < Dialog open={tableModalOpen} onOpenChange={setTableModalOpen} >
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Selecionar Mesa</DialogTitle></DialogHeader>
           {availableTables.length === 0 ? (
@@ -815,10 +867,47 @@ function CartContent({
             </div>
           )}
         </DialogContent>
-      </Dialog>
+      </Dialog >
+
+      {/* Customer search/link modal */}
+      < Dialog open={customerModalOpen} onOpenChange={setCustomerModalOpen} >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Vincular Cliente</span>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setCustomerModalOpen(false); setNewCustomerOpen(true); }}>
+                <UserPlus className="h-3 w-3" /> Novo
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            placeholder="Buscar por nome ou telefone..."
+            className="h-9"
+            value={customerSearch}
+            onChange={e => setCustomerSearch(e.target.value)}
+          />
+          <div className="max-h-56 overflow-auto rounded-md border divide-y">
+            {filteredCustomers.length === 0 ? (
+              <p className="px-3 py-4 text-sm text-muted-foreground text-center">Nenhum cliente encontrado</p>
+            ) : filteredCustomers.map(c => (
+              <button key={c.id} className="w-full text-left px-3 py-2.5 hover:bg-accent transition-colors flex justify-between items-center"
+                onClick={() => { onSelectCustomer(c.id); setCustomerSearch(''); setCustomerModalOpen(false); }}>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">{c.name}</span>
+                  {c.phone && <span className="text-xs text-muted-foreground">{c.phone}</span>}
+                </div>
+                {(c.loyaltyPoints || 0) > 0 && (
+                  <span className="text-xs text-primary font-bold shrink-0 ml-2">⭐ {c.loyaltyPoints} pts</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog >
 
       {/* New customer dialog */}
-      <Dialog open={newCustomerOpen} onOpenChange={setNewCustomerOpen}>
+      < Dialog open={newCustomerOpen} onOpenChange={setNewCustomerOpen} >
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Novo Cliente</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -831,10 +920,11 @@ function CartContent({
             <Button className="flex-1" onClick={handleCreateCustomer} disabled={!newName.trim()}>Cadastrar</Button>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       {/* Admin auth */}
-      <Dialog open={adminAuthModal.open} onOpenChange={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }}>
+      < Dialog open={adminAuthModal.open} onOpenChange={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }
+      }>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -860,7 +950,7 @@ function CartContent({
             </Button>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog >
     </>
   );
 }
