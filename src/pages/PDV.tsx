@@ -291,13 +291,13 @@ const PDV = () => {
               categories={categories}
               activeCategoryId={activeCategoryId}
               onSelect={setActiveCategoryId}
-              
+
             />
           </div>
 
           {/* Product grid */}
           <div className="flex-1 overflow-auto px-4 pb-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2">
               {filteredProducts.map(product => (
                 <ProductCard
                   key={product.id}
@@ -314,9 +314,6 @@ const PDV = () => {
               </div>
             )}
           </div>
-
-          {/* Table bar */}
-          <TableBar tables={tables} onSelectTable={handleTableBarSelect} />
         </div>
 
         {/* Cart panel - desktop */}
@@ -494,13 +491,13 @@ function CartContent({
   return (
     <>
       {/* Order type / table header */}
-      <div className="p-3 border-b">
+      <div className="px-3 py-1.5 border-b bg-muted/20">
         {tableNumber ? (
-          <div className="text-center py-1"><Badge className="text-sm px-3 py-1">🪑 Mesa {tableNumber}</Badge></div>
+          <div className="text-center"><Badge variant="default" className="text-[10px] uppercase font-bold px-2 py-0.5 opacity-80">Mesa {tableNumber}</Badge></div>
         ) : (
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-2 gap-1">
             {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
-              <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-xs h-9" onClick={() => handleOrderTypeClick(key)}>
+              <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-[10px] h-6" onClick={() => handleOrderTypeClick(key)}>
                 {label}
               </Button>
             ))}
@@ -509,21 +506,20 @@ function CartContent({
       </div>
 
       {/* Customer Selector */}
-      <div className="p-3 border-b space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cliente</span>
-          <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 text-primary" onClick={() => setNewCustomerOpen(true)}>
-            <UserPlus className="h-3 w-3" /> Novo
+      <div className="px-3 py-2 border-b space-y-1">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase opacity-70">Cliente</span>
+          <Button variant="ghost" size="sm" className="h-5 px-1 text-[10px] gap-1 text-primary" onClick={() => setNewCustomerOpen(true)}>
+            <UserPlus className="h-2.5 w-2.5" /> Novo
           </Button>
         </div>
         {selectedCustomerId && customerObj ? (
-          <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
-            <User className="h-4 w-4 text-muted-foreground shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate text-foreground">{customerObj.name}</p>
-              <p className="text-xs text-muted-foreground">⭐ {customerObj.loyaltyPoints || 0} pontos</p>
+          <div className="flex items-center justify-between bg-muted/40 rounded px-2 py-1">
+            <div className="flex flex-col min-w-0">
+              <span className="text-[11px] font-bold truncate text-foreground leading-none">{customerObj.name}</span>
+              {customerObj.loyaltyPoints > 0 && <span className="text-[9px] text-muted-foreground mt-0.5">⭐ {customerObj.loyaltyPoints} pts</span>}
             </div>
-            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => onSelectCustomer(null)}>
+            <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-50 hover:opacity-100" onClick={() => onSelectCustomer(null)}>
               <X className="h-3 w-3" />
             </Button>
           </div>
@@ -561,79 +557,83 @@ function CartContent({
       </div>
 
       {/* Cart items */}
-      <div className="flex-1 overflow-auto p-3 space-y-2">
+      <div className="flex-1 overflow-auto px-2 py-2 space-y-1 bg-muted/10">
         {cart.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <ShoppingCart className="h-12 w-12 mb-2 opacity-30" /><p className="text-sm">Carrinho vazio</p>
+            <ShoppingCart className="h-10 w-10 mb-2 opacity-20" /><p className="text-xs">Carrinho vazio</p>
           </div>
         ) : cart.map(item => {
           const eligible = isItemEligible(item);
           return (
-            <div key={item.id} className="bg-muted/40 rounded-xl p-3 space-y-1">
+            <div key={item.id} className="bg-background border rounded p-2 flex flex-col gap-1">
               <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-medium text-sm text-foreground">{item.name}</p>
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-semibold text-xs text-foreground leading-tight">{item.name}</span>
                     {eligible && selectedCustomerId && (
-                      <Badge variant="outline" className="text-[10px] border-primary/50 text-primary px-1 py-0">
-                        <Star className="h-2.5 w-2.5 mr-0.5" />+1 pt
+                      <Badge variant="outline" className="text-[8px] text-primary px-1 py-0 leading-none h-3 border-primary/30">
+                        <Star className="h-2 w-2 mr-0.5" />+1
                       </Badge>
                     )}
                   </div>
-                  {item.weight && <p className="text-xs text-muted-foreground">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>}
-                  {item.addedByName && <p className="text-[10px] text-muted-foreground">por {item.addedByName}</p>}
+                  {item.weight ? (
+                    <p className="text-[10px] text-muted-foreground leading-none mt-1">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>
+                  ) : null}
+                  {item.addedByName && <p className="text-[9px] text-muted-foreground opacity-70 mt-0.5">por {item.addedByName}</p>}
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleProtectedRemove(item.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                <div className="flex flex-col items-end shrink-0 justify-between h-full gap-2">
+                  <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive/80 hover:text-destructive opacity-50 hover:opacity-100" onClick={() => handleProtectedRemove(item.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                  <span className="font-bold text-xs text-primary leading-none">R$ {fmt(item.subtotal)}</span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                {!item.weight ? (
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.id, -1)}><Minus className="h-3 w-3" /></Button>
-                    <span className="w-8 text-center font-semibold text-sm">{item.quantity}</span>
-                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.id, 1)}><Plus className="h-3 w-3" /></Button>
-                  </div>
-                ) : <div />}
-                <p className="font-bold text-primary text-sm">R$ {fmt(item.subtotal)}</p>
-              </div>
+              {!item.weight && (
+                <div className="flex items-center gap-0.5 self-start mt-1 bg-muted/30 rounded-md p-0.5">
+                  <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-background shadow-sm rounded-sm" onClick={() => updateQty(item.id, -1)}><Minus className="h-2.5 w-2.5" /></Button>
+                  <span className="w-6 text-center font-bold text-[11px]">{item.quantity}</span>
+                  <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-background shadow-sm rounded-sm" onClick={() => updateQty(item.id, 1)}><Plus className="h-2.5 w-2.5" /></Button>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
       {/* Footer totals + actions */}
-      <div className="border-t p-3 space-y-3 bg-card">
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-medium text-muted-foreground">Subtotal</span>
-          <span className="text-sm text-foreground">R$ {fmt(total)}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-lg font-bold text-foreground">Total</span>
-          <span className="text-2xl font-bold text-primary">R$ {fmt(total)}</span>
+      <div className="border-t p-2 space-y-2 bg-card">
+        <div className="flex justify-between items-end px-1">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-medium text-muted-foreground leading-none">Subtotal</span>
+            <span className="text-sm font-bold text-foreground">R$ {fmt(total)}</span>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground opacity-60 leading-none">Total</span>
+            <p className="text-lg font-bold text-primary leading-none">R$ {fmt(total)}</p>
+          </div>
         </div>
         {orderType === 'balcao' ? (
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="destructive" className="h-11 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0}>
-              <X className="h-4 w-4 mr-1" /> Cancelar
+          <div className="grid grid-cols-2 gap-1.5">
+            <Button variant="destructive" className="h-8 text-[11px] font-semibold" onClick={handleProtectedCancel} disabled={cart.length === 0}>
+              <X className="h-3.5 w-3.5 mr-1" /> Cancelar
             </Button>
-            <Button className="h-11 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-              <ShoppingCart className="h-4 w-4 mr-1" /> Pagar
+            <Button className="h-8 text-[11px] font-semibold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+              <ShoppingCart className="h-3.5 w-3.5 mr-1" /> Pagar
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="destructive" className="h-11 text-xs" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
-              <X className="h-4 w-4 mr-1" /> Cancelar
+          <div className="grid grid-cols-4 gap-1.5">
+            <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
+              <X className="h-3 w-3" />
             </Button>
-            <Button variant="outline" className="h-11 text-xs" onClick={holdOrder} disabled={cart.length === 0}>
-              <Pause className="h-4 w-4 mr-1" /> Segurar
+            <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold" onClick={holdOrder} disabled={cart.length === 0}>
+              <Pause className="h-3 w-3 mr-0.5" /> Segur.
             </Button>
-            <Button variant="secondary" className="h-11 text-xs" onClick={onPrintOrder} disabled={cart.length === 0}>
-              <Printer className="h-4 w-4 mr-1" /> Imprimir
+            <Button variant="secondary" className="h-8 text-[10px] px-1 font-semibold" onClick={onPrintOrder} disabled={cart.length === 0}>
+              <Printer className="h-3 w-3 mr-0.5" /> Impr.
             </Button>
-            <Button className="h-11 text-xs" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-              <ShoppingCart className="h-4 w-4 mr-1" /> Pagar
+            <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+              <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
             </Button>
           </div>
         )}
