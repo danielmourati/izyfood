@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const defaultCarouselImages = [
@@ -20,6 +20,7 @@ const defaultCarouselImages = [
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -111,11 +112,10 @@ const Login = () => {
                 <button
                   key={i}
                   onClick={() => setCurrentSlide(i)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    currentSlide === i
+                  className={`h-2 rounded-full transition-all duration-300 ${currentSlide === i
                       ? 'w-8 bg-[hsl(var(--login-accent))]'
                       : 'w-2 bg-white/50 hover:bg-white/70'
-                  }`}
+                    }`}
                 />
               ))}
             </div>
@@ -169,8 +169,17 @@ const Login = () => {
                   Esqueceu a senha?
                 </button>
               </div>
-              <Input id="password" type="password" placeholder="••••••••" value={password}
-                onChange={(e) => setPassword(e.target.value)} className="h-12" required />
+              <div className="relative">
+                <Input id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password}
+                  onChange={(e) => setPassword(e.target.value)} className="h-12 pr-10" required />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors rounded-full focus:outline-none focus:ring-1 focus:ring-primary h-7 w-7 flex items-center justify-center"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             {error && <p className="text-sm text-destructive text-center">{error}</p>}
