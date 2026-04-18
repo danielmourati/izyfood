@@ -35,6 +35,7 @@ export interface OrderItem {
   addedBy?: string;
   addedByName?: string;
   notes?: string;
+  selectedComplements?: { name: string; price: number; quantity: number }[];
 }
 
 export interface Order {

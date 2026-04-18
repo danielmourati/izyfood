@@ -11,10 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Product, OrderItem, Order, OrderType, TableInfo, Customer } from '@/types';
 import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
+import { ItemNotesModal } from '@/components/ItemNotesModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search, Printer } from 'lucide-react';
+import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search, Printer, FileEdit } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
@@ -48,8 +49,11 @@ const PDV = () => {
   const [activeCategoryId, setActiveCategoryId] = useState<string>('all');
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('balcao');
-  const [mobileView, setMobileView] = useState<'categories' | 'products' | 'cart'>('categories');
+  const [mobileView, setMobileView] = useState<'categories' | 'products' | 'cart'>(() => {
+    return new URLSearchParams(window.location.search).get('pedido') ? 'cart' : 'categories';
+  });
   const [mobileLastAddedId, setMobileLastAddedId] = useState<string | null>(null);
+  const [editingItemNotesId, setEditingItemNotesId] = useState<string | null>(null);
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState<string>(() => crypto.randomUUID());
@@ -108,8 +112,14 @@ const PDV = () => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType, resolveCustomer]);
 
-  const updateItemNote = (id: string, note: string) => {
-    setCart(prev => prev.map(i => i.id === id ? { ...i, notes: note } : i));
+  const handleConfirmNotes = (itemId: string, newNotes: string, newComplements: { name: string, price: number, quantity: number }[]) => {
+    setCart(prev => prev.map(i => {
+      if (i.id !== itemId) return i;
+      const compsTotal = newComplements.reduce((acc, c) => acc + (c.price * c.quantity), 0);
+      const baseSubtotal = i.weight ? i.weight * i.price : i.quantity * i.price;
+      const subtotal = baseSubtotal + (compsTotal * i.quantity);
+      return { ...i, notes: newNotes, selectedComplements: newComplements, subtotal };
+    }));
   };
 
   const filteredProducts = useMemo(() => {
@@ -140,10 +150,13 @@ const PDV = () => {
     const existing = cart.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id);
     if (existing) {
       setMobileLastAddedId(existing.id);
-      setCart(prev => prev.map(i => i.id === existing.id
-        ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.price }
-        : i
-      ));
+      setCart(prev => prev.map(i => {
+        if (i.id === existing.id) {
+          const compsTotal = (i.selectedComplements || []).reduce((a, c) => a + c.price * c.quantity, 0);
+          return { ...i, quantity: i.quantity + 1, subtotal: (i.price + compsTotal) * (i.quantity + 1) };
+        }
+        return i;
+      }));
     } else {
       const newId = crypto.randomUUID();
       setMobileLastAddedId(newId);
@@ -166,7 +179,9 @@ const PDV = () => {
     setCart(prev => prev.map(i => {
       if (i.id !== id) return i;
       const newQty = Math.max(1, i.quantity + delta);
-      return { ...i, quantity: newQty, subtotal: i.weight ? i.weight * i.price : newQty * i.price };
+      const compsTotal = (i.selectedComplements || []).reduce((a, c) => a + c.price * c.quantity, 0);
+      const baseSubtotal = i.weight ? i.weight * i.price : newQty * i.price;
+      return { ...i, quantity: newQty, subtotal: baseSubtotal + (compsTotal * newQty) };
     }));
   };
 
@@ -335,7 +350,7 @@ const PDV = () => {
               updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
               tables={tables} onSelectTable={(t) => handleSelectTable(t)}
               selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
-              onPrintOrder={handlePrintOrder} updateItemNote={updateItemNote} />
+              onPrintOrder={handlePrintOrder} setEditingItemNotesId={setEditingItemNotesId} isMobile={false} />
           </div>
         </div>
       </div>
@@ -402,13 +417,11 @@ const PDV = () => {
                       <Button variant="secondary" className="flex-1 font-bold text-lg" onClick={() => updateQty(lastItem.id, 1)}><Plus className="h-4 w-4" /></Button>
                       <Button variant="secondary" className="flex-1 font-bold text-lg" onClick={() => updateQty(lastItem.id, -1)} disabled={lastItem.quantity <= 1}><Minus className="h-4 w-4" /></Button>
                       <Button variant="destructive" className="w-12 shrink-0 font-bold" onClick={() => removeItem(lastItem.id)}><Trash2 className="h-4 w-4" /></Button>
-                      <div className="flex-[2]">
-                        <Input
-                          value={lastItem.notes || ''}
-                          onChange={e => updateItemNote(lastItem.id, e.target.value)}
-                          placeholder="Notas da cozinha..."
-                          className="h-full text-[11px] text-foreground bg-primary-foreground/95 border-0 focus-visible:ring-1 focus-visible:ring-primary-foreground"
-                        />
+                      <div className="flex-[2] flex">
+                        <Button variant="secondary" className="w-full h-full font-bold text-xs flex justify-between bg-white text-primary hover:bg-gray-100" onClick={() => setEditingItemNotesId(lastItem.id)}>
+                          <span className="truncate">{lastItem.notes || 'Notas da cozinha...'}</span>
+                          <FileEdit className="h-4 w-4 ml-1 shrink-0" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -452,7 +465,8 @@ const PDV = () => {
                 setCheckoutOpen={(v) => { setCheckoutOpen(v); }}
                 tables={tables} onSelectTable={(t) => { handleSelectTable(t); }}
                 selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
-                onPrintOrder={handlePrintOrder} updateItemNote={updateItemNote}
+                onPrintOrder={handlePrintOrder} setEditingItemNotesId={setEditingItemNotesId}
+                isMobile={true} onAddNewItem={() => setMobileView('categories')}
               />
             </div>
           </div>
@@ -470,6 +484,12 @@ const PDV = () => {
           if (isDeliveryOrPickup) { navigate('/entregas'); }
           else if (tableNumber) { navigate('/'); }
         }} />
+      <ItemNotesModal
+        open={!!editingItemNotesId}
+        onClose={() => setEditingItemNotesId(null)}
+        item={cart.find(i => i.id === editingItemNotesId) || null}
+        onConfirm={handleConfirmNotes}
+      />
     </>
   );
 };
@@ -478,7 +498,7 @@ const PDV = () => {
 
 function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
-  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, updateItemNote
+  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, setEditingItemNotesId, isMobile, onAddNewItem
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
@@ -487,7 +507,9 @@ function CartContent({
   selectedCustomerId: string | null; onSelectCustomer: (id: string | null) => void;
   isHeldMesa: boolean;
   onPrintOrder?: () => void;
-  updateItemNote?: (id: string, note: string) => void;
+  setEditingItemNotesId?: (id: string) => void;
+  isMobile?: boolean;
+  onAddNewItem?: () => void;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
@@ -655,6 +677,20 @@ function CartContent({
         )}
       </div>
 
+      {/* Customer Info / Table Header on Mobile Cart */}
+      {isMobile && tableNumber && (
+        <div className="px-3 py-3 bg-white border-b shrink-0 flex flex-col gap-1.5 shadow-sm">
+          {customerObj && (
+            <p className="text-[13px] font-medium text-muted-foreground leading-tight">
+              Cliente: {customerObj.name} {customerObj.phone ? `(${customerObj.phone})` : ''}
+            </p>
+          )}
+          <p className="text-[14px] font-medium text-foreground mt-1">
+            <span className="font-bold border-b-2 border-primary/20 pb-0.5">Itens</span>
+          </p>
+        </div>
+      )}
+
       {/* Cart items */}
       <div className="flex-1 overflow-auto px-2 py-2 space-y-1 bg-muted/10">
         {cart.length === 0 ? (
@@ -679,14 +715,14 @@ function CartContent({
                     <p className="text-[10px] text-muted-foreground leading-none mt-1">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>
                   ) : null}
                   {item.addedByName && <p className="text-[9px] text-muted-foreground opacity-70 mt-0.5">por {item.addedByName}</p>}
-                  {updateItemNote && (
-                    <Input
-                      value={item.notes || ''}
-                      onChange={e => updateItemNote(item.id, e.target.value)}
-                      placeholder="Observações do item..."
-                      className="h-6 text-[10px] mt-1 px-1.5 bg-background border-dashed focus-visible:ring-1"
-                    />
-                  )}
+                  <div className="mt-1.5 flex flex-col items-start gap-1">
+                    {item.notes && <p className="text-[10px] font-medium leading-tight opacity-90 text-foreground"><span className="font-bold text-primary">Obs:</span> {item.notes}</p>}
+                    {setEditingItemNotesId && (
+                      <Button variant="outline" size="sm" className="h-6 text-[10px] px-2 w-fit bg-muted/60 border-muted-foreground/30 hover:bg-muted" onClick={() => setEditingItemNotesId(item.id)}>
+                        <FileEdit className="h-3 w-3 mr-1" /> {item.notes ? 'Editar' : 'Anotações'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-col items-end shrink-0 justify-between h-full gap-2">
                   <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive/80 hover:text-destructive opacity-50 hover:opacity-100" onClick={() => handleProtectedRemove(item.id)}>
@@ -719,7 +755,22 @@ function CartContent({
             <p className="text-lg font-bold text-primary leading-none">R$ {fmt(total)}</p>
           </div>
         </div>
-        {orderType === 'balcao' ? (
+        {isMobile && tableNumber ? (
+          <div className="grid grid-cols-4 gap-2 pt-2">
+            <Button variant="outline" className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-background border-muted-foreground/20 text-foreground" onClick={() => { window.location.href = '/'; }}>
+              <ArrowLeft className="h-4 w-4" /> VOLTAR
+            </Button>
+            <Button className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+              <Printer className="h-4 w-4" /> FECHAR
+            </Button>
+            <Button className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#673AB7] hover:bg-[#512DA8] text-white" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+              <span className="text-lg font-black leading-none">$</span> PAGAR
+            </Button>
+            <Button className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#2196F3] hover:bg-[#1976D2] text-white" onClick={onAddNewItem}>
+              <Plus className="h-5 w-5" /> NOVO
+            </Button>
+          </div>
+        ) : orderType === 'balcao' ? (
           <div className="grid grid-cols-2 gap-1.5">
             <Button variant="destructive" className="h-8 text-[11px] font-semibold" onClick={handleProtectedCancel} disabled={cart.length === 0}>
               <X className="h-3.5 w-3.5 mr-1" /> Cancelar
