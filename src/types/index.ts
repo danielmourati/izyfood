@@ -34,6 +34,7 @@ export interface OrderItem {
   subtotal: number;
   addedBy?: string;
   addedByName?: string;
+  notes?: string;
 }
 
 export interface Order {
