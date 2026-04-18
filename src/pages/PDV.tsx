@@ -48,6 +48,8 @@ const PDV = () => {
   const [activeCategoryId, setActiveCategoryId] = useState<string>('all');
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('balcao');
+  const [mobileView, setMobileView] = useState<'categories' | 'products' | 'cart'>('categories');
+  const [mobileLastAddedId, setMobileLastAddedId] = useState<string | null>(null);
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState<string>(() => crypto.randomUUID());
@@ -106,6 +108,10 @@ const PDV = () => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType, resolveCustomer]);
 
+  const updateItemNote = (id: string, note: string) => {
+    setCart(prev => prev.map(i => i.id === id ? { ...i, notes: note } : i));
+  };
+
   const filteredProducts = useMemo(() => {
     let list = activeCategoryId === 'all' ? products : products.filter(p => p.categoryId === activeCategoryId);
     if (searchQuery.trim()) {
@@ -130,19 +136,22 @@ const PDV = () => {
       setWeightModal({ open: true, product });
       return;
     }
-    setCart(prev => {
-      const existing = prev.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id);
-      if (existing) {
-        return prev.map(i => i.id === existing.id
-          ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.price }
-          : i
-        );
-      }
-      return [...prev, {
-        id: crypto.randomUUID(), productId: product.id, name: product.name, price: product.price,
+
+    const existing = cart.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id);
+    if (existing) {
+      setMobileLastAddedId(existing.id);
+      setCart(prev => prev.map(i => i.id === existing.id
+        ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.price }
+        : i
+      ));
+    } else {
+      const newId = crypto.randomUUID();
+      setMobileLastAddedId(newId);
+      setCart(prev => [...prev, {
+        id: newId, productId: product.id, name: product.name, price: product.price,
         quantity: 1, subtotal: product.price, addedBy: user?.id, addedByName: user?.name,
-      }];
-    });
+      }]);
+    }
   };
 
   const addWeightItem = (weight: number) => {
@@ -161,7 +170,10 @@ const PDV = () => {
     }));
   };
 
-  const removeItem = (id: string) => setCart(prev => prev.filter(i => i.id !== id));
+  const removeItem = (id: string) => {
+    setCart(prev => prev.filter(i => i.id !== id));
+    if (mobileLastAddedId === id) setMobileLastAddedId(null);
+  };
 
   const cancelOrder = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -252,114 +264,200 @@ const PDV = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)]">
-      <div className="flex flex-1 overflow-hidden">
-        {/* Main product area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Top bar */}
-          <div className="px-4 pt-4 pb-2 space-y-3">
-            {tableNumber && (
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" onClick={() => {
-                  if (cart.length === 0 && pedidoParam) {
-                    setTables(prev => prev.map(t =>
-                      t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
-                    ));
-                    setOrders(prev => prev.filter(o => o.id !== pedidoParam));
-                  }
-                  navigate('/');
-                }}>
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <h2 className="text-lg font-bold text-foreground">Mesa {tableNumber}</h2>
-              </div>
-            )}
+    <>
+      <div className="hidden lg:flex flex-col h-[calc(100vh-3rem)]">
+        <div className="flex flex-1 overflow-hidden">
+          {/* Main product area */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Top bar */}
+            <div className="px-4 pt-4 pb-2 space-y-3">
+              {tableNumber && (
+                <div className="flex items-center gap-3">
+                  <Button variant="ghost" size="icon" onClick={() => {
+                    if (cart.length === 0 && pedidoParam) {
+                      setTables(prev => prev.map(t =>
+                        t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
+                      ));
+                      setOrders(prev => prev.filter(o => o.id !== pedidoParam));
+                    }
+                    navigate('/');
+                  }}>
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                  <h2 className="text-lg font-bold text-foreground">Mesa {tableNumber}</h2>
+                </div>
+              )}
 
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar produtos..."
-                className="pl-10 h-10 bg-card"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar produtos..."
+                  className="pl-10 h-10 bg-card"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              {/* Category bar */}
+              <CategoryBar
+                categories={categories}
+                activeCategoryId={activeCategoryId}
+                onSelect={setActiveCategoryId}
+
               />
             </div>
 
-            {/* Category bar */}
-            <CategoryBar
-              categories={categories}
-              activeCategoryId={activeCategoryId}
-              onSelect={setActiveCategoryId}
-
-            />
+            {/* Product grid */}
+            <div className="flex-1 overflow-auto px-4 pb-4">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2">
+                {filteredProducts.map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    category={getCategoryById(product.categoryId)}
+                    onAdd={addToCart}
+                  />
+                ))}
+              </div>
+              {filteredProducts.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                  <Search className="h-12 w-12 mb-2 opacity-30" />
+                  <p className="text-sm">Nenhum produto encontrado</p>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Product grid */}
-          <div className="flex-1 overflow-auto px-4 pb-4">
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2">
-              {filteredProducts.map(product => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  category={getCategoryById(product.categoryId)}
-                  onAdd={addToCart}
-                />
+          {/* Cart panel - desktop */}
+          <div className="w-80 xl:w-96 border-l bg-card flex-col flex">
+            <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
+              updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
+              tables={tables} onSelectTable={(t) => handleSelectTable(t)}
+              selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
+              onPrintOrder={handlePrintOrder} updateItemNote={updateItemNote} />
+          </div>
+        </div>
+      </div>
+
+      {/* --- MOBILE LAYOUT --- */}
+      <div className="flex lg:hidden flex-col h-[calc(100vh-4rem)] bg-background">
+        {mobileView === 'categories' && (
+          <div className="flex-1 overflow-auto p-4 flex flex-col gap-4">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-2xl font-black text-foreground drop-shadow-sm">Categorias</h2>
+              {tableNumber && <Badge variant="secondary" className="text-xs uppercase bg-primary text-primary-foreground font-bold">Mesa {tableNumber}</Badge>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pb-8">
+              {categories.map((cat, idx) => (
+                <Button key={cat.id}
+                  variant="default"
+                  className="h-28 flex flex-col items-center justify-center gap-2 rounded-2xl text-lg relative font-bold shadow-md active:scale-95 transition-all text-white hover:bg-primary/95"
+                  style={{ backgroundColor: idx % 2 === 0 ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.85)' }}
+                  onClick={() => {
+                    setActiveCategoryId(cat.id);
+                    setMobileView('products');
+                  }}>
+                  {cat.name}
+                </Button>
               ))}
             </div>
-            {filteredProducts.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                <Search className="h-12 w-12 mb-2 opacity-30" />
-                <p className="text-sm">Nenhum produto encontrado</p>
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
-        {/* Cart panel - desktop */}
-        <div className="hidden lg:flex w-80 xl:w-96 border-l bg-card flex-col">
-          <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
-            updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
-            tables={tables} onSelectTable={(t) => handleSelectTable(t)}
-            selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
-            onPrintOrder={handlePrintOrder} />
-        </div>
-      </div>
-
-      {/* Mobile cart FAB */}
-      <div className="lg:hidden fixed bottom-4 right-4 z-50">
-        <Button size="lg" className="h-14 w-14 rounded-full shadow-lg relative" onClick={() => setShowCart(true)}>
-          <ShoppingCart className="h-6 w-6" />
-          {cart.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-              {cart.length}
-            </span>
-          )}
-        </Button>
-      </div>
-
-      {/* Mobile cart drawer */}
-      {showCart && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCart(false)} />
-          <div className="ml-auto w-full max-w-sm bg-card flex flex-col relative z-10 animate-in slide-in-from-right">
-            <div className="flex items-center justify-between p-3 border-b">
-              <span className="font-semibold text-foreground">Carrinho</span>
-              <Button variant="ghost" size="icon" onClick={() => setShowCart(false)}>
-                <X className="h-5 w-5" />
+        {mobileView === 'products' && (
+          <div className="flex-1 flex flex-col overflow-hidden relative bg-card">
+            <div className="flex items-center gap-2 p-3 border-b bg-card shrink-0 shadow-sm z-10">
+              <Button variant="ghost" size="icon" onClick={() => setMobileView('categories')}>
+                <ArrowLeft className="h-5 w-5" />
               </Button>
+              <h2 className="text-lg font-bold truncate">
+                {activeCategoryId === 'all' ? 'Todos os Produtos' : getCategoryById(activeCategoryId)?.name}
+              </h2>
             </div>
-            <CartContent cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
-              updateQty={updateQty} removeItem={removeItem}
-              cancelOrder={() => { cancelOrder(); setShowCart(false); }}
-              holdOrder={() => { holdOrder(); setShowCart(false); }}
-              setCheckoutOpen={(v) => { setCheckoutOpen(v); setShowCart(false); }}
-              tables={tables} onSelectTable={(t) => { setShowCart(false); handleSelectTable(t); }}
-              selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
-              onPrintOrder={handlePrintOrder} />
+
+            <div className="flex-1 overflow-auto px-3 py-3 pb-40 bg-muted/10">
+              <div className="grid grid-cols-2 gap-3">
+                {filteredProducts.map(product => (
+                  <ProductCard key={product.id} product={product} category={getCategoryById(product.categoryId)} onAdd={addToCart} />
+                ))}
+              </div>
+            </div>
+
+            {/* Mobile Action Bar Overlay */}
+            <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col">
+              {mobileLastAddedId && (() => {
+                const lastItem = cart.find(i => i.id === mobileLastAddedId);
+                if (lastItem) return (
+                  <div className="bg-primary p-3 flex flex-col gap-3 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.2)]">
+                    <div className="flex justify-between items-center text-primary-foreground">
+                      <div className="flex items-center gap-1 font-bold">
+                        <span className="truncate max-w-[180px]">{lastItem.name}</span>
+                        <span>R$ {fmt(lastItem.price)}</span>
+                      </div>
+                      <Badge variant="secondary" className="font-bold">x{lastItem.quantity}</Badge>
+                    </div>
+                    <div className="flex items-stretch gap-2 h-10">
+                      <Button variant="secondary" className="flex-1 font-bold text-lg" onClick={() => updateQty(lastItem.id, 1)}><Plus className="h-4 w-4" /></Button>
+                      <Button variant="secondary" className="flex-1 font-bold text-lg" onClick={() => updateQty(lastItem.id, -1)} disabled={lastItem.quantity <= 1}><Minus className="h-4 w-4" /></Button>
+                      <Button variant="destructive" className="w-12 shrink-0 font-bold" onClick={() => removeItem(lastItem.id)}><Trash2 className="h-4 w-4" /></Button>
+                      <div className="flex-[2]">
+                        <Input
+                          value={lastItem.notes || ''}
+                          onChange={e => updateItemNote(lastItem.id, e.target.value)}
+                          placeholder="Notas da cozinha..."
+                          className="h-full text-[11px] text-foreground bg-primary-foreground/95 border-0 focus-visible:ring-1 focus-visible:ring-primary-foreground"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+                return null;
+              })()}
+
+              <div className="flex bg-card p-3 gap-2 border-t mt-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                <Button variant="outline" className="flex-1 h-12 flex items-center justify-center font-bold text-xs bg-muted/30" onClick={() => setMobileView('categories')}>
+                  <ArrowLeft className="h-4 w-4 mr-1" /> VOLTAR
+                </Button>
+                <Button className="flex-[2] h-12 flex items-center justify-center font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white relative overflow-hidden shadow-sm" onClick={() => setMobileView('cart')}>
+                  <span className="flex items-center gap-1">REVISAR <ShoppingCart className="h-4 w-4 ml-1.5" /></span>
+                  {cart.length > 0 && (
+                    <span className="bg-emerald-800 text-white text-[10px] rounded-full px-2 py-0.5 ml-2 shadow-sm font-bold">
+                      R$ {fmt(total)}
+                    </span>
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {mobileView === 'cart' && (
+          <div className="flex flex-col h-full bg-card">
+            <div className="flex items-center justify-between p-3 border-b shadow-sm z-10 shrink-0">
+              <Button variant="ghost" size="icon" onClick={() => setMobileView('products')}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <span className="font-semibold text-lg flex-1 text-center pr-8">
+                {tableNumber ? `Mesa ${tableNumber}` : 'Revisar Pedido'}
+              </span>
+            </div>
+            <div className="flex-1 flex flex-col overflow-hidden bg-muted/10 pb-16">
+              <CartContent
+                cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
+                updateQty={updateQty} removeItem={removeItem}
+                cancelOrder={() => { cancelOrder(); setMobileView('categories'); }}
+                holdOrder={() => { holdOrder(); setMobileView('categories'); }}
+                setCheckoutOpen={(v) => { setCheckoutOpen(v); }}
+                tables={tables} onSelectTable={(t) => { handleSelectTable(t); }}
+                selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
+                onPrintOrder={handlePrintOrder} updateItemNote={updateItemNote}
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
       <WeightModal open={weightModal.open} onClose={() => setWeightModal({ open: false, product: null })}
         productName={weightModal.product?.name || ''} pricePerKg={weightModal.product?.price || 0} onConfirm={addWeightItem} />
@@ -372,7 +470,7 @@ const PDV = () => {
           if (isDeliveryOrPickup) { navigate('/entregas'); }
           else if (tableNumber) { navigate('/'); }
         }} />
-    </div>
+    </>
   );
 };
 
@@ -380,7 +478,7 @@ const PDV = () => {
 
 function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
-  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder
+  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, updateItemNote
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
@@ -389,6 +487,7 @@ function CartContent({
   selectedCustomerId: string | null; onSelectCustomer: (id: string | null) => void;
   isHeldMesa: boolean;
   onPrintOrder?: () => void;
+  updateItemNote?: (id: string, note: string) => void;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
@@ -580,6 +679,14 @@ function CartContent({
                     <p className="text-[10px] text-muted-foreground leading-none mt-1">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>
                   ) : null}
                   {item.addedByName && <p className="text-[9px] text-muted-foreground opacity-70 mt-0.5">por {item.addedByName}</p>}
+                  {updateItemNote && (
+                    <Input
+                      value={item.notes || ''}
+                      onChange={e => updateItemNote(item.id, e.target.value)}
+                      placeholder="Observações do item..."
+                      className="h-6 text-[10px] mt-1 px-1.5 bg-background border-dashed focus-visible:ring-1"
+                    />
+                  )}
                 </div>
                 <div className="flex flex-col items-end shrink-0 justify-between h-full gap-2">
                   <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive/80 hover:text-destructive opacity-50 hover:opacity-100" onClick={() => handleProtectedRemove(item.id)}>

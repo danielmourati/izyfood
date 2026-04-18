@@ -131,7 +131,11 @@ const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX'
 function buildOrderHtml(order: any): string {
   const items = (order.items || []).map((i: any) => {
     const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}x`;
-    return `<p>${qty} ${i.name}</p>`;
+    let html = `<p>${qty} ${i.name}</p>`;
+    if (i.notes) {
+      html += `<p style="margin: -6px 0 6px 12px; font-size: 11px; font-weight: bold;">[Obs: ${i.notes}]</p>`;
+    }
+    return html;
   }).join('');
   return `
     <div class="big">COMANDA</div>

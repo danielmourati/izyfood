@@ -4,7 +4,7 @@
  */
 
 const ESC = 0x1B;
-const GS  = 0x1D;
+const GS = 0x1D;
 
 // ---------- low-level helpers ----------
 
@@ -28,21 +28,21 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 // ---------- ESC/POS command builders ----------
 
 /** Initialise printer */
-export const CMD_INIT   = new Uint8Array([ESC, 0x40]);
+export const CMD_INIT = new Uint8Array([ESC, 0x40]);
 /** Line feed */
-export const CMD_LF     = new Uint8Array([0x0A]);
+export const CMD_LF = new Uint8Array([0x0A]);
 /** Bold on */
-export const CMD_BOLD_ON  = new Uint8Array([ESC, 0x45, 0x01]);
+export const CMD_BOLD_ON = new Uint8Array([ESC, 0x45, 0x01]);
 /** Bold off */
 export const CMD_BOLD_OFF = new Uint8Array([ESC, 0x45, 0x00]);
 /** Align left */
-export const CMD_ALIGN_LEFT   = new Uint8Array([ESC, 0x61, 0x00]);
+export const CMD_ALIGN_LEFT = new Uint8Array([ESC, 0x61, 0x00]);
 /** Align center */
 export const CMD_ALIGN_CENTER = new Uint8Array([ESC, 0x61, 0x01]);
 /** Align right */
-export const CMD_ALIGN_RIGHT  = new Uint8Array([ESC, 0x61, 0x02]);
+export const CMD_ALIGN_RIGHT = new Uint8Array([ESC, 0x61, 0x02]);
 /** Double height on */
-export const CMD_DOUBLE_ON  = new Uint8Array([GS, 0x21, 0x11]);
+export const CMD_DOUBLE_ON = new Uint8Array([GS, 0x21, 0x11]);
 /** Double height off */
 export const CMD_DOUBLE_OFF = new Uint8Array([GS, 0x21, 0x00]);
 /** Full cut */
@@ -92,6 +92,7 @@ interface OrderItem {
   weight?: number;
   price: number;
   subtotal: number;
+  notes?: string;
 }
 
 interface OrderData {
@@ -177,6 +178,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array
   for (const item of order.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     parts.push(text(`${qty} ${item.name}\n`));
+    if (item.notes) parts.push(text(`  [Obs: ${item.notes}]\n`));
   }
 
   parts.push(lineOf('=', cols));
