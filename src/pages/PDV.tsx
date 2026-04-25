@@ -257,7 +257,7 @@ const PDV = () => {
     navigate(`/pdv?mesa=${table.number}&pedido=${orderId}`);
   };
 
-  const holdOrder = () => {
+  const holdOrder = (shouldRedirect = true) => {
     if (cart.length === 0) return;
     const orderId = pedidoParam || currentOrderId;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -285,7 +285,7 @@ const PDV = () => {
     setCart([]);
     setSelectedCustomerId(null);
     setCurrentOrderId(crypto.randomUUID());
-    if (tableNumber) navigate('/');
+    if (tableNumber && shouldRedirect) navigate('/');
   };
 
   const isHeldMesa = !!(existingOrder && existingOrder.orderType === 'mesa' && (existingOrder.status === 'segurado' || (existingOrder.status === 'aberto' && existingOrder.items.length > 0)));
@@ -458,16 +458,10 @@ const PDV = () => {
           <div className="flex-1 overflow-auto p-4 flex flex-col gap-4">
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="-ml-2 shrink-0" onClick={() => navigate('/')}>
-                  <ArrowLeft className="h-6 w-6" />
-                </Button>
                 <h2 className="text-2xl font-black text-foreground drop-shadow-sm">Categorias</h2>
               </div>
               <div className="flex items-center gap-2">
                 {tableNumber && <Badge variant="secondary" className="text-xs uppercase bg-primary text-primary-foreground font-bold">Mesa {tableNumber}</Badge>}
-                <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => navigate('/')} title="Ver todas as mesas">
-                  <span className="text-base leading-none">⊞</span>
-                </Button>
               </div>
             </div>
 
@@ -484,6 +478,24 @@ const PDV = () => {
                   {cat.name}
                 </Button>
               ))}
+            </div>
+
+            {/* Footer Categorias */}
+            <div className="mt-auto border-t bg-card p-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] shrink-0 pb-safe">
+              <div className="flex gap-3 h-16">
+                <Button variant="outline" className="flex-1 h-full flex flex-col items-center justify-center font-bold text-xs bg-background border-muted-foreground/20 text-foreground shadow-sm" onClick={() => navigate('/')}>
+                  <ArrowLeft className="h-6 w-6 mb-0.5" /> VOLTAR
+                </Button>
+                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-[#4CAF50] hover:bg-[#388E3C] text-white relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
+                  <ShoppingCart className="h-5 w-5 mb-0.5 opacity-90" />
+                  <span className="flex items-center">
+                    REVISAR
+                    {cart.length > 0 && (
+                      <span className="font-extrabold ml-1.5 opacity-95 text-sm">R$ {fmt(total)}</span>
+                    )}
+                  </span>
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -572,16 +584,13 @@ const PDV = () => {
               <span className="font-semibold text-lg flex-1 text-center">
                 {tableNumber ? `Mesa ${tableNumber}` : 'Revisar Pedido'}
               </span>
-              <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate('/')} title="Ver mesas">
-                <span className="text-base leading-none">⊞</span>
-              </Button>
             </div>
             <div className="flex-1 flex flex-col overflow-hidden bg-muted/10 pb-16">
               <CartContent
                 cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
                 updateQty={updateQty} removeItem={removeItem}
                 cancelOrder={() => { cancelOrder(); setMobileView('categories'); }}
-                holdOrder={() => { holdOrder(); setMobileView('categories'); }}
+                holdOrder={() => { holdOrder(false); setMobileView('categories'); }}
                 setCheckoutOpen={(v) => { setCheckoutOpen(v); }}
                 tables={tables} onSelectTable={(t) => { handleSelectTable(t); }}
                 selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
@@ -804,11 +813,11 @@ function CartContent({
       {isMobile && tableNumber && (
         <div className="px-3 py-3 bg-white border-b shrink-0 flex flex-col gap-1.5 shadow-sm">
           {customerObj && (
-            <p className="text-[13px] font-medium text-muted-foreground leading-tight">
+            <p className="text-[16px] font-medium text-muted-foreground leading-tight">
               Cliente: {customerObj.name} {customerObj.phone ? `(${customerObj.phone})` : ''}
             </p>
           )}
-          <p className="text-[14px] font-medium text-foreground mt-1">
+          <p className="text-[18px] font-medium text-foreground mt-1">
             <span className="font-bold border-b-2 border-primary/20 pb-0.5">Itens</span>
           </p>
         </div>
@@ -827,39 +836,39 @@ function CartContent({
               <div className="flex justify-between items-start">
                 <div className="flex-1 min-w-0 pr-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-semibold text-xs text-foreground leading-tight">{item.name}</span>
-                    {item.printed && <Printer className="h-3 w-3 text-muted-foreground ml-1" title="Impresso/Enviado" />}
+                    <span className="font-bold text-[16px] text-foreground leading-tight">{item.name}</span>
+                    {item.printed && <Printer className="h-4 w-4 text-muted-foreground ml-1" title="Impresso/Enviado" />}
                     {eligible && selectedCustomerId && (
-                      <Badge variant="outline" className="text-[8px] text-primary px-1 py-0 leading-none h-3 border-primary/30">
-                        <Star className="h-2 w-2 mr-0.5" />+1
+                      <Badge variant="outline" className="text-[10px] text-primary px-1 py-0 leading-none h-4 border-primary/30">
+                        <Star className="h-2.5 w-2.5 mr-0.5" />+1
                       </Badge>
                     )}
                   </div>
                   {item.weight ? (
-                    <p className="text-[10px] text-muted-foreground leading-none mt-1">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>
+                    <p className="text-[14px] text-muted-foreground leading-none mt-1">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>
                   ) : null}
-                  {item.addedByName && <p className="text-[9px] text-muted-foreground opacity-70 mt-0.5">por {item.addedByName}</p>}
+                  {item.addedByName && <p className="text-[12px] text-muted-foreground opacity-70 mt-0.5">por {item.addedByName}</p>}
                   <div className="mt-1.5 flex flex-col items-start gap-1">
-                    {item.notes && <p className="text-[10px] font-medium leading-tight opacity-90 text-foreground"><span className="font-bold text-primary">Obs:</span> {item.notes}</p>}
+                    {item.notes && <p className="text-[14px] font-medium leading-tight opacity-90 text-foreground"><span className="font-bold text-primary">Obs:</span> {item.notes}</p>}
                     {setEditingItemNotesId && (
-                      <Button variant="outline" size="sm" className="h-6 text-[10px] px-2 w-fit bg-muted/60 border-muted-foreground/30 hover:bg-muted" onClick={() => setEditingItemNotesId(item.id)}>
-                        <FileEdit className="h-3 w-3 mr-1" /> {item.notes ? 'Editar' : 'Anotações'}
+                      <Button variant="outline" size="sm" className="h-8 text-[12px] px-3 w-fit bg-muted/60 border-muted-foreground/30 hover:bg-muted" onClick={() => setEditingItemNotesId(item.id)}>
+                        <FileEdit className="h-3.5 w-3.5 mr-1" /> {item.notes ? 'Editar' : 'Anotações'}
                       </Button>
                     )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end shrink-0 justify-between h-full gap-2">
-                  <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive/80 hover:text-destructive opacity-50 hover:opacity-100" onClick={() => handleProtectedRemove(item.id)}>
-                    <Trash2 className="h-3 w-3" />
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/80 hover:text-destructive opacity-50 hover:opacity-100" onClick={() => handleProtectedRemove(item.id)}>
+                    <Trash2 className="h-4 w-4" />
                   </Button>
-                  <span className="font-bold text-xs text-primary leading-none">R$ {fmt(item.subtotal)}</span>
+                  <span className="font-bold text-[16px] text-primary leading-none">R$ {fmt(item.subtotal)}</span>
                 </div>
               </div>
               {!item.weight && (
-                <div className="flex items-center gap-0.5 self-start mt-1 bg-muted/30 rounded-md p-0.5">
-                  <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-background shadow-sm rounded-sm" onClick={() => updateQty(item.id, -1)}><Minus className="h-2.5 w-2.5" /></Button>
-                  <span className="w-6 text-center font-bold text-[11px]">{item.quantity}</span>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-background shadow-sm rounded-sm" onClick={() => updateQty(item.id, 1)}><Plus className="h-2.5 w-2.5" /></Button>
+                <div className="flex items-center gap-1 self-start mt-1 bg-muted/30 rounded-md p-1">
+                  <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-background shadow-sm rounded-sm" onClick={() => updateQty(item.id, -1)}><Minus className="h-3.5 w-3.5" /></Button>
+                  <span className="w-8 text-center font-bold text-[16px]">{item.quantity}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-background shadow-sm rounded-sm" onClick={() => updateQty(item.id, 1)}><Plus className="h-3.5 w-3.5" /></Button>
                 </div>
               )}
             </div>
@@ -871,12 +880,12 @@ function CartContent({
       <div className="border-t p-2 space-y-2 bg-card">
         <div className="flex justify-between items-end px-1">
           <div className="flex flex-col">
-            <span className="text-[10px] font-medium text-muted-foreground leading-none">Subtotal</span>
-            <span className="text-sm font-bold text-foreground">R$ {fmt(total)}</span>
+            <span className="text-[12px] font-medium text-muted-foreground leading-none">Subtotal</span>
+            <span className="text-lg font-bold text-foreground">R$ {fmt(total)}</span>
           </div>
           <div className="text-right">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground opacity-60 leading-none">Total</span>
-            <p className="text-lg font-bold text-primary leading-none">R$ {fmt(total)}</p>
+            <span className="text-[12px] uppercase font-bold text-muted-foreground opacity-60 leading-none">Total</span>
+            <p className="text-2xl font-bold text-primary leading-none">R$ {fmt(total)}</p>
           </div>
         </div>
         {isMobile && tableNumber ? (
