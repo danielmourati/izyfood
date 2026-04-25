@@ -4,14 +4,16 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// Common Bluetooth SPP / thermal printer service UUIDs
 const PRINTER_SERVICE_UUIDS = [
   '000018f0-0000-1000-8000-00805f9b34fb', // common thermal
+  '0000ff00-0000-1000-8000-00805f9b34fb', // common BLE
   '49535343-fe7d-4ae5-8fa9-9fafd205e455', // common BLE serial
+  'e7e11001-49d2-4d03-8012-1081a571b052', // common SPP
 ];
 
 const PRINTER_CHAR_UUIDS = [
   '00002af1-0000-1000-8000-00805f9b34fb',
+  '0000ff02-0000-1000-8000-00805f9b34fb',
   '49535343-8841-43f4-a8d4-ecbe34729bb3',
 ];
 
@@ -48,15 +50,18 @@ export async function connectBluetooth(): Promise<string> {
     }
   }
 
-  const device: any = await bt.requestDevice({
-    filters: PRINTER_SERVICE_UUIDS.map(uuid => ({ services: [uuid] })),
-    optionalServices: PRINTER_SERVICE_UUIDS,
-  }).catch(() => {
-    return bt.requestDevice({
+  let device: any;
+  try {
+    device = await bt.requestDevice({
+      filters: PRINTER_SERVICE_UUIDS.map(uuid => ({ services: [uuid] })),
+      optionalServices: PRINTER_SERVICE_UUIDS,
+    });
+  } catch {
+    device = await bt.requestDevice({
       acceptAllDevices: true,
       optionalServices: PRINTER_SERVICE_UUIDS,
     });
-  });
+  }
 
   return _connectToDevice(device);
 }
@@ -139,21 +144,33 @@ export async function printViaBluetooth(data: Uint8Array): Promise<void> {
  */
 export function printViaHtmlFallback(htmlContent: string, title = 'Impressão'): void {
   const win = window.open('', '_blank', 'width=320,height=600');
-  if (!win) return;
+  if (!win) {
+    alert('Por favor, permita popups para imprimir.');
+    return;
+  }
   win.document.write(`
     <html><head><title>${title}</title>
     <style>
-      body { font-family: 'Courier New', monospace; font-size: 12px; margin: 0; padding: 16px; width: 280px; }
-      .line { border-top: 1px dashed #000; margin: 6px 0; }
+      body { font-family: 'Courier New', monospace; font-size: 14px; margin: 0; padding: 10px; width: 100%; box-sizing: border-box; }
+      .line { border-top: 1px dashed #000; margin: 6px 0; width: 100%; }
       .center { text-align: center; }
-      .row { display: flex; justify-content: space-between; }
+      .row { display: flex; justify-content: space-between; gap: 4px; }
       .bold { font-weight: bold; }
-      .big { font-size: 16px; font-weight: bold; text-align: center; }
-      @media print { body { width: auto; } }
+      .big { font-size: 18px; font-weight: bold; text-align: center; margin: 10px 0; }
+      .mb-1 { margin-bottom: 4px; }
+      @media print { 
+        body { width: 300px; padding: 0; }
+        @page { margin: 0; }
+      }
     </style></head><body>${htmlContent}</body></html>
   `);
   win.document.close();
   win.focus();
-  win.print();
-  win.close();
+  
+  // Use a delay to ensure document is parsed and images/styles are ready
+  setTimeout(() => {
+    win.print();
+    // On some mobiles, closing immediately cancels print
+    setTimeout(() => win.close(), 500);
+  }, 500);
 }

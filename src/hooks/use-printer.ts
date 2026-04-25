@@ -132,61 +132,69 @@ const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX'
 
 function buildOrderHtml(order: any): string {
   const items = (order.items || []).map((i: any) => {
-    const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
-    let html = `<p class="bold mb-1">${qty} ${i.name}</p>`;
+    const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
+    let html = `<p class="bold mb-1">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
     if (i.notes) {
-      html += `<p style="margin: -2px 0 8px 12px; font-size: 11px;">*${i.notes}</p>`;
+      html += `<p style="margin: -2px 0 8px 12px; font-size: 12px; font-style: italic;">* ${i.notes}</p>`;
     } else {
-      html += `<div style="height: 8px;"></div>`;
+      html += `<div style="height: 4px;"></div>`;
     }
     return html;
   }).join('');
   
   const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
   const comanda = order.tableNumber ? String(order.tableNumber).padStart(3, '0') : 'BALCÃO';
+  const createdAt = order.createdAt || new Date().toISOString();
 
   return `
-    <div class="center" style="font-size: 14px; margin-bottom: 12px;">Cozinha Principal</div>
-    <div style="margin-bottom: 12px;">${fmtDate(order.createdAt)} Pedido No: ${orderNo}</div>
-    <div class="center" style="margin-bottom: 4px;">* Cod. Pers./Senha: ${orderNo} *</div>
-    <div class="center bold" style="margin-bottom: 16px;">COMANDA: ${comanda}</div>
+    <div class="center" style="font-size: 14px; margin-bottom: 8px;">Cozinha Principal</div>
+    <div style="margin-bottom: 8px;">${fmtDate(createdAt)} | Pedido: ${orderNo}</div>
+    <div class="center" style="margin-bottom: 4px; font-size: 12px;">* Senha: ${orderNo} *</div>
+    <div class="center bold" style="font-size: 20px; border: 1px solid #000; padding: 4px; margin: 10px 0;">COMANDA: ${comanda}</div>
     
-    <div style="margin-bottom: 16px;">${order.customerName ? order.customerName : 'Sem Nome'}</div>
+    <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 4px;">Cliente: <strong>${order.customerName || 'Sem Nome'}</strong></div>
     
-    ${items}
+    <div style="margin-top: 10px;">
+      ${items || '<p class="center">Nenhum item</p>'}
+    </div>
     
-    <div style="margin-top: 16px;">Atendente do Pedido:<br/>${order.operatorName || 'Não informado'}</div>
+    <div class="line" style="margin-top: 20px;"></div>
+    <div style="margin-top: 8px; font-size: 11px; color: #444;">Atendente: ${order.operatorName || 'Não informado'}</div>
   `;
 }
 
 function buildBillHtml(bill: any): string {
   const items = (bill.items || []).map((i: any) => {
     const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}x`;
-    return `<div class="row"><span>${qty} ${i.name}</span><span>${fmtBRL(i.subtotal)}</span></div>`;
+    return `<div class="row"><span>${qty} ${i.name || 'Item'}</span><span>${fmtBRL(i.subtotal || 0)}</span></div>`;
   }).join('');
 
   let payments = '';
   if (bill.paymentSplits?.length) {
     payments = bill.paymentSplits.map((s: any) =>
-      `<div class="row"><span>${paymentLabels[s.method] || s.method}</span><span>${fmtBRL(s.amount)}</span></div>`
+      `<div class="row"><span>${paymentLabels[s.method] || s.method}</span><span>${fmtBRL(s.amount || 0)}</span></div>`
     ).join('');
   } else if (bill.paymentMethod) {
     payments = `<div class="row"><span>Pgto:</span><span>${paymentLabels[bill.paymentMethod] || bill.paymentMethod}</span></div>`;
   }
 
+  const createdAt = bill.createdAt || new Date().toISOString();
+
   return `
-    <div class="big">CONTA</div>
+    <div class="big">RESUMO DA CONTA</div>
     <div class="line"></div>
     ${bill.tableNumber ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber}</span></div>` : ''}
-    ${bill.customerName ? `<div class="row"><span>Cliente:</span><span>${bill.customerName}</span></div>` : ''}
-    <div class="row"><span>Data:</span><span>${fmtDate(bill.createdAt)}</span></div>
+    <div class="row"><span>Cliente:</span><span>${bill.customerName || 'Consumidor'}</span></div>
+    <div class="row"><span>Data:</span><span>${fmtDate(createdAt)}</span></div>
     <div class="line"></div>
-    ${items}
+    <div style="margin: 10px 0;">
+      ${items || '<p class="center">Nenhum item</p>'}
+    </div>
     <div class="line"></div>
-    <div class="row bold"><span>TOTAL</span><span>${fmtBRL(bill.total)}</span></div>
-    ${payments ? `<div class="line"></div><p class="bold">PAGAMENTO:</p>${payments}` : ''}
-    <div class="line"></div>
-    <p class="center">Obrigado pela preferência!</p>
+    <div class="row bold" style="font-size: 16px;"><span>TOTAL</span><span>${fmtBRL(bill.total || 0)}</span></div>
+    ${payments ? `<div class="line" style="margin-top:10px;"></div><p class="bold">PAGAMENTO:</p>${payments}` : ''}
+    <div class="line" style="margin-top: 20px;"></div>
+    <p class="center" style="font-size: 12px; margin-top: 10px;">Obrigado pela preferência!</p>
   `;
 }
 
