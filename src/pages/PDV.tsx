@@ -52,7 +52,6 @@ const PDV = () => {
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('balcao');
   const [mobileView, setMobileView] = useState<'categories' | 'products' | 'cart'>('categories');
-  const [mobileLastAddedId, setMobileLastAddedId] = useState<string | null>(null);
   const [editingItemNotesId, setEditingItemNotesId] = useState<string | null>(null);
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -167,7 +166,6 @@ const PDV = () => {
 
     const existing = cart.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id);
     if (existing) {
-      setMobileLastAddedId(existing.id);
       setCart(prev => prev.map(i => {
         if (i.id === existing.id) {
           const compsTotal = (i.selectedComplements || []).reduce((a, c) => a + c.price * c.quantity, 0);
@@ -175,13 +173,14 @@ const PDV = () => {
         }
         return i;
       }));
+      toast.success(`+1 ${product.name}`);
     } else {
       const newId = crypto.randomUUID();
-      setMobileLastAddedId(newId);
       setCart(prev => [...prev, {
         id: newId, productId: product.id, name: product.name, price: product.price,
         quantity: 1, subtotal: product.price, addedBy: user?.id, addedByName: user?.name,
       }]);
+      toast.success(`${product.name} adicionado`);
     }
   };
 
@@ -205,7 +204,6 @@ const PDV = () => {
 
   const removeItem = (id: string) => {
     setCart(prev => prev.filter(i => i.id !== id));
-    if (mobileLastAddedId === id) setMobileLastAddedId(null);
   };
 
   const cancelOrder = () => {
@@ -311,6 +309,7 @@ const PDV = () => {
       customerName: cust?.name || undefined,
     };
     await printOrder(orderData);
+    setCart(prev => prev.map(i => ({ ...i, printed: true })));
     toast.success('Comanda enviada para impressão!');
   };
 
@@ -367,7 +366,7 @@ const PDV = () => {
 
             {/* Product grid */}
             <div className="flex-1 overflow-auto px-4 pb-4">
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2">
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 xl:grid-cols-9 2xl:grid-cols-11 gap-2">
                 {filteredProducts.map(product => (
                   <ProductCard
                     key={product.id}
@@ -443,8 +442,8 @@ const PDV = () => {
               </Button>
             </div>
 
-            <div className="flex-1 overflow-auto px-3 py-3 pb-40 bg-muted/10">
-              <div className="grid grid-cols-2 gap-3">
+            <div className="flex-1 overflow-auto px-3 py-3 pb-24 bg-muted/10">
+              <div className="grid grid-cols-3 gap-2">
                 {filteredProducts.map(product => (
                   <ProductCard key={product.id} product={product} category={getCategoryById(product.categoryId)} onAdd={addToCart} />
                 ))}
@@ -453,38 +452,11 @@ const PDV = () => {
 
             {/* Mobile Action Bar Overlay */}
             <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col">
-              {mobileLastAddedId && (() => {
-                const lastItem = cart.find(i => i.id === mobileLastAddedId);
-                if (lastItem) return (
-                  <div className="bg-primary p-3 flex flex-col gap-3 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.2)]">
-                    <div className="flex justify-between items-center text-primary-foreground">
-                      <div className="flex items-center gap-1 font-bold">
-                        <span className="truncate max-w-[180px]">{lastItem.name}</span>
-                        <span>R$ {fmt(lastItem.price)}</span>
-                      </div>
-                      <Badge variant="secondary" className="font-bold">x{lastItem.quantity}</Badge>
-                    </div>
-                    <div className="flex items-stretch gap-2 h-10">
-                      <Button variant="secondary" className="flex-1 font-bold text-lg" onClick={() => updateQty(lastItem.id, 1)}><Plus className="h-4 w-4" /></Button>
-                      <Button variant="secondary" className="flex-1 font-bold text-lg" onClick={() => updateQty(lastItem.id, -1)} disabled={lastItem.quantity <= 1}><Minus className="h-4 w-4" /></Button>
-                      <Button variant="destructive" className="w-12 shrink-0 font-bold" onClick={() => removeItem(lastItem.id)}><Trash2 className="h-4 w-4" /></Button>
-                      <div className="flex-[2] flex">
-                        <Button variant="secondary" className="w-full h-full font-bold text-xs flex justify-between bg-white text-primary hover:bg-gray-100" onClick={() => setEditingItemNotesId(lastItem.id)}>
-                          <span className="truncate">{lastItem.notes || 'Notas da cozinha...'}</span>
-                          <FileEdit className="h-4 w-4 ml-1 shrink-0" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-                return null;
-              })()}
-
               <div className="flex bg-card p-3 gap-2 border-t mt-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 <Button variant="outline" className="flex-1 h-12 flex items-center justify-center font-bold text-xs bg-muted/30" onClick={() => setMobileView('categories')}>
                   <ArrowLeft className="h-4 w-4 mr-1" /> VOLTAR
                 </Button>
-                <Button className="flex-[2] h-12 flex items-center justify-center font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white relative overflow-hidden shadow-sm" onClick={() => setMobileView('cart')}>
+                <Button className="flex-[2] h-12 flex items-center justify-center font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white relative overflow-hidden shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
                   <span className="flex items-center gap-1">REVISAR <ShoppingCart className="h-4 w-4 ml-1.5" /></span>
                   {cart.length > 0 && (
                     <span className="bg-emerald-800 text-white text-[10px] rounded-full px-2 py-0.5 ml-2 shadow-sm font-bold">
@@ -762,6 +734,7 @@ function CartContent({
                 <div className="flex-1 min-w-0 pr-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-semibold text-xs text-foreground leading-tight">{item.name}</span>
+                    {item.printed && <Printer className="h-3 w-3 text-muted-foreground ml-1" title="Impresso/Enviado" />}
                     {eligible && selectedCustomerId && (
                       <Badge variant="outline" className="text-[8px] text-primary px-1 py-0 leading-none h-3 border-primary/30">
                         <Star className="h-2 w-2 mr-0.5" />+1
@@ -814,25 +787,25 @@ function CartContent({
         </div>
         {isMobile && tableNumber ? (
           <div className="grid grid-cols-4 gap-2 pt-2">
-            <Button variant="outline" className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-background border-muted-foreground/20 text-foreground" onClick={() => {
+            <Button variant="outline" className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-background border-muted-foreground/20 text-foreground" onClick={() => {
               if (cart.length === 0) cancelOrder();
               else window.location.href = '/';
             }}>
-              <ArrowLeft className="h-4 w-4" /> VOLTAR
+              <ArrowLeft className="h-6 w-6" /> VOLTAR
             </Button>
-            <div className="flex flex-col gap-1.5">
-              <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
-                <Printer className="h-4 w-4" /> FECHAR
+            <div className="flex flex-col gap-1 h-[68px]">
+              <Button className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white h-auto py-1" onClick={() => { if (onPrintOrder) onPrintOrder(); holdOrder(); }} disabled={cart.length === 0}>
+                <Printer className="h-5 w-5" /> ENVIAR
               </Button>
-              <Button variant="ghost" className="h-6 w-full text-[9px] p-0 opacity-80" onClick={() => setMoreOptionsOpen(true)}>
-                <MoreHorizontal className="h-3 w-3 mr-1" /> MAIS
+              <Button variant="secondary" className="h-5 shrink-0 text-[10px] font-bold p-0 rounded border border-border/50 text-foreground" onClick={() => setMoreOptionsOpen(true)}>
+                MAIS
               </Button>
             </div>
-            <Button className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#673AB7] hover:bg-[#512DA8] text-white" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-              <span className="text-lg font-black leading-none">$</span> PAGAR
+            <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#673AB7] hover:bg-[#512DA8] text-white" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+              <span className="text-2xl font-black leading-none">$</span> PAGAR
             </Button>
-            <Button className="h-14 flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#2196F3] hover:bg-[#1976D2] text-white" onClick={onAddNewItem}>
-              <Plus className="h-5 w-5" /> NOVO
+            <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#2196F3] hover:bg-[#1976D2] text-white" onClick={onAddNewItem}>
+              <Plus className="h-6 w-6" /> NOVO
             </Button>
           </div>
         ) : orderType === 'balcao' ? (
@@ -942,6 +915,9 @@ function CartContent({
             <DialogTitle>Mais Opções</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-4">
+            <Button variant="outline" className="flex items-center gap-2 justify-start h-12 text-base font-semibold shadow-sm text-foreground" onClick={() => { setMoreOptionsOpen(false); setTableModalOpen(true); }}>
+              <ArrowLeft className="h-5 w-5" /> Trocar de Mesa
+            </Button>
             <Button variant="destructive" className="flex items-center gap-2 justify-start h-12 text-base font-bold shadow-sm" onClick={handleProtectedDelete}>
               <Trash2 className="h-5 w-5" /> Excluir Pedido
             </Button>
