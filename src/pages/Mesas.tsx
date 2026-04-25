@@ -124,7 +124,7 @@ const Mesas = () => {
             <h2 className="text-xl font-bold text-foreground mb-4 drop-shadow-sm truncate">
               Pedidos em andamento ({occupiedTables.length})
             </h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
               {occupiedTables.map(table => {
                 const order = orders.find(o => o.id === table.orderId);
                 const minutesOpen = order?.createdAt ? differenceInMinutes(currentTime, new Date(order.createdAt)) : 0;
@@ -137,7 +137,7 @@ const Mesas = () => {
                   <button
                     key={table.number}
                     onClick={() => handleTableClick(table.number)}
-                    className={`relative w-full aspect-[4/5] sm:aspect-square flex flex-col justify-between p-2 rounded-sm text-white shadow-sm hover:brightness-110 active:scale-95 transition-all text-left overflow-hidden ${bgColor}`}
+                    className={`relative w-full aspect-square flex flex-col justify-between p-1.5 sm:p-2 rounded-sm text-white shadow-sm hover:brightness-110 active:scale-95 transition-all text-left overflow-hidden ${bgColor}`}
                   >
                     <div className="flex justify-between items-start w-full">
                       <Lock className="h-4 w-4 shrink-0 opacity-80" />
@@ -146,8 +146,8 @@ const Mesas = () => {
                       </span>
                     </div>
 
-                    <div className="flex-1 flex flex-col items-center justify-center -mt-1 sm:-mt-2">
-                      <p className="text-4xl sm:text-5xl font-bold drop-shadow-sm tracking-tighter">
+                    <div className="flex-1 flex flex-col items-center justify-center -mt-0.5 sm:-mt-1">
+                      <p className="text-2xl sm:text-3xl font-extrabold tracking-tighter drop-shadow-md">
                         {String(table.number).padStart(2, '0')}
                       </p>
                       {custName && (
