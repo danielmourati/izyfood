@@ -25,7 +25,7 @@ const Pedidos = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="h-full overflow-y-auto p-6">
       <h1 className="text-2xl font-bold mb-4 text-foreground">Pedidos</h1>
 
       <div className="flex gap-2 mb-4">

@@ -52,7 +52,7 @@ const Configuracoes = () => {
   const tabs = allTabs.filter(t => !t.adminOnly || isAdmin);
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
       <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
 
       <div className="flex gap-2 overflow-x-auto pb-1">

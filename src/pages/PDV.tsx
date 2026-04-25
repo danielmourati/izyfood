@@ -453,7 +453,7 @@ const PDV = () => {
       </div>
 
       {/* --- MOBILE LAYOUT --- */}
-      <div className="flex lg:hidden flex-col h-[calc(100vh-4rem)] bg-background">
+      <div className="flex lg:hidden flex-col h-full bg-background overflow-hidden">
         {mobileView === 'categories' && (
           <div className="flex-1 overflow-auto p-4 flex flex-col gap-4">
             <div className="flex justify-between items-center mb-2">

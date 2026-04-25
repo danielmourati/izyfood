@@ -176,7 +176,7 @@ const Produtos = () => {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Produtos</h1>
         <div className="flex gap-2">

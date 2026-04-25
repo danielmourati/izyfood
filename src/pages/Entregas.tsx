@@ -221,7 +221,7 @@ const Entregas = () => {
   const readyCount = orders.filter(o => (o.orderType === 'delivery' || o.orderType === 'retirada') && o.deliveryStatus === 'pronto').length;
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>

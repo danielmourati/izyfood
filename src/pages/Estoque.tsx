@@ -48,7 +48,7 @@ const Estoque = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="h-full overflow-y-auto p-6">
       <h1 className="text-2xl font-bold mb-4 text-foreground">Estoque</h1>
 
       <Tabs defaultValue="products">
