@@ -94,10 +94,10 @@ function GeralTab() {
   const [uploadingCarousel, setUploadingCarousel] = useState(false);
 
   useEffect(() => {
-    supabase.from('store_settings').select('service_fee_percentage').limit(1).then(({ data }) => {
-      if (data && data.length > 0) setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
-    });
     if (user?.tenantId) {
+      supabase.from('store_settings').select('service_fee_percentage').eq('tenant_id', user.tenantId).limit(1).then(({ data }) => {
+        if (data && data.length > 0) setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
+      });
       supabase.from('tenants').select('name, logo, login_icon, login_carousel_images').eq('id', user.tenantId).single().then(({ data }) => {
         if (data) {
           setTenantName(data.name);
@@ -178,25 +178,41 @@ function GeralTab() {
   };
 
   const handleSave = async () => {
+    if (!user?.tenantId) return;
+    
     const count = parseInt(tableCount);
     if (isNaN(count) || count < 5 || count > 100) {
       toast.error('Mínimo de 5 mesas');
       return;
     }
-    updateTableCount(count);
+    
+    try {
+      updateTableCount(count);
 
-    if (user?.tenantId && tenantName.trim()) {
-      await supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId);
-    }
+      if (tenantName.trim()) {
+        await supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId);
+      }
 
-    const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
-    const { data: existing } = await supabase.from('store_settings').select('id').limit(1);
-    if (existing && existing.length > 0) {
-      await supabase.from('store_settings').update({ service_fee_percentage: fee, table_count: count } as any).eq('id', existing[0].id);
-    } else {
-      await supabase.from('store_settings').insert({ table_count: count, service_fee_percentage: fee } as any);
+      const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
+      const { data: existing } = await supabase.from('store_settings').select('id').eq('tenant_id', user.tenantId).limit(1);
+      
+      if (existing && existing.length > 0) {
+        await supabase.from('store_settings').update({ 
+          service_fee_percentage: fee, 
+          table_count: count 
+        } as any).eq('tenant_id', user.tenantId);
+      } else {
+        await supabase.from('store_settings').insert({ 
+          table_count: count, 
+          service_fee_percentage: fee,
+          tenant_id: user.tenantId 
+        } as any);
+      }
+      toast.success('Configurações salvas!');
+    } catch (err: any) {
+      console.error('Error saving settings:', err);
+      toast.error('Erro ao salvar configurações');
     }
-    toast.success('Configuração salva!');
   };
 
   return (
