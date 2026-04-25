@@ -165,8 +165,8 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array
 
   parts.push(CMD_ALIGN_CENTER);
   parts.push(text(`* Cod. Pers./Senha: ${orderNo} *\n`));
-  const comanda = order.tableNumber ? String(order.tableNumber).padStart(3, '0') : 'BALCÃO';
-  parts.push(CMD_BOLD_ON, text(`COMANDA: ${comanda}\n\n`), CMD_BOLD_OFF);
+  const mesa = order.tableNumber ? `MESA: ${String(order.tableNumber).padStart(3, '0')}` : 'BALCÃO';
+  parts.push(CMD_BOLD_ON, text(`${mesa}\n\n`), CMD_BOLD_OFF);
 
   parts.push(CMD_ALIGN_LEFT);
   if (order.customerName) {
@@ -182,7 +182,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array
     if (item.notes) parts.push(text(`  *${item.notes}\n`));
   }
 
-  parts.push(text('\n\n'));
+  parts.push(text('\n'));
   parts.push(text('Atendente do Pedido:\n'));
   parts.push(text(`${order.operatorName || 'Não informado'}\n`));
   

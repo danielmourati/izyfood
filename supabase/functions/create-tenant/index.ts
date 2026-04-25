@@ -92,10 +92,42 @@ serve(async (req) => {
     if (userError) throw userError;
 
     // 3. Create store_settings for the new tenant
+    // First, get the default template tenant settings
+    const { data: defaultSettings } = await supabase
+      .from("store_settings")
+      .select("service_fee_percentage, table_count")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .single();
+
     await supabase.from("store_settings").insert({
       tenant_id: tenant.id,
-      table_count: 20,
+      table_count: defaultSettings?.table_count ?? 20,
+      service_fee_percentage: defaultSettings?.service_fee_percentage ?? 0,
     });
+
+    // 4. Copy default printer configs from template tenant (oldest tenant = template)
+    const { data: templateTenant } = await supabase
+      .from("tenants")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .single();
+
+    if (templateTenant && templateTenant.id !== tenant.id) {
+      const { data: defaultPrinters } = await supabase
+        .from("printer_configs")
+        .select("name, connection_type, address, paper_width, is_default")
+        .eq("tenant_id", templateTenant.id);
+
+      if (defaultPrinters && defaultPrinters.length > 0) {
+        const printerInserts = defaultPrinters.map(p => ({
+          ...p,
+          tenant_id: tenant.id,
+        }));
+        await supabase.from("printer_configs").insert(printerInserts);
+      }
+    }
 
     return new Response(JSON.stringify({
       success: true,

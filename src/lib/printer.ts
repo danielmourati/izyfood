@@ -150,7 +150,7 @@ export function printViaHtmlFallback(
     return;
   }
 
-  const printWidth = paperWidth === 58 ? '200px' : '280px';
+  const printWidth = paperWidth === 58 ? '197px' : '280px';
 
   win.document.write(`
     <html><head><title>${title}</title>

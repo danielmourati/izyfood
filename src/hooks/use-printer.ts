@@ -138,33 +138,31 @@ const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX'
 function buildOrderHtml(order: any): string {
   const items = (order.items || []).map((i: any) => {
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
-    let html = `<p class="bold mb-1">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
+    let html = `<p class="bold" style="margin: 0 0 2px 0;">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
     if (i.notes) {
-      html += `<p style="margin: -2px 0 8px 12px; font-size: 12px; font-style: italic;">* ${i.notes}</p>`;
-    } else {
-      html += `<div style="height: 4px;"></div>`;
+      html += `<p style="margin: 0 0 4px 12px; font-size: 12px; font-style: italic;">* ${i.notes}</p>`;
     }
     return html;
   }).join('');
   
   const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
-  const comanda = order.tableNumber ? String(order.tableNumber).padStart(3, '0') : 'BALCÃO';
+  const mesa = order.tableNumber ? `MESA: ${String(order.tableNumber).padStart(3, '0')}` : 'BALCÃO';
   const createdAt = order.createdAt || new Date().toISOString();
 
   return `
     <div class="center" style="font-size: 14px; margin-bottom: 8px;">Cozinha Principal</div>
     <div style="margin-bottom: 8px;">${fmtDate(createdAt)} | Pedido: ${orderNo}</div>
     <div class="center" style="margin-bottom: 4px; font-size: 12px;">* Senha: ${orderNo} *</div>
-    <div class="center bold" style="font-size: 20px; border: 1px solid #000; padding: 4px; margin: 10px 0;">COMANDA: ${comanda}</div>
+    <div class="center bold" style="font-size: 20px; border: 1px solid #000; padding: 4px; margin: 10px 0;">${mesa}</div>
     
-    <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 4px;">Cliente: <strong>${order.customerName || 'Sem Nome'}</strong></div>
+    <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;">Cliente: <strong>${order.customerName || 'Sem Nome'}</strong></div>
     
-    <div style="margin-top: 10px;">
+    <div style="margin-top: 6px;">
       ${items || '<p class="center">Nenhum item</p>'}
     </div>
     
-    <div class="line" style="margin-top: 20px;"></div>
-    <div style="margin-top: 8px; font-size: 11px; color: #444;">Atendente: ${order.operatorName || 'Não informado'}</div>
+    <div class="line" style="margin-top: 12px;"></div>
+    <div style="margin-top: 6px; font-size: 11px; color: #444;">Atendente: ${order.operatorName || 'Não informado'}</div>
   `;
 }
 
