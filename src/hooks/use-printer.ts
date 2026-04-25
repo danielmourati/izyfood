@@ -17,7 +17,7 @@ import {
 export interface PrinterConfig {
   id: string;
   name: string;
-  connection_type: 'bluetooth' | 'network';
+  connection_type: 'bluetooth' | 'network' | 'system';
   address: string;
   paper_width: number;
   is_default: boolean;
@@ -63,6 +63,8 @@ export function usePrinter() {
   const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string) => {
     if (defaultPrinter?.connection_type === 'bluetooth' && isBluetoothConnected()) {
       await printViaBluetooth(data);
+    } else if (defaultPrinter?.connection_type === 'system') {
+      printViaHtmlFallback(htmlFallback, title);
     } else {
       printViaHtmlFallback(htmlFallback, title);
     }

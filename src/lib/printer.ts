@@ -33,6 +33,21 @@ export async function connectBluetooth(): Promise<string> {
   const bt = (navigator as any).bluetooth;
   if (!bt) throw new Error('Web Bluetooth não suportado neste navegador.');
 
+  // Try to find already authorized devices first
+  if (bt.getDevices) {
+    const devices = await bt.getDevices();
+    if (devices.length > 0) {
+      // Use the first one or try to match by name if we stored it
+      const device = devices[0];
+      try {
+        const name = await _connectToDevice(device);
+        return name;
+      } catch (err) {
+        console.warn('Reconnection to authorized device failed:', err);
+      }
+    }
+  }
+
   const device: any = await bt.requestDevice({
     filters: PRINTER_SERVICE_UUIDS.map(uuid => ({ services: [uuid] })),
     optionalServices: PRINTER_SERVICE_UUIDS,
@@ -43,6 +58,13 @@ export async function connectBluetooth(): Promise<string> {
     });
   });
 
+  return _connectToDevice(device);
+}
+
+/**
+ * Shared connection logic for requested or retrieved device.
+ */
+async function _connectToDevice(device: any): Promise<string> {
   if (!device.gatt) throw new Error('Dispositivo não suporta GATT.');
 
   const server = await device.gatt.connect();

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Printer, Plus, Trash2, Bluetooth, Wifi, TestTube, Loader2 } from 'lucide-react';
+import { Printer, Plus, Trash2, Bluetooth, Wifi, TestTube, Loader2,Monitor } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePrinter, type PrinterConfig } from '@/hooks/use-printer';
 
@@ -18,7 +18,7 @@ export function ImpressoraTab() {
   } = usePrinter();
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', connection_type: 'bluetooth' as 'bluetooth' | 'network', address: '', paper_width: 80, is_default: false });
+  const [form, setForm] = useState({ name: '', connection_type: 'bluetooth' as 'bluetooth' | 'network' | 'system', address: '', paper_width: 80, is_default: false });
   const [saving, setSaving] = useState(false);
   const [pairing, setPairing] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -135,11 +135,11 @@ export function ImpressoraTab() {
               {printers.map(p => (
                 <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
                   <div className="flex items-center gap-3">
-                    {p.connection_type === 'bluetooth' ? <Bluetooth className="h-4 w-4 text-primary" /> : <Wifi className="h-4 w-4 text-primary" />}
+                    {p.connection_type === 'bluetooth' ? <Bluetooth className="h-4 w-4 text-primary" /> : p.connection_type === 'network' ? <Wifi className="h-4 w-4 text-primary" /> : <Monitor className="h-4 w-4 text-primary" />}
                     <div>
                       <p className="text-sm font-medium text-foreground">{p.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {p.connection_type === 'bluetooth' ? 'Bluetooth' : `Rede — ${p.address}`} · {p.paper_width}mm
+                        {p.connection_type === 'bluetooth' ? 'Bluetooth' : p.connection_type === 'network' ? `Rede — ${p.address}` : 'Sistema (Windows/Navegador)'} · {p.paper_width}mm
                       </p>
                     </div>
                     {p.is_default && <Badge variant="outline" className="text-xs">Padrão</Badge>}
@@ -192,6 +192,7 @@ export function ImpressoraTab() {
                 <SelectContent>
                   <SelectItem value="bluetooth">Bluetooth</SelectItem>
                   <SelectItem value="network">Rede (IP)</SelectItem>
+                  <SelectItem value="system">Sistema (Windows/Navegador)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

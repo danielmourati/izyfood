@@ -276,8 +276,15 @@ const PDV = () => {
         tableNumber, customerId: custId, ...resolveCustomer(custId), createdAt: new Date().toISOString(), heldAt: new Date().toISOString(),
       }];
     });
+    if (tableNumber) {
+      setTables(prev => prev.map(t =>
+        t.number === tableNumber ? { ...t, status: 'occupied', orderId } : t
+      ));
+    }
+
     setCart([]);
     setSelectedCustomerId(null);
+    setCurrentOrderId(crypto.randomUUID());
     if (tableNumber) navigate('/');
   };
 
@@ -876,7 +883,7 @@ function CartContent({
           <div className="grid grid-cols-4 gap-2 pt-2">
             <Button variant="outline" className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-background border-muted-foreground/20 text-foreground" onClick={() => {
               if (cart.length === 0) cancelOrder();
-              else window.location.href = '/';
+              else holdOrder();
             }}>
               <ArrowLeft className="h-6 w-6" /> VOLTAR
             </Button>
@@ -891,9 +898,11 @@ function CartContent({
             <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#673AB7] hover:bg-[#512DA8] text-white" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
               <span className="text-2xl font-black leading-none">$</span> PAGAR
             </Button>
-            <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#2196F3] hover:bg-[#1976D2] text-white" onClick={onAddNewItem}>
-              <Plus className="h-6 w-6" /> NOVO
-            </Button>
+            {cart.some(i => i.printed) && (
+              <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#2196F3] hover:bg-[#1976D2] text-white" onClick={onAddNewItem}>
+                <Plus className="h-6 w-6" /> NOVO
+              </Button>
+            )}
           </div>
         ) : orderType === 'mesa' ? (
           <div className="grid grid-cols-3 gap-1.5">
