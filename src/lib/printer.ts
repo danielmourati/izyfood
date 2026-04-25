@@ -139,24 +139,31 @@ export async function printViaBluetooth(data: Uint8Array): Promise<void> {
 /**
  * Fallback: open a formatted HTML receipt in a new window and trigger print.
  */
-export function printViaHtmlFallback(htmlContent: string, title = 'Impressão'): void {
+export function printViaHtmlFallback(
+  htmlContent: string, 
+  title = 'Impressão', 
+  paperWidth = 80
+): void {
   const win = window.open('', '_blank', 'width=320,height=600');
   if (!win) {
     alert('Por favor, permita popups para imprimir.');
     return;
   }
+
+  const printWidth = paperWidth === 58 ? '210px' : '300px';
+
   win.document.write(`
     <html><head><title>${title}</title>
     <style>
-      body { font-family: 'Courier New', monospace; font-size: 14px; margin: 0; padding: 10px; width: 100%; box-sizing: border-box; }
+      body { font-family: 'Courier New', monospace; font-size: 14px; margin: 0; padding: 4px; width: ${printWidth}; box-sizing: border-box; }
       .line { border-top: 1px dashed #000; margin: 6px 0; width: 100%; }
       .center { text-align: center; }
-      .row { display: flex; justify-content: space-between; gap: 4px; }
+      .row { display: flex; justify-content: space-between; gap: 2px; }
       .bold { font-weight: bold; }
       .big { font-size: 18px; font-weight: bold; text-align: center; margin: 10px 0; }
       .mb-1 { margin-bottom: 4px; }
       @media print { 
-        body { width: 300px; padding: 0; }
+        body { width: ${printWidth}; padding: 0; }
         @page { margin: 0; }
       }
     </style></head><body>${htmlContent}</body></html>

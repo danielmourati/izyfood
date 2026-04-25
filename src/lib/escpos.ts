@@ -29,6 +29,8 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 
 /** Initialise printer */
 export const CMD_INIT = new Uint8Array([ESC, 0x40]);
+/** Select code page (PC860: Portuguese) */
+export const CMD_CODEPAGE_PC860 = new Uint8Array([ESC, 0x74, 0x03]);
 /** Line feed */
 export const CMD_LF = new Uint8Array([0x0A]);
 /** Bold on */
@@ -152,6 +154,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array
   const cols = colsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
+    CMD_CODEPAGE_PC860,
     CMD_ALIGN_CENTER,
     text('Cozinha Principal\n\n'),
     CMD_ALIGN_LEFT,
@@ -195,6 +198,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80): Uint8Array {
   const cols = colsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
+    CMD_CODEPAGE_PC860,
     CMD_ALIGN_CENTER,
     CMD_BOLD_ON, CMD_DOUBLE_ON,
     text('CONTA\n'),
@@ -258,6 +262,7 @@ export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80): Uin
   const cols = colsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
+    CMD_CODEPAGE_PC860,
     CMD_ALIGN_CENTER,
     CMD_BOLD_ON, CMD_DOUBLE_ON,
     text('FECHAMENTO DE CAIXA\n'),
