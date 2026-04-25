@@ -34,7 +34,14 @@ export function usePrinter() {
       .from('printer_configs')
       .select('*')
       .order('is_default', { ascending: false });
-    if (data) setPrinters(data as unknown as PrinterConfig[]);
+    
+    if (data) {
+      const mapped = data.map((p: any) => ({
+        ...p,
+        connection_type: (p.connection_type === 'network' && p.address === 'SYSTEM_BROWSER') ? 'system' : p.connection_type
+      }));
+      setPrinters(mapped as unknown as PrinterConfig[]);
+    }
     setLoading(false);
   }, []);
 

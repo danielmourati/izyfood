@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Printer, Plus, Trash2, Bluetooth, Wifi, TestTube, Loader2,Monitor } from 'lucide-react';
 import { usePrinter, type PrinterConfig } from '@/hooks/use-printer';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export function ImpressoraTab() {
@@ -43,8 +44,9 @@ export function ImpressoraTab() {
 
       const { error } = await supabase.from('printer_configs').insert({
         name: form.name.trim(),
-        connection_type: form.connection_type,
-        address: form.address.trim() || undefined,
+        // DB constraint only allows 'bluetooth' or 'network'
+        connection_type: form.connection_type === 'system' ? 'network' : form.connection_type,
+        address: form.connection_type === 'system' ? 'SYSTEM_BROWSER' : (form.address.trim() || ''),
         paper_width: form.paper_width,
         is_default: form.is_default,
         tenant_id: user.tenantId
