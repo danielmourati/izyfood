@@ -36,6 +36,8 @@ const PDV = () => {
   const navigate = useTenantNavigate();
   const [showCart, setShowCart] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [initialized, setInitialized] = useState(false);
+  const [currentOrderId, setCurrentOrderId] = useState(() => crypto.randomUUID());
 
   const mesaParam = searchParams.get('mesa');
   const pedidoParam = searchParams.get('pedido');
@@ -55,10 +57,6 @@ const PDV = () => {
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [authAction, setAuthAction] = useState<{ type: 'delete'; orderId: string } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { printOrder } = usePrinter();
@@ -97,7 +95,7 @@ const PDV = () => {
         const next = prev.map(t => {
           if (t.status === 'occupied' && t.orderId) {
             const order = orders.find(o => o.id === t.orderId);
-            if (order && order.items.length === 0) {
+            if (!order || order.items.length === 0) {
               changed = true;
               return { ...t, status: 'available', orderId: undefined };
             }
@@ -297,7 +295,6 @@ const PDV = () => {
     setCart([]);
     setSelectedCustomerId(null);
     toast.success('Pedido excluído com sucesso!');
-    setMoreOptionsOpen(false);
     navigate('/');
   };
 
@@ -395,7 +392,8 @@ const PDV = () => {
               updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
               tables={tables} onSelectTable={(t) => handleSelectTable(t)}
               selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
-              onPrintOrder={handlePrintOrder} setEditingItemNotesId={setEditingItemNotesId} isMobile={false} />
+              onPrintOrder={handlePrintOrder} setEditingItemNotesId={setEditingItemNotesId} isMobile={false} 
+              onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)} />
           </div>
         </div>
       </div>
@@ -523,6 +521,7 @@ const PDV = () => {
                 selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
                 onPrintOrder={handlePrintOrder} setEditingItemNotesId={setEditingItemNotesId}
                 isMobile={true} onAddNewItem={() => setMobileView('categories')}
+                onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)}
               />
             </div>
           </div>
@@ -554,7 +553,7 @@ const PDV = () => {
 
 function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
-  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, setEditingItemNotesId, isMobile, onAddNewItem
+  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
@@ -566,6 +565,7 @@ function CartContent({
   setEditingItemNotesId?: (id: string) => void;
   isMobile?: boolean;
   onAddNewItem?: () => void;
+  onDeleteOrder?: () => void;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
@@ -578,10 +578,11 @@ function CartContent({
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [adminAuthModal, setAdminAuthModal] = useState<{ open: boolean; action: 'remove' | 'cancel'; itemId?: string }>({ open: false, action: 'remove' });
+  const [adminAuthModal, setAdminAuthModal] = useState<{ open: boolean; action: 'remove' | 'cancel' | 'delete'; itemId?: string }>({ open: false, action: 'remove' });
   const [adminAuthEmail, setAdminAuthEmail] = useState('');
   const [adminAuthPassword, setAdminAuthPassword] = useState('');
   const [adminAuthChecking, setAdminAuthChecking] = useState(false);
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
 
   const needsAdminAuth = isHeldMesa && !isAdmin;
   const availableTables = tables.filter(t => t.status === 'available');
@@ -618,6 +619,15 @@ function CartContent({
     }
   };
 
+  const handleProtectedDelete = () => {
+    if (needsAdminAuth) {
+      setAdminAuthModal({ open: true, action: 'delete' });
+    } else {
+      if (onDeleteOrder) onDeleteOrder();
+    }
+    setMoreOptionsOpen(false);
+  };
+
   const handleAdminAuth = async () => {
     if (!adminAuthEmail.trim() || !adminAuthPassword.trim()) {
       toast.error('Informe email e senha do administrador');
@@ -640,6 +650,9 @@ function CartContent({
       setAdminAuthChecking(false);
       if (action === 'remove' && itemId) removeItem(itemId);
       else if (action === 'cancel') cancelOrder();
+      else if (action === 'delete') {
+        if (onDeleteOrder) onDeleteOrder();
+      }
     } catch {
       toast.error('Erro ao verificar credenciais');
       setAdminAuthChecking(false);
@@ -811,7 +824,7 @@ function CartContent({
               <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
                 <Printer className="h-4 w-4" /> FECHAR
               </Button>
-              <Button variant="ghost" className="h-6 w-full text-[9px] p-0 opacity-80" onClick={() => (window as any).toggleMoreOptions && (window as any).toggleMoreOptions()}>
+              <Button variant="ghost" className="h-6 w-full text-[9px] p-0 opacity-80" onClick={() => setMoreOptionsOpen(true)}>
                 <MoreHorizontal className="h-3 w-3 mr-1" /> MAIS
               </Button>
             </div>
@@ -922,6 +935,20 @@ function CartContent({
         </DialogContent>
       </Dialog >
 
+      {/* Mais Opções */}
+      <Dialog open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen}>
+        <DialogContent className="max-w-xs rounded-2xl w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>Mais Opções</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-4">
+            <Button variant="destructive" className="flex items-center gap-2 justify-start h-12 text-base font-bold shadow-sm" onClick={handleProtectedDelete}>
+              <Trash2 className="h-5 w-5" /> Excluir Pedido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Admin auth */}
       < Dialog open={adminAuthModal.open} onOpenChange={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }
       }>
@@ -937,6 +964,8 @@ function CartContent({
               <AlertDescription className="text-sm">
                 {adminAuthModal.action === 'cancel'
                   ? 'Cancelar um pedido de mesa requer autorização de um administrador.'
+                  : adminAuthModal.action === 'delete'
+                  ? 'Excluir completamente um pedido requer autorização de um administrador.'
                   : 'Remover itens de um pedido de mesa requer autorização de um administrador.'}
               </AlertDescription>
             </Alert>
