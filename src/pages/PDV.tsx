@@ -174,24 +174,26 @@ const PDV = () => {
       return;
     }
 
-    const existing = cart.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id);
-    if (existing) {
-      setMobileLastAddedId(existing.id);
-      setCart(prev => prev.map(i => {
-        if (i.id === existing.id) {
-          const compsTotal = (i.selectedComplements || []).reduce((a, c) => a + c.price * c.quantity, 0);
-          return { ...i, quantity: i.quantity + 1, subtotal: (i.price + compsTotal) * (i.quantity + 1) };
-        }
-        return i;
-      }));
-    } else {
-      const newId = crypto.randomUUID();
-      setMobileLastAddedId(newId);
-      setCart(prev => [...prev, {
-        id: newId, productId: product.id, name: product.name, price: product.price,
-        quantity: 1, subtotal: product.price, addedBy: user?.id, addedByName: user?.name,
-      }]);
-    }
+    setCart(prev => {
+      const existing = prev.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id);
+      if (existing) {
+        setMobileLastAddedId(existing.id);
+        return prev.map(i => {
+          if (i.id === existing.id) {
+            const compsTotal = (i.selectedComplements || []).reduce((a, c) => a + c.price * c.quantity, 0);
+            return { ...i, quantity: i.quantity + 1, subtotal: (i.price + compsTotal) * (i.quantity + 1) };
+          }
+          return i;
+        });
+      } else {
+        const newId = crypto.randomUUID();
+        setMobileLastAddedId(newId);
+        return [...prev, {
+          id: newId, productId: product.id, name: product.name, price: product.price,
+          quantity: 1, subtotal: product.price, addedBy: user?.id, addedByName: user?.name,
+        }];
+      }
+    });
   };
 
   const addWeightItem = (weight: number) => {
@@ -258,34 +260,61 @@ const PDV = () => {
   };
 
   const holdOrder = (shouldRedirect = true) => {
+    // Only save if we have items
     if (cart.length === 0) return;
+
     const orderId = pedidoParam || currentOrderId;
     if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    // Save current items to the persistent store
+    const currentCart = [...cart];
+    const currentTotal = total;
+    const currentOrderType = orderType;
+    const custId = selectedCustomerId;
+
     setOrders(prev => {
       const exists = prev.some(o => o.id === orderId);
       if (exists) {
         return prev.map(o => {
           if (o.id !== orderId) return o;
-          const custId = selectedCustomerId || o.customerId;
-          return { ...o, items: cart, total, status: 'segurado' as const, customerId: custId, ...resolveCustomer(custId), heldAt: new Date().toISOString() };
+          const finalCustId = custId || o.customerId;
+          return {
+            ...o,
+            items: currentCart,
+            total: currentTotal,
+            status: 'segurado' as const,
+            customerId: finalCustId,
+            ...resolveCustomer(finalCustId),
+            heldAt: new Date().toISOString()
+          };
         });
       }
-      const custId = selectedCustomerId || undefined;
       return [...prev, {
-        id: orderId, items: cart, total, orderType, status: 'segurado' as const,
-        tableNumber, customerId: custId, ...resolveCustomer(custId), createdAt: new Date().toISOString(), heldAt: new Date().toISOString(),
+        id: orderId,
+        items: currentCart,
+        total: currentTotal,
+        orderType: currentOrderType,
+        status: 'segurado' as const,
+        tableNumber,
+        customerId: custId || undefined,
+        ...resolveCustomer(custId),
+        createdAt: new Date().toISOString(),
+        heldAt: new Date().toISOString(),
       }];
     });
+
     if (tableNumber) {
       setTables(prev => prev.map(t =>
         t.number === tableNumber ? { ...t, status: 'occupied', orderId } : t
       ));
     }
 
-    setCart([]);
-    setSelectedCustomerId(null);
-    setCurrentOrderId(crypto.randomUUID());
-    if (tableNumber && shouldRedirect) navigate('/');
+    if (shouldRedirect) {
+      setCart([]);
+      setSelectedCustomerId(null);
+      setCurrentOrderId(crypto.randomUUID());
+      if (tableNumber) navigate('/');
+    }
   };
 
   const isHeldMesa = !!(existingOrder && existingOrder.orderType === 'mesa' && (existingOrder.status === 'segurado' || (existingOrder.status === 'aberto' && existingOrder.items.length > 0)));
