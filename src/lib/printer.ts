@@ -150,20 +150,28 @@ export function printViaHtmlFallback(
     return;
   }
 
-  const printWidth = paperWidth === 58 ? '210px' : '300px';
+  const printWidth = paperWidth === 58 ? '200px' : '280px';
 
   win.document.write(`
     <html><head><title>${title}</title>
     <style>
-      body { font-family: 'Courier New', monospace; font-size: 14px; margin: 0; padding: 4px; width: ${printWidth}; box-sizing: border-box; }
+      body { 
+        font-family: 'Courier New', monospace; 
+        font-size: 13px; 
+        margin: 0; 
+        padding: 0 16px; 
+        width: ${printWidth}; 
+        box-sizing: border-box; 
+        overflow-x: hidden;
+      }
       .line { border-top: 1px dashed #000; margin: 6px 0; width: 100%; }
       .center { text-align: center; }
       .row { display: flex; justify-content: space-between; gap: 2px; }
       .bold { font-weight: bold; }
-      .big { font-size: 18px; font-weight: bold; text-align: center; margin: 10px 0; }
+      .big { font-size: 16px; font-weight: bold; text-align: center; margin: 8px 0; }
       .mb-1 { margin-bottom: 4px; }
       @media print { 
-        body { width: ${printWidth}; padding: 0; }
+        body { width: ${printWidth}; padding: 0 16px; }
         @page { margin: 0; }
       }
     </style></head><body>${htmlContent}</body></html>
