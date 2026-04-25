@@ -8,10 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Printer, Plus, Trash2, Bluetooth, Wifi, TestTube, Loader2,Monitor } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { usePrinter, type PrinterConfig } from '@/hooks/use-printer';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 export function ImpressoraTab() {
+  const { user } = useAuth();
   const {
     printers, loading, btAvailable, btConnected, btDeviceName,
     fetchPrinters, pairBluetooth, unpairBluetooth, printTest,
@@ -30,24 +32,35 @@ export function ImpressoraTab() {
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
+    if (!user?.tenantId) return;
     setSaving(true);
 
-    // If marking as default, unset others
-    if (form.is_default) {
-      await supabase.from('printer_configs').update({ is_default: false } as any).eq('is_default', true);
+    try {
+      // If marking as default, unset others first
+      if (form.is_default) {
+        await supabase.from('printer_configs').update({ is_default: false } as any).eq('is_default', true);
+      }
+
+      const { error } = await supabase.from('printer_configs').insert({
+        name: form.name.trim(),
+        connection_type: form.connection_type,
+        address: form.address.trim() || undefined,
+        paper_width: form.paper_width,
+        is_default: form.is_default,
+        tenant_id: user.tenantId
+      } as any);
+
+      if (error) throw error;
+      
+      toast.success('Impressora salva com sucesso!');
+      resetForm();
+      fetchPrinters();
+    } catch (err: any) {
+      console.error('Error saving printer:', err);
+      toast.error('Erro ao salvar impressora: ' + (err.message || 'Verifique sua conexão'));
+    } finally {
+      setSaving(false);
     }
-
-    await supabase.from('printer_configs').insert({
-      name: form.name.trim(),
-      connection_type: form.connection_type,
-      address: form.address.trim(),
-      paper_width: form.paper_width,
-      is_default: form.is_default,
-    } as any);
-
-    setSaving(false);
-    resetForm();
-    fetchPrinters();
   };
 
   const handleDelete = async (id: string) => {
@@ -63,12 +76,22 @@ export function ImpressoraTab() {
 
   const handlePair = async () => {
     setPairing(true);
+    const toastId = toast.loading('Buscando impressoras Bluetooth...');
     try {
-      await pairBluetooth();
+      const name = await pairBluetooth();
+      toast.success(`Conectado a: ${name}`, { id: toastId });
     } catch (e: any) {
       console.error('Bluetooth pairing error:', e);
+      let msg = 'Erro ao parear.';
+      if (e.name === 'NotFoundError') msg = 'Nenhuma impressora selecionada.';
+      else if (e.name === 'SecurityError') msg = 'Permissão negada pelo navegador.';
+      else if (e.message?.includes('User cancelled')) msg = 'Busca cancelada.';
+      else msg = e.message || 'Erro desconhecido.';
+      
+      toast.error(msg, { id: toastId });
+    } finally {
+      setPairing(false);
     }
-    setPairing(false);
   };
 
   const handleTest = async () => {

@@ -5,16 +5,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const PRINTER_SERVICE_UUIDS = [
-  '000018f0-0000-1000-8000-00805f9b34fb', // common thermal
-  '0000ff00-0000-1000-8000-00805f9b34fb', // common BLE
-  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // common BLE serial
-  'e7e11001-49d2-4d03-8012-1081a571b052', // common SPP
+  '000018f0-0000-1000-8000-00805f9b34fb', // generic thermal
+  '0000ff00-0000-1000-8000-00805f9b34fb', // common 1
+  '0000ff01-0000-1000-8000-00805f9b34fb', // common 2
+  '0000af30-0000-1000-8000-00805f9b34fb', // some older ones
+  'e7e11001-49d2-4d03-8012-1081a571b052', // specialized
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // BLE serial
 ];
 
 const PRINTER_CHAR_UUIDS = [
   '00002af1-0000-1000-8000-00805f9b34fb',
   '0000ff02-0000-1000-8000-00805f9b34fb',
   '49535343-8841-43f4-a8d4-ecbe34729bb3',
+  '0000ae01-0000-1000-8000-00805f9b34fb',
 ];
 
 let _device: any = null;
@@ -50,18 +53,12 @@ export async function connectBluetooth(): Promise<string> {
     }
   }
 
-  let device: any;
-  try {
-    device = await bt.requestDevice({
-      filters: PRINTER_SERVICE_UUIDS.map(uuid => ({ services: [uuid] })),
-      optionalServices: PRINTER_SERVICE_UUIDS,
-    });
-  } catch {
-    device = await bt.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: PRINTER_SERVICE_UUIDS,
-    });
-  }
+  // We use acceptAllDevices because thermal printers often don't advertise 
+  // their services in a standard way that filters correctly in all browsers.
+  const device = await bt.requestDevice({
+    acceptAllDevices: true,
+    optionalServices: PRINTER_SERVICE_UUIDS,
+  });
 
   return _connectToDevice(device);
 }
