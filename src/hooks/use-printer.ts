@@ -130,26 +130,30 @@ const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX'
 
 function buildOrderHtml(order: any): string {
   const items = (order.items || []).map((i: any) => {
-    const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}x`;
-    let html = `<p>${qty} ${i.name}</p>`;
+    const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
+    let html = `<p class="bold mb-1">${qty} ${i.name}</p>`;
     if (i.notes) {
-      html += `<p style="margin: -6px 0 6px 12px; font-size: 11px; font-weight: bold;">[Obs: ${i.notes}]</p>`;
+      html += `<p style="margin: -2px 0 8px 12px; font-size: 11px;">*${i.notes}</p>`;
+    } else {
+      html += `<div style="height: 8px;"></div>`;
     }
     return html;
   }).join('');
+  
+  const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
+  const comanda = order.tableNumber ? String(order.tableNumber).padStart(3, '0') : 'BALCÃO';
+
   return `
-    <div class="big">COMANDA</div>
-    <div class="line"></div>
-    <div class="row"><span>Tipo:</span><span>${orderTypeLabels[order.orderType] || order.orderType}</span></div>
-    ${order.tableNumber ? `<div class="row"><span>Mesa:</span><span>${order.tableNumber}</span></div>` : ''}
-    ${order.customerName ? `<div class="row"><span>Cliente:</span><span>${order.customerName}</span></div>` : ''}
-    ${order.operatorName ? `<div class="row"><span>Operador:</span><span>${order.operatorName}</span></div>` : ''}
-    <div class="row"><span>Data:</span><span>${fmtDate(order.createdAt)}</span></div>
-    <div class="line"></div>
-    <p class="bold">ITENS:</p>
+    <div class="center" style="font-size: 14px; margin-bottom: 12px;">Cozinha Principal</div>
+    <div style="margin-bottom: 12px;">${fmtDate(order.createdAt)} Pedido No: ${orderNo}</div>
+    <div class="center" style="margin-bottom: 4px;">* Cod. Pers./Senha: ${orderNo} *</div>
+    <div class="center bold" style="margin-bottom: 16px;">COMANDA: ${comanda}</div>
+    
+    <div style="margin-bottom: 16px;">${order.customerName ? order.customerName : 'Sem Nome'}</div>
+    
     ${items}
-    <div class="line"></div>
-    <p>Pedido #${(order.id || '').slice(0, 8)}</p>
+    
+    <div style="margin-top: 16px;">Atendente do Pedido:<br/>${order.operatorName || 'Não informado'}</div>
   `;
 }
 

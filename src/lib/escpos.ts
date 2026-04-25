@@ -153,36 +153,36 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array
   const parts: Uint8Array[] = [
     CMD_INIT,
     CMD_ALIGN_CENTER,
-    CMD_BOLD_ON, CMD_DOUBLE_ON,
-    text('COMANDA\n'),
-    CMD_DOUBLE_OFF, CMD_BOLD_OFF,
+    text('Cozinha Principal\n\n'),
     CMD_ALIGN_LEFT,
-    lineOf('=', cols),
-    row('Tipo:', orderTypeLabels[order.orderType] || order.orderType, cols),
   ];
 
-  if (order.tableNumber) {
-    parts.push(row('Mesa:', String(order.tableNumber), cols));
-  }
+  const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
+  parts.push(text(`${fmtDate(order.createdAt)} Pedido No: ${orderNo}\n\n`));
+
+  parts.push(CMD_ALIGN_CENTER);
+  parts.push(text(`* Cod. Pers./Senha: ${orderNo} *\n`));
+  const comanda = order.tableNumber ? String(order.tableNumber).padStart(3, '0') : 'BALCÃO';
+  parts.push(CMD_BOLD_ON, text(`COMANDA: ${comanda}\n\n`), CMD_BOLD_OFF);
+
+  parts.push(CMD_ALIGN_LEFT);
   if (order.customerName) {
-    parts.push(row('Cliente:', order.customerName, cols));
+    parts.push(text(`${order.customerName}\n\n`));
+  } else {
+    parts.push(text(`Sem Nome\n\n`));
   }
-  if (order.operatorName) {
-    parts.push(row('Operador:', order.operatorName, cols));
-  }
-  parts.push(row('Data:', fmtDate(order.createdAt), cols));
-  parts.push(lineOf('-', cols));
 
   // Items
-  parts.push(CMD_BOLD_ON, text('ITENS:\n'), CMD_BOLD_OFF);
   for (const item of order.items) {
-    const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    parts.push(text(`${qty} ${item.name}\n`));
-    if (item.notes) parts.push(text(`  [Obs: ${item.notes}]\n`));
+    const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}`;
+    parts.push(CMD_BOLD_ON, text(`${qty} ${item.name}\n`), CMD_BOLD_OFF);
+    if (item.notes) parts.push(text(`  *${item.notes}\n`));
   }
 
-  parts.push(lineOf('=', cols));
-  parts.push(text(`Pedido #${order.id.slice(0, 8)}\n`));
+  parts.push(text('\n\n'));
+  parts.push(text('Atendente do Pedido:\n'));
+  parts.push(text(`${order.operatorName || 'Não informado'}\n`));
+  
   parts.push(feedAndCut());
 
   return concat(...parts);

@@ -15,7 +15,7 @@ import { ItemNotesModal } from '@/components/ItemNotesModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search, Printer, FileEdit, MoreHorizontal, Settings, ShieldCheck, Trash } from 'lucide-react';
+import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search, Printer, FileEdit, MoreHorizontal, Settings, ShieldCheck, Trash, Check, ListChecks } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
@@ -52,6 +52,7 @@ const PDV = () => {
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [orderType, setOrderType] = useState<OrderType>('balcao');
   const [mobileView, setMobileView] = useState<'categories' | 'products' | 'cart'>('categories');
+  const [mobileLastAddedId, setMobileLastAddedId] = useState<string | null>(null);
   const [editingItemNotesId, setEditingItemNotesId] = useState<string | null>(null);
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -166,6 +167,7 @@ const PDV = () => {
 
     const existing = cart.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id);
     if (existing) {
+      setMobileLastAddedId(existing.id);
       setCart(prev => prev.map(i => {
         if (i.id === existing.id) {
           const compsTotal = (i.selectedComplements || []).reduce((a, c) => a + c.price * c.quantity, 0);
@@ -173,14 +175,13 @@ const PDV = () => {
         }
         return i;
       }));
-      toast.success(`+1 ${product.name}`);
     } else {
       const newId = crypto.randomUUID();
+      setMobileLastAddedId(newId);
       setCart(prev => [...prev, {
         id: newId, productId: product.id, name: product.name, price: product.price,
         quantity: 1, subtotal: product.price, addedBy: user?.id, addedByName: user?.name,
       }]);
-      toast.success(`${product.name} adicionado`);
     }
   };
 
@@ -204,6 +205,7 @@ const PDV = () => {
 
   const removeItem = (id: string) => {
     setCart(prev => prev.filter(i => i.id !== id));
+    if (mobileLastAddedId === id) setMobileLastAddedId(null);
   };
 
   const cancelOrder = () => {
@@ -402,7 +404,12 @@ const PDV = () => {
         {mobileView === 'categories' && (
           <div className="flex-1 overflow-auto p-4 flex flex-col gap-4">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-2xl font-black text-foreground drop-shadow-sm">Categorias</h2>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="-ml-2 shrink-0" onClick={() => navigate('/')}>
+                  <ArrowLeft className="h-6 w-6" />
+                </Button>
+                <h2 className="text-2xl font-black text-foreground drop-shadow-sm">Categorias</h2>
+              </div>
               <div className="flex items-center gap-2">
                 {tableNumber && <Badge variant="secondary" className="text-xs uppercase bg-primary text-primary-foreground font-bold">Mesa {tableNumber}</Badge>}
                 <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => navigate('/')} title="Ver todas as mesas">
@@ -452,17 +459,51 @@ const PDV = () => {
 
             {/* Mobile Action Bar Overlay */}
             <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col">
-              <div className="flex bg-card p-3 gap-2 border-t mt-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                <Button variant="outline" className="flex-1 h-12 flex items-center justify-center font-bold text-xs bg-muted/30" onClick={() => setMobileView('categories')}>
-                  <ArrowLeft className="h-4 w-4 mr-1" /> VOLTAR
+              {mobileLastAddedId && (() => {
+                const lastItem = cart.find(i => i.id === mobileLastAddedId);
+                if (lastItem) return (
+                  <div className="bg-[#4CAF50] p-3 flex flex-col gap-3 shadow-[0_-8px_20px_-3px_rgba(0,0,0,0.3)]">
+                    <div className="flex justify-between items-center text-white px-1">
+                      <div className="flex items-center gap-1.5 font-bold text-[17px] drop-shadow-sm leading-none">
+                        <Check className="h-5 w-5" /> {lastItem.name} 
+                        <span className="opacity-90 font-medium ml-1">R$ {fmt(lastItem.price)}</span>
+                      </div>
+                      <div className="bg-blue-500/90 border border-blue-400 rounded-sm text-sm px-2 py-0.5 font-black shadow-sm tracking-widest text-white leading-none">
+                        x{lastItem.quantity}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 h-12">
+                      <Button variant="outline" className="flex-1 bg-white text-emerald-700 hover:bg-gray-100 font-black text-xl rounded shadow-sm border border-black/10 active:scale-95" onClick={() => updateQty(lastItem.id, 1)}>
+                        <Plus className="h-5 w-5 mr-1 stroke-[3]" /> 1
+                      </Button>
+                      <Button variant="outline" className="flex-1 bg-white text-destructive hover:bg-gray-100 font-black text-xl rounded shadow-sm border border-black/10 active:scale-95" onClick={() => updateQty(lastItem.id, -1)} disabled={lastItem.quantity <= 1}>
+                        <Minus className="h-5 w-5 mr-1 stroke-[3]" /> 1
+                      </Button>
+                      <Button variant="outline" className="w-[60px] bg-white text-destructive hover:bg-gray-100 rounded shadow-sm border border-black/10 active:scale-95 px-0" onClick={() => removeItem(lastItem.id)}>
+                        <Trash2 className="h-5 w-5 stroke-[2.5]" />
+                      </Button>
+                      <Button variant="outline" className="w-[60px] bg-white text-blue-500 hover:bg-gray-100 rounded shadow-sm border border-black/10 active:scale-95 px-0 relative" onClick={() => setEditingItemNotesId(lastItem.id)}>
+                        <ListChecks className="h-5 w-5 stroke-[2.5]" />
+                        {lastItem.notes && <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive outline outline-2 outline-white"></span>}
+                      </Button>
+                    </div>
+                  </div>
+                );
+                return null;
+              })()}
+
+              <div className="flex bg-card p-2 gap-2 border-t mt-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] h-[68px]">
+                <Button variant="outline" className="flex-1 h-full flex flex-col items-center justify-center font-bold text-[10px] bg-muted/30 border-muted-foreground/20 text-foreground" onClick={() => setMobileView('categories')}>
+                  <ArrowLeft className="h-6 w-6 mb-0.5" /> VOLTAR
                 </Button>
-                <Button className="flex-[2] h-12 flex items-center justify-center font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white relative overflow-hidden shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
-                  <span className="flex items-center gap-1">REVISAR <ShoppingCart className="h-4 w-4 ml-1.5" /></span>
-                  {cart.length > 0 && (
-                    <span className="bg-emerald-800 text-white text-[10px] rounded-full px-2 py-0.5 ml-2 shadow-sm font-bold">
-                      R$ {fmt(total)}
-                    </span>
-                  )}
+                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-[#4CAF50] hover:bg-[#388E3C] text-white relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
+                  <ShoppingCart className="h-5 w-5 mb-0.5 opacity-90" />
+                  <span className="flex items-center">
+                    REVISAR
+                    {cart.length > 0 && (
+                      <span className="font-extrabold ml-1.5 opacity-95">R$ {fmt(total)}</span>
+                    )}
+                  </span>
                 </Button>
               </div>
             </div>
