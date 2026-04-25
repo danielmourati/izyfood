@@ -58,6 +58,12 @@ const PDV = () => {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  useEffect(() => {
+    if (mobileView !== 'products') {
+      setMobileLastAddedId(null);
+    }
+  }, [mobileView]);
 
   const { printOrder } = usePrinter();
 
@@ -69,6 +75,9 @@ const PDV = () => {
       setCurrentOrderId(existingOrder.id);
       if (existingOrder.customerId) setSelectedCustomerId(existingOrder.customerId);
       setInitialized(true);
+      if (existingOrder.items.length > 0) {
+        setMobileView('cart');
+      }
     } else if (pedidoParam) {
       // Wait for realtime
     } else {
@@ -275,12 +284,7 @@ const PDV = () => {
   const isHeldMesa = !!(existingOrder && existingOrder.orderType === 'mesa' && (existingOrder.status === 'segurado' || (existingOrder.status === 'aberto' && existingOrder.items.length > 0)));
 
   // Only go to cart view on mobile when opening an already held/occupied table
-  // (placed after isHeldMesa declaration to avoid TDZ ReferenceError)
-  useEffect(() => {
-    if (initialized && isHeldMesa) {
-      setMobileView('cart');
-    }
-  }, [initialized, isHeldMesa]);
+  // This logic is now handled during initial product load to avoid jumping while adding items.
 
   const executeDeleteOrder = (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
@@ -303,16 +307,58 @@ const PDV = () => {
     tableNumber, customerId: selectedCustomerId || undefined, createdAt: new Date().toISOString(),
   };
 
-  const handlePrintOrder = async () => {
+  const handleSendAndHold = async () => {
+    if (cart.length === 0) return;
     const cust = customers.find(c => c.id === currentOrder.customerId);
+    const markedCart = cart.map(i => ({ ...i, printed: true }));
+    
     const orderData = {
       ...currentOrder,
+      items: markedCart,
       operatorName: user?.name,
       customerName: cust?.name || undefined,
     };
-    await printOrder(orderData);
-    setCart(prev => prev.map(i => ({ ...i, printed: true })));
-    toast.success('Comanda enviada para impressão!');
+
+    // 1. Enviar para a impressora
+    try {
+      await printOrder(orderData);
+      toast.success('Comanda enviada para impressão!');
+    } catch (err) {
+      toast.error('Erro na impressão, mas o pedido será salvo.');
+    }
+
+    // 2. Atualizar estado interno
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const orderId = pedidoParam || currentOrderId;
+    
+    setOrders(prev => {
+      const exists = prev.some(o => o.id === orderId);
+      if (exists) {
+        return prev.map(o => {
+          if (o.id !== orderId) return o;
+          const custId = selectedCustomerId || o.customerId;
+          return { ...o, items: markedCart, total, status: 'segurado' as const, customerId: custId, ...resolveCustomer(custId), heldAt: new Date().toISOString() };
+        });
+      }
+      const custId = selectedCustomerId || undefined;
+      return [...prev, {
+        id: orderId, items: markedCart, total, orderType, status: 'segurado' as const,
+        tableNumber, customerId: custId, ...resolveCustomer(custId), createdAt: new Date().toISOString(), heldAt: new Date().toISOString(),
+      }];
+    });
+
+    if (tableNumber) {
+      setTables(prev => prev.map(t =>
+        t.number === tableNumber ? { ...t, status: 'occupied', orderId } : t
+      ));
+    }
+
+    // 3. Reset visual
+    setCart([]);
+    setSelectedCustomerId(null);
+    setCurrentOrderId(crypto.randomUUID());
+    if (tableNumber) navigate('/');
+    else setMobileView('categories');
   };
 
   const handleTableBarSelect = (table: TableInfo) => {
@@ -393,7 +439,7 @@ const PDV = () => {
               updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
               tables={tables} onSelectTable={(t) => handleSelectTable(t)}
               selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
-              onPrintOrder={handlePrintOrder} setEditingItemNotesId={setEditingItemNotesId} isMobile={false} 
+              onPrintOrder={handleSendAndHold} setEditingItemNotesId={setEditingItemNotesId} isMobile={false} 
               onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)} />
           </div>
         </div>
@@ -532,7 +578,7 @@ const PDV = () => {
                 setCheckoutOpen={(v) => { setCheckoutOpen(v); }}
                 tables={tables} onSelectTable={(t) => { handleSelectTable(t); }}
                 selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
-                onPrintOrder={handlePrintOrder} setEditingItemNotesId={setEditingItemNotesId}
+                onPrintOrder={handleSendAndHold} setEditingItemNotesId={setEditingItemNotesId}
                 isMobile={true} onAddNewItem={() => setMobileView('categories')}
                 onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)}
               />
@@ -835,7 +881,7 @@ function CartContent({
               <ArrowLeft className="h-6 w-6" /> VOLTAR
             </Button>
             <div className="flex flex-col gap-1 h-[68px]">
-              <Button className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white h-auto py-1" onClick={() => { if (onPrintOrder) onPrintOrder(); holdOrder(); }} disabled={cart.length === 0}>
+              <Button className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white h-auto py-1" onClick={onPrintOrder} disabled={cart.length === 0}>
                 <Printer className="h-5 w-5" /> ENVIAR
               </Button>
               <Button variant="secondary" className="h-5 shrink-0 text-[10px] font-bold p-0 rounded border border-border/50 text-foreground" onClick={() => setMoreOptionsOpen(true)}>
@@ -847,6 +893,18 @@ function CartContent({
             </Button>
             <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#2196F3] hover:bg-[#1976D2] text-white" onClick={onAddNewItem}>
               <Plus className="h-6 w-6" /> NOVO
+            </Button>
+          </div>
+        ) : orderType === 'mesa' ? (
+          <div className="grid grid-cols-3 gap-1.5">
+            <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
+              <X className="h-3 w-3" />
+            </Button>
+            <Button className="h-8 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+              <Printer className="h-3.5 w-3.5 mr-1.5" /> ENVIAR
+            </Button>
+            <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+              <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
             </Button>
           </div>
         ) : orderType === 'balcao' ? (
