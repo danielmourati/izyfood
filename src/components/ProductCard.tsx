@@ -47,14 +47,14 @@ export function ProductCard({ product, category, onAdd }: ProductCardProps) {
       </div>
 
       {/* Info */}
-      <div className="p-2 space-y-0.5">
-        <h3 className="font-semibold text-[11px] leading-tight text-foreground line-clamp-2">
+      <div className="p-1.5 space-y-0">
+        <h3 className="font-semibold text-[10px] leading-tight text-foreground line-clamp-1">
           {product.name}
         </h3>
-        <p className="text-primary font-bold text-[13px]">
+        <p className="text-primary font-bold text-[11px] leading-tight">
           R$ {fmt(product.price)}
           {product.type === 'weight' && (
-            <span className="text-[10px] font-normal text-muted-foreground">/kg</span>
+            <span className="text-[9px] font-normal text-muted-foreground">/kg</span>
           )}
         </p>
       </div>

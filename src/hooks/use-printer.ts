@@ -146,16 +146,34 @@ function buildOrderHtml(order: any): string {
   }).join('');
   
   const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
-  const mesa = order.tableNumber ? `MESA: ${String(order.tableNumber).padStart(3, '0')}` : 'BALCÃO';
   const createdAt = order.createdAt || new Date().toISOString();
+
+  let tipoLabel = 'BALCÃO';
+  let tipoBorder = '1px solid #000';
+  let tipoColor = '#000';
+  if (order.orderType === 'delivery') {
+    tipoLabel = '\uD83D\uDEF5  DELIVERY';
+    tipoBorder = '2px solid #000';
+  } else if (order.orderType === 'retirada') {
+    tipoLabel = '\uD83D\uDCE6  RETIRADA';
+    tipoBorder = '2px solid #000';
+  } else if (order.tableNumber) {
+    tipoLabel = `MESA: ${String(order.tableNumber).padStart(3, '0')}`;
+  }
+
+  const customerLine = order.orderType === 'delivery'
+    ? `${order.customerName || 'Sem Nome'}${order.customerAddress ? ' — ' + order.customerAddress : ''}`
+    : order.orderType === 'retirada'
+    ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
+    : (order.customerName || 'Sem Nome');
 
   return `
     <div class="center" style="font-size: 14px; margin-bottom: 8px;">Cozinha Principal</div>
     <div style="margin-bottom: 8px;">${fmtDate(createdAt)} | Pedido: ${orderNo}</div>
     <div class="center" style="margin-bottom: 4px; font-size: 12px;">* Senha: ${orderNo} *</div>
-    <div class="center bold" style="font-size: 20px; border: 1px solid #000; padding: 4px; margin: 10px 0;">${mesa}</div>
+    <div class="center bold" style="font-size: 20px; border: ${tipoBorder}; color: ${tipoColor}; padding: 6px 4px; margin: 10px 0; letter-spacing: 1px;">${tipoLabel}</div>
     
-    <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;">Cliente: <strong>${order.customerName || 'Sem Nome'}</strong></div>
+    <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;">Cliente: <strong>${customerLine}</strong></div>
     
     <div style="margin-top: 6px;">
       ${items || '<p class="center">Nenhum item</p>'}

@@ -393,8 +393,13 @@ const PDV = () => {
     setCart([]);
     setSelectedCustomerId(null);
     setCurrentOrderId(crypto.randomUUID());
-    if (tableNumber) navigate('/');
-    else setMobileView('categories');
+    if (orderType === 'delivery' || orderType === 'retirada') {
+      navigate('/entregas');
+    } else if (tableNumber) {
+      navigate('/');
+    } else {
+      setMobileView('categories');
+    }
   };
 
   const handleTableBarSelect = (table: TableInfo) => {

@@ -4,8 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -63,6 +63,7 @@ const Entregas = () => {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [selectedOrderDetail, setSelectedOrderDetail] = useState<Order | null>(null);
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return [];
@@ -266,7 +267,7 @@ const Entregas = () => {
         </div>
       </div>
 
-      {/* Orders Grid */}
+      {/* Orders List */}
       {deliveryOrders.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <Truck className="h-16 w-16 mx-auto mb-3 opacity-30" />
@@ -274,188 +275,120 @@ const Entregas = () => {
           <p className="text-sm">Crie um novo pedido de delivery ou retirada</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {deliveryOrders.map(order => {
+        <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
+          {/* List header */}
+          <div className="hidden sm:grid grid-cols-[2rem_7rem_1fr_6rem_7rem_auto] gap-3 px-4 py-2 bg-muted/50 border-b text-[11px] font-semibold uppercase text-muted-foreground tracking-wide">
+            <span></span>
+            <span>Pedido</span>
+            <span>Cliente / Itens</span>
+            <span className="text-center">Status</span>
+            <span className="text-right">Total</span>
+            <span className="text-right">Ações</span>
+          </div>
+
+          {deliveryOrders.map((order, idx) => {
             const ds = order.deliveryStatus || 'pendente';
             const cfg = statusConfig[ds];
             const StatusIcon = cfg.icon;
             const totalWithFee = order.total + (order.deliveryFee || 0);
+            const time = new Date(order.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const itemsSummary = order.items.length === 0
+              ? 'Sem itens'
+              : order.items.slice(0, 2).map(i => `${i.quantity}× ${i.name}`).join(', ') + (order.items.length > 2 ? ` +${order.items.length - 2}` : '');
 
             return (
-              <Card key={order.id} className="overflow-hidden">
-                <div className="p-4 space-y-3">
-                  {/* Header */}
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">
-                          {order.orderType === 'delivery' ? '🛵' : '📦'}
-                        </span>
-                        <span className="font-bold text-foreground text-sm">#{order.id.slice(0, 6)}</span>
-                        {order.orderSource && (
-                          <span className="text-xs text-muted-foreground">{orderSourceLabels[order.orderSource]}</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(order.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                    <Badge
-                      className={`${cfg.color} gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
-                      onClick={() => setStatusDialogOrder(order)}
-                    >
-                      <StatusIcon className="h-3 w-3" />
-                      {cfg.label}
-                    </Badge>
-                  </div>
-
-                  {/* Customer info */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 text-sm text-foreground">
-                      <User className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="font-medium">{order.customerName || '—'}</span>
-                    </div>
-                    {order.customerPhone && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Phone className="h-3.5 w-3.5" />
-                        <span>{order.customerPhone}</span>
-                      </div>
-                    )}
-                    {order.customerAddress && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="h-3.5 w-3.5 shrink-0" />
-                        <span className="line-clamp-2">{order.customerAddress}</span>
-                      </div>
-                    )}
-                    {order.motoboyName && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Bike className="h-3.5 w-3.5" />
-                        <span>{order.motoboyName}</span>
-                      </div>
-                    )}
-                    {order.pickupPerson && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <User className="h-3.5 w-3.5" />
-                        <span>Retirar: {order.pickupPerson}</span>
-                      </div>
-                    )}
-                    {(order.productionTime || order.pickupTime) && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" />
-                        <span>
-                          {order.productionTime && `Produção: ${order.productionTime}`}
-                          {order.productionTime && order.pickupTime && ' • '}
-                          {order.pickupTime && `Retirada: ${order.pickupTime}`}
-                        </span>
-                      </div>
-                    )}
-                    {order.pickupNotes && !order.pickupNotes.startsWith('CANCELADO') && (
-                      <div className="text-xs text-muted-foreground italic mt-1 pl-5">
-                        {order.pickupNotes}
-                      </div>
-                    )}
-                    {/* Payment status indicator */}
-                    <p className={`text-xs italic mt-1 pl-5 ${order.paymentMethod ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                      {order.paymentMethod
-                        ? `✅ Pago (${order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod === 'cartao' ? 'Cartão' : order.paymentMethod === 'dinheiro' ? 'Dinheiro' : 'Fiado'})`
-                        : order.orderType === 'retirada' ? 'Paga na retirada' : 'Paga na entrega'}
-                    </p>
-                  </div>
-
-                  {/* Items summary */}
-                  <div className="bg-muted/50 rounded-lg p-2.5">
-                    {order.items.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic">Sem itens — abra no PDV para adicionar</p>
-                    ) : (
-                      <div className="space-y-0.5">
-                        {order.items.slice(0, 3).map(item => (
-                          <div key={item.id} className="flex justify-between text-xs">
-                            <span className="text-foreground">{item.quantity}× {item.name}</span>
-                            <span className="text-muted-foreground">R$ {fmt(item.subtotal)}</span>
-                          </div>
-                        ))}
-                        {order.items.length > 3 && (
-                          <p className="text-xs text-muted-foreground">+{order.items.length - 3} item(ns)</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Total */}
-                  <div className="flex justify-between items-center pt-1 border-t">
-                    <div>
-                      {order.deliveryFee ? (
-                        <p className="text-[10px] text-muted-foreground">Taxa: R$ {fmt(order.deliveryFee)}</p>
-                      ) : null}
-                    </div>
-                    <p className="font-bold text-primary text-lg">R$ {fmt(totalWithFee)}</p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2">
-                    {order.items.length === 0 ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => navigate(`/pdv?pedido=${order.id}`)}
-                        >
-                          Adicionar Itens
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive"
-                          onClick={() => setCancelDialogOrder(order)}
-                        >
-                          <Ban className="h-3.5 w-3.5" />
-                        </Button>
-                      </>
-                    ) : ds !== 'finalizado' ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => navigate(`/pdv?pedido=${order.id}`)}
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1 gap-1"
-                          onClick={() => {
-                            if (ds === 'pendente') {
-                              changeStatus(order.id, 'pronto');
-                            } else if (ds === 'pronto' && !order.paymentMethod) {
-                              // Unpaid — go to PDV for payment
-                              navigate(`/pdv?pedido=${order.id}`);
-                            } else {
-                              changeStatus(order.id, 'finalizado');
-                            }
-                          }}
-                        >
-                          {ds === 'pendente' ? 'Marcar Pronto' : 'Finalizar'}
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive"
-                          onClick={() => setCancelDialogOrder(order)}
-                        >
-                          <Ban className="h-3.5 w-3.5" />
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
+              <div
+                key={order.id}
+                className={`flex flex-col sm:grid sm:grid-cols-[2rem_7rem_1fr_6rem_7rem_auto] gap-2 sm:gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${idx > 0 ? 'border-t' : ''}`}
+                onClick={() => setSelectedOrderDetail(order)}
+              >
+                {/* Type icon */}
+                <div className="hidden sm:flex items-center justify-center text-xl" title={order.orderType === 'delivery' ? 'Delivery' : 'Retirada'}>
+                  {order.orderType === 'delivery' ? '🛵' : '📦'}
                 </div>
-              </Card>
+
+                {/* Code + Time */}
+                <div className="flex sm:flex-col items-center sm:items-start justify-between sm:justify-center gap-1">
+                  <div className="flex items-center gap-1.5 sm:gap-1">
+                    <span className="sm:hidden text-lg">{order.orderType === 'delivery' ? '🛵' : '📦'}</span>
+                    <span className="font-bold text-sm text-foreground">#{order.id.slice(0, 6)}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{time}</span>
+                </div>
+
+                {/* Customer + Items */}
+                <div className="flex flex-col justify-center min-w-0">
+                  <span className="font-semibold text-sm text-foreground truncate">{order.customerName || '—'}</span>
+                  <span className="text-xs text-muted-foreground truncate">{itemsSummary}</span>
+                </div>
+
+                {/* Status badge */}
+                <div className="flex sm:items-center sm:justify-center">
+                  <Badge
+                    className={`${cfg.color} gap-1 text-[10px] cursor-pointer hover:opacity-80 transition-opacity w-fit`}
+                    onClick={(e) => { e.stopPropagation(); setStatusDialogOrder(order); }}
+                  >
+                    <StatusIcon className="h-3 w-3" />
+                    {cfg.label}
+                  </Badge>
+                </div>
+
+                {/* Total */}
+                <div className="hidden sm:flex items-center justify-end">
+                  <span className="font-bold text-primary text-sm">R$ {fmt(totalWithFee)}</span>
+                </div>
+
+                {/* Actions */}
+                <div
+                  className="flex items-center justify-end gap-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {ds !== 'finalizado' && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => navigate(`/pdv?pedido=${order.id}`)}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-7 px-2 text-[11px] gap-1"
+                        onClick={() => {
+                          if (ds === 'pendente') {
+                            changeStatus(order.id, 'pronto');
+                          } else if (ds === 'pronto' && !order.paymentMethod) {
+                            navigate(`/pdv?pedido=${order.id}`);
+                          } else {
+                            changeStatus(order.id, 'finalizado');
+                          }
+                        }}
+                      >
+                        {ds === 'pendente' ? 'Pronto' : 'Finalizar'}
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-destructive"
+                        onClick={() => setCancelDialogOrder(order)}
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
+                  {ds === 'finalizado' && (
+                    <span className="text-xs text-muted-foreground italic">Finalizado</span>
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>
       )}
+
 
       {/* Status Change Dialog */}
       <Dialog open={!!statusDialogOrder} onOpenChange={(open) => !open && setStatusDialogOrder(null)}>
@@ -706,6 +639,155 @@ const Entregas = () => {
               Criar e Adicionar Itens
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Detail Modal */}
+      <Dialog open={!!selectedOrderDetail} onOpenChange={(open) => !open && setSelectedOrderDetail(null)}>
+        <DialogContent className="max-w-md">
+          {selectedOrderDetail && (() => {
+            const o = selectedOrderDetail;
+            const ds = o.deliveryStatus || 'pendente';
+            const cfg = statusConfig[ds];
+            const StatusIcon = cfg.icon;
+            const totalWithFee = o.total + (o.deliveryFee || 0);
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <span className="text-xl">{o.orderType === 'delivery' ? '🛵' : '📦'}</span>
+                    <span>Pedido #{o.id.slice(0, 6)}</span>
+                    <Badge className={`${cfg.color} gap-1 ml-auto`}>
+                      <StatusIcon className="h-3 w-3" />
+                      {cfg.label}
+                    </Badge>
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  {/* Customer info */}
+                  <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+                    <p className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wide">Cliente</p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="font-semibold">{o.customerName || '—'}</span>
+                      </div>
+                      {o.customerPhone && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Phone className="h-3.5 w-3.5 shrink-0" />
+                          <span>{o.customerPhone}</span>
+                        </div>
+                      )}
+                      {o.customerAddress && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                          <span>{o.customerAddress}</span>
+                        </div>
+                      )}
+                      {o.motoboyName && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Bike className="h-3.5 w-3.5 shrink-0" />
+                          <span>Motoboy: {o.motoboyName}</span>
+                        </div>
+                      )}
+                      {o.pickupPerson && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <User className="h-3.5 w-3.5 shrink-0" />
+                          <span>Retirar: {o.pickupPerson}</span>
+                        </div>
+                      )}
+                      {(o.productionTime || o.pickupTime) && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Clock className="h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            {o.productionTime && `Produção: ${o.productionTime}`}
+                            {o.productionTime && o.pickupTime && ' • '}
+                            {o.pickupTime && `Retirada: ${o.pickupTime}`}
+                          </span>
+                        </div>
+                      )}
+                      {o.orderSource && (
+                        <p className="text-xs text-muted-foreground pl-5">{orderSourceLabels[o.orderSource]}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Items */}
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wide mb-2">Itens do pedido</p>
+                    {o.items.length === 0 ? (
+                      <p className="text-sm text-muted-foreground italic">Sem itens — abra no PDV para adicionar</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {o.items.map(item => (
+                          <div key={item.id} className="flex justify-between text-sm">
+                            <span className="text-foreground">
+                              {item.quantity}× {item.name}
+                              {item.notes && <span className="text-xs text-muted-foreground ml-1">({item.notes})</span>}
+                            </span>
+                            <span className="font-medium text-foreground">R$ {fmt(item.subtotal)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Total */}
+                  <div className="border-t pt-3 space-y-1">
+                    {o.deliveryFee ? (
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Taxa de entrega</span>
+                        <span>R$ {fmt(o.deliveryFee)}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-base">Total</span>
+                      <span className="font-bold text-primary text-xl">R$ {fmt(totalWithFee)}</span>
+                    </div>
+                    <p className={`text-xs ${o.paymentMethod ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                      {o.paymentMethod
+                        ? `✅ Pago (${o.paymentMethod === 'pix' ? 'PIX' : o.paymentMethod === 'cartao' ? 'Cartão' : o.paymentMethod === 'dinheiro' ? 'Dinheiro' : 'Fiado'})`
+                        : o.orderType === 'retirada' ? 'Paga na retirada' : 'Paga na entrega'}
+                    </p>
+                    {o.pickupNotes && !o.pickupNotes.startsWith('CANCELADO') && (
+                      <p className="text-xs text-muted-foreground italic">{o.pickupNotes}</p>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  {ds !== 'finalizado' && (
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => { setSelectedOrderDetail(null); navigate(`/pdv?pedido=${o.id}`); }}
+                      >
+                        Editar Pedido
+                      </Button>
+                      <Button
+                        className="flex-1 gap-1"
+                        onClick={() => {
+                          if (ds === 'pendente') {
+                            changeStatus(o.id, 'pronto');
+                          } else if (ds === 'pronto' && !o.paymentMethod) {
+                            setSelectedOrderDetail(null);
+                            navigate(`/pdv?pedido=${o.id}`);
+                          } else {
+                            changeStatus(o.id, 'finalizado');
+                          }
+                          setSelectedOrderDetail(null);
+                        }}
+                      >
+                        {ds === 'pendente' ? 'Marcar Pronto' : 'Finalizar'}
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
