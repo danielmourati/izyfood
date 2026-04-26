@@ -15,7 +15,7 @@ import { ItemNotesModal } from '@/components/ItemNotesModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search, Printer, FileEdit, MoreHorizontal, Settings, ShieldCheck, Trash, Check, ListChecks } from 'lucide-react';
+import { Plus, Minus, Trash2, ShoppingCart, Pause, X, ArrowLeft, UserPlus, User, Star, ShieldAlert, AlertTriangle, Search, Printer, FileEdit, MoreHorizontal, Settings, ShieldCheck, Trash, Check, ListChecks, SendHorizontal, RefreshCcw, ReceiptText } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
@@ -65,7 +65,7 @@ const PDV = () => {
     }
   }, [mobileView]);
 
-  const { printOrder } = usePrinter();
+  const { printOrder, printBill } = usePrinter();
 
   useEffect(() => {
     if (initialized) return;
@@ -402,6 +402,39 @@ const PDV = () => {
     }
   };
 
+  const handleReprintOrder = async (items: OrderItem[]) => {
+    if (items.length === 0) return;
+    const cust = customers.find(c => c.id === currentOrder.customerId);
+    const orderData = {
+      ...currentOrder,
+      items,
+      operatorName: user?.name,
+      customerName: cust?.name || undefined,
+    };
+    try {
+      await printOrder(orderData);
+      toast.success(`${items.length} item(ns) reimpresso(s)!`);
+    } catch (err) {
+      toast.error('Erro na reimpressão.');
+    }
+  };
+
+  const handlePrintBill = async () => {
+    if (cart.length === 0) return;
+    const cust = customers.find(c => c.id === currentOrder.customerId);
+    const billData = {
+      ...currentOrder,
+      operatorName: user?.name,
+      customerName: cust?.name || currentOrder.customerName || 'Consumidor',
+    };
+    try {
+      await printBill(billData);
+      toast.success('Conta enviada para impressão!');
+    } catch (err) {
+      toast.error('Erro ao imprimir conta.');
+    }
+  };
+
   const handleTableBarSelect = (table: TableInfo) => {
     if (table.orderId) {
       navigate(`/pdv?mesa=${table.number}&pedido=${table.orderId}`);
@@ -480,7 +513,8 @@ const PDV = () => {
               updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
               tables={tables} onSelectTable={(t) => handleSelectTable(t)}
               selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
-              onPrintOrder={handleSendAndHold} setEditingItemNotesId={setEditingItemNotesId} isMobile={false} 
+              onPrintOrder={handleSendAndHold} onReprintOrder={handleReprintOrder} onPrintBill={handlePrintBill}
+              setEditingItemNotesId={setEditingItemNotesId} isMobile={false}
               onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)} />
           </div>
         </div>
@@ -628,7 +662,8 @@ const PDV = () => {
                 setCheckoutOpen={(v) => { setCheckoutOpen(v); }}
                 tables={tables} onSelectTable={(t) => { handleSelectTable(t); }}
                 selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
-                onPrintOrder={handleSendAndHold} setEditingItemNotesId={setEditingItemNotesId}
+                onPrintOrder={handleSendAndHold} onReprintOrder={handleReprintOrder} onPrintBill={handlePrintBill}
+                setEditingItemNotesId={setEditingItemNotesId}
                 isMobile={true} onAddNewItem={() => setMobileView('categories')}
                 onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)}
               />
@@ -662,7 +697,7 @@ const PDV = () => {
 
 function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
-  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder
+  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, onReprintOrder, onPrintBill, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
@@ -671,6 +706,8 @@ function CartContent({
   selectedCustomerId: string | null; onSelectCustomer: (id: string | null) => void;
   isHeldMesa: boolean;
   onPrintOrder?: () => void;
+  onReprintOrder?: (items: OrderItem[]) => void;
+  onPrintBill?: () => void;
   setEditingItemNotesId?: (id: string) => void;
   isMobile?: boolean;
   onAddNewItem?: () => void;
@@ -692,6 +729,30 @@ function CartContent({
   const [adminAuthPassword, setAdminAuthPassword] = useState('');
   const [adminAuthChecking, setAdminAuthChecking] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [reprintModalOpen, setReprintModalOpen] = useState(false);
+  const [reprintSelected, setReprintSelected] = useState<Set<string>>(new Set());
+
+  const printedItems = cart.filter(i => i.printed);
+  const hasAnyPrinted = printedItems.length > 0;
+
+  const handleReprintClick = () => {
+    if (!hasAnyPrinted) {
+      // Nothing printed yet — just print all
+      if (onReprintOrder) onReprintOrder(cart);
+    } else {
+      // Has printed items — open modal
+      setReprintSelected(new Set(cart.map(i => i.id)));
+      setReprintModalOpen(true);
+    }
+  };
+
+  const toggleReprintItem = (id: string) => {
+    setReprintSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const needsAdminAuth = isHeldMesa && !isAdmin;
   const availableTables = tables.filter(t => t.status === 'available');
@@ -932,7 +993,7 @@ function CartContent({
             </Button>
             <div className="flex flex-col gap-1 h-[68px]">
               <Button className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white h-auto py-1" onClick={onPrintOrder} disabled={cart.length === 0}>
-                <Printer className="h-5 w-5" /> ENVIAR
+                <SendHorizontal className="h-5 w-5" /> ENVIAR
               </Button>
               <Button variant="secondary" className="h-5 shrink-0 text-[10px] font-bold p-0 rounded border border-border/50 text-foreground" onClick={() => setMoreOptionsOpen(true)}>
                 MAIS
@@ -948,43 +1009,133 @@ function CartContent({
             )}
           </div>
         ) : orderType === 'mesa' ? (
-          <div className="grid grid-cols-3 gap-1.5">
-            <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
-              <X className="h-3 w-3" />
-            </Button>
-            <Button className="h-8 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
-              <Printer className="h-3.5 w-3.5 mr-1.5" /> ENVIAR
-            </Button>
-            <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-              <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
-            </Button>
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-3 gap-1.5">
+              <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
+                <X className="h-3 w-3" />
+              </Button>
+              <Button className="h-8 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+                <SendHorizontal className="h-3.5 w-3.5 mr-1.5" /> ENVIAR
+              </Button>
+              <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+                <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
+                <RefreshCcw className="h-3 w-3" /> Reimpr.
+              </Button>
+              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
+                <ReceiptText className="h-3 w-3" /> Conta
+              </Button>
+            </div>
           </div>
         ) : orderType === 'balcao' ? (
-          <div className="grid grid-cols-2 gap-1.5">
-            <Button variant="destructive" className="h-8 text-[11px] font-semibold" onClick={handleProtectedCancel} disabled={cart.length === 0}>
-              <X className="h-3.5 w-3.5 mr-1" /> Cancelar
-            </Button>
-            <Button className="h-8 text-[11px] font-semibold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-              <ShoppingCart className="h-3.5 w-3.5 mr-1" /> Pagar
-            </Button>
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button variant="destructive" className="h-8 text-[11px] font-semibold" onClick={handleProtectedCancel} disabled={cart.length === 0}>
+                <X className="h-3.5 w-3.5 mr-1" /> Cancelar
+              </Button>
+              <Button className="h-8 text-[11px] font-semibold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+                <ShoppingCart className="h-3.5 w-3.5 mr-1" /> Pagar
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
+                <RefreshCcw className="h-3 w-3" /> Reimpr.
+              </Button>
+              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
+                <ReceiptText className="h-3 w-3" /> Conta
+              </Button>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-1.5">
-            <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
-              <X className="h-3 w-3" />
-            </Button>
-            <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold" onClick={holdOrder} disabled={cart.length === 0}>
-              <Pause className="h-3 w-3 mr-0.5" /> Segur.
-            </Button>
-            <Button variant="secondary" className="h-8 text-[10px] px-1 font-semibold" onClick={onPrintOrder} disabled={cart.length === 0}>
-              <Printer className="h-3 w-3 mr-0.5" /> Impr.
-            </Button>
-            <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-              <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
-            </Button>
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-4 gap-1.5">
+              <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
+                <X className="h-3 w-3" />
+              </Button>
+              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold" onClick={holdOrder} disabled={cart.length === 0}>
+                <Pause className="h-3 w-3 mr-0.5" /> Segur.
+              </Button>
+              <Button className="h-8 text-[10px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+                <SendHorizontal className="h-3 w-3 mr-0.5" /> Enviar
+              </Button>
+              <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+                <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
+                <RefreshCcw className="h-3 w-3" /> Reimprimir
+              </Button>
+              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
+                <ReceiptText className="h-3 w-3" /> Conta
+              </Button>
+            </div>
           </div>
         )}
-      </div >
+      </div>
+
+      {/* Reprint Modal */}
+      <Dialog open={reprintModalOpen} onOpenChange={setReprintModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCcw className="h-4 w-4 text-primary" /> Reimprimir Itens
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Selecione os itens que deseja reimprimir:</p>
+            <div className="space-y-2 max-h-56 overflow-auto pr-1">
+              {cart.map(item => (
+                <label
+                  key={item.id}
+                  className="flex items-center gap-3 p-2.5 rounded-lg border bg-muted/30 cursor-pointer hover:bg-muted/60 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={reprintSelected.has(item.id)}
+                    onChange={() => toggleReprintItem(item.id)}
+                    className="h-4 w-4 accent-primary rounded"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">{item.quantity}× R$ {fmt(item.price)}</p>
+                  </div>
+                  {item.printed && (
+                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">Impresso</span>
+                  )}
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-1 border-t">
+              <Button
+                variant="outline"
+                className="flex-1 gap-1.5"
+                onClick={() => {
+                  if (onReprintOrder) onReprintOrder(cart);
+                  setReprintModalOpen(false);
+                }}
+              >
+                <RefreshCcw className="h-3.5 w-3.5" /> Todos
+              </Button>
+              <Button
+                className="flex-1 gap-1.5"
+                disabled={reprintSelected.size === 0}
+                onClick={() => {
+                  const selected = cart.filter(i => reprintSelected.has(i.id));
+                  if (onReprintOrder && selected.length > 0) onReprintOrder(selected);
+                  setReprintModalOpen(false);
+                }}
+              >
+                <Printer className="h-3.5 w-3.5" /> Selecionados ({reprintSelected.size})
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Table selection dialog */}
       < Dialog open={tableModalOpen} onOpenChange={setTableModalOpen} >
