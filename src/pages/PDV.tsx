@@ -42,6 +42,7 @@ const PDV = () => {
 
   const mesaParam = searchParams.get('mesa');
   const pedidoParam = searchParams.get('pedido');
+  const tipoParam = searchParams.get('tipo') as OrderType | null;
   const tableNumber = mesaParam ? parseInt(mesaParam) : undefined;
 
   const existingOrder = useMemo(() => {
