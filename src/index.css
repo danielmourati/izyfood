@@ -99,9 +99,34 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-medium;
     font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: "ss01", "cv11";
     overflow-x: hidden;
     width: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.015em;
+    @apply font-bold text-foreground;
+  }
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.015em;
+  }
+  .text-display {
+    @apply font-heading font-extrabold text-3xl md:text-4xl leading-tight;
+  }
+  .text-title {
+    @apply font-heading font-bold text-xl md:text-2xl leading-tight;
+  }
+  .text-price {
+    @apply font-extrabold tabular-nums tracking-tight;
   }
 }

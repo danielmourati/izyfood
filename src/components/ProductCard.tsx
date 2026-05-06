@@ -31,10 +31,11 @@ export function ProductCard({ product, category, onAdd }: ProductCardProps) {
           </div>
         )}
 
-        {/* Add button overlay */}
+        {/* Add button overlay - always visible on mobile, hover on desktop */}
         <button
-          className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute bottom-2 right-2 h-9 w-9 sm:h-8 sm:w-8 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
           onClick={(e) => { e.stopPropagation(); onAdd(product); }}
+          aria-label={`Adicionar ${product.name}`}
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -47,17 +48,18 @@ export function ProductCard({ product, category, onAdd }: ProductCardProps) {
       </div>
 
       {/* Info */}
-      <div className="p-1.5 space-y-0">
-        <h3 className="font-semibold text-[10px] leading-tight text-foreground line-clamp-1">
+      <div className="p-2 space-y-0.5">
+        <h3 className="font-heading font-semibold text-xs sm:text-[13px] leading-tight text-foreground line-clamp-2">
           {product.name}
         </h3>
-        <p className="text-primary font-bold text-[11px] leading-tight">
+        <p className="text-primary text-price text-sm sm:text-base leading-tight">
           R$ {fmt(product.price)}
           {product.type === 'weight' && (
-            <span className="text-[9px] font-normal text-muted-foreground">/kg</span>
+            <span className="text-[10px] font-medium text-muted-foreground ml-0.5">/kg</span>
           )}
         </p>
       </div>
     </div>
   );
 }
+

@@ -1,72 +1,67 @@
+# Destaque de tipografia, mobile e seletor de tipo de venda
 
+## 1. Tipografia com mais destaque
 
-# Plano: Módulo de Impressoras Térmicas
+Em `src/index.css`:
+- Importar a família **Poppins** (600/700/800) para títulos e manter **Inter** (400/500/600) no corpo.
+- Definir `--font-heading` e `--font-body` como CSS vars.
+- Ajustar `body` para `font-feature-settings: "ss01", "cv11"` e `letter-spacing: -0.01em` em headings.
+- Aumentar peso base: `body` em `font-medium` (500) e adicionar utilitários `.text-display`, `.text-title`, `.text-price` com tamanhos/peso fortes.
 
-## Resumo
-Implementar configuração de impressoras térmicas (Web Bluetooth + Rede IP) na aba Impressora das Configurações, com um serviço de impressão ESC/POS reutilizável para comandas, contas e fechamento de caixa.
+Em `tailwind.config.ts`:
+- Estender `fontFamily: { heading: ['Poppins', ...], sans: ['Inter', ...] }`.
+- Estender `fontSize` com escala mais marcante (ex: `display: ['2.25rem', { lineHeight: '1.1', fontWeight: '800' }]`).
 
-## Etapas
+Aplicar nos pontos de maior leitura:
+- `ProductCard`: nome em `font-heading font-semibold text-xs` e preço em `text-sm font-extrabold` (mais legível).
+- `CategoryBar`: `font-semibold tracking-wide`.
+- Cabeçalhos de página (`PDV`, `Mesas`, `Caixa`, etc.) usando `font-heading`.
 
-### 1. Tabela `printer_configs` no banco
-Criar tabela para salvar impressoras configuradas por tenant:
-- `id`, `tenant_id`, `name` (ex: "Cozinha"), `connection_type` (bluetooth | network), `address` (IP:porta ou device ID), `paper_width` (58 | 80mm), `is_default` (boolean), `created_at`
-- RLS: leitura/escrita para membros do tenant, delete para admins
+## 2. Melhorias para mobile
 
-### 2. Biblioteca ESC/POS (`src/lib/printer.ts`)
-Serviço que abstrai a comunicação:
-- **`connectBluetooth()`** — usa `navigator.bluetooth.requestDevice()` com filtro por serviço de impressora serial
-- **`connectNetwork(address)`** — envia dados via fetch para um proxy local ou WebSocket (limitação de browsers; fallback para `window.open` + `print()` em rede)
-- **`printRaw(bytes: Uint8Array)`** — envia buffer ESC/POS para o dispositivo conectado
-- **Helpers**: `buildOrderReceipt(order)`, `buildBillReceipt(order)`, `buildCashCloseReceipt(register)` — geram bytes ESC/POS com formatação de 58/80mm
+- **PDV (`src/pages/PDV.tsx`)**: aumentar área de toque dos botões do carrinho (mínimo 44px), `text-sm` no nome do produto no carrinho, espaçamento maior entre itens.
+- **`ProductCard.tsx`**: em telas `<sm`, mostrar o botão `+` sempre visível (não só no hover), aumentar padding interno (`p-2`) e font do preço.
+- **`CategoryBar`**: aumentar altura para `py-2.5` no mobile, `scroll-snap-x` para deslize confortável.
+- **`Layout.tsx`**: header mobile mais alto (`h-16`), título em `font-heading text-base font-bold`.
+- **Modais** (`CheckoutModal`, `WeightModal`, etc.): garantir `max-h-[90vh]` com scroll interno (já é regra de memória, conferir e ajustar onde faltar).
+- Revisão geral: trocar `text-[10px]`/`text-[11px]` no PDV por `text-xs`/`text-sm` para melhor leitura no celular.
 
-### 3. Hook `usePrinter` (`src/hooks/use-printer.ts`)
-- Carrega configuração padrão da impressora do tenant
-- Expõe `printOrder(order)`, `printBill(order)`, `printCashClose(register)`
-- Gerencia estado de conexão Bluetooth (pareamento persistente via `navigator.bluetooth.getDevices()`)
+## 3. Seletor de tipo de venda em destaque
 
-### 4. Aba Impressora (`ImpressoraTab`)
-UI de configuração:
-- Listar impressoras cadastradas (nome, tipo, endereço, largura do papel)
-- Botão "Adicionar Impressora" com formulário: nome, tipo (Bluetooth/Rede), endereço IP (se rede), largura do papel (58mm/80mm)
-- Para Bluetooth: botão "Parear" que aciona `navigator.bluetooth.requestDevice()`
-- Botão "Imprimir Teste" para validar conexão
-- Marcar uma impressora como padrão
+Hoje em `PDV.tsx` (linha ~860) os 4 tipos aparecem como botões `ghost` minúsculos `text-[10px] h-6` com emoji. Substituir por um grid de **cards-pílula** com ícone Lucide + label, mais visíveis.
 
-### 5. Integrar impressão nos fluxos existentes
-- **Comanda**: ao adicionar itens a pedido de mesa, botão "Imprimir Comanda" no carrinho
-- **Conta**: no checkout, após pagamento, imprimir automaticamente ou com botão
-- **Fechamento de caixa**: substituir `window.open().print()` do `CashRegisterReceipt` pelo serviço ESC/POS, mantendo fallback para navegador
+Novo componente: `src/components/OrderTypeSelector.tsx`
+- Recebe `value`, `onChange`, opcional `compact`.
+- 4 opções com ícones Lucide:
+  - **Mesa** → `Utensils`
+  - **Balcão** → `Store`
+  - **Delivery** → `Bike`
+  - **Retirada** → `ShoppingBag`
+- Layout: `grid grid-cols-4 gap-2` (desktop) / `grid-cols-2` (mobile).
+- Cada item: card `rounded-xl border-2 p-2.5` com ícone (20px) acima e label `text-xs font-semibold`.
+- Estado ativo: `bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]`.
+- Inativo: `bg-card text-foreground border-border hover:bg-accent/10 hover:border-accent`.
+- Ao clicar em "Mesa", continua acionando `setTableModalOpen(true)` (mesmo handler atual).
+
+Integrar em `PDV.tsx`:
+- Substituir o bloco do `grid grid-cols-2 gap-1` (linhas ~860-866) pelo `<OrderTypeSelector />`.
+- Quando há `tableNumber`, manter o badge atual (Mesa N).
+- No mobile, exibir o seletor também acima do carrinho/produtos quando não houver mesa selecionada (atualmente só aparece em desktop). Garantir compactação para não comprometer a área de produtos.
 
 ## Detalhes técnicos
 
-**Web Bluetooth API** — disponível em Chrome/Edge (desktop e Android). O pareamento é feito uma vez e o dispositivo fica acessível via `getDevices()`. O serviço filtra por UUID `0x1101` (Serial Port Profile) ou serviços específicos de impressoras térmicas comuns.
+- Importar Poppins via `<link>` no `index.html` (preconnect + display=swap) para evitar FOUT.
+- Manter cores via tokens HSL existentes (`--primary`, `--accent`); nada hard-coded.
+- Não usar toasts (regra do projeto); feedback visual já vem do estado ativo do botão.
+- Nenhuma mudança de schema/DB. Sem novas dependências (Lucide já está disponível).
 
-**Rede IP** — browsers não permitem conexão TCP raw. A abordagem realista é:
-- Usar `window.open` com HTML formatado para impressão via driver do SO (abordagem atual, melhorada)
-- Futuramente, um app companion local poderia receber comandos via localhost
+## Arquivos afetados
 
-**Formato ESC/POS** — comandos binários para: inicializar (`\x1B\x40`), negrito, alinhamento, corte de papel, código de barras. A lib gera `Uint8Array` com o layout completo.
-
-**Tabela DB**:
-```sql
-CREATE TABLE printer_configs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL DEFAULT get_user_tenant_id(),
-  name text NOT NULL,
-  connection_type text NOT NULL CHECK (connection_type IN ('bluetooth','network')),
-  address text DEFAULT '',
-  paper_width integer NOT NULL DEFAULT 80,
-  is_default boolean NOT NULL DEFAULT false,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
--- RLS policies para tenant isolation
-```
-
-### Ordem de implementação
-1. Migration: tabela `printer_configs` + RLS
-2. `src/lib/escpos.ts` — encoder de comandos ESC/POS
-3. `src/lib/printer.ts` — conexão Bluetooth/fallback
-4. `src/hooks/use-printer.ts` — hook reutilizável
-5. `ImpressoraTab` — UI de configuração com pareamento e teste
-6. Integrar nos fluxos de comanda, conta e caixa
-
+- `index.html` (fonte Poppins)
+- `src/index.css` (vars de fonte, utilitários)
+- `tailwind.config.ts` (fontFamily, fontSize)
+- `src/components/OrderTypeSelector.tsx` (novo)
+- `src/pages/PDV.tsx` (uso do seletor + ajustes mobile)
+- `src/components/ProductCard.tsx` (tipografia + mobile)
+- `src/components/CategoryBar.tsx` (tipografia)
+- `src/components/Layout.tsx` (header mobile)
