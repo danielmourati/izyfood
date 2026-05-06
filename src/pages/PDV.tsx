@@ -84,8 +84,8 @@ const PDV = () => {
       // Wait for realtime
     } else {
       const newId = currentOrderId;
-      const newOrderType = tableNumber ? 'mesa' as const : 'balcao' as const;
-      if (tableNumber) setOrderType('mesa');
+      const newOrderType: OrderType = tableNumber ? 'mesa' : (tipoParam && ['mesa','balcao','delivery','retirada'].includes(tipoParam) ? tipoParam : 'balcao');
+      if (newOrderType !== 'balcao') setOrderType(newOrderType);
       const order: Order = {
         id: newId, items: [], total: 0, orderType: newOrderType, status: 'aberto',
         tableNumber, createdAt: new Date().toISOString(),
