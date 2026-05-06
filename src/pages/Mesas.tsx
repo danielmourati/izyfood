@@ -3,7 +3,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowRightLeft, Merge, Lock } from 'lucide-react';
+import { ArrowRightLeft, Merge, Lock, Utensils, Store, Bike, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
 import { fmt } from '@/lib/utils';
 import { differenceInMinutes } from 'date-fns';
