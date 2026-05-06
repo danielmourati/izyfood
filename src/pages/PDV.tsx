@@ -20,6 +20,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
 import { TableBar } from '@/components/TableBar';
+import { OrderTypeSelector } from '@/components/OrderTypeSelector';
 import { usePrinter } from '@/hooks/use-printer';
 
 const orderTypeLabels: Record<OrderType, string> = {
@@ -72,7 +73,7 @@ const PDV = () => {
     if (existingOrder) {
       setCart(existingOrder.items);
       setOrderType(existingOrder.orderType);
-      setCurrentOrderId(existingOrder.id);
+      setCurrentOrderId(existingOrder.id as `${string}-${string}-${string}-${string}-${string}`);
       if (existingOrder.customerId) setSelectedCustomerId(existingOrder.customerId);
       setInitialized(true);
       if (existingOrder.items.length > 0) {
@@ -106,7 +107,7 @@ const PDV = () => {
             const order = orders.find(o => o.id === t.orderId);
             if (!order || order.items.length === 0) {
               changed = true;
-              return { ...t, status: 'available', orderId: undefined };
+              return { ...t, status: 'available' as const, orderId: undefined };
             }
           }
           return t;
@@ -851,22 +852,20 @@ function CartContent({
 
   return (
     <>
-      {/* Order type / table header - hides badge in mobile (shown in page header) */}
-      {!isMobile && (
-        <div className="px-3 py-1.5 border-b bg-muted/20">
-          {tableNumber ? (
-            <div className="text-center"><Badge variant="default" className="text-[10px] uppercase font-bold px-2 py-0.5 opacity-80">Mesa {tableNumber}</Badge></div>
-          ) : (
-            <div className="grid grid-cols-2 gap-1">
-              {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
-                <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-[10px] h-6" onClick={() => handleOrderTypeClick(key)}>
-                  {label}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Order type / table header */}
+      <div className="px-3 py-2 border-b bg-muted/20">
+        {tableNumber ? (
+          <div className="text-center">
+            <Badge variant="default" className="text-xs uppercase font-bold px-3 py-1 font-heading">Mesa {tableNumber}</Badge>
+          </div>
+        ) : (
+          <OrderTypeSelector
+            value={orderType}
+            onChange={handleOrderTypeClick}
+            compact={isMobile}
+          />
+        )}
+      </div>
 
       {/* Customer Selector */}
       <div className="px-3 py-2 border-b space-y-1">
@@ -932,7 +931,7 @@ function CartContent({
                 <div className="flex-1 min-w-0 pr-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-bold text-[16px] text-foreground leading-tight">{item.name}</span>
-                    {item.printed && <Printer className="h-4 w-4 text-muted-foreground ml-1" title="Impresso/Enviado" />}
+                    {item.printed && <Printer className="h-4 w-4 text-muted-foreground ml-1" aria-label="Impresso/Enviado" />}
                     {eligible && selectedCustomerId && (
                       <Badge variant="outline" className="text-[10px] text-primary px-1 py-0 leading-none h-4 border-primary/30">
                         <Star className="h-2.5 w-2.5 mr-0.5" />+1
