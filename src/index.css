@@ -51,6 +51,13 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
+
+    --section-vendas: 152 55% 32%;
+    --section-vendas-soft: 152 45% 92%;
+    --section-cadastros: 217 91% 55%;
+    --section-cadastros-soft: 217 90% 95%;
+    --section-gestao: 32 95% 44%;
+    --section-gestao-soft: 38 95% 92%;
   }
 
   .dark {
@@ -90,6 +97,13 @@
     --sidebar-accent-foreground: 150 10% 95%;
     --sidebar-border: 200 10% 18%;
     --sidebar-ring: 152 55% 42%;
+
+    --section-vendas: 152 55% 50%;
+    --section-vendas-soft: 152 30% 18%;
+    --section-cadastros: 217 91% 65%;
+    --section-cadastros-soft: 217 35% 20%;
+    --section-gestao: 38 95% 55%;
+    --section-gestao-soft: 32 35% 20%;
   }
 }
 

@@ -1,51 +1,71 @@
-# Plano: Tela Inicial com Atalhos por Seções
+# Plano: Cores por seção na Home
 
 ## Objetivo
-Antes de mostrar mesas/comandas, exibir uma **Home** após o login com atalhos dos principais módulos do sistema, agrupados por seções. A tela atual de mesas continua existindo, mas acessada via atalho "Mesas".
+Dar identidade visual a cada seção de atalhos da Home (`src/pages/Home.tsx`) usando cores distintas, mantendo coerência com a paleta atual (verde primário) e boa legibilidade em light/dark mode.
 
-## Nova rota
-- `/:slug` → nova página `Home.tsx` (substitui o Mesas como rota raiz).
-- `/:slug/mesas` → página `Mesas.tsx` existente (movida da raiz).
-- Atualizar `AppSidebar` para apontar "Início" → `/` e adicionar/manter "Mesas" → `/mesas`.
-- Atualizar redirects internos relevantes (login, fallbacks) para continuar indo a `/:slug` (Home).
+## Paleta proposta (tom suave no card, cor cheia no hover/ícone)
 
-## Estrutura da Home
-Layout responsivo, mobile-first, respeitando tipografia/cores do projeto (Poppins headings, primary #2D6A4F).
+| Seção | Cor base | Uso |
+|---|---|---|
+| **Vendas** | Verde (primary `#2D6A4F`) | Identidade principal — operação |
+| **Cadastros** | Azul (`#2563EB`) | Dados/registros |
+| **Gestão** | Âmbar/Laranja (`#D97706`) | Análise/administração |
 
-Seções com título em uppercase + grid de cards com ícone + label:
+Cada seção terá:
+- **Título**: pequena barra/ponto colorido + texto da cor da seção
+- **Card (estado normal)**: fundo `card`, borda 2px na cor da seção em opacidade baixa (~30%), ícone na cor da seção
+- **Card (hover)**: borda cheia + fundo cheio na cor da seção + texto/ícone branco
+- **Active**: `scale-95` (mantém)
 
-1. **Vendas**
-   - Mesa → `/mesas`
-   - Balcão → `/pdv?tipo=balcao`
-   - Delivery → `/pdv?tipo=delivery`
-   - Retirada → `/pdv?tipo=retirada`
-   - Pedidos → `/pedidos`
-   - Entregas → `/entregas`
-   - Caixa → `/caixa`
+## Implementação
 
-2. **Cadastros** (admin / por permissão)
-   - Produtos → `/produtos`
-   - Estoque → `/estoque`
-   - Clientes → `/clientes`
+### 1. Tokens de cor em `src/index.css`
+Adicionar variáveis HSL semânticas para light e dark:
+```css
+--section-vendas: 152 55% 32%;        /* verde */
+--section-vendas-soft: 152 45% 92%;
+--section-cadastros: 217 91% 55%;     /* azul */
+--section-cadastros-soft: 217 90% 95%;
+--section-gestao: 32 95% 44%;         /* âmbar */
+--section-gestao-soft: 38 95% 92%;
+```
+Versões dark com `*-soft` mais escuras (ex.: `… 18%`).
 
-3. **Gestão** (admin)
-   - Relatórios → `/relatorios`
-   - Configurações → `/configuracoes`
+### 2. Mapear no `tailwind.config.ts`
+```ts
+colors: {
+  section: {
+    vendas: 'hsl(var(--section-vendas))',
+    'vendas-soft': 'hsl(var(--section-vendas-soft))',
+    cadastros: 'hsl(var(--section-cadastros))',
+    'cadastros-soft': 'hsl(var(--section-cadastros-soft))',
+    gestao: 'hsl(var(--section-gestao))',
+    'gestao-soft': 'hsl(var(--section-gestao-soft))',
+  }
+}
+```
 
-Cada card: botão grande (mín. 96px), ícone Lucide (28px), label em `font-heading font-bold`, borda 2px, hover `border-primary` + `bg-primary text-primary-foreground`, `active:scale-95`. Grid: `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4`.
+### 3. Atualizar `src/pages/Home.tsx`
+- Adicionar `color: 'vendas' | 'cadastros' | 'gestao'` em cada `Section`.
+- Mapa de classes (não dinâmicas para o Tailwind detectar):
+```ts
+const sectionStyles = {
+  vendas:    { dot: 'bg-section-vendas',    title: 'text-section-vendas',    card: 'border-section-vendas/30 hover:border-section-vendas hover:bg-section-vendas',    icon: 'text-section-vendas group-hover:text-white' },
+  cadastros: { dot: 'bg-section-cadastros', title: 'text-section-cadastros', card: 'border-section-cadastros/30 hover:border-section-cadastros hover:bg-section-cadastros', icon: 'text-section-cadastros group-hover:text-white' },
+  gestao:    { dot: 'bg-section-gestao',    title: 'text-section-gestao',    card: 'border-section-gestao/30 hover:border-section-gestao hover:bg-section-gestao',       icon: 'text-section-gestao group-hover:text-white' },
+};
+```
+- `ShortcutCard` recebe `color` e aplica as classes.
+- Título da seção: `<span className="inline-block w-2 h-2 rounded-full {dot}" />` ao lado do label, label em cor temática (mantendo uppercase).
 
-Filtragem por permissão usando `useAuth().isAdmin` + `useAttendantPermissions()` (mesmo padrão das rotas em `App.tsx`): esconder cards aos quais o usuário não tem acesso.
-
-## Componente reutilizável
-`ShortcutCard` interno em `Home.tsx` (ícone, label, onClick) — evita duplicação visual.
+### 4. Acessibilidade
+- Garantir contraste AA: hover usa fundo cheio + texto branco (`text-white`).
+- No dark mode, `*-soft` fica escuro o suficiente para o ícone colorido continuar visível.
 
 ## Arquivos
-- **Novo**: `src/pages/Home.tsx`
-- **Editar**: `src/App.tsx` (adicionar rota `/mesas`, trocar rota raiz para `Home`)
-- **Editar**: `src/components/AppSidebar.tsx` (adicionar item "Mesas", manter "Início" apontando para raiz)
-- **Editar (opcional)**: `src/pages/Mesas.tsx` — remover bloco "Nova venda" (agora redundante na Home), mantendo só a listagem de mesas.
+- Editar: `src/index.css` (tokens)
+- Editar: `tailwind.config.ts` (cores `section.*`)
+- Editar: `src/pages/Home.tsx` (mapa + props no card e título)
 
-## Detalhes técnicos
-- Navegação via `useTenantNavigate` para preservar slug.
-- Ícones: `Utensils, Store, Bike, ShoppingBag, ClipboardList, Truck, DollarSign, Package, Boxes, Users, BarChart3, Settings`.
-- Sem alterações de banco/RLS.
+## Fora de escopo
+- Sidebar, PDV e demais páginas continuam com a paleta verde atual.
