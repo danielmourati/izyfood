@@ -29,7 +29,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { title: 'Mesas', path: '', icon: Grid3X3, adminOnly: false },
+  { title: 'Início', path: '', icon: HomeIcon, adminOnly: false },
+  { title: 'Mesas', path: '/mesas', icon: Grid3X3, adminOnly: false },
   { title: 'PDV', path: '/pdv', icon: ShoppingCart, adminOnly: false },
   { title: 'Pedidos', path: '/pedidos', icon: ClipboardList, adminOnly: false },
   { title: 'Delivery', path: '/entregas', icon: Truck, adminOnly: false },
