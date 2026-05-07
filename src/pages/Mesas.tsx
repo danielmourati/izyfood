@@ -125,23 +125,7 @@ const Mesas = () => {
   return (
     <div className="h-full overflow-y-auto p-4 sm:p-6 pb-24 max-w-5xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Início</h1>
-      </div>
-
-      <div className="mb-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Nova venda</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {quickActions.map(({ key, label, icon: Icon, onClick }) => (
-            <button
-              key={key}
-              onClick={onClick}
-              className="group flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary hover:text-primary-foreground active:scale-95 transition-all py-5 sm:py-6 shadow-sm hover:shadow-md"
-            >
-              <Icon className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2.25} />
-              <span className="font-heading font-bold text-sm sm:text-base">{label}</span>
-            </button>
-          ))}
-        </div>
+        <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Mesas</h1>
       </div>
 
       <div className="space-y-8">
