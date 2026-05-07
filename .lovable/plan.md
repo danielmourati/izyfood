@@ -1,67 +1,51 @@
-# Destaque de tipografia, mobile e seletor de tipo de venda
+# Plano: Tela Inicial com Atalhos por Seções
 
-## 1. Tipografia com mais destaque
+## Objetivo
+Antes de mostrar mesas/comandas, exibir uma **Home** após o login com atalhos dos principais módulos do sistema, agrupados por seções. A tela atual de mesas continua existindo, mas acessada via atalho "Mesas".
 
-Em `src/index.css`:
-- Importar a família **Poppins** (600/700/800) para títulos e manter **Inter** (400/500/600) no corpo.
-- Definir `--font-heading` e `--font-body` como CSS vars.
-- Ajustar `body` para `font-feature-settings: "ss01", "cv11"` e `letter-spacing: -0.01em` em headings.
-- Aumentar peso base: `body` em `font-medium` (500) e adicionar utilitários `.text-display`, `.text-title`, `.text-price` com tamanhos/peso fortes.
+## Nova rota
+- `/:slug` → nova página `Home.tsx` (substitui o Mesas como rota raiz).
+- `/:slug/mesas` → página `Mesas.tsx` existente (movida da raiz).
+- Atualizar `AppSidebar` para apontar "Início" → `/` e adicionar/manter "Mesas" → `/mesas`.
+- Atualizar redirects internos relevantes (login, fallbacks) para continuar indo a `/:slug` (Home).
 
-Em `tailwind.config.ts`:
-- Estender `fontFamily: { heading: ['Poppins', ...], sans: ['Inter', ...] }`.
-- Estender `fontSize` com escala mais marcante (ex: `display: ['2.25rem', { lineHeight: '1.1', fontWeight: '800' }]`).
+## Estrutura da Home
+Layout responsivo, mobile-first, respeitando tipografia/cores do projeto (Poppins headings, primary #2D6A4F).
 
-Aplicar nos pontos de maior leitura:
-- `ProductCard`: nome em `font-heading font-semibold text-xs` e preço em `text-sm font-extrabold` (mais legível).
-- `CategoryBar`: `font-semibold tracking-wide`.
-- Cabeçalhos de página (`PDV`, `Mesas`, `Caixa`, etc.) usando `font-heading`.
+Seções com título em uppercase + grid de cards com ícone + label:
 
-## 2. Melhorias para mobile
+1. **Vendas**
+   - Mesa → `/mesas`
+   - Balcão → `/pdv?tipo=balcao`
+   - Delivery → `/pdv?tipo=delivery`
+   - Retirada → `/pdv?tipo=retirada`
+   - Pedidos → `/pedidos`
+   - Entregas → `/entregas`
+   - Caixa → `/caixa`
 
-- **PDV (`src/pages/PDV.tsx`)**: aumentar área de toque dos botões do carrinho (mínimo 44px), `text-sm` no nome do produto no carrinho, espaçamento maior entre itens.
-- **`ProductCard.tsx`**: em telas `<sm`, mostrar o botão `+` sempre visível (não só no hover), aumentar padding interno (`p-2`) e font do preço.
-- **`CategoryBar`**: aumentar altura para `py-2.5` no mobile, `scroll-snap-x` para deslize confortável.
-- **`Layout.tsx`**: header mobile mais alto (`h-16`), título em `font-heading text-base font-bold`.
-- **Modais** (`CheckoutModal`, `WeightModal`, etc.): garantir `max-h-[90vh]` com scroll interno (já é regra de memória, conferir e ajustar onde faltar).
-- Revisão geral: trocar `text-[10px]`/`text-[11px]` no PDV por `text-xs`/`text-sm` para melhor leitura no celular.
+2. **Cadastros** (admin / por permissão)
+   - Produtos → `/produtos`
+   - Estoque → `/estoque`
+   - Clientes → `/clientes`
 
-## 3. Seletor de tipo de venda em destaque
+3. **Gestão** (admin)
+   - Relatórios → `/relatorios`
+   - Configurações → `/configuracoes`
 
-Hoje em `PDV.tsx` (linha ~860) os 4 tipos aparecem como botões `ghost` minúsculos `text-[10px] h-6` com emoji. Substituir por um grid de **cards-pílula** com ícone Lucide + label, mais visíveis.
+Cada card: botão grande (mín. 96px), ícone Lucide (28px), label em `font-heading font-bold`, borda 2px, hover `border-primary` + `bg-primary text-primary-foreground`, `active:scale-95`. Grid: `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4`.
 
-Novo componente: `src/components/OrderTypeSelector.tsx`
-- Recebe `value`, `onChange`, opcional `compact`.
-- 4 opções com ícones Lucide:
-  - **Mesa** → `Utensils`
-  - **Balcão** → `Store`
-  - **Delivery** → `Bike`
-  - **Retirada** → `ShoppingBag`
-- Layout: `grid grid-cols-4 gap-2` (desktop) / `grid-cols-2` (mobile).
-- Cada item: card `rounded-xl border-2 p-2.5` com ícone (20px) acima e label `text-xs font-semibold`.
-- Estado ativo: `bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]`.
-- Inativo: `bg-card text-foreground border-border hover:bg-accent/10 hover:border-accent`.
-- Ao clicar em "Mesa", continua acionando `setTableModalOpen(true)` (mesmo handler atual).
+Filtragem por permissão usando `useAuth().isAdmin` + `useAttendantPermissions()` (mesmo padrão das rotas em `App.tsx`): esconder cards aos quais o usuário não tem acesso.
 
-Integrar em `PDV.tsx`:
-- Substituir o bloco do `grid grid-cols-2 gap-1` (linhas ~860-866) pelo `<OrderTypeSelector />`.
-- Quando há `tableNumber`, manter o badge atual (Mesa N).
-- No mobile, exibir o seletor também acima do carrinho/produtos quando não houver mesa selecionada (atualmente só aparece em desktop). Garantir compactação para não comprometer a área de produtos.
+## Componente reutilizável
+`ShortcutCard` interno em `Home.tsx` (ícone, label, onClick) — evita duplicação visual.
+
+## Arquivos
+- **Novo**: `src/pages/Home.tsx`
+- **Editar**: `src/App.tsx` (adicionar rota `/mesas`, trocar rota raiz para `Home`)
+- **Editar**: `src/components/AppSidebar.tsx` (adicionar item "Mesas", manter "Início" apontando para raiz)
+- **Editar (opcional)**: `src/pages/Mesas.tsx` — remover bloco "Nova venda" (agora redundante na Home), mantendo só a listagem de mesas.
 
 ## Detalhes técnicos
-
-- Importar Poppins via `<link>` no `index.html` (preconnect + display=swap) para evitar FOUT.
-- Manter cores via tokens HSL existentes (`--primary`, `--accent`); nada hard-coded.
-- Não usar toasts (regra do projeto); feedback visual já vem do estado ativo do botão.
-- Nenhuma mudança de schema/DB. Sem novas dependências (Lucide já está disponível).
-
-## Arquivos afetados
-
-- `index.html` (fonte Poppins)
-- `src/index.css` (vars de fonte, utilitários)
-- `tailwind.config.ts` (fontFamily, fontSize)
-- `src/components/OrderTypeSelector.tsx` (novo)
-- `src/pages/PDV.tsx` (uso do seletor + ajustes mobile)
-- `src/components/ProductCard.tsx` (tipografia + mobile)
-- `src/components/CategoryBar.tsx` (tipografia)
-- `src/components/Layout.tsx` (header mobile)
+- Navegação via `useTenantNavigate` para preservar slug.
+- Ícones: `Utensils, Store, Bike, ShoppingBag, ClipboardList, Truck, DollarSign, Package, Boxes, Users, BarChart3, Settings`.
+- Sem alterações de banco/RLS.
