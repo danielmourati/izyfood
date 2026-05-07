@@ -97,6 +97,13 @@
     --sidebar-accent-foreground: 150 10% 95%;
     --sidebar-border: 200 10% 18%;
     --sidebar-ring: 152 55% 42%;
+
+    --section-vendas: 152 55% 50%;
+    --section-vendas-soft: 152 30% 18%;
+    --section-cadastros: 217 91% 65%;
+    --section-cadastros-soft: 217 35% 20%;
+    --section-gestao: 38 95% 55%;
+    --section-gestao-soft: 32 35% 20%;
   }
 }
 
