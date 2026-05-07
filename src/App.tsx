@@ -7,6 +7,7 @@ import { useAttendantPermissions, AttendantPermissions } from "@/hooks/use-atten
 import { Layout } from "@/components/Layout";
 import Login from "./pages/Login";
 import PDV from "./pages/PDV";
+import Home from "./pages/Home";
 import Mesas from "./pages/Mesas";
 import Pedidos from "./pages/Pedidos";
 import Clientes from "./pages/Clientes";
