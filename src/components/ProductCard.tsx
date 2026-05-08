@@ -12,11 +12,11 @@ interface ProductCardProps {
 export function ProductCard({ product, category, onAdd }: ProductCardProps) {
   return (
     <div
-      className="bg-card rounded-xl border overflow-hidden cursor-pointer hover:shadow-lg hover:border-primary/30 transition-all active:scale-[0.97] select-none group"
+      className="bg-card rounded-xl border overflow-hidden cursor-pointer hover:shadow-lg hover:border-primary/30 transition-all active:scale-[0.97] select-none group flex flex-col"
       onClick={() => onAdd(product)}
     >
-      {/* Image area */}
-      <div className="relative aspect-square bg-muted overflow-hidden">
+      {/* Image area — reduced ratio for a more square overall card */}
+      <div className="relative aspect-[5/4] bg-muted overflow-hidden">
         {product.image ? (
           <img
             src={product.image}
@@ -31,9 +31,9 @@ export function ProductCard({ product, category, onAdd }: ProductCardProps) {
           </div>
         )}
 
-        {/* Add button overlay - always visible on mobile, hover on desktop */}
+        {/* Add button overlay */}
         <button
-          className="absolute bottom-2 right-2 h-9 w-9 sm:h-8 sm:w-8 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+          className="absolute bottom-1.5 right-1.5 h-8 w-8 sm:h-7 sm:w-7 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
           onClick={(e) => { e.stopPropagation(); onAdd(product); }}
           aria-label={`Adicionar ${product.name}`}
         >
@@ -41,18 +41,18 @@ export function ProductCard({ product, category, onAdd }: ProductCardProps) {
         </button>
 
         {product.stock <= 5 && (
-          <Badge variant="destructive" className="absolute top-2 left-2 text-[10px]">
+          <Badge variant="destructive" className="absolute top-1.5 left-1.5 text-[10px]">
             Estoque baixo
           </Badge>
         )}
       </div>
 
-      {/* Info */}
-      <div className="p-2 space-y-0.5">
-        <h3 className="font-heading font-semibold text-xs sm:text-[13px] leading-tight text-foreground line-clamp-2">
+      {/* Info — compact for square aspect */}
+      <div className="px-2 py-1.5 space-y-0.5">
+        <h3 className="font-heading font-semibold text-xs sm:text-[13px] leading-tight text-foreground line-clamp-1">
           {product.name}
         </h3>
-        <p className="text-primary text-price text-sm sm:text-base leading-tight">
+        <p className="text-primary text-price text-sm sm:text-[15px] leading-tight">
           R$ {fmt(product.price)}
           {product.type === 'weight' && (
             <span className="text-[10px] font-medium text-muted-foreground ml-0.5">/kg</span>
