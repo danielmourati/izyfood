@@ -1031,18 +1031,22 @@ function CartContent({
             </div>
           </div>
         ) : orderType === 'balcao' ? (
+          // Balcão usa os mesmos botões/funções de Delivery (sem 'Segurar' — Balcão não pode ser segurado).
           <div className="space-y-1.5">
-            <div className="grid grid-cols-2 gap-1.5">
-              <Button variant="destructive" className="h-8 text-[11px] font-semibold" onClick={handleProtectedCancel} disabled={cart.length === 0}>
-                <X className="h-3.5 w-3.5 mr-1" /> Cancelar
+            <div className="grid grid-cols-3 gap-1.5">
+              <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
+                <X className="h-3 w-3" />
               </Button>
-              <Button className="h-8 text-[11px] font-semibold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-                <ShoppingCart className="h-3.5 w-3.5 mr-1" /> Pagar
+              <Button className="h-8 text-[10px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+                <SendHorizontal className="h-3 w-3 mr-0.5" /> Enviar
+              </Button>
+              <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+                <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-                <RefreshCcw className="h-3 w-3" /> Reimpr.
+                <RefreshCcw className="h-3 w-3" /> Reimprimir
               </Button>
               <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
                 <ReceiptText className="h-3 w-3" /> Conta
