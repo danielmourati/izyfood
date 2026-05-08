@@ -1053,15 +1053,6 @@ function CartContent({
               </Button>
             </div>
           </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-                <RefreshCcw className="h-3 w-3" /> Reimprimir
-              </Button>
-              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
-                <ReceiptText className="h-3 w-3" /> Conta
-              </Button>
-            </div>
-          </div>
         ) : (
           <div className="space-y-1.5">
             <div className="grid grid-cols-4 gap-1.5">
