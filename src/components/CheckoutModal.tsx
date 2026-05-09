@@ -336,23 +336,78 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           )}
         </div>
 
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">R$</span>
-                    <Input
-                      className="h-9 pl-9"
-                      placeholder="0,00"
-                      value={addingAmount}
-                      onChange={e => setAddingAmount(e.target.value)}
-                    />
-                  </div>
-                  <Button size="sm" className="h-9" onClick={addSplit} disabled={!addingMethod || !addingAmount}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
+        {/* Payment Methods */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">Formas de Pagamento</p>
+            {remaining > 0 && (
+              <Badge variant="outline" className="text-primary font-bold">
+                Restante: R$ {fmt(remaining)}
+              </Badge>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {methods.map(m => {
+              const Icon = m.icon;
+              return (
+                <Button
+                  key={m.key}
+                  variant="outline"
+                  className={`h-11 justify-start gap-2 border-2 ${addingMethod === m.key ? 'border-primary bg-primary/5' : 'border-transparent bg-muted/30'}`}
+                  onClick={() => {
+                    setAddingMethod(m.key);
+                    setAddingAmount(fmt(remaining).replace('R$', '').trim());
+                  }}
+                  disabled={remaining <= 0 && addingMethod !== m.key}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="text-xs font-medium">{m.label}</span>
+                </Button>
+              );
+            })}
+          </div>
+
+          {addingMethod && (
+            <div className="flex gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">R$</span>
+                <Input
+                  className="h-9 pl-9"
+                  placeholder="0,00"
+                  value={addingAmount}
+                  onChange={e => setAddingAmount(e.target.value)}
+                  autoFocus
+                />
               </div>
+              <Button size="sm" className="h-9 px-4" onClick={addSplit}>
+                Adicionar
+              </Button>
             </div>
           )}
 
+          {splits.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              {splits.map((s, i) => {
+                const method = methods.find(m => m.key === s.method);
+                const Icon = method?.icon || QrCode;
+                return (
+                  <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2 border border-border/50">
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium">{method?.label}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-foreground">R$ {fmt(s.amount)}</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => removeSplit(i)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Fiado customer selection */}

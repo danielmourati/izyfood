@@ -634,10 +634,6 @@ const PDV = () => {
                       <Button variant="outline" className="w-[60px] bg-white text-destructive hover:bg-gray-100 rounded shadow-sm border border-black/10 active:scale-95 px-0" onClick={() => removeItem(lastItem.id)}>
                         <Trash2 className="h-5 w-5 stroke-[2.5]" />
                       </Button>
-                      <Button variant="outline" className="w-[60px] bg-white text-blue-500 hover:bg-gray-100 rounded shadow-sm border border-black/10 active:scale-95 px-0 relative" onClick={() => setEditingItemNotesId(lastItem.id)}>
-                        <ListChecks className="h-5 w-5 stroke-[2.5]" />
-                        {lastItem.notes && <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive outline outline-2 outline-white"></span>}
-                      </Button>
                     </div>
                   </div>
                 );
@@ -716,7 +712,9 @@ const PDV = () => {
 // ============ CartContent (kept inline for compatibility) ============
 
 function CartContent({
-  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, onReprintOrder, onPrintBill, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder,
+  cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen,
+  tables, onSelectTable, selectedCustomerId, onSelectCustomer, isHeldMesa,
+  onPrintOrder, onReprintOrder, onPrintBill, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder,
   manualCustomerName, setManualCustomerName
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
@@ -918,7 +916,6 @@ function CartContent({
             <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-50 hover:opacity-100" onClick={() => onSelectCustomer(null)}>
               <X className="h-3 w-3" />
             </Button>
-          </div>
           </div>
         ) : null}
 
