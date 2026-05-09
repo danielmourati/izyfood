@@ -1034,8 +1034,12 @@ function CartContent({
           // Balcão usa os mesmos botões/funções de Delivery (sem 'Segurar' — Balcão não pode ser segurado).
           <div className="space-y-1.5">
             <div className="grid grid-cols-3 gap-1.5">
-              <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
-                <X className="h-3 w-3" />
+              <Button 
+                variant="outline" 
+                className="h-8 text-[10px] px-1 font-bold bg-red-50/50 border-red-100 text-red-600 hover:bg-red-50" 
+                onClick={() => setMobileView?.('categories')}
+              >
+                VOLTAR
               </Button>
               <Button className="h-8 text-[10px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
                 <SendHorizontal className="h-3 w-3 mr-0.5" /> Enviar
@@ -1045,9 +1049,20 @@ function CartContent({
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-1.5">
-              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-                <RefreshCcw className="h-3 w-3" /> Reimprimir
-              </Button>
+              <div className="flex gap-1.5">
+                <Button variant="outline" className="flex-1 h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
+                  <RefreshCcw className="h-3 w-3" /> Reimprimir
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 shrink-0 text-destructive bg-destructive/10 hover:bg-destructive/20" 
+                  onClick={handleProtectedCancel} 
+                  disabled={cart.length === 0 && !tableNumber}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
               <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
                 <ReceiptText className="h-3 w-3" /> Conta
               </Button>
