@@ -65,6 +65,7 @@ export default function Caixa() {
   const [movementAuthPassword, setMovementAuthPassword] = useState('');
   const [movementAuthChecking, setMovementAuthChecking] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [hasPendingItems, setHasPendingItems] = useState(false);
 
   useEffect(() => { fetchCurrent(); }, []);
 
@@ -140,7 +141,10 @@ export default function Caixa() {
       .eq('status', 'occupied')
       .limit(1);
 
-    if ((openOrders && openOrders.length > 0) || (occupiedTables && occupiedTables.length > 0)) {
+    const hasPending = (openOrders && openOrders.length > 0) || (occupiedTables && occupiedTables.length > 0);
+    setHasPendingItems(hasPending);
+
+    if (hasPending) {
       if (isAdmin) {
         setCloseConfirmOpen(true);
       } else {
@@ -720,7 +724,7 @@ export default function Caixa() {
           <AlertDialogHeader>
             <AlertDialogTitle>Fechar Caixa?</AlertDialogTitle>
             <AlertDialogDescription>
-              {isAdmin && ((openOrders && openOrders.length > 0) || (occupiedTables && occupiedTables.length > 0)) ? (
+              {isAdmin && hasPendingItems ? (
                 <span className="text-destructive font-medium block mb-2">
                   AVISO: Existem pedidos não finalizados ou mesas abertas!
                 </span>
