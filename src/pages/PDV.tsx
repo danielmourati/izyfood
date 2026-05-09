@@ -1030,68 +1030,44 @@ function CartContent({
               </Button>
             </div>
           </div>
-        ) : orderType === 'balcao' ? (
-          // Balcão usa os mesmos botões/funções de Delivery (sem 'Segurar' — Balcão não pode ser segurado).
-          <div className="space-y-1.5">
-            <div className="grid grid-cols-3 gap-1.5">
+        ) : (orderType === 'balcao' || orderType === 'delivery' || orderType === 'retirada') ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-2">
               <Button 
-                variant="outline" 
-                className="h-8 text-[10px] px-1 font-bold bg-red-50/50 border-red-100 text-red-600 hover:bg-red-50" 
-                onClick={() => setMobileView?.('categories')}
+                variant="default" 
+                className="h-11 text-[11px] px-1 font-bold bg-[#7C3AED] hover:bg-[#6D28D9] text-white shadow-md border-none" 
+                onClick={() => onAddNewItem?.()}
               >
                 VOLTAR
               </Button>
-              <Button className="h-8 text-[10px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
-                <SendHorizontal className="h-3 w-3 mr-0.5" /> Enviar
+              <Button className="h-11 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+                <SendHorizontal className="h-4 w-4 mr-1" /> Enviar
               </Button>
-              <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-                <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
+              <Button className="h-11 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+                <ShoppingCart className="h-4 w-4 mr-1.5" /> Pagar
               </Button>
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="flex gap-1.5">
-                <Button variant="outline" className="flex-1 h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-                  <RefreshCcw className="h-3 w-3" /> Reimprimir
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 shrink-0 text-destructive bg-destructive/10 hover:bg-destructive/20" 
-                  onClick={handleProtectedCancel} 
-                  disabled={cart.length === 0 && !tableNumber}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
-                <ReceiptText className="h-3 w-3" /> Conta
+            <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-10 w-10 shrink-0 text-destructive bg-destructive/10 hover:bg-destructive/20" 
+                onClick={handleProtectedCancel} 
+                disabled={cart.length === 0 && !tableNumber}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
+                <RefreshCcw className="h-3.5 w-3.5" /> Reimprimir
+              </Button>
+              <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
+                <ReceiptText className="h-3.5 w-3.5" /> Conta
               </Button>
             </div>
           </div>
         ) : (
-          <div className="space-y-1.5">
-            <div className="grid grid-cols-4 gap-1.5">
-              <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
-                <X className="h-3 w-3" />
-              </Button>
-              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold" onClick={holdOrder} disabled={cart.length === 0}>
-                <Pause className="h-3 w-3 mr-0.5" /> Segur.
-              </Button>
-              <Button className="h-8 text-[10px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
-                <SendHorizontal className="h-3 w-3 mr-0.5" /> Enviar
-              </Button>
-              <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-                <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-                <RefreshCcw className="h-3 w-3" /> Reimprimir
-              </Button>
-              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
-                <ReceiptText className="h-3 w-3" /> Conta
-              </Button>
-            </div>
+          <div className="text-center py-4 text-muted-foreground">
+            Selecione um tipo de pedido
           </div>
         )}
       </div>
