@@ -189,7 +189,7 @@ const PDV = () => {
     }
 
     setCart(prev => {
-      const existing = prev.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id);
+      const existing = prev.find(i => i.productId === product.id && !i.weight && i.addedBy === user?.id && !i.printed);
       if (existing) {
         setMobileLastAddedId(existing.id);
         return prev.map(i => {
@@ -361,15 +361,17 @@ const PDV = () => {
   };
 
   const handleSendAndHold = async () => {
-    if (cart.length === 0) return;
-    const cust = customers.find(c => c.id === currentOrder.customerId);
+    const unprintedItems = cart.filter(i => !i.printed);
+    if (unprintedItems.length === 0) return;
+
     const markedCart = cart.map(i => ({ ...i, printed: true }));
     
+    const cust = customers.find(c => c.id === currentOrder.customerId);
     const orderData = {
       ...currentOrder,
-      items: markedCart,
+      items: unprintedItems, // Enviar apenas os novos itens
       operatorName: user?.name,
-      customerName: cust?.name || undefined,
+      customerName: cust?.name || manualCustomerName || undefined,
     };
 
     // 1. Enviar para a impressora
@@ -406,17 +408,19 @@ const PDV = () => {
       ));
     }
 
-    // 3. Reset visual
-    setCart([]);
-    setSelectedCustomerId(null);
-    setManualCustomerName('');
-    setCurrentOrderId(crypto.randomUUID());
+    // 3. Atualizar estado visual (manter itens mas marcados como impressos)
+    setCart(markedCart);
+    
+    // Se for delivery ou retirada, vai para tela de entregas
+    // Se for mesa, permanece no carrinho para ver o status impresso, 
+    // ou volta para o mapa se preferir.
     if (orderType === 'delivery' || orderType === 'retirada') {
       navigate('/entregas');
-    } else if (tableNumber) {
-      navigate('/');
+    } else if (orderType === 'mesa' && !isMobile) {
+      // No desktop mesa, apenas informa sucesso
+      toast.success('Comanda enviada para a cozinha!');
     } else {
-      setMobileView('categories');
+      toast.success('Itens enviados para produção!');
     }
   };
 
@@ -980,9 +984,25 @@ function CartContent({
               </div>
               {!item.weight && (
                 <div className="flex items-center gap-1 self-start mt-1 bg-muted/30 rounded-md p-1">
-                  <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-background shadow-sm rounded-sm" onClick={() => updateQty(item.id, -1)}><Minus className="h-3.5 w-3.5" /></Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-7 w-7 hover:bg-background shadow-sm rounded-sm" 
+                    onClick={() => updateQty(item.id, -1)} 
+                    disabled={item.printed}
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </Button>
                   <span className="w-8 text-center font-bold text-[16px]">{item.quantity}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-background shadow-sm rounded-sm" onClick={() => updateQty(item.id, 1)}><Plus className="h-3.5 w-3.5" /></Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-7 w-7 hover:bg-background shadow-sm rounded-sm" 
+                    onClick={() => updateQty(item.id, 1)} 
+                    disabled={item.printed}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               )}
             </div>
@@ -1011,7 +1031,11 @@ function CartContent({
             >
               VOLTAR
             </Button>
-            <Button className="h-11 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+            <Button 
+              className="h-11 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" 
+              onClick={onPrintOrder} 
+              disabled={cart.length === 0 || cart.every(i => i.printed)}
+            >
               <SendHorizontal className="h-4 w-4 mr-1" /> Enviar
             </Button>
             <Button className="h-11 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
