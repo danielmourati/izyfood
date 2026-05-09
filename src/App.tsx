@@ -7,6 +7,7 @@ import { useAttendantPermissions, AttendantPermissions } from "@/hooks/use-atten
 import { Layout } from "@/components/Layout";
 import Login from "./pages/Login";
 import PDV from "./pages/PDV";
+import Home from "./pages/Home";
 import Mesas from "./pages/Mesas";
 import Pedidos from "./pages/Pedidos";
 import Clientes from "./pages/Clientes";
@@ -53,7 +54,8 @@ function TenantRoutes() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<ProtectedRoute><Mesas /></ProtectedRoute>} />
+        <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+        <Route path="/mesas" element={<ProtectedRoute><Mesas /></ProtectedRoute>} />
         <Route path="/login" element={<Navigate to={`/${slug}`} replace />} />
         <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
         <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />

@@ -1,72 +1,71 @@
+# Plano: Cores por seção na Home
 
+## Objetivo
+Dar identidade visual a cada seção de atalhos da Home (`src/pages/Home.tsx`) usando cores distintas, mantendo coerência com a paleta atual (verde primário) e boa legibilidade em light/dark mode.
 
-# Plano: Módulo de Impressoras Térmicas
+## Paleta proposta (tom suave no card, cor cheia no hover/ícone)
 
-## Resumo
-Implementar configuração de impressoras térmicas (Web Bluetooth + Rede IP) na aba Impressora das Configurações, com um serviço de impressão ESC/POS reutilizável para comandas, contas e fechamento de caixa.
+| Seção | Cor base | Uso |
+|---|---|---|
+| **Vendas** | Verde (primary `#2D6A4F`) | Identidade principal — operação |
+| **Cadastros** | Azul (`#2563EB`) | Dados/registros |
+| **Gestão** | Âmbar/Laranja (`#D97706`) | Análise/administração |
 
-## Etapas
+Cada seção terá:
+- **Título**: pequena barra/ponto colorido + texto da cor da seção
+- **Card (estado normal)**: fundo `card`, borda 2px na cor da seção em opacidade baixa (~30%), ícone na cor da seção
+- **Card (hover)**: borda cheia + fundo cheio na cor da seção + texto/ícone branco
+- **Active**: `scale-95` (mantém)
 
-### 1. Tabela `printer_configs` no banco
-Criar tabela para salvar impressoras configuradas por tenant:
-- `id`, `tenant_id`, `name` (ex: "Cozinha"), `connection_type` (bluetooth | network), `address` (IP:porta ou device ID), `paper_width` (58 | 80mm), `is_default` (boolean), `created_at`
-- RLS: leitura/escrita para membros do tenant, delete para admins
+## Implementação
 
-### 2. Biblioteca ESC/POS (`src/lib/printer.ts`)
-Serviço que abstrai a comunicação:
-- **`connectBluetooth()`** — usa `navigator.bluetooth.requestDevice()` com filtro por serviço de impressora serial
-- **`connectNetwork(address)`** — envia dados via fetch para um proxy local ou WebSocket (limitação de browsers; fallback para `window.open` + `print()` em rede)
-- **`printRaw(bytes: Uint8Array)`** — envia buffer ESC/POS para o dispositivo conectado
-- **Helpers**: `buildOrderReceipt(order)`, `buildBillReceipt(order)`, `buildCashCloseReceipt(register)` — geram bytes ESC/POS com formatação de 58/80mm
+### 1. Tokens de cor em `src/index.css`
+Adicionar variáveis HSL semânticas para light e dark:
+```css
+--section-vendas: 152 55% 32%;        /* verde */
+--section-vendas-soft: 152 45% 92%;
+--section-cadastros: 217 91% 55%;     /* azul */
+--section-cadastros-soft: 217 90% 95%;
+--section-gestao: 32 95% 44%;         /* âmbar */
+--section-gestao-soft: 38 95% 92%;
+```
+Versões dark com `*-soft` mais escuras (ex.: `… 18%`).
 
-### 3. Hook `usePrinter` (`src/hooks/use-printer.ts`)
-- Carrega configuração padrão da impressora do tenant
-- Expõe `printOrder(order)`, `printBill(order)`, `printCashClose(register)`
-- Gerencia estado de conexão Bluetooth (pareamento persistente via `navigator.bluetooth.getDevices()`)
-
-### 4. Aba Impressora (`ImpressoraTab`)
-UI de configuração:
-- Listar impressoras cadastradas (nome, tipo, endereço, largura do papel)
-- Botão "Adicionar Impressora" com formulário: nome, tipo (Bluetooth/Rede), endereço IP (se rede), largura do papel (58mm/80mm)
-- Para Bluetooth: botão "Parear" que aciona `navigator.bluetooth.requestDevice()`
-- Botão "Imprimir Teste" para validar conexão
-- Marcar uma impressora como padrão
-
-### 5. Integrar impressão nos fluxos existentes
-- **Comanda**: ao adicionar itens a pedido de mesa, botão "Imprimir Comanda" no carrinho
-- **Conta**: no checkout, após pagamento, imprimir automaticamente ou com botão
-- **Fechamento de caixa**: substituir `window.open().print()` do `CashRegisterReceipt` pelo serviço ESC/POS, mantendo fallback para navegador
-
-## Detalhes técnicos
-
-**Web Bluetooth API** — disponível em Chrome/Edge (desktop e Android). O pareamento é feito uma vez e o dispositivo fica acessível via `getDevices()`. O serviço filtra por UUID `0x1101` (Serial Port Profile) ou serviços específicos de impressoras térmicas comuns.
-
-**Rede IP** — browsers não permitem conexão TCP raw. A abordagem realista é:
-- Usar `window.open` com HTML formatado para impressão via driver do SO (abordagem atual, melhorada)
-- Futuramente, um app companion local poderia receber comandos via localhost
-
-**Formato ESC/POS** — comandos binários para: inicializar (`\x1B\x40`), negrito, alinhamento, corte de papel, código de barras. A lib gera `Uint8Array` com o layout completo.
-
-**Tabela DB**:
-```sql
-CREATE TABLE printer_configs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL DEFAULT get_user_tenant_id(),
-  name text NOT NULL,
-  connection_type text NOT NULL CHECK (connection_type IN ('bluetooth','network')),
-  address text DEFAULT '',
-  paper_width integer NOT NULL DEFAULT 80,
-  is_default boolean NOT NULL DEFAULT false,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
--- RLS policies para tenant isolation
+### 2. Mapear no `tailwind.config.ts`
+```ts
+colors: {
+  section: {
+    vendas: 'hsl(var(--section-vendas))',
+    'vendas-soft': 'hsl(var(--section-vendas-soft))',
+    cadastros: 'hsl(var(--section-cadastros))',
+    'cadastros-soft': 'hsl(var(--section-cadastros-soft))',
+    gestao: 'hsl(var(--section-gestao))',
+    'gestao-soft': 'hsl(var(--section-gestao-soft))',
+  }
+}
 ```
 
-### Ordem de implementação
-1. Migration: tabela `printer_configs` + RLS
-2. `src/lib/escpos.ts` — encoder de comandos ESC/POS
-3. `src/lib/printer.ts` — conexão Bluetooth/fallback
-4. `src/hooks/use-printer.ts` — hook reutilizável
-5. `ImpressoraTab` — UI de configuração com pareamento e teste
-6. Integrar nos fluxos de comanda, conta e caixa
+### 3. Atualizar `src/pages/Home.tsx`
+- Adicionar `color: 'vendas' | 'cadastros' | 'gestao'` em cada `Section`.
+- Mapa de classes (não dinâmicas para o Tailwind detectar):
+```ts
+const sectionStyles = {
+  vendas:    { dot: 'bg-section-vendas',    title: 'text-section-vendas',    card: 'border-section-vendas/30 hover:border-section-vendas hover:bg-section-vendas',    icon: 'text-section-vendas group-hover:text-white' },
+  cadastros: { dot: 'bg-section-cadastros', title: 'text-section-cadastros', card: 'border-section-cadastros/30 hover:border-section-cadastros hover:bg-section-cadastros', icon: 'text-section-cadastros group-hover:text-white' },
+  gestao:    { dot: 'bg-section-gestao',    title: 'text-section-gestao',    card: 'border-section-gestao/30 hover:border-section-gestao hover:bg-section-gestao',       icon: 'text-section-gestao group-hover:text-white' },
+};
+```
+- `ShortcutCard` recebe `color` e aplica as classes.
+- Título da seção: `<span className="inline-block w-2 h-2 rounded-full {dot}" />` ao lado do label, label em cor temática (mantendo uppercase).
 
+### 4. Acessibilidade
+- Garantir contraste AA: hover usa fundo cheio + texto branco (`text-white`).
+- No dark mode, `*-soft` fica escuro o suficiente para o ícone colorido continuar visível.
+
+## Arquivos
+- Editar: `src/index.css` (tokens)
+- Editar: `tailwind.config.ts` (cores `section.*`)
+- Editar: `src/pages/Home.tsx` (mapa + props no card e título)
+
+## Fora de escopo
+- Sidebar, PDV e demais páginas continuam com a paleta verde atual.

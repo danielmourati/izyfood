@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        heading: ['Poppins', 'Inter', 'system-ui', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -61,6 +65,14 @@ export default {
           bg: "hsl(var(--login-bg))",
           accent: "hsl(var(--login-accent))",
           green: "hsl(var(--login-green))",
+        },
+        section: {
+          vendas: "hsl(var(--section-vendas))",
+          "vendas-soft": "hsl(var(--section-vendas-soft))",
+          cadastros: "hsl(var(--section-cadastros))",
+          "cadastros-soft": "hsl(var(--section-cadastros-soft))",
+          gestao: "hsl(var(--section-gestao))",
+          "gestao-soft": "hsl(var(--section-gestao-soft))",
         },
       },
       borderRadius: {

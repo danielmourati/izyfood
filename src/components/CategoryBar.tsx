@@ -9,17 +9,19 @@ interface CategoryBarProps {
 }
 
 export function CategoryBar({ categories, activeCategoryId, onSelect }: CategoryBarProps) {
+  const baseClass =
+    'shrink-0 px-4 py-2.5 rounded-xl text-sm font-heading font-semibold tracking-wide transition-all whitespace-nowrap';
+  const activeClass =
+    'bg-primary/80 text-primary-foreground shadow-md ring-2 ring-primary-foreground/30';
+  const inactiveClass =
+    'bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground';
+
   return (
     <ScrollArea className="w-full">
-      <div className="flex gap-3 pb-2 px-1">
+      <div className="flex gap-3 pb-2 px-1 snap-x snap-mandatory">
         <button
           onClick={() => onSelect('all')}
-          className={cn(
-            'px-4 py-2 rounded-xl text-sm font-medium transition-all',
-            activeCategoryId === 'all'
-              ? 'bg-primary/80 text-primary-foreground shadow-md ring-2 ring-primary-foreground/30'
-              : 'bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground'
-          )}
+          className={cn(baseClass, 'snap-start', activeCategoryId === 'all' ? activeClass : inactiveClass)}
         >
           Todos
         </button>
@@ -28,12 +30,7 @@ export function CategoryBar({ categories, activeCategoryId, onSelect }: Category
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            className={cn(
-              'px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap',
-              activeCategoryId === cat.id
-                ? 'bg-primary/80 text-primary-foreground shadow-md ring-2 ring-primary-foreground/30'
-                : 'bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground'
-            )}
+            className={cn(baseClass, 'snap-start', activeCategoryId === cat.id ? activeClass : inactiveClass)}
           >
             {cat.name}
           </button>
@@ -43,3 +40,4 @@ export function CategoryBar({ categories, activeCategoryId, onSelect }: Category
     </ScrollArea>
   );
 }
+

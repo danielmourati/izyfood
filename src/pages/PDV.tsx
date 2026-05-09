@@ -20,6 +20,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
 import { TableBar } from '@/components/TableBar';
+import { OrderTypeSelector } from '@/components/OrderTypeSelector';
 import { usePrinter } from '@/hooks/use-printer';
 
 const orderTypeLabels: Record<OrderType, string> = {
@@ -41,6 +42,7 @@ const PDV = () => {
 
   const mesaParam = searchParams.get('mesa');
   const pedidoParam = searchParams.get('pedido');
+  const tipoParam = searchParams.get('tipo') as OrderType | null;
   const tableNumber = mesaParam ? parseInt(mesaParam) : undefined;
 
   const existingOrder = useMemo(() => {
@@ -72,7 +74,7 @@ const PDV = () => {
     if (existingOrder) {
       setCart(existingOrder.items);
       setOrderType(existingOrder.orderType);
-      setCurrentOrderId(existingOrder.id);
+      setCurrentOrderId(existingOrder.id as `${string}-${string}-${string}-${string}-${string}`);
       if (existingOrder.customerId) setSelectedCustomerId(existingOrder.customerId);
       setInitialized(true);
       if (existingOrder.items.length > 0) {
@@ -82,8 +84,8 @@ const PDV = () => {
       // Wait for realtime
     } else {
       const newId = currentOrderId;
-      const newOrderType = tableNumber ? 'mesa' as const : 'balcao' as const;
-      if (tableNumber) setOrderType('mesa');
+      const newOrderType: OrderType = tableNumber ? 'mesa' : (tipoParam && ['mesa','balcao','delivery','retirada'].includes(tipoParam) ? tipoParam : 'balcao');
+      if (newOrderType !== 'balcao') setOrderType(newOrderType);
       const order: Order = {
         id: newId, items: [], total: 0, orderType: newOrderType, status: 'aberto',
         tableNumber, createdAt: new Date().toISOString(),
@@ -106,7 +108,7 @@ const PDV = () => {
             const order = orders.find(o => o.id === t.orderId);
             if (!order || order.items.length === 0) {
               changed = true;
-              return { ...t, status: 'available', orderId: undefined };
+              return { ...t, status: 'available' as const, orderId: undefined };
             }
           }
           return t;
@@ -851,22 +853,20 @@ function CartContent({
 
   return (
     <>
-      {/* Order type / table header - hides badge in mobile (shown in page header) */}
-      {!isMobile && (
-        <div className="px-3 py-1.5 border-b bg-muted/20">
-          {tableNumber ? (
-            <div className="text-center"><Badge variant="default" className="text-[10px] uppercase font-bold px-2 py-0.5 opacity-80">Mesa {tableNumber}</Badge></div>
-          ) : (
-            <div className="grid grid-cols-2 gap-1">
-              {(Object.entries(orderTypeLabels) as [OrderType, string][]).map(([key, label]) => (
-                <Button key={key} variant={orderType === key ? 'default' : 'ghost'} size="sm" className="text-[10px] h-6" onClick={() => handleOrderTypeClick(key)}>
-                  {label}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Order type / table header */}
+      <div className="px-3 py-2 border-b bg-muted/20">
+        {tableNumber ? (
+          <div className="text-center">
+            <Badge variant="default" className="text-xs uppercase font-bold px-3 py-1 font-heading">Mesa {tableNumber}</Badge>
+          </div>
+        ) : (
+          <OrderTypeSelector
+            value={orderType}
+            onChange={handleOrderTypeClick}
+            compact={isMobile}
+          />
+        )}
+      </div>
 
       {/* Customer Selector */}
       <div className="px-3 py-2 border-b space-y-1">
@@ -932,7 +932,7 @@ function CartContent({
                 <div className="flex-1 min-w-0 pr-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-bold text-[16px] text-foreground leading-tight">{item.name}</span>
-                    {item.printed && <Printer className="h-4 w-4 text-muted-foreground ml-1" title="Impresso/Enviado" />}
+                    {item.printed && <Printer className="h-4 w-4 text-muted-foreground ml-1" aria-label="Impresso/Enviado" />}
                     {eligible && selectedCustomerId && (
                       <Badge variant="outline" className="text-[10px] text-primary px-1 py-0 leading-none h-4 border-primary/30">
                         <Star className="h-2.5 w-2.5 mr-0.5" />+1
@@ -1031,18 +1031,22 @@ function CartContent({
             </div>
           </div>
         ) : orderType === 'balcao' ? (
+          // Balcão usa os mesmos botões/funções de Delivery (sem 'Segurar' — Balcão não pode ser segurado).
           <div className="space-y-1.5">
-            <div className="grid grid-cols-2 gap-1.5">
-              <Button variant="destructive" className="h-8 text-[11px] font-semibold" onClick={handleProtectedCancel} disabled={cart.length === 0}>
-                <X className="h-3.5 w-3.5 mr-1" /> Cancelar
+            <div className="grid grid-cols-3 gap-1.5">
+              <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
+                <X className="h-3 w-3" />
               </Button>
-              <Button className="h-8 text-[11px] font-semibold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-                <ShoppingCart className="h-3.5 w-3.5 mr-1" /> Pagar
+              <Button className="h-8 text-[10px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+                <SendHorizontal className="h-3 w-3 mr-0.5" /> Enviar
+              </Button>
+              <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+                <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-                <RefreshCcw className="h-3 w-3" /> Reimpr.
+                <RefreshCcw className="h-3 w-3" /> Reimprimir
               </Button>
               <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
                 <ReceiptText className="h-3 w-3" /> Conta
