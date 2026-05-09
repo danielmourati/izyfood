@@ -644,8 +644,8 @@ const PDV = () => {
         )}
 
         {mobileView === 'cart' && (
-          <div className="flex flex-col h-full bg-card">
-            <div className="flex items-center justify-between p-3 border-b shadow-sm z-10 shrink-0">
+          <div className="fixed inset-0 z-[60] flex flex-col bg-card animate-in slide-in-from-bottom duration-300">
+            <div className="flex items-center justify-between p-3 pt-safe border-b shadow-sm z-10 shrink-0">
               <Button variant="ghost" size="icon" onClick={() => setMobileView('products')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
@@ -653,7 +653,7 @@ const PDV = () => {
                 {tableNumber ? `Mesa ${tableNumber}` : 'Revisar Pedido'}
               </span>
             </div>
-            <div className="flex-1 flex flex-col overflow-hidden bg-muted/10 pb-16">
+            <div className="flex-1 flex flex-col overflow-hidden bg-muted/10">
               <CartContent
                 cart={cart} orderType={orderType} setOrderType={setOrderType} tableNumber={tableNumber} total={total}
                 updateQty={updateQty} removeItem={removeItem}
@@ -972,7 +972,7 @@ function CartContent({
       </div>
 
       {/* Footer totals + actions */}
-      <div className="border-t p-2 space-y-2 bg-card">
+      <div className="border-t p-2 space-y-2 bg-card pb-safe sm:pb-2">
         <div className="flex justify-between items-end px-1">
           <div className="flex flex-col">
             <span className="text-[12px] font-medium text-muted-foreground leading-none">Subtotal</span>
