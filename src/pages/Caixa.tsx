@@ -141,7 +141,11 @@ export default function Caixa() {
       .limit(1);
 
     if ((openOrders && openOrders.length > 0) || (occupiedTables && occupiedTables.length > 0)) {
-      setAdminConfirmModal(true);
+      if (isAdmin) {
+        setCloseConfirmOpen(true);
+      } else {
+        setAdminConfirmModal(true);
+      }
       return;
     }
     setCloseConfirmOpen(true);
@@ -716,6 +720,11 @@ export default function Caixa() {
           <AlertDialogHeader>
             <AlertDialogTitle>Fechar Caixa?</AlertDialogTitle>
             <AlertDialogDescription>
+              {isAdmin && ((openOrders && openOrders.length > 0) || (occupiedTables && occupiedTables.length > 0)) ? (
+                <span className="text-destructive font-medium block mb-2">
+                  AVISO: Existem pedidos não finalizados ou mesas abertas!
+                </span>
+              ) : null}
               Tem certeza que deseja fechar o caixa? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>

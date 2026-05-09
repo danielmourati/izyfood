@@ -180,21 +180,24 @@ const Entregas = () => {
       toast.error('Informe o motivo do cancelamento');
       return;
     }
-    if (!adminEmail.trim() || !adminPassword.trim()) {
+
+    if (!isAdmin && (!adminEmail.trim() || !adminPassword.trim())) {
       toast.error('Informe email e senha do administrador');
       return;
     }
 
     setCancelLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('verify-admin-password', {
-        body: { email: adminEmail.trim(), password: adminPassword },
-      });
+      if (!isAdmin) {
+        const { data, error } = await supabase.functions.invoke('verify-admin-password', {
+          body: { email: adminEmail.trim(), password: adminPassword },
+        });
 
-      if (error || !data?.success) {
-        toast.error(data?.error || 'Falha na verificação do administrador');
-        setCancelLoading(false);
-        return;
+        if (error || !data?.success) {
+          toast.error(data?.error || 'Falha na verificação do administrador');
+          setCancelLoading(false);
+          return;
+        }
       }
 
       setOrders(prev => prev.map(o =>
@@ -830,31 +833,33 @@ const Entregas = () => {
               />
             </div>
 
-            <div className="border-t pt-3 space-y-3">
-              <p className="text-sm font-medium text-muted-foreground">Autorização do Administrador</p>
-              <div className="space-y-1.5">
-                <Label htmlFor="adminEmail">Email do admin *</Label>
-                <Input
-                  id="adminEmail"
-                  type="email"
-                  placeholder="admin@email.com"
-                  value={adminEmail}
-                  onChange={e => setAdminEmail(e.target.value)}
-                  autoComplete="off"
-                />
+            {!isAdmin && (
+              <div className="border-t pt-3 space-y-3">
+                <p className="text-sm font-medium text-muted-foreground">Autorização do Administrador</p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="adminEmail">Email do admin *</Label>
+                  <Input
+                    id="adminEmail"
+                    type="email"
+                    placeholder="admin@email.com"
+                    value={adminEmail}
+                    onChange={e => setAdminEmail(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="adminPass">Senha *</Label>
+                  <Input
+                    id="adminPass"
+                    type="password"
+                    placeholder="••••••"
+                    value={adminPassword}
+                    onChange={e => setAdminPassword(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="adminPass">Senha *</Label>
-                <Input
-                  id="adminPass"
-                  type="password"
-                  placeholder="••••••"
-                  value={adminPassword}
-                  onChange={e => setAdminPassword(e.target.value)}
-                  autoComplete="off"
-                />
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -865,7 +870,7 @@ const Entregas = () => {
               variant="destructive"
               className="flex-1"
               onClick={handleCancelOrder}
-              disabled={cancelLoading || !cancelReason.trim() || !adminEmail.trim() || !adminPassword.trim()}
+              disabled={cancelLoading || !cancelReason.trim() || (!isAdmin && (!adminEmail.trim() || !adminPassword.trim()))}
             >
               {cancelLoading ? 'Verificando...' : 'Confirmar Cancelamento'}
             </Button>
