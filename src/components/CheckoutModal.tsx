@@ -336,99 +336,15 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           )}
         </div>
 
-        {/* Occupant split calculator */}
-        <div className="space-y-2 border rounded-lg p-3">
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm font-semibold text-foreground">Divisão por ocupantes</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Input
-              className="h-9 w-24"
-              type="number"
-              min={2}
-              placeholder="Nº"
-              value={occupantCount}
-              onChange={e => setOccupantCount(e.target.value)}
-            />
-            <span className="text-xs text-muted-foreground">pessoas</span>
-            {perPerson > 0 && (
-              <div className="ml-auto text-right">
-                <p className="text-xs text-muted-foreground">Cada pessoa paga</p>
-                <p className="text-lg font-bold text-primary">R$ {fmt(perPerson)}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-
-        {/* Payment splits */}
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-foreground">Formas de pagamento</p>
-
-          {splits.length > 0 && (
-            <div className="space-y-1.5">
-              {splits.map((s, i) => (
-                <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    {React.createElement(methods.find(m => m.key === s.method)?.icon || QrCode, { className: 'h-4 w-4' })}
-                    <span className="text-sm font-medium">{methods.find(m => m.key === s.method)?.label}</span>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">R$</span>
+                    <Input
+                      className="h-9 pl-9"
+                      placeholder="0,00"
+                      value={addingAmount}
+                      onChange={e => setAddingAmount(e.target.value)}
+                    />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm">R$ {fmt(s.amount)}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeSplit(i)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {remaining > 0.01 && (
-            <div className="bg-destructive/10 rounded-lg px-3 py-2 text-center">
-              <p className="text-xs text-muted-foreground">Restante</p>
-              <p className="text-lg font-bold text-destructive">R$ {fmt(remaining)}</p>
-            </div>
-          )}
-
-          {remaining > 0.01 && (
-            <div className="grid grid-cols-4 gap-2">
-              {methods.map(m => (
-                <Button
-                  key={m.key}
-                  variant="outline"
-                  className="h-14 flex-col gap-1 text-xs"
-                  onClick={() => addFullRemaining(m.key)}
-                >
-                  <m.icon className="h-4 w-4" />
-                  {m.label}
-                </Button>
-              ))}
-            </div>
-          )}
-
-          {remaining > 0.01 && (
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Label className="text-xs">Valor parcial</Label>
-                <div className="flex gap-1.5">
-                  <select
-                    className="h-9 rounded-md border bg-background px-2 text-sm"
-                    value={addingMethod || ''}
-                    onChange={e => setAddingMethod(e.target.value as PaymentMethod)}
-                  >
-                    <option value="">Método</option>
-                    {methods.map(m => (
-                      <option key={m.key} value={m.key}>{m.label}</option>
-                    ))}
-                  </select>
-                  <Input
-                    className="h-9 flex-1"
-                    placeholder="Valor"
-                    value={addingAmount}
-                    onChange={e => setAddingAmount(e.target.value)}
-                  />
                   <Button size="sm" className="h-9" onClick={addSplit} disabled={!addingMethod || !addingAmount}>
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -462,12 +378,15 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
         {cashSplit && (
           <div className="space-y-2">
             <p className="text-sm font-medium">Valor recebido (dinheiro):</p>
-            <Input
-              className="h-12 text-center text-2xl font-bold"
-              placeholder="0,00"
-              value={cashGiven}
-              onChange={e => setCashGiven(e.target.value)}
-            />
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xl">R$</span>
+              <Input
+                className="h-12 pl-12 text-center text-2xl font-bold"
+                placeholder="0,00"
+                value={cashGiven}
+                onChange={e => setCashGiven(e.target.value)}
+              />
+            </div>
             {cashChange > 0 && (
               <div className="bg-accent/10 rounded-lg p-3 text-center">
                 <p className="text-sm text-muted-foreground">Troco</p>

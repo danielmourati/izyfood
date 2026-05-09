@@ -59,6 +59,7 @@ const PDV = () => {
   const [weightModal, setWeightModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [manualCustomerName, setManualCustomerName] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
@@ -76,6 +77,7 @@ const PDV = () => {
       setOrderType(existingOrder.orderType);
       setCurrentOrderId(existingOrder.id as `${string}-${string}-${string}-${string}-${string}`);
       if (existingOrder.customerId) setSelectedCustomerId(existingOrder.customerId);
+      if (existingOrder.customerName && !existingOrder.customerId) setManualCustomerName(existingOrder.customerName);
       setInitialized(true);
       if (existingOrder.items.length > 0) {
         setMobileView('cart');
@@ -135,7 +137,17 @@ const PDV = () => {
         if (o.id !== pedidoParam) return o;
         if (o.status === 'segurado' || o.status === 'finalizado' || o.status === 'cancelado') return o;
         const custId = selectedCustomerId || o.customerId;
-        return { ...o, items: cart, total: currentTotal, customerId: custId, ...resolveCustomer(custId), orderType };
+        const resolved = resolveCustomer(custId);
+        return { 
+          ...o, 
+          items: cart, 
+          total: currentTotal, 
+          customerId: custId, 
+          customerName: resolved.customerName || manualCustomerName,
+          customerPhone: resolved.customerPhone,
+          customerAddress: resolved.customerAddress,
+          orderType 
+        };
       }));
     }, 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -227,6 +239,7 @@ const PDV = () => {
     const order = orders.find(o => o.id === orderId);
     setCart([]);
     setSelectedCustomerId(null);
+    setManualCustomerName('');
     if (tableNumber) {
       setTables(prev => prev.map(t =>
         t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
@@ -314,6 +327,7 @@ const PDV = () => {
     if (shouldRedirect) {
       setCart([]);
       setSelectedCustomerId(null);
+      setManualCustomerName('');
       setCurrentOrderId(crypto.randomUUID());
       if (tableNumber) navigate('/');
     }
@@ -336,6 +350,7 @@ const PDV = () => {
     }
     setCart([]);
     setSelectedCustomerId(null);
+    setManualCustomerName('');
     toast.success('Pedido excluído com sucesso!');
     navigate('/');
   };
@@ -394,6 +409,7 @@ const PDV = () => {
     // 3. Reset visual
     setCart([]);
     setSelectedCustomerId(null);
+    setManualCustomerName('');
     setCurrentOrderId(crypto.randomUUID());
     if (orderType === 'delivery' || orderType === 'retirada') {
       navigate('/entregas');
@@ -515,8 +531,9 @@ const PDV = () => {
               updateQty={updateQty} removeItem={removeItem} cancelOrder={cancelOrder} holdOrder={holdOrder} setCheckoutOpen={setCheckoutOpen}
               tables={tables} onSelectTable={(t) => handleSelectTable(t)}
               selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
+              manualCustomerName={manualCustomerName} setManualCustomerName={setManualCustomerName}
               onPrintOrder={handleSendAndHold} onReprintOrder={handleReprintOrder} onPrintBill={handlePrintBill}
-              setEditingItemNotesId={setEditingItemNotesId} isMobile={false}
+              setEditingItemNotesId={setEditingItemNotesId} isMobile={false} onAddNewItem={() => setMobileView('categories')}
               onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)} />
           </div>
         </div>
@@ -664,6 +681,7 @@ const PDV = () => {
                 setCheckoutOpen={(v) => { setCheckoutOpen(v); }}
                 tables={tables} onSelectTable={(t) => { handleSelectTable(t); }}
                 selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
+                manualCustomerName={manualCustomerName} setManualCustomerName={setManualCustomerName}
                 onPrintOrder={handleSendAndHold} onReprintOrder={handleReprintOrder} onPrintBill={handlePrintBill}
                 setEditingItemNotesId={setEditingItemNotesId}
                 isMobile={true} onAddNewItem={() => setMobileView('categories')}
@@ -681,7 +699,7 @@ const PDV = () => {
         selectedCustomerId={selectedCustomerId}
         onComplete={() => {
           const isDeliveryOrPickup = orderType === 'delivery' || orderType === 'retirada';
-          setCart([]); setSelectedCustomerId(null);
+          setCart([]); setSelectedCustomerId(null); setManualCustomerName('');
           if (isDeliveryOrPickup) { navigate('/entregas'); }
           else if (tableNumber) { navigate('/'); }
         }} />
@@ -698,8 +716,8 @@ const PDV = () => {
 // ============ CartContent (kept inline for compatibility) ============
 
 function CartContent({
-  cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen, tables, onSelectTable,
-  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, onReprintOrder, onPrintBill, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder
+  selectedCustomerId, onSelectCustomer, isHeldMesa, onPrintOrder, onReprintOrder, onPrintBill, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder,
+  manualCustomerName, setManualCustomerName
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
@@ -714,6 +732,8 @@ function CartContent({
   isMobile?: boolean;
   onAddNewItem?: () => void;
   onDeleteOrder?: () => void;
+  manualCustomerName?: string;
+  setManualCustomerName?: (val: string) => void;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
@@ -872,10 +892,23 @@ function CartContent({
       <div className="px-3 py-2 border-b space-y-1">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] font-semibold text-muted-foreground uppercase opacity-70">Cliente</span>
-          <Button variant="ghost" size="sm" className="h-5 px-1 text-[10px] gap-1 text-primary" onClick={() => setNewCustomerOpen(true)}>
-            <UserPlus className="h-2.5 w-2.5" /> Novo
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="sm" className="h-5 px-1 text-[10px] gap-1 text-primary" onClick={() => setCustomerModalOpen(true)}>
+              <User className="h-2.5 w-2.5" /> Vincular
+            </Button>
+            <Button variant="ghost" size="sm" className="h-5 px-1 text-[10px] gap-1 text-primary" onClick={() => setNewCustomerOpen(true)}>
+              <UserPlus className="h-2.5 w-2.5" /> Novo
+            </Button>
+          </div>
         </div>
+        {!selectedCustomerId && setManualCustomerName && (
+          <Input 
+            placeholder="Nome do cliente (opcional)"
+            className="h-8 text-[11px] bg-background/50"
+            value={manualCustomerName}
+            onChange={e => setManualCustomerName(e.target.value)}
+          />
+        )}
         {selectedCustomerId && customerObj ? (
           <div className="flex items-center justify-between bg-muted/40 rounded px-2 py-1">
             <div className="flex flex-col min-w-0">
@@ -886,14 +919,8 @@ function CartContent({
               <X className="h-3 w-3" />
             </Button>
           </div>
-        ) : (
-          <button
-            className="text-primary text-[11px] font-semibold hover:underline underline-offset-2 flex items-center gap-1"
-            onClick={() => setCustomerModalOpen(true)}
-          >
-            <User className="h-3 w-3" /> Vincular Cliente
-          </button>
-        )}
+          </div>
+        ) : null}
 
         {selectedCustomerId && customerObj && redeemableCount > 0 && hasEligibleAcaiInCart && (
           <div className="bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 text-center animate-in fade-in">
@@ -945,11 +972,6 @@ function CartContent({
                   {item.addedByName && <p className="text-[12px] text-muted-foreground opacity-70 mt-0.5">por {item.addedByName}</p>}
                   <div className="mt-1.5 flex flex-col items-start gap-1">
                     {item.notes && <p className="text-[14px] font-medium leading-tight opacity-90 text-foreground"><span className="font-bold text-primary">Obs:</span> {item.notes}</p>}
-                    {setEditingItemNotesId && (
-                      <Button variant="outline" size="sm" className="h-8 text-[12px] px-3 w-fit bg-muted/60 border-muted-foreground/30 hover:bg-muted" onClick={() => setEditingItemNotesId(item.id)}>
-                        <FileEdit className="h-3.5 w-3.5 mr-1" /> {item.notes ? 'Editar' : 'Anotações'}
-                      </Button>
-                    )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end shrink-0 justify-between h-full gap-2">
@@ -983,93 +1005,40 @@ function CartContent({
             <p className="text-2xl font-bold text-primary leading-none">R$ {fmt(total)}</p>
           </div>
         </div>
-        {isMobile && tableNumber ? (
-          <div className="grid grid-cols-4 gap-2 pt-2">
-            <Button variant="outline" className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-background border-muted-foreground/20 text-foreground" onClick={() => {
-              if (cart.length === 0) cancelOrder();
-              else holdOrder();
-            }}>
-              <ArrowLeft className="h-6 w-6" /> VOLTAR
+        <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <Button 
+              variant="default" 
+              className="h-11 text-[11px] px-1 font-bold bg-[#7C3AED] hover:bg-[#6D28D9] text-white shadow-md border-none" 
+              onClick={() => onAddNewItem?.()}
+            >
+              VOLTAR
             </Button>
-            <div className="flex flex-col gap-1 h-[68px]">
-              <Button className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white h-auto py-1" onClick={onPrintOrder} disabled={cart.length === 0}>
-                <SendHorizontal className="h-5 w-5" /> ENVIAR
-              </Button>
-              <Button variant="secondary" className="h-5 shrink-0 text-[10px] font-bold p-0 rounded border border-border/50 text-foreground" onClick={() => setMoreOptionsOpen(true)}>
-                MAIS
-              </Button>
-            </div>
-            <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#673AB7] hover:bg-[#512DA8] text-white" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-              <span className="text-2xl font-black leading-none">$</span> PAGAR
+            <Button className="h-11 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
+              <SendHorizontal className="h-4 w-4 mr-1" /> Enviar
             </Button>
-            {cart.some(i => i.printed) && (
-              <Button className="h-[68px] flex flex-col gap-1 text-[10px] font-bold shadow-sm bg-[#2196F3] hover:bg-[#1976D2] text-white" onClick={onAddNewItem}>
-                <Plus className="h-6 w-6" /> NOVO
-              </Button>
-            )}
+            <Button className="h-11 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
+              <ShoppingCart className="h-4 w-4 mr-1.5" /> Pagar
+            </Button>
           </div>
-        ) : orderType === 'mesa' ? (
-          <div className="space-y-1.5">
-            <div className="grid grid-cols-3 gap-1.5">
-              <Button variant="ghost" className="h-8 px-0 text-destructive bg-destructive/10 hover:bg-destructive/20 text-[10px]" onClick={handleProtectedCancel} disabled={cart.length === 0 && !tableNumber}>
-                <X className="h-3 w-3" />
-              </Button>
-              <Button className="h-8 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
-                <SendHorizontal className="h-3.5 w-3.5 mr-1.5" /> ENVIAR
-              </Button>
-              <Button className="h-8 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-                <ShoppingCart className="h-3.5 w-3.5 mr-1.5" /> Pagar
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-                <RefreshCcw className="h-3 w-3" /> Reimpr.
-              </Button>
-              <Button variant="outline" className="h-8 text-[10px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
-                <ReceiptText className="h-3 w-3" /> Conta
-              </Button>
-            </div>
+          <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-10 w-10 shrink-0 text-destructive bg-destructive/10 hover:bg-destructive/20" 
+              onClick={handleProtectedCancel} 
+              disabled={cart.length === 0 && !tableNumber}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
+              <RefreshCcw className="h-3.5 w-3.5" /> Reimprimir
+            </Button>
+            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
+              <ReceiptText className="h-3.5 w-3.5" /> Conta
+            </Button>
           </div>
-        ) : (orderType === 'balcao' || orderType === 'delivery' || orderType === 'retirada') ? (
-          <div className="space-y-2">
-            <div className="grid grid-cols-3 gap-2">
-              <Button 
-                variant="default" 
-                className="h-11 text-[11px] px-1 font-bold bg-[#7C3AED] hover:bg-[#6D28D9] text-white shadow-md border-none" 
-                onClick={() => onAddNewItem?.()}
-              >
-                VOLTAR
-              </Button>
-              <Button className="h-11 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" onClick={onPrintOrder} disabled={cart.length === 0}>
-                <SendHorizontal className="h-4 w-4 mr-1" /> Enviar
-              </Button>
-              <Button className="h-11 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
-                <ShoppingCart className="h-4 w-4 mr-1.5" /> Pagar
-              </Button>
-            </div>
-            <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-10 w-10 shrink-0 text-destructive bg-destructive/10 hover:bg-destructive/20" 
-                onClick={handleProtectedCancel} 
-                disabled={cart.length === 0 && !tableNumber}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-                <RefreshCcw className="h-3.5 w-3.5" /> Reimprimir
-              </Button>
-              <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
-                <ReceiptText className="h-3.5 w-3.5" /> Conta
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-4 text-muted-foreground">
-            Selecione um tipo de pedido
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Reprint Modal */}
