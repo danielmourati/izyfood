@@ -431,7 +431,7 @@ const PDV = () => {
       ...currentOrder,
       items,
       operatorName: user?.name,
-      customerName: cust?.name || undefined,
+      customerName: cust?.name || manualCustomerName || undefined,
     };
     try {
       await printOrder(orderData);
@@ -447,7 +447,7 @@ const PDV = () => {
     const billData = {
       ...currentOrder,
       operatorName: user?.name,
-      customerName: cust?.name || currentOrder.customerName || 'Consumidor',
+      customerName: cust?.name || manualCustomerName || 'Consumidor',
     };
     try {
       await printBill(billData);
