@@ -635,6 +635,9 @@ const PDV = () => {
                       <Button variant="outline" className="flex-1 bg-white text-destructive hover:bg-gray-100 font-black text-xl rounded shadow-sm border border-black/10 active:scale-95" onClick={() => updateQty(lastItem.id, -1)} disabled={lastItem.quantity <= 1}>
                         <Minus className="h-5 w-5 mr-1 stroke-[3]" /> 1
                       </Button>
+                      <Button variant="outline" className="w-[60px] bg-white text-primary hover:bg-gray-100 rounded shadow-sm border border-black/10 active:scale-95 px-0" onClick={() => setEditingItemNotesId(lastItem.id)}>
+                        <ListChecks className="h-5 w-5 stroke-[2.5]" />
+                      </Button>
                       <Button variant="outline" className="w-[60px] bg-white text-destructive hover:bg-gray-100 rounded shadow-sm border border-black/10 active:scale-95 px-0" onClick={() => removeItem(lastItem.id)}>
                         <Trash2 className="h-5 w-5 stroke-[2.5]" />
                       </Button>
