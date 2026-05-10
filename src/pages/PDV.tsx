@@ -416,7 +416,7 @@ const PDV = () => {
     // ou volta para o mapa se preferir.
     if (orderType === 'delivery' || orderType === 'retirada') {
       navigate('/entregas');
-    } else if (orderType === 'mesa' && !isMobile) {
+    } else if (orderType === 'mesa' && typeof window !== 'undefined' && window.innerWidth >= 1024) {
       // No desktop mesa, apenas informa sucesso
       toast.success('Comanda enviada para a cozinha!');
     } else {
