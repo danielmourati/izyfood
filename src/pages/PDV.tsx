@@ -976,9 +976,29 @@ function CartContent({
                   </div>
                 </div>
                 <div className="flex flex-col items-end shrink-0 justify-between h-full gap-2">
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/80 hover:text-destructive opacity-50 hover:opacity-100" onClick={() => handleProtectedRemove(item.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {(() => {
+                      const hasCustom = !!item.notes || (item.selectedComplements?.length ?? 0) > 0;
+                      return (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Observações e complementos"
+                          title="Observações e complementos"
+                          className={`relative h-7 px-2 gap-1 ${hasCustom ? 'text-primary' : 'text-muted-foreground'} hover:text-primary disabled:opacity-40`}
+                          onClick={() => setEditingItemNotesId?.(item.id)}
+                          disabled={item.printed}
+                        >
+                          <FileEdit className="h-4 w-4" />
+                          <span className="hidden lg:inline text-[11px] font-semibold">Obs/Compl.</span>
+                          {hasCustom && <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary" />}
+                        </Button>
+                      );
+                    })()}
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/80 hover:text-destructive opacity-50 hover:opacity-100" onClick={() => handleProtectedRemove(item.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <span className="font-bold text-[16px] text-primary leading-none">R$ {fmt(item.subtotal)}</span>
                 </div>
               </div>
