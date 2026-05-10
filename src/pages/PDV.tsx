@@ -388,17 +388,19 @@ const PDV = () => {
     
     setOrders(prev => {
       const exists = prev.some(o => o.id === orderId);
+      const custId = selectedCustomerId || undefined;
+      const resCust = resolveCustomer(custId);
+      const finalCustomerName = resCust.customerName || manualCustomerName || undefined;
+
       if (exists) {
         return prev.map(o => {
           if (o.id !== orderId) return o;
-          const custId = selectedCustomerId || o.customerId;
-          return { ...o, items: markedCart, total, status: 'segurado' as const, customerId: custId, ...resolveCustomer(custId), heldAt: new Date().toISOString() };
+          return { ...o, items: markedCart, total, status: 'segurado' as const, customerId: custId, ...resCust, customerName: finalCustomerName, heldAt: new Date().toISOString() };
         });
       }
-      const custId = selectedCustomerId || undefined;
       return [...prev, {
         id: orderId, items: markedCart, total, orderType, status: 'segurado' as const,
-        tableNumber, customerId: custId, ...resolveCustomer(custId), createdAt: new Date().toISOString(), heldAt: new Date().toISOString(),
+        tableNumber, customerId: custId, ...resCust, customerName: finalCustomerName, createdAt: new Date().toISOString(), heldAt: new Date().toISOString(),
       }];
     });
 
@@ -792,8 +794,13 @@ function CartContent({
   const hasEligibleAcaiInCart = cart.some(isItemEligible);
   const redeemableCount = customerObj ? Math.floor((customerObj.loyaltyPoints || 0) / 10) : 0;
 
+  const isOrderSent = hasAnyPrinted || isHeldMesa;
+  const requiresAdminToCancel = isOrderSent && !isAdmin;
+
   const handleProtectedRemove = (itemId: string) => {
-    if (needsAdminAuth) {
+    const item = cart.find(i => i.id === itemId);
+    const itemRequiresAdmin = ((item?.printed) || isHeldMesa) && !isAdmin;
+    if (itemRequiresAdmin) {
       setAdminAuthModal({ open: true, action: 'remove', itemId });
     } else {
       removeItem(itemId);
@@ -801,7 +808,7 @@ function CartContent({
   };
 
   const handleProtectedCancel = () => {
-    if (needsAdminAuth) {
+    if (requiresAdminToCancel) {
       setAdminAuthModal({ open: true, action: 'cancel' });
     } else {
       cancelOrder();
@@ -809,7 +816,7 @@ function CartContent({
   };
 
   const handleProtectedDelete = () => {
-    if (needsAdminAuth) {
+    if (requiresAdminToCancel) {
       setAdminAuthModal({ open: true, action: 'delete' });
     } else {
       if (onDeleteOrder) onDeleteOrder();
@@ -901,7 +908,7 @@ function CartContent({
         {!selectedCustomerId && setManualCustomerName && (
           <Input 
             placeholder="Nome do cliente (opcional)"
-            className="h-8 text-[11px] bg-background/50"
+            className="h-8 text-[12px] bg-background border-primary/40 focus-visible:ring-primary/40"
             value={manualCustomerName}
             onChange={e => setManualCustomerName(e.target.value)}
           />
