@@ -95,6 +95,7 @@ interface OrderItem {
   price: number;
   subtotal: number;
   notes?: string;
+  selectedComplements?: { name: string; price: number; quantity: number }[];
 }
 
 interface OrderData {
@@ -180,6 +181,11 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}`;
     parts.push(CMD_BOLD_ON, text(`${qty} ${item.name}\n`), CMD_BOLD_OFF);
     if (item.notes) parts.push(text(`  *${item.notes}\n`));
+    if (item.selectedComplements && item.selectedComplements.length > 0) {
+      for (const comp of item.selectedComplements) {
+        parts.push(text(`  + ${comp.quantity}x ${comp.name}\n`));
+      }
+    }
   }
 
   parts.push(text('\n'));
@@ -217,6 +223,11 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80): Uint8Array {
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     parts.push(row(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    if (item.selectedComplements && item.selectedComplements.length > 0) {
+      for (const comp of item.selectedComplements) {
+        parts.push(row(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
+      }
+    }
   }
 
   parts.push(lineOf('-', cols));

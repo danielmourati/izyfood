@@ -411,17 +411,9 @@ const PDV = () => {
     // 3. Atualizar estado visual (manter itens mas marcados como impressos)
     setCart(markedCart);
     
-    // Se for delivery ou retirada, vai para tela de entregas
-    // Se for mesa, permanece no carrinho para ver o status impresso, 
-    // ou volta para o mapa se preferir.
-    if (orderType === 'delivery' || orderType === 'retirada') {
-      navigate('/entregas');
-    } else if (orderType === 'mesa' && typeof window !== 'undefined' && window.innerWidth >= 1024) {
-      // No desktop mesa, apenas informa sucesso
-      toast.success('Comanda enviada para a cozinha!');
-    } else {
-      toast.success('Itens enviados para produção!');
-    }
+    // Envia o usuário de volta ao início independentemente do tipo de pedido
+    toast.success('Comanda enviada para a produção!');
+    navigate('/');
   };
 
   const handleReprintOrder = async (items: OrderItem[]) => {
