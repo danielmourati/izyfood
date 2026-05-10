@@ -504,7 +504,7 @@ const PDV = () => {
 
             {/* Product grid */}
             <div className="flex-1 overflow-auto px-4 pb-4">
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-5">
                 {filteredProducts.map(product => (
                   <ProductCard
                     key={product.id}
@@ -600,7 +600,7 @@ const PDV = () => {
             </div>
 
             <div className="flex-1 overflow-auto px-3 py-3 pb-24 bg-muted/10">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 {filteredProducts.map(product => (
                   <ProductCard key={product.id} product={product} category={getCategoryById(product.categoryId)} onAdd={addToCart} />
                 ))}

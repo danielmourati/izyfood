@@ -12,11 +12,11 @@ interface ProductCardProps {
 export function ProductCard({ product, category, onAdd }: ProductCardProps) {
   return (
     <div
-      className="bg-white rounded-[16px] overflow-hidden cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all active:scale-[0.98] select-none flex flex-col p-2.5 border border-slate-100 aspect-square min-h-[220px]"
+      className="bg-white rounded-[16px] overflow-hidden cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all active:scale-[0.98] select-none flex flex-col p-2.5 border border-slate-100 h-full w-full"
       onClick={() => onAdd(product)}
     >
       {/* Image area */}
-      <div className="relative h-[45%] rounded-[10px] overflow-hidden bg-slate-50 mb-2 shrink-0">
+      <div className="relative aspect-[4/3] w-full rounded-[10px] overflow-hidden bg-slate-50 mb-2 shrink-0">
         {product.image ? (
           <img
             src={product.image}
