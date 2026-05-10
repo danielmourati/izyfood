@@ -985,7 +985,7 @@ function CartContent({
                           size="sm"
                           aria-label="Observações e complementos"
                           title="Observações e complementos"
-                          className={`relative h-7 px-2 gap-1 ${hasCustom ? 'text-primary' : 'text-muted-foreground'} hover:text-primary disabled:opacity-40`}
+                          className={`relative h-7 px-2 gap-1 ${hasCustom ? 'text-primary' : 'text-muted-foreground'} hover:text-primary-foreground disabled:opacity-40`}
                           onClick={() => setEditingItemNotesId?.(item.id)}
                           disabled={item.printed}
                         >
