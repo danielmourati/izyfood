@@ -528,9 +528,54 @@ export type Database = {
           },
         ]
       }
+      product_note_options: {
+        Row: {
+          active: boolean
+          category_ids: Json
+          created_at: string
+          id: string
+          name: string
+          price: number | null
+          tenant_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category_ids?: Json
+          created_at?: string
+          id?: string
+          name: string
+          price?: number | null
+          tenant_id?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category_ids?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          price?: number | null
+          tenant_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_note_options_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category_id: string | null
+          control_stock: boolean
           created_at: string
           description: string | null
           id: string
@@ -546,6 +591,7 @@ export type Database = {
         }
         Insert: {
           category_id?: string | null
+          control_stock?: boolean
           created_at?: string
           description?: string | null
           id?: string
@@ -561,6 +607,7 @@ export type Database = {
         }
         Update: {
           category_id?: string | null
+          control_stock?: boolean
           created_at?: string
           description?: string | null
           id?: string
