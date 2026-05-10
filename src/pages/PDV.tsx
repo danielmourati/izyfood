@@ -795,12 +795,12 @@ function CartContent({
   const redeemableCount = customerObj ? Math.floor((customerObj.loyaltyPoints || 0) / 10) : 0;
 
   const isOrderSent = hasAnyPrinted || isHeldMesa;
-  const requiresAdminToCancel = isOrderSent && !isAdmin;
+  const requiresWarning = isOrderSent;
 
   const handleProtectedRemove = (itemId: string) => {
     const item = cart.find(i => i.id === itemId);
-    const itemRequiresAdmin = ((item?.printed) || isHeldMesa) && !isAdmin;
-    if (itemRequiresAdmin) {
+    const itemRequiresWarning = (item?.printed) || isHeldMesa;
+    if (itemRequiresWarning) {
       setAdminAuthModal({ open: true, action: 'remove', itemId });
     } else {
       removeItem(itemId);
@@ -808,7 +808,7 @@ function CartContent({
   };
 
   const handleProtectedCancel = () => {
-    if (requiresAdminToCancel) {
+    if (requiresWarning) {
       setAdminAuthModal({ open: true, action: 'cancel' });
     } else {
       cancelOrder();
@@ -816,7 +816,7 @@ function CartContent({
   };
 
   const handleProtectedDelete = () => {
-    if (requiresAdminToCancel) {
+    if (requiresWarning) {
       setAdminAuthModal({ open: true, action: 'delete' });
     } else {
       if (onDeleteOrder) onDeleteOrder();
@@ -825,33 +825,37 @@ function CartContent({
   };
 
   const handleAdminAuth = async () => {
-    if (!adminAuthEmail.trim() || !adminAuthPassword.trim()) {
-      toast.error('Informe email e senha do administrador');
-      return;
-    }
-    setAdminAuthChecking(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-admin-password', {
-        body: { email: adminAuthEmail, password: adminAuthPassword },
-      });
-      if (error || !data?.success) {
-        toast.error(data?.error || 'Credenciais inválidas');
+    if (!isAdmin) {
+      if (!adminAuthEmail.trim() || !adminAuthPassword.trim()) {
+        toast.error('Informe email e senha do administrador');
+        return;
+      }
+      setAdminAuthChecking(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('verify-admin-password', {
+          body: { email: adminAuthEmail, password: adminAuthPassword },
+        });
+        if (error || !data?.success) {
+          toast.error(data?.error || 'Credenciais inválidas');
+          setAdminAuthChecking(false);
+          return;
+        }
+      } catch {
+        toast.error('Erro ao verificar credenciais');
         setAdminAuthChecking(false);
         return;
       }
-      const { action, itemId } = adminAuthModal;
-      setAdminAuthModal({ open: false, action: 'remove' });
-      setAdminAuthEmail('');
-      setAdminAuthPassword('');
-      setAdminAuthChecking(false);
-      if (action === 'remove' && itemId) removeItem(itemId);
-      else if (action === 'cancel') cancelOrder();
-      else if (action === 'delete') {
-        if (onDeleteOrder) onDeleteOrder();
-      }
-    } catch {
-      toast.error('Erro ao verificar credenciais');
-      setAdminAuthChecking(false);
+    }
+
+    const { action, itemId } = adminAuthModal;
+    setAdminAuthModal({ open: false, action: 'remove' });
+    setAdminAuthEmail('');
+    setAdminAuthPassword('');
+    setAdminAuthChecking(false);
+    if (action === 'remove' && itemId) removeItem(itemId);
+    else if (action === 'cancel') cancelOrder();
+    else if (action === 'delete') {
+      if (onDeleteOrder) onDeleteOrder();
     }
   };
 
@@ -1239,7 +1243,7 @@ function CartContent({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-warning" /> Autorização necessária
+              <ShieldAlert className="h-5 w-5 text-warning" /> {isAdmin ? 'Confirmação Necessária' : 'Autorização necessária'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
@@ -1247,19 +1251,24 @@ function CartContent({
               <AlertTriangle className="h-4 w-4 text-warning" />
               <AlertDescription className="text-sm">
                 {adminAuthModal.action === 'cancel'
-                  ? 'Cancelar um pedido de mesa requer autorização de um administrador.'
+                  ? 'Você está prestes a cancelar um pedido que já foi impresso/enviado.'
                   : adminAuthModal.action === 'delete'
-                  ? 'Excluir completamente um pedido requer autorização de um administrador.'
-                  : 'Remover itens de um pedido de mesa requer autorização de um administrador.'}
+                  ? 'Você está prestes a excluir um pedido que já foi impresso/enviado.'
+                  : 'Você está prestes a remover um item que já foi impresso/enviado.'}
+                {!isAdmin && ' Isso requer autorização de um administrador.'}
               </AlertDescription>
             </Alert>
-            <div><Label>Email do administrador</Label><Input type="email" placeholder="admin@email.com" value={adminAuthEmail} onChange={e => setAdminAuthEmail(e.target.value)} /></div>
-            <div><Label>Senha do administrador</Label><Input type="password" placeholder="••••••" value={adminAuthPassword} onChange={e => setAdminAuthPassword(e.target.value)} /></div>
+            {!isAdmin && (
+              <>
+                <div><Label>Email do administrador</Label><Input type="email" placeholder="admin@email.com" value={adminAuthEmail} onChange={e => setAdminAuthEmail(e.target.value)} /></div>
+                <div><Label>Senha do administrador</Label><Input type="password" placeholder="••••••" value={adminAuthPassword} onChange={e => setAdminAuthPassword(e.target.value)} /></div>
+              </>
+            )}
           </div>
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={() => { setAdminAuthModal({ open: false, action: 'remove' }); setAdminAuthEmail(''); setAdminAuthPassword(''); }}>Cancelar</Button>
-            <Button className="flex-1" onClick={handleAdminAuth} disabled={adminAuthChecking}>
-              {adminAuthChecking ? 'Verificando...' : 'Autorizar'}
+            <Button className="flex-1" variant={isAdmin ? 'destructive' : 'default'} onClick={handleAdminAuth} disabled={adminAuthChecking}>
+              {adminAuthChecking ? 'Aguarde...' : isAdmin ? 'Confirmar Exclusão' : 'Autorizar'}
             </Button>
           </div>
         </DialogContent>
