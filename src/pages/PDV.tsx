@@ -982,15 +982,14 @@ function CartContent({
                       return (
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
                           aria-label="Observações e complementos"
                           title="Observações e complementos"
-                          className={`relative h-7 px-2 gap-1 ${hasCustom ? 'text-primary' : 'text-muted-foreground'} hover:text-primary-foreground disabled:opacity-40`}
+                          className={`relative h-7 w-7 ${hasCustom ? 'text-primary' : 'text-muted-foreground'} hover:text-primary disabled:opacity-40`}
                           onClick={() => setEditingItemNotesId?.(item.id)}
                           disabled={item.printed}
                         >
-                          <FileEdit className="h-4 w-4" />
-                          <span className="hidden lg:inline text-[11px] font-semibold">Obs/Compl.</span>
+                          <ListChecks className="h-4 w-4" />
                           {hasCustom && <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary" />}
                         </Button>
                       );
