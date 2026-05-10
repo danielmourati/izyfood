@@ -12,7 +12,7 @@ interface ProductCardProps {
 export function ProductCard({ product, category, onAdd }: ProductCardProps) {
   return (
     <div
-      className="bg-white rounded-[16px] overflow-hidden cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all active:scale-[0.98] select-none flex flex-col p-2.5 border border-slate-100 aspect-square"
+      className="bg-white rounded-[16px] overflow-hidden cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all active:scale-[0.98] select-none flex flex-col p-2.5 border border-slate-100 aspect-square min-h-[220px]"
       onClick={() => onAdd(product)}
     >
       {/* Image area */}
