@@ -242,7 +242,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         else if (payload.eventType === 'DELETE') setCoupons(prev => prev.filter(c => c.id !== payload.old.id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_note_options' }, (payload) => {
-        if (payload.eventType === 'INSERT') setNoteOptions(prev => [...prev, dbToNoteOption(payload.new)]);
+        if (payload.eventType === 'INSERT') setNoteOptions(prev => prev.some(o => o.id === payload.new.id) ? prev : [...prev, dbToNoteOption(payload.new)]);
         else if (payload.eventType === 'UPDATE') setNoteOptions(prev => prev.map(o => o.id === payload.new.id ? dbToNoteOption(payload.new) : o));
         else if (payload.eventType === 'DELETE') setNoteOptions(prev => prev.filter(o => o.id !== payload.old.id));
       })
