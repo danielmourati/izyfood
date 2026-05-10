@@ -23,6 +23,8 @@ interface StoreContextType {
   setStockEntries: React.Dispatch<React.SetStateAction<StockEntry[]>>;
   coupons: DiscountCoupon[];
   setCoupons: React.Dispatch<React.SetStateAction<DiscountCoupon[]>>;
+  noteOptions: ProductNoteOption[];
+  setNoteOptions: React.Dispatch<React.SetStateAction<ProductNoteOption[]>>;
   settings: StoreSettings;
   setSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
   completeSale: (order: Order) => void;
@@ -38,7 +40,10 @@ const StoreContext = createContext<StoreContextType | null>(null);
 // ============ DB <-> App mappers ============
 
 function dbToProduct(r: any): Product {
-  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false };
+  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false, controlStock: r.control_stock ?? true };
+}
+function dbToNoteOption(r: any): ProductNoteOption {
+  return { id: r.id, name: r.name, type: r.type, price: Number(r.price), categoryIds: r.category_ids || [], active: r.active ?? true };
 }
 function dbToCategory(r: any): ProductCategory {
   return { id: r.id, name: r.name };
@@ -93,6 +98,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sales, setSales] = useState<Sale[]>([]);
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [coupons, setCoupons] = useState<DiscountCoupon[]>([]);
+  const [noteOptions, setNoteOptions] = useState<ProductNoteOption[]>([]);
   const [settings, setSettings] = useState<StoreSettings>({ tableCount: 20 });
   const [isCashRegisterOpen, setIsCashRegisterOpen] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -107,7 +113,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const [
         { data: cats }, { data: prods }, { data: custs }, { data: supps },
         { data: ords }, { data: sls }, { data: stks }, { data: tbls },
-        { data: cpns }, { data: setts }, { data: cashRegs },
+        { data: cpns }, { data: opts }, { data: setts }, { data: cashRegs },
       ] = await Promise.all([
         supabase.from('categories').select('*'),
         supabase.from('products').select('*'),
@@ -118,6 +124,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('stock_entries').select('*').order('date', { ascending: false }),
         supabase.from('store_tables').select('*').order('number'),
         supabase.from('coupons').select('*'),
+        supabase.from('product_note_options').select('*'),
         supabase.from('store_settings').select('*').limit(1),
         supabase.from('cash_registers').select('id').is('closed_at', null).limit(1),
       ]);
@@ -156,6 +163,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setTables(uniqueTbls.map(dbToTable));
       }
       setCoupons((cpns || []).map(dbToCoupon));
+      setNoteOptions((opts || []).map(dbToNoteOption));
       if (setts && setts.length > 0) {
         setSettings({ tableCount: setts[0].table_count });
       }
@@ -233,6 +241,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         else if (payload.eventType === 'UPDATE') setCoupons(prev => prev.map(c => c.id === payload.new.id ? dbToCoupon(payload.new) : c));
         else if (payload.eventType === 'DELETE') setCoupons(prev => prev.filter(c => c.id !== payload.old.id));
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_note_options' }, (payload) => {
+        if (payload.eventType === 'INSERT') setNoteOptions(prev => [...prev, dbToNoteOption(payload.new)]);
+        else if (payload.eventType === 'UPDATE') setNoteOptions(prev => prev.map(o => o.id === payload.new.id ? dbToNoteOption(payload.new) : o));
+        else if (payload.eventType === 'DELETE') setNoteOptions(prev => prev.filter(o => o.id !== payload.old.id));
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
           setSettings({ tableCount: payload.new.table_count });
@@ -273,6 +286,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   tablesRef.current = tables;
   const couponsRef = useRef(coupons);
   couponsRef.current = coupons;
+  const noteOptionsRef = useRef(noteOptions);
+  noteOptionsRef.current = noteOptions;
 
   const setProductsWrapped: typeof setProducts = useCallback((updater) => {
     const prev = productsRef.current;
@@ -337,6 +352,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     syncCoupons(prev, next);
   }, []);
 
+  const setNoteOptionsWrapped: typeof setNoteOptions = useCallback((updater) => {
+    const prev = noteOptionsRef.current;
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    setNoteOptions(next);
+    syncNoteOptions(prev, next);
+  }, []);
+
   const updateTableCount = useCallback(async (count: number) => {
     const validCount = Math.max(5, count);
     setSettings(prev => ({ ...prev, tableCount: validCount }));
@@ -382,8 +404,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const deductStock = useCallback(async (items: OrderItem[]) => {
     for (const item of items) {
       const qty = item.weight || item.quantity;
-      const { data: prod } = await supabase.from('products').select('stock').eq('id', item.productId).single();
-      if (prod) {
+      const { data: prod } = await supabase.from('products').select('stock, control_stock').eq('id', item.productId).single();
+      if (prod && prod.control_stock !== false) {
         await supabase.from('products').update({ stock: Math.max(0, Number(prod.stock) - qty) }).eq('id', item.productId);
       }
     }
@@ -461,7 +483,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orders, setOrders: setOrdersWrapped, customers, setCustomers: setCustomersWrapped,
       tables, setTables: setTablesWrapped, suppliers, setSuppliers: setSuppliersWrapped,
       sales, setSales: setSalesWrapped, stockEntries, setStockEntries: setStockEntriesWrapped,
-      coupons, setCoupons: setCouponsWrapped, settings, setSettings,
+      coupons, setCoupons: setCouponsWrapped, noteOptions, setNoteOptions: setNoteOptionsWrapped,
+      settings, setSettings,
       completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
     }}>
       {children}
@@ -489,14 +512,14 @@ async function syncProducts(prev: Product[], next: Product[]) {
     await supabase.from('products').insert({
       id: p.id, name: p.name, description: p.description || null, price: p.price,
       category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
-      loyalty_eligible: p.loyaltyEligible,
+      loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
     });
   }
   for (const p of updated) {
     await supabase.from('products').update({
       name: p.name, description: p.description || null, price: p.price,
       category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
-      loyalty_eligible: p.loyaltyEligible,
+      loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
     }).eq('id', p.id);
   }
   for (const p of removed) {
@@ -606,3 +629,14 @@ async function syncCoupons(prev: DiscountCoupon[], next: DiscountCoupon[]) {
   for (const c of updated) await supabase.from('coupons').update({ code: c.code, type: c.type, value: c.value, active: c.active, min_order: c.minOrder || null, expires_at: c.expiresAt || null }).eq('id', c.id);
   for (const c of removed) await supabase.from('coupons').delete().eq('id', c.id);
 }
+
+async function syncNoteOptions(prev: ProductNoteOption[], next: ProductNoteOption[]) {
+  const added = next.filter(n => !prev.find(p => p.id === n.id));
+  const removed = prev.filter(p => !next.find(n => n.id === p.id));
+  const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && JSON.stringify(p) !== JSON.stringify(n); });
+
+  for (const o of added) await supabase.from('product_note_options').insert({ id: o.id, name: o.name, type: o.type, price: o.price, category_ids: o.categoryIds, active: o.active });
+  for (const o of updated) await supabase.from('product_note_options').update({ name: o.name, type: o.type, price: o.price, category_ids: o.categoryIds, active: o.active }).eq('id', o.id);
+  for (const o of removed) await supabase.from('product_note_options').delete().eq('id', o.id);
+}
+

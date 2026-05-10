@@ -1,21 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Plus, Minus, FileEdit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { OrderItem } from '@/types';
-
-// Arrays de exemplo para o MVP, no futuro poderiam vir do Supabase atrelados ao CategoriaId do produto.
-const PREDEFINED_OBSERVATIONS = [
-    'Para viagem', 'Retirar no caixa', 'Sem maionese',
-    'Sem mostarda', 'Sem pimenta', 'Sem tomate'
-];
-
-const PREDEFINED_COMPLEMENTS = [
-    { id: 'c1', name: 'Bacon', price: 3.50 },
-    { id: 'c2', name: 'Batata 100g', price: 3.00 },
-    { id: 'c3', name: 'Calabresa', price: 2.50 }
-];
+import { useStore } from '@/contexts/StoreContext';
 
 export function ItemNotesModal({
     open,
@@ -28,9 +17,21 @@ export function ItemNotesModal({
     item: OrderItem | null;
     onConfirm: (itemId: string, newNotes: string, newComplements: { name: string; price: number; quantity: number }[]) => void;
 }) {
+    const { noteOptions, products } = useStore();
     const [selectedObs, setSelectedObs] = useState<string[]>([]);
     const [otherNotes, setOtherNotes] = useState('');
     const [complements, setComplements] = useState<{ name: string; price: number; quantity: number }[]>([]);
+
+    const product = item ? products.find(p => p.id === item.productId) : null;
+    const categoryId = product?.categoryId;
+
+    const availableNotes = useMemo(() => 
+        noteOptions.filter(o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId))),
+    [noteOptions, categoryId]);
+
+    const availableComplements = useMemo(() => 
+        noteOptions.filter(o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId))),
+    [noteOptions, categoryId]);
 
     useEffect(() => {
         if (open && item) {
@@ -42,7 +43,7 @@ export function ItemNotesModal({
             const others: string[] = [];
 
             for (const p of parts) {
-                if (PREDEFINED_OBSERVATIONS.includes(p)) {
+                if (noteOptions.some(n => n.type === 'note' && n.name === p)) {
                     parsedObs.push(p);
                 } else if (!p.startsWith('+')) { // Ignorando os textos gerados para os complementos por segurança. O estado 'complements' é q gerencia.
                     others.push(p);
@@ -52,7 +53,7 @@ export function ItemNotesModal({
             setOtherNotes(others.join(', '));
             setComplements(item.selectedComplements || []);
         }
-    }, [open, item]);
+    }, [open, item, noteOptions]);
 
     if (!open || !item) return null;
 
@@ -105,15 +106,16 @@ export function ItemNotesModal({
                 <div>
                     <h3 className="text-primary font-bold text-lg mb-3">Observações</h3>
                     <div className="flex flex-wrap gap-2 mb-4">
-                        {PREDEFINED_OBSERVATIONS.map(obs => {
-                            const isSelected = selectedObs.includes(obs);
+                        {availableNotes.length === 0 && <p className="text-sm text-muted-foreground italic mb-2">Nenhuma observação pré-definida.</p>}
+                        {availableNotes.map(obs => {
+                            const isSelected = selectedObs.includes(obs.name);
                             return (
                                 <button
-                                    key={obs}
-                                    onClick={() => toggleObs(obs)}
+                                    key={obs.id}
+                                    onClick={() => toggleObs(obs.name)}
                                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${isSelected ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/50 border-transparent hover:bg-muted'}`}
                                 >
-                                    {obs}
+                                    {obs.name}
                                 </button>
                             );
                         })}
@@ -130,13 +132,14 @@ export function ItemNotesModal({
                 <div>
                     <h3 className="text-primary font-bold text-lg mb-3">Complementos</h3>
                     <div className="flex flex-col gap-1 border-t">
-                        {PREDEFINED_COMPLEMENTS.map(comp => {
+                        {availableComplements.length === 0 && <p className="text-sm text-muted-foreground italic py-3">Nenhum complemento disponível.</p>}
+                        {availableComplements.map(comp => {
                             const qty = getCompQty(comp.name);
                             return (
                                 <div key={comp.id} className="flex justify-between items-center py-3 border-b">
                                     <div className="flex flex-col">
                                         <span className="font-semibold text-foreground text-sm">{comp.name}</span>
-                                        <span className="font-bold text-xs">{fmtBRL(comp.price)}</span>
+                                        <span className="font-bold text-xs">{comp.price > 0 ? fmtBRL(comp.price) : 'Grátis'}</span>
                                     </div>
 
                                     {qty > 0 ? (

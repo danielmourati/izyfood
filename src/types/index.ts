@@ -22,6 +22,16 @@ export interface Product {
   stock: number;
   image?: string;
   loyaltyEligible: boolean;
+  controlStock: boolean;
+}
+
+export interface ProductNoteOption {
+  id: string;
+  name: string;
+  type: 'note' | 'complement';
+  price: number;
+  categoryIds: string[];
+  active: boolean;
 }
 
 export interface OrderItem {

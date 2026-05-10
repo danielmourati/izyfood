@@ -9,8 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Upload, X, Search, Tag } from 'lucide-react';
-import { Product, ProductType, ProductCategory } from '@/types';
-
+import { Product, ProductType, ProductCategory, ProductNoteOption } from '@/types';
 
 const emptyProductForm = {
   name: '',
@@ -22,12 +21,21 @@ const emptyProductForm = {
   stock: '',
   image: '',
   loyaltyEligible: false,
+  controlStock: true,
+};
+
+const emptyNoteOptionForm = {
+  name: '',
+  type: 'note' as 'note' | 'complement',
+  price: '',
+  categoryIds: [] as string[],
+  active: true,
 };
 
 const emptyCategoryForm = { name: '' };
 
 const Produtos = () => {
-  const { products, setProducts, categories, setCategories } = useStore();
+  const { products, setProducts, categories, setCategories, noteOptions, setNoteOptions } = useStore();
 
   // Product state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -45,6 +53,12 @@ const Produtos = () => {
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [deleteCatId, setDeleteCatId] = useState<string | null>(null);
   const [catForm, setCatForm] = useState(emptyCategoryForm);
+
+  // NoteOption state
+  const [optsDialogOpen, setOptsDialogOpen] = useState(false);
+  const [optFormOpen, setOptFormOpen] = useState(false);
+  const [editingOptId, setEditingOptId] = useState<string | null>(null);
+  const [optForm, setOptForm] = useState(emptyNoteOptionForm);
 
   const getCat = (id: string) => categories.find(c => c.id === id);
 
@@ -73,6 +87,7 @@ const Produtos = () => {
       stock: String(p.stock),
       image: p.image || '',
       loyaltyEligible: p.loyaltyEligible,
+      controlStock: p.controlStock,
     });
     setDialogOpen(true);
   };
@@ -107,6 +122,7 @@ const Produtos = () => {
       stock: parseFloat(form.stock) || 0,
       image: form.image || undefined,
       loyaltyEligible: form.loyaltyEligible,
+      controlStock: form.controlStock,
     };
     if (editingId) {
       setProducts(prev => prev.map(p => p.id === editingId ? product : p));
@@ -172,14 +188,61 @@ const Produtos = () => {
     if (filterCategory === deleteCatId) setFilterCategory('all');
     
     setCatDeleteOpen(false);
+    setCatDeleteOpen(false);
     setDeleteCatId(null);
+  };
+
+  // ---- NoteOption CRUD ----
+  const openCreateOpt = () => {
+    setEditingOptId(null);
+    setOptForm(emptyNoteOptionForm);
+    setOptFormOpen(true);
+  };
+
+  const openEditOpt = (opt: ProductNoteOption) => {
+    setEditingOptId(opt.id);
+    setOptForm({
+      name: opt.name,
+      type: opt.type,
+      price: String(opt.price),
+      categoryIds: opt.categoryIds,
+      active: opt.active,
+    });
+    setOptFormOpen(true);
+  };
+
+  const deleteOpt = (id: string) => {
+    if (confirm('Deseja excluir esta opção?')) {
+      setNoteOptions(prev => prev.filter(o => o.id !== id));
+    }
+  };
+
+  const saveOpt = () => {
+    if (!optForm.name.trim() || optForm.categoryIds.length === 0) return;
+    const opt: ProductNoteOption = {
+      id: editingOptId || crypto.randomUUID(),
+      name: optForm.name.trim(),
+      type: optForm.type,
+      price: parseFloat(optForm.price) || 0,
+      categoryIds: optForm.categoryIds,
+      active: optForm.active,
+    };
+    if (editingOptId) {
+      setNoteOptions(prev => prev.map(o => o.id === editingOptId ? opt : o));
+    } else {
+      setNoteOptions(prev => [...prev, opt]);
+    }
+    setOptFormOpen(false);
   };
 
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Produtos</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setOptsDialogOpen(true)}>
+            <Tag className="h-4 w-4 mr-2" /> Complementos e Obs
+          </Button>
           <Button variant="outline" onClick={openCreateCat}>
             <Tag className="h-4 w-4 mr-2" /> Nova Categoria
           </Button>
@@ -220,7 +283,7 @@ const Produtos = () => {
       </div>
 
       {/* Product Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2 md:gap-3">
         {filtered.map(product => {
           const cat = getCat(product.categoryId);
           return (
@@ -242,13 +305,13 @@ const Produtos = () => {
                   </Button>
                 </div>
               </div>
-              <div className="p-3 space-y-1.5">
-                <h3 className="font-semibold text-sm text-foreground leading-tight line-clamp-2">{product.name}</h3>
-                <p className="text-primary font-bold text-base">
+              <div className="p-2 space-y-1">
+                <h3 className="font-semibold text-xs leading-tight text-foreground line-clamp-2" title={product.name}>{product.name}</h3>
+                <p className="text-primary font-bold text-sm">
                   R$ {fmt(product.price)}
-                  {product.type === 'weight' && <span className="text-xs text-muted-foreground font-normal">/kg</span>}
+                  {product.type === 'weight' && <span className="text-[10px] text-muted-foreground font-normal">/kg</span>}
                 </p>
-                {product.description && <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>}
+                {product.description && <p className="text-[10px] text-muted-foreground line-clamp-1">{product.description}</p>}
                 <div className="flex items-center justify-between pt-1 flex-wrap gap-1">
                   <Badge variant="outline" className="text-[10px]">
                     {cat ? cat.name : 'Sem categoria'}
@@ -258,9 +321,11 @@ const Produtos = () => {
                       ⭐ Fidelidade
                     </Badge>
                   )}
-                  <Badge variant={product.stock <= 5 ? 'destructive' : 'secondary'} className="text-[10px]">
-                    {product.stock} {product.unit}
-                  </Badge>
+                  {product.controlStock && (
+                    <Badge variant={product.stock <= 5 ? 'destructive' : 'secondary'} className="text-[9px] px-1">
+                      {product.stock} {product.unit}
+                    </Badge>
+                  )}
                 </div>
               </div>
             </Card>
@@ -344,6 +409,15 @@ const Produtos = () => {
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
+                  checked={form.controlStock}
+                  onChange={e => setForm(f => ({ ...f, controlStock: e.target.checked }))}
+                  className="rounded border-border"
+                />
+                <span className="text-sm">Controlar Estoque</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
                   checked={form.loyaltyEligible}
                   onChange={e => setForm(f => ({ ...f, loyaltyEligible: e.target.checked }))}
                   className="rounded border-border"
@@ -403,6 +477,125 @@ const Produtos = () => {
           <div className="flex gap-2 justify-end pt-2">
             <Button variant="outline" onClick={() => setCatDeleteOpen(false)}>Cancelar</Button>
             <Button variant="destructive" onClick={confirmDeleteCat}>Excluir</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* NoteOptions Manager Dialog */}
+      <Dialog open={optsDialogOpen} onOpenChange={setOptsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0 flex flex-row items-center justify-between">
+            <DialogTitle>Gerenciar Observações e Complementos</DialogTitle>
+            <Button size="sm" onClick={openCreateOpt}>
+              <Plus className="h-4 w-4 mr-2" /> Adicionar Novo
+            </Button>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-1 space-y-4">
+            {noteOptions.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground">Nenhuma opção cadastrada.</div>
+            ) : (
+              <div className="grid gap-2">
+                {noteOptions.map(opt => (
+                  <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={opt.type === 'complement' ? 'default' : 'secondary'}>
+                          {opt.type === 'complement' ? 'Complemento' : 'Observação'}
+                        </Badge>
+                        <span className="font-bold">{opt.name}</span>
+                        {opt.type === 'complement' && opt.price > 0 && (
+                          <span className="text-sm text-primary font-bold">R$ {fmt(opt.price)}</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1 flex gap-1 flex-wrap">
+                        {opt.categoryIds.map(cid => {
+                          const cat = getCat(cid);
+                          return cat ? <Badge key={cid} variant="outline" className="text-[10px] px-1 py-0">{cat.name}</Badge> : null;
+                        })}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => openEditOpt(opt)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteOpt(opt.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* NoteOption Create/Edit Form Dialog */}
+      <Dialog open={optFormOpen} onOpenChange={setOptFormOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingOptId ? 'Editar Opção' : 'Nova Opção'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={optForm.type === 'note'} onChange={() => setOptForm(f => ({ ...f, type: 'note' }))} />
+                <span>Observação Livre</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={optForm.type === 'complement'} onChange={() => setOptForm(f => ({ ...f, type: 'complement' }))} />
+                <span>Complemento Pago</span>
+              </label>
+            </div>
+            
+            <div className="grid gap-3">
+              <div>
+                <Label>Nome *</Label>
+                <Input value={optForm.name} onChange={e => setOptForm(f => ({ ...f, name: e.target.value }))} placeholder={optForm.type === 'note' ? 'Ex: Sem cebola' : 'Ex: Bacon Extra'} />
+              </div>
+              {optForm.type === 'complement' && (
+                <div>
+                  <Label>Preço Adicional (R$)</Label>
+                  <Input type="number" step="0.01" value={optForm.price} onChange={e => setOptForm(f => ({ ...f, price: e.target.value }))} />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Disponível para as categorias: *</Label>
+              <div className="max-h-40 overflow-y-auto border rounded-md p-2 grid grid-cols-2 gap-2 bg-muted/30">
+                {categories.map(cat => (
+                  <label key={cat.id} className="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-muted">
+                    <input 
+                      type="checkbox" 
+                      checked={optForm.categoryIds.includes(cat.id)}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setOptForm(f => ({
+                          ...f, 
+                          categoryIds: checked ? [...f.categoryIds, cat.id] : f.categoryIds.filter(id => id !== cat.id)
+                        }));
+                      }}
+                    />
+                    <span className="truncate">{cat.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={optForm.active} onChange={e => setOptForm(f => ({ ...f, active: e.target.checked }))} className="rounded" />
+                <span className="text-sm font-medium">Ativo</span>
+              </label>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-4">
+              <Button variant="outline" onClick={() => setOptFormOpen(false)}>Cancelar</Button>
+              <Button onClick={saveOpt} disabled={!optForm.name.trim() || optForm.categoryIds.length === 0}>
+                {editingOptId ? 'Salvar' : 'Cadastrar'}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
