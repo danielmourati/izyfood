@@ -347,6 +347,9 @@ const Relatorios = () => {
           <TabsTrigger value="clientes" className="gap-1.5">
             <Users className="h-4 w-4" /> Por Cliente
           </TabsTrigger>
+          <TabsTrigger value="produtos" className="gap-1.5">
+            <Package className="h-4 w-4" /> Produtos
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="geral" className="space-y-4 md:space-y-6">
