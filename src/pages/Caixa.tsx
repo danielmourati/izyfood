@@ -570,7 +570,6 @@ export default function Caixa() {
         </Card>
 
         {/* Service fee & commission section */}
-        {/* Service fee & commission section */}
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="commissions" className="border rounded-xl bg-card overflow-hidden">
             <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180">
@@ -586,8 +585,7 @@ export default function Caixa() {
         </>
       )}
 
-      {history.length > 0 || filterStartDate || filterUser !== 'all' ? (
-        <Accordion type="single" collapsible className="w-full">
+      <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="history" className="border rounded-xl bg-card overflow-hidden">
             <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180">
               <div className="flex items-center gap-2 text-lg font-semibold">
@@ -656,7 +654,6 @@ export default function Caixa() {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
-      ) : null}
 
       {closedRegister && (
         <CashRegisterReceipt
@@ -839,7 +836,7 @@ export default function Caixa() {
   );
 }
 
-function ServiceFeeCommissionCard({ orders }: { salesInPeriod: any[]; orders: any[]; currentRegister: CashRegister }) {
+function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
   const [attendants, setAttendants] = useState<{ id: string; name: string; commission: number }[]>([]);
   const [filteredSales, setFilteredSales] = useState<any[]>([]);
   const [startDate, setStartDate] = useState('');
@@ -990,7 +987,5 @@ function ServiceFeeCommissionCard({ orders }: { salesInPeriod: any[]; orders: an
         </div>
       )}
     </div>
-  );
-}
   );
 }
