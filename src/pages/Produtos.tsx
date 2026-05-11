@@ -283,17 +283,20 @@ const Produtos = () => {
       </div>
 
       {/* Product Grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2 md:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
         {filtered.map(product => {
           const cat = getCat(product.categoryId);
           return (
-            <Card key={product.id} className="overflow-hidden group">
-              <div className="aspect-square bg-muted relative overflow-hidden">
+            <div key={product.id} className="bg-white rounded-[16px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all flex flex-col p-2.5 border border-slate-100 h-full w-full group relative">
+              {/* Image area */}
+              <div className="relative aspect-[4/3] w-full rounded-[10px] overflow-hidden bg-slate-50 mb-2 shrink-0">
                 {product.image ? (
                   <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-5xl">
-                    {cat?.name?.charAt(0) || '?'}
+                  <div className="w-full h-full flex items-center justify-center bg-primary/5">
+                    <span className="text-4xl opacity-30 font-bold">
+                      {cat?.name?.charAt(0)?.toUpperCase() || '?'}
+                    </span>
                   </div>
                 )}
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -305,14 +308,20 @@ const Produtos = () => {
                   </Button>
                 </div>
               </div>
-              <div className="p-2 space-y-1">
-                <h3 className="font-semibold text-xs leading-tight text-foreground line-clamp-2" title={product.name}>{product.name}</h3>
-                <p className="text-primary font-bold text-sm">
-                  R$ {fmt(product.price)}
-                  {product.type === 'weight' && <span className="text-[10px] text-muted-foreground font-normal">/kg</span>}
-                </p>
-                {product.description && <p className="text-[10px] text-muted-foreground line-clamp-1">{product.description}</p>}
-                <div className="flex items-center justify-between pt-1 flex-wrap gap-1">
+
+              {/* Info */}
+              <div className="flex flex-col flex-1 justify-between">
+                <div>
+                  <h3 className="font-semibold text-[13px] leading-tight text-slate-800 line-clamp-2 mb-1" title={product.name}>
+                    {product.name}
+                  </h3>
+                  <p className="text-[#4CAF50] font-bold text-[14px]">
+                    R$ {fmt(product.price)}
+                    {product.type === 'weight' && <span className="text-[10px] font-medium text-slate-500 ml-1">/kg</span>}
+                  </p>
+                </div>
+
+                <div className="flex items-center pt-2 flex-wrap gap-1 mt-auto">
                   <Badge variant="outline" className="text-[10px]">
                     {cat ? cat.name : 'Sem categoria'}
                   </Badge>
@@ -328,7 +337,7 @@ const Produtos = () => {
                   )}
                 </div>
               </div>
-            </Card>
+            </div>
           );
         })}
         {filtered.length === 0 && (
