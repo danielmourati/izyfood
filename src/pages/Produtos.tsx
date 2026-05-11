@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Upload, X, Search, Tag, Building2 } from 'lucide-react';
+import type { Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
 
 const emptyProductForm = {
   name: '',
