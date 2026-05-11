@@ -569,7 +569,7 @@ export default function Caixa() {
         </Card>
 
         {/* Service fee & commission section */}
-        <ServiceFeeCommissionCard salesInPeriod={sales.filter(s => new Date(s.date) >= new Date(currentRegister.openedAt))} orders={orders} currentRegister={currentRegister} />
+        <ServiceFeeCommissionCard orders={orders} />
         </>
       )}
 
@@ -822,8 +822,13 @@ export default function Caixa() {
   );
 }
 
-function ServiceFeeCommissionCard({ salesInPeriod, orders, currentRegister }: { salesInPeriod: any[]; orders: any[]; currentRegister: CashRegister }) {
+function ServiceFeeCommissionCard({ orders }: { salesInPeriod: any[]; orders: any[]; currentRegister: CashRegister }) {
   const [attendants, setAttendants] = useState<{ id: string; name: string; commission: number }[]>([]);
+  const [filteredSales, setFilteredSales] = useState<any[]>([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedAttendant, setSelectedAttendant] = useState('all');
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     async function fetchAttendants() {
@@ -841,20 +846,42 @@ function ServiceFeeCommissionCard({ salesInPeriod, orders, currentRegister }: { 
     fetchAttendants();
   }, []);
 
-  // Calculate service fee total from mesa orders in this period
-  const mesaSalesInPeriod = salesInPeriod.filter(s => {
-    const order = orders.find((o: any) => o.id === s.orderId);
+  async function handleSearch() {
+    setIsSearching(true);
+    let query = supabase.from('sales').select('*');
+
+    if (startDate) {
+      query = query.gte('date', new Date(startDate).toISOString());
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      query = query.lte('date', end.toISOString());
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      toast.error('Erro ao buscar vendas');
+    } else {
+      setFilteredSales(data || []);
+    }
+    setIsSearching(false);
+  }
+
+  // Calculate service fee total from mesa orders in filtered period
+  const mesaSalesInPeriod = filteredSales.filter(s => {
+    const order = orders.find((o: any) => o.id === s.order_id || o.id === s.orderId);
     return order?.orderType === 'mesa';
   });
 
   const totalServiceFee = mesaSalesInPeriod.reduce((sum: number, s: any) => {
-    const order = orders.find((o: any) => o.id === s.orderId);
+    const order = orders.find((o: any) => o.id === s.order_id || o.id === s.orderId);
     return sum + (order?.serviceFee || 0);
   }, 0);
 
   // Calculate per-attendant sales from item tracking
   const attendantSales: Record<string, number> = {};
-  for (const sale of salesInPeriod) {
+  for (const sale of filteredSales) {
     const items = sale.items || [];
     for (const item of items) {
       if (item.addedBy) {
@@ -863,7 +890,9 @@ function ServiceFeeCommissionCard({ salesInPeriod, orders, currentRegister }: { 
     }
   }
 
-  if (totalServiceFee === 0 && attendants.length === 0) return null;
+  const displayedAttendants = selectedAttendant === 'all' 
+    ? attendants 
+    : attendants.filter(a => a.id === selectedAttendant);
 
   return (
     <Card>
@@ -873,12 +902,44 @@ function ServiceFeeCommissionCard({ salesInPeriod, orders, currentRegister }: { 
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Filters */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
+            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
+            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Atendente</Label>
+            <Select value={selectedAttendant} onValueChange={setSelectedAttendant}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {attendants.map(u => (
+                  <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-end">
+            <Button onClick={handleSearch} className="w-full h-9 gap-2" disabled={isSearching}>
+              {isSearching ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
+              Filtrar
+            </Button>
+          </div>
+        </div>
+
         <div className="rounded-lg bg-amber-500/10 p-3">
           <p className="text-xs text-muted-foreground">Total Taxa de Serviço (Mesa)</p>
           <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{fmt(totalServiceFee)}</p>
         </div>
 
-        {attendants.length > 0 && (
+        {displayedAttendants.length > 0 && (
           <div className="space-y-3">
             <p className="text-sm font-medium text-foreground px-1">Vendas e comissões por atendente:</p>
             <div className="border rounded-lg overflow-hidden bg-card">
@@ -892,7 +953,7 @@ function ServiceFeeCommissionCard({ salesInPeriod, orders, currentRegister }: { 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {attendants.map(att => {
+                  {displayedAttendants.map(att => {
                     const vendido = attendantSales[att.id] || 0;
                     const comissao = att.commission > 0 ? (vendido * att.commission) / 100 : 0;
                     if (vendido === 0 && comissao === 0) return null;
@@ -905,10 +966,10 @@ function ServiceFeeCommissionCard({ salesInPeriod, orders, currentRegister }: { 
                       </TableRow>
                     );
                   })}
-                  {attendants.every(att => (attendantSales[att.id] || 0) === 0) && (
+                  {(filteredSales.length === 0 || !displayedAttendants.some(att => (attendantSales[att.id] || 0) > 0)) && (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center py-4 text-xs text-muted-foreground italic">
-                        Nenhuma venda registrada neste período.
+                        Nenhuma venda encontrada para este filtro.
                       </TableCell>
                     </TableRow>
                   )}
