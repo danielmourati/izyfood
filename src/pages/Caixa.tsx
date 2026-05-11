@@ -570,13 +570,17 @@ export default function Caixa() {
         </Card>
 
         {/* Service fee & commission section */}
+        {/* Service fee & commission section */}
         <Accordion type="single" collapsible className="w-full">
-          <AccordionItem value="commissions" className="border-none">
-            <AccordionTrigger className="hover:no-underline py-0">
-              <div className="w-full text-left">
-                <ServiceFeeCommissionCard orders={orders} />
+          <AccordionItem value="commissions" className="border rounded-xl bg-card overflow-hidden">
+            <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180">
+              <div className="flex items-center gap-2 text-lg font-semibold">
+                <DollarSign className="h-5 w-5 text-primary" /> Taxa de Serviço & Comissões
               </div>
             </AccordionTrigger>
+            <AccordionContent className="px-6 pb-6 pt-2">
+              <ServiceFeeCommissionCard orders={orders} />
+            </AccordionContent>
           </AccordionItem>
         </Accordion>
         </>
@@ -584,74 +588,72 @@ export default function Caixa() {
 
       {history.length > 0 || filterStartDate || filterUser !== 'all' ? (
         <Accordion type="single" collapsible className="w-full">
-          <AccordionItem value="history" className="border-none">
-            <Card>
-              <AccordionTrigger className="hover:no-underline px-6">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <History className="h-5 w-5" /> Histórico de Caixa
-                </CardTitle>
-              </AccordionTrigger>
-              <AccordionContent>
-                <CardContent className="space-y-4">
-                  {/* Filter UI */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
-                    <div className="space-y-1">
-                      <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
-                      <Input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="h-9 text-xs" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
-                      <Input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="h-9 text-xs" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] uppercase text-muted-foreground">Usuário</Label>
-                      <Select value={filterUser} onValueChange={setFilterUser}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Todos" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          {historyUsers.map(u => (
-                            <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-end">
-                      <Button onClick={handleFilterHistory} className="w-full h-9 gap-2" disabled={isFiltering}>
-                        {isFiltering ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
-                        Filtrar
-                      </Button>
-                    </div>
+          <AccordionItem value="history" className="border rounded-xl bg-card overflow-hidden">
+            <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180">
+              <div className="flex items-center gap-2 text-lg font-semibold">
+                <History className="h-5 w-5 text-primary" /> Histórico de Caixa
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6 pb-6 pt-2">
+              <div className="space-y-4">
+                {/* Filter UI */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
+                    <Input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="h-9 text-xs" />
                   </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
+                    <Input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="h-9 text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">Usuário</Label>
+                    <Select value={filterUser} onValueChange={setFilterUser}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {historyUsers.map(u => (
+                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button onClick={handleFilterHistory} className="w-full h-9 gap-2" disabled={isFiltering}>
+                      {isFiltering ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
+                      Filtrar
+                    </Button>
+                  </div>
+                </div>
 
-                  <div className="space-y-2">
-                    {history.map(h => (
-                      <button
-                        key={h.id}
-                        onClick={() => { setClosedRegister(h); setShowReceipt(true); }}
-                        className="w-full flex justify-between items-center rounded-lg bg-muted/50 hover:bg-muted px-4 py-3 text-sm transition-colors border border-transparent hover:border-primary/20"
-                      >
-                        <div className="text-left">
-                          <p className="font-medium text-foreground">
-                            {new Date(h.openedAt).toLocaleDateString('pt-BR')}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(h.openedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                            {' → '}
-                            {h.closedAt && new Date(h.closedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                        <span className="font-bold text-foreground">{fmt(h.totalSales)}</span>
-                      </button>
-                    ))}
-                    {history.length === 0 && (
-                      <p className="text-center py-6 text-sm text-muted-foreground">Nenhum caixa encontrado com estes filtros.</p>
-                    )}
-                  </div>
-                </CardContent>
-              </AccordionContent>
-            </Card>
+                <div className="space-y-2">
+                  {history.map(h => (
+                    <button
+                      key={h.id}
+                      onClick={() => { setClosedRegister(h); setShowReceipt(true); }}
+                      className="w-full flex justify-between items-center rounded-lg bg-muted/50 hover:bg-muted px-4 py-3 text-sm transition-colors border border-transparent hover:border-primary/20"
+                    >
+                      <div className="text-left">
+                        <p className="font-medium text-foreground">
+                          {new Date(h.openedAt).toLocaleDateString('pt-BR')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(h.openedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {' → '}
+                          {h.closedAt && new Date(h.closedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <span className="font-bold text-foreground">{fmt(h.totalSales)}</span>
+                    </button>
+                  ))}
+                  {history.length === 0 && (
+                    <p className="text-center py-6 text-sm text-muted-foreground">Nenhum caixa encontrado com estes filtros.</p>
+                  )}
+                </div>
+              </div>
+            </AccordionContent>
           </AccordionItem>
         </Accordion>
       ) : null}
@@ -910,91 +912,85 @@ function ServiceFeeCommissionCard({ orders }: { salesInPeriod: any[]; orders: an
     : attendants.filter(a => a.id === selectedAttendant);
 
   return (
-    <Card className="border-none shadow-none bg-transparent">
-      <AccordionTrigger className="hover:no-underline px-6 py-4 bg-card rounded-t-xl border">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <DollarSign className="h-5 w-5" /> Taxa de Serviço & Comissões
-        </CardTitle>
-      </AccordionTrigger>
-      <AccordionContent className="bg-card rounded-b-xl border border-t-0">
-        <CardContent className="space-y-4 pt-4">
-        {/* Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
-            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 text-xs" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
-            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 text-xs" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Atendente</Label>
-            <Select value={selectedAttendant} onValueChange={setSelectedAttendant}>
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {attendants.map(u => (
-                  <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-end">
-            <Button onClick={handleSearch} className="w-full h-9 gap-2" disabled={isSearching}>
-              {isSearching ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
-              Filtrar
-            </Button>
-          </div>
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
+          <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 text-xs" />
         </div>
-
-        <div className="rounded-lg bg-amber-500/10 p-3">
-          <p className="text-xs text-muted-foreground">Total Taxa de Serviço (Mesa)</p>
-          <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{fmt(totalServiceFee)}</p>
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
+          <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 text-xs" />
         </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase text-muted-foreground">Atendente</Label>
+          <Select value={selectedAttendant} onValueChange={setSelectedAttendant}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {attendants.map(u => (
+                <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-end">
+          <Button onClick={handleSearch} className="w-full h-9 gap-2" disabled={isSearching}>
+            {isSearching ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
+            Filtrar
+          </Button>
+        </div>
+      </div>
 
-        {displayedAttendants.length > 0 && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-foreground px-1">Vendas e comissões por atendente:</p>
-            <div className="border rounded-lg overflow-hidden bg-card">
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead className="h-9 text-[11px] uppercase">Atendente</TableHead>
-                    <TableHead className="h-9 text-[11px] uppercase text-center">%</TableHead>
-                    <TableHead className="h-9 text-[11px] uppercase text-right">Vendido</TableHead>
-                    <TableHead className="h-9 text-[11px] uppercase text-right">Comissão</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayedAttendants.map(att => {
-                    const vendido = attendantSales[att.id] || 0;
-                    const comissao = att.commission > 0 ? (vendido * att.commission) / 100 : 0;
-                    if (vendido === 0 && comissao === 0) return null;
-                    return (
-                      <TableRow key={att.id} className="h-10">
-                        <TableCell className="py-2 text-xs font-medium">{att.name}</TableCell>
-                        <TableCell className="py-2 text-xs text-center text-muted-foreground">{att.commission}%</TableCell>
-                        <TableCell className="py-2 text-xs text-right font-medium">{fmt(vendido)}</TableCell>
-                        <TableCell className="py-2 text-xs text-right font-bold text-primary">{fmt(comissao)}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {(filteredSales.length === 0 || !displayedAttendants.some(att => (attendantSales[att.id] || 0) > 0)) && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-4 text-xs text-muted-foreground italic">
-                        Nenhuma venda encontrada para este filtro.
-                      </TableCell>
+      <div className="rounded-lg bg-amber-500/10 p-3">
+        <p className="text-xs text-muted-foreground">Total Taxa de Serviço (Mesa)</p>
+        <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{fmt(totalServiceFee)}</p>
+      </div>
+
+      {displayedAttendants.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-foreground px-1">Vendas e comissões por atendente:</p>
+          <div className="border rounded-lg overflow-hidden bg-card">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="h-9 text-[11px] uppercase">Atendente</TableHead>
+                  <TableHead className="h-9 text-[11px] uppercase text-center">%</TableHead>
+                  <TableHead className="h-9 text-[11px] uppercase text-right">Vendido</TableHead>
+                  <TableHead className="h-9 text-[11px] uppercase text-right">Comissão</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayedAttendants.map(att => {
+                  const vendido = attendantSales[att.id] || 0;
+                  const comissao = att.commission > 0 ? (vendido * att.commission) / 100 : 0;
+                  if (vendido === 0 && comissao === 0) return null;
+                  return (
+                    <TableRow key={att.id} className="h-10">
+                      <TableCell className="py-2 text-xs font-medium">{att.name}</TableCell>
+                      <TableCell className="py-2 text-xs text-center text-muted-foreground">{att.commission}%</TableCell>
+                      <TableCell className="py-2 text-xs text-right font-medium">{fmt(vendido)}</TableCell>
+                      <TableCell className="py-2 text-xs text-right font-bold text-primary">{fmt(comissao)}</TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                  );
+                })}
+                {(filteredSales.length === 0 || !displayedAttendants.some(att => (attendantSales[att.id] || 0) > 0)) && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-4 text-xs text-muted-foreground italic">
+                      Nenhuma venda encontrada para este filtro.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
-        )}
-      </AccordionContent>
-    </Card>
+        </div>
+      )}
+    </div>
+  );
+}
   );
 }
