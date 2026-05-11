@@ -33,13 +33,16 @@ const presets: { key: PresetKey; label: string; getRange: () => { from: Date; to
 ];
 
 const Relatorios = () => {
-  const { sales, customers } = useStore();
+  const { sales, customers, products, categories, getCategoryById } = useStore();
 
   const [activePreset, setActivePreset] = useState<PresetKey>('hoje');
   const [customRange, setCustomRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [pickingField, setPickingField] = useState<'from' | 'to'>('from');
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
+  const [productFilter, setProductFilter] = useState<'todos' | 'categoria' | 'baixo' | 'mais' | 'menos'>('todos');
+  const [productCategoryId, setProductCategoryId] = useState<string>('all');
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(5);
 
   const dateRange = useMemo(() => {
     if (activePreset === 'custom' && customRange.from) {
