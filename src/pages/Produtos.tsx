@@ -240,8 +240,9 @@ const Produtos = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Produtos</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setOptsDialogOpen(true)}>
-            <Tag className="h-4 w-4 mr-2" /> Complementos e Obs
+          <Button variant="outline" onClick={() => { setOptsDialogOpen(true); }}
+>
+            <Tag className="h-4 w-4 mr-2" /> Obs & Complementos
           </Button>
           <Button variant="outline" onClick={openCreateCat}>
             <Tag className="h-4 w-4 mr-2" /> Nova Categoria
@@ -494,47 +495,85 @@ const Produtos = () => {
       <Dialog open={optsDialogOpen} onOpenChange={setOptsDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="shrink-0 flex flex-row items-center justify-between">
-            <DialogTitle>Gerenciar Observações e Complementos</DialogTitle>
-            <Button size="sm" onClick={openCreateOpt}>
-              <Plus className="h-4 w-4 mr-2" /> Adicionar Novo
-            </Button>
+          <DialogTitle>Observações e Complementos</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-auto p-1 space-y-4">
-            {noteOptions.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground">Nenhuma opção cadastrada.</div>
-            ) : (
-              <div className="grid gap-2">
-                {noteOptions.map(opt => (
-                  <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={opt.type === 'complement' ? 'default' : 'secondary'}>
-                          {opt.type === 'complement' ? 'Complemento' : 'Observação'}
-                        </Badge>
-                        <span className="font-bold">{opt.name}</span>
-                        {opt.type === 'complement' && opt.price > 0 && (
-                          <span className="text-sm text-primary font-bold">R$ {fmt(opt.price)}</span>
-                        )}
+          <div className="flex gap-2 mb-2 shrink-0">
+            <Button size="sm" variant="outline" className="flex-1" onClick={() => { setEditingOptId(null); setOptForm({...emptyNoteOptionForm, type: 'note'}); setOptFormOpen(true); }}>
+              <Plus className="h-4 w-4 mr-1" /> Nova Observação
+            </Button>
+            <Button size="sm" onClick={() => { setEditingOptId(null); setOptForm({...emptyNoteOptionForm, type: 'complement'}); setOptFormOpen(true); }}>
+              <Plus className="h-4 w-4 mr-1" /> Novo Complemento
+            </Button>
+          </div>
+          <div className="flex-1 overflow-auto p-1 space-y-5">
+            {/* Observações */}
+            <div>
+              <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 px-1 flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-secondary" />
+                Observações Livres ({noteOptions.filter(o => o.type === 'note').length})
+              </h3>
+              {noteOptions.filter(o => o.type === 'note').length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhuma observação cadastrada.</p>
+              ) : (
+                <div className="grid gap-2">
+                  {noteOptions.filter(o => o.type === 'note').map(opt => (
+                    <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">Observação</Badge>
+                          <span className="font-bold">{opt.name}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 flex gap-1 flex-wrap">
+                          {opt.categoryIds.map(cid => {
+                            const cat = getCat(cid);
+                            return cat ? <Badge key={cid} variant="outline" className="text-[10px] px-1 py-0">{cat.name}</Badge> : null;
+                          })}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1 flex gap-1 flex-wrap">
-                        {opt.categoryIds.map(cid => {
-                          const cat = getCat(cid);
-                          return cat ? <Badge key={cid} variant="outline" className="text-[10px] px-1 py-0">{cat.name}</Badge> : null;
-                        })}
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => openEditOpt(opt)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteOpt(opt.id)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => openEditOpt(opt)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteOpt(opt.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Complementos */}
+            <div>
+              <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 px-1 flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-primary" />
+                Complementos Pagos ({noteOptions.filter(o => o.type === 'complement').length})
+              </h3>
+              {noteOptions.filter(o => o.type === 'complement').length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhum complemento cadastrado.</p>
+              ) : (
+                <div className="grid gap-2">
+                  {noteOptions.filter(o => o.type === 'complement').map(opt => (
+                    <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default">Complemento</Badge>
+                          <span className="font-bold">{opt.name}</span>
+                          {opt.price > 0 && <span className="text-sm text-primary font-bold">R$ {fmt(opt.price)}</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 flex gap-1 flex-wrap">
+                          {opt.categoryIds.map(cid => {
+                            const cat = getCat(cid);
+                            return cat ? <Badge key={cid} variant="outline" className="text-[10px] px-1 py-0">{cat.name}</Badge> : null;
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => openEditOpt(opt)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteOpt(opt.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -233,7 +233,7 @@ const PDV = () => {
     if (mobileLastAddedId === id) setMobileLastAddedId(null);
   };
 
-  const cancelOrder = () => {
+  const cancelOrder = async () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const orderId = pedidoParam || currentOrderId;
     const order = orders.find(o => o.id === orderId);
@@ -247,8 +247,16 @@ const PDV = () => {
     }
     if (!order || order.total === 0) {
       setOrders(prev => prev.filter(o => o.id !== orderId));
+      // Remove from DB if it exists
+      if (pedidoParam) {
+        await supabase.from('orders').delete().eq('id', orderId).catch(() => {});
+      }
     } else {
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelado' } : o));
+      // Update DB status
+      if (pedidoParam) {
+        await supabase.from('orders').update({ status: 'cancelado' }).eq('id', orderId).catch(() => {});
+      }
     }
     if (tableNumber) navigate('/');
     else navigate('/pdv', { replace: true });
@@ -338,7 +346,7 @@ const PDV = () => {
   // Only go to cart view on mobile when opening an already held/occupied table
   // This logic is now handled during initial product load to avoid jumping while adding items.
 
-  const executeDeleteOrder = (orderId: string) => {
+  const executeDeleteOrder = async (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
@@ -351,6 +359,8 @@ const PDV = () => {
     setCart([]);
     setSelectedCustomerId(null);
     setManualCustomerName('');
+    // Remove from DB
+    await supabase.from('orders').delete().eq('id', orderId).catch(() => {});
     toast.success('Pedido excluído com sucesso!');
     navigate('/');
   };
@@ -675,6 +685,14 @@ const PDV = () => {
               <span className="font-semibold text-lg flex-1 text-center">
                 {tableNumber ? `Mesa ${tableNumber}` : 'Revisar Pedido'}
               </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 text-xs gap-1 font-bold border-primary/40 text-primary"
+                onClick={() => setMobileView('categories')}
+              >
+                <Plus className="h-3.5 w-3.5" /> Novo
+              </Button>
             </div>
             <div className="flex-1 flex flex-col overflow-hidden bg-muted/10">
               <CartContent
