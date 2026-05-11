@@ -100,6 +100,13 @@ export default function Caixa() {
       setMovements([]);
     }
 
+    const { data: hist } = await supabase
+      .from('cash_registers')
+      .select('*')
+      .not('closed_at', 'is', null)
+      .order('closed_at', { ascending: false })
+      .limit(10);
+
     setHistory((hist || []).map(dbToCashRegister));
     
     // Fetch users for filter
