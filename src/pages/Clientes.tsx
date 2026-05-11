@@ -3,11 +3,14 @@ import { useStore } from '@/contexts/StoreContext';
 import { fmt, maskPhone } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Customer } from '@/types';
-import { Plus, Search, Phone, MapPin, FileText, Star } from 'lucide-react';
+import { Plus, Search, Phone, MapPin, FileText, Star, Pencil, Trash2 } from 'lucide-react';
 
 
 const Clientes = () => {
@@ -15,6 +18,8 @@ const Clientes = () => {
   const [search, setSearch] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', address: '', notes: '' });
 
   const filtered = customers.filter(c =>
@@ -45,6 +50,19 @@ const Clientes = () => {
     setEditOpen(false);
   };
 
+  const openDelete = (id: string) => {
+    setDeletingId(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (deletingId) {
+      setCustomers(prev => prev.filter(c => c.id !== deletingId));
+    }
+    setDeleteConfirmOpen(false);
+    setDeletingId(null);
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -59,32 +77,72 @@ const Clientes = () => {
         <Input placeholder="Buscar por nome ou telefone..." className="pl-10 h-11" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(c => (
-          <Card key={c.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => openEdit(c)}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">{c.name}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-sm text-muted-foreground">
-              <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" /> {c.phone}</p>
-              <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /> {c.address}</p>
-              {c.notes && <p className="flex items-center gap-2"><FileText className="h-3.5 w-3.5" /> {c.notes}</p>}
-              <p className="flex items-center gap-2 pt-1">
-                <Star className="h-3.5 w-3.5 text-amber-500" />
-                <span className="font-semibold text-amber-600">{c.loyaltyPoints || 0} pontos</span>
-                {(c.loyaltyPoints || 0) >= 10 && (
-                  <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium">
-                    {Math.floor((c.loyaltyPoints || 0) / 10)} resgate(s)
-                  </span>
-                )}
-              </p>
-              {c.creditBalance > 0 && (
-                <p className="text-destructive font-semibold">Débito: R$ {fmt(c.creditBalance)}</p>
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>Contato</TableHead>
+                <TableHead>Endereço</TableHead>
+                <TableHead>Fidelidade / Débito</TableHead>
+                <TableHead className="w-[100px] text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map(c => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 text-muted-foreground whitespace-nowrap">
+                      <Phone className="h-3.5 w-3.5" /> {c.phone}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1 text-muted-foreground">
+                      <span className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 shrink-0" /> {c.address || '-'}</span>
+                      {c.notes && <span className="flex items-center gap-2 text-xs"><FileText className="h-3.5 w-3.5 shrink-0" /> {c.notes}</span>}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1 items-start">
+                      <div className="flex items-center gap-1.5">
+                        <Star className="h-3.5 w-3.5 text-amber-500" />
+                        <span className="font-semibold text-amber-600 text-xs">{c.loyaltyPoints || 0} pontos</span>
+                        {(c.loyaltyPoints || 0) >= 10 && (
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] px-1 py-0 h-4">
+                            {Math.floor((c.loyaltyPoints || 0) / 10)} resgate(s)
+                          </Badge>
+                        )}
+                      </div>
+                      {c.creditBalance > 0 && (
+                        <span className="text-destructive font-semibold text-xs whitespace-nowrap">Débito: R$ {fmt(c.creditBalance)}</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(c)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => openDelete(c.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    Nenhum cliente encontrado.
+                  </TableCell>
+                </TableRow>
               )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
@@ -115,6 +173,23 @@ const Clientes = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Cliente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir permanentemente este cliente? Todo o histórico de fidelidade e eventuais débitos associados a ele serão perdidos. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Confirmar Exclusão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
