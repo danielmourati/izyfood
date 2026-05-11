@@ -362,7 +362,7 @@ const PDV = () => {
     setSelectedCustomerId(null);
     setManualCustomerName('');
     // Remove from DB
-    await supabase.from('orders').delete().eq('id', orderId).catch(() => {});
+    try { await supabase.from('orders').delete().eq('id', orderId); } catch (err) { console.error('executeDeleteOrder DB error', err); }
     toast.success('Pedido excluído com sucesso!');
     navigate('/');
   };
