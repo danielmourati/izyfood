@@ -121,6 +121,107 @@ const Relatorios = () => {
     })).sort((a, b) => b.total - a.total);
   }, [filteredSales, customers]);
 
+  // Sales quantities aggregated per product within the filtered period
+  const productSalesMap = useMemo(() => {
+    const map: Record<string, { qty: number; total: number }> = {};
+    filteredSales.forEach(s => s.items.forEach(i => {
+      if (!map[i.productId]) map[i.productId] = { qty: 0, total: 0 };
+      map[i.productId].qty += i.quantity;
+      map[i.productId].total += i.subtotal;
+    }));
+    return map;
+  }, [filteredSales]);
+
+  const productReport = useMemo(() => {
+    const enriched = products.map(p => ({
+      ...p,
+      categoryName: getCategoryById(p.categoryId)?.name || '—',
+      soldQty: productSalesMap[p.id]?.qty || 0,
+      soldTotal: productSalesMap[p.id]?.total || 0,
+    }));
+
+    let list = enriched;
+    let title = 'Todos os produtos';
+    if (productFilter === 'categoria') {
+      if (productCategoryId !== 'all') {
+        const cat = categories.find(c => c.id === productCategoryId);
+        list = list.filter(p => p.categoryId === productCategoryId);
+        title = `Categoria: ${cat?.name || '—'}`;
+      } else {
+        title = 'Todas as categorias';
+      }
+      list = [...list].sort((a, b) => a.categoryName.localeCompare(b.categoryName) || a.name.localeCompare(b.name));
+    } else if (productFilter === 'baixo') {
+      list = list.filter(p => p.controlStock && p.stock <= lowStockThreshold)
+        .sort((a, b) => a.stock - b.stock);
+      title = `Estoque baixo (≤ ${lowStockThreshold})`;
+    } else if (productFilter === 'mais') {
+      list = [...list].filter(p => p.soldQty > 0).sort((a, b) => b.soldQty - a.soldQty);
+      title = 'Mais vendidos';
+    } else if (productFilter === 'menos') {
+      list = [...list].filter(p => p.soldQty > 0).sort((a, b) => a.soldQty - b.soldQty || a.name.localeCompare(b.name));
+      // descending of "menos vendidos" — user asked descending order; we show least sold first which is the typical interpretation
+      title = 'Menos vendidos';
+    } else {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return { list, title };
+  }, [products, productSalesMap, productFilter, productCategoryId, lowStockThreshold, categories, getCategoryById]);
+
+  const handlePrintProducts = () => {
+    const win = window.open('', '_blank', 'width=900,height=1100');
+    if (!win) {
+      alert('Permita popups para imprimir.');
+      return;
+    }
+    const periodText = `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}`;
+    const showSales = productFilter === 'mais' || productFilter === 'menos';
+    const rows = productReport.list.map((p, idx) => `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td>${p.name}</td>
+        <td>${p.categoryName}</td>
+        <td style="text-align:right;">R$ ${fmt(p.price)}</td>
+        <td style="text-align:center;">${p.controlStock ? p.stock.toString().replace('.', ',') + ' ' + p.unit : '—'}</td>
+        ${showSales ? `<td style="text-align:center;">${p.soldQty.toString().replace('.', ',')}</td><td style="text-align:right;">R$ ${fmt(p.soldTotal)}</td>` : ''}
+      </tr>
+    `).join('');
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"/><title>Relatório de Produtos</title>
+      <style>
+        @page { size: A4; margin: 14mm; }
+        body { font-family: Arial, sans-serif; color: #111; margin: 0; }
+        h1 { font-size: 18px; margin: 0 0 4px; }
+        .meta { font-size: 11px; color: #555; margin-bottom: 12px; display:flex; justify-content:space-between; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        thead { background: #f0f0f0; }
+        th, td { border: 1px solid #ccc; padding: 5px 6px; }
+        th { text-align: left; font-weight: 600; }
+        tfoot td { font-weight: 600; background: #fafafa; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style></head><body>
+      <h1>Relatório de Produtos — ${productReport.title}</h1>
+      <div class="meta">
+        <span>Período: ${periodText}</span>
+        <span>Emitido em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:32px;">#</th>
+          <th>Produto</th>
+          <th>Categoria</th>
+          <th style="width:80px;">Preço</th>
+          <th style="width:80px;">Estoque</th>
+          ${showSales ? '<th style="width:70px;">Vendidos</th><th style="width:90px;">Faturado</th>' : ''}
+        </tr></thead>
+        <tbody>${rows || `<tr><td colspan="${showSales ? 7 : 5}" style="text-align:center;padding:20px;color:#666;">Sem produtos para os filtros selecionados.</td></tr>`}</tbody>
+        <tfoot><tr><td colspan="${showSales ? 7 : 5}" style="text-align:right;">Total de itens: ${productReport.list.length}</td></tr></tfoot>
+      </table>
+      </body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 400);
+  };
+
   const selectPreset = (key: PresetKey) => {
     setActivePreset(key);
     const preset = presets.find(p => p.key === key);
