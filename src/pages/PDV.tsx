@@ -551,18 +551,25 @@ const PDV = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-3 pb-8">
-              {categories.map((cat, idx) => (
-                <Button key={cat.id}
-                  variant="default"
-                  className="h-28 flex flex-col items-center justify-center gap-2 rounded-2xl text-lg relative font-bold shadow-md active:scale-95 transition-all text-white hover:bg-primary/95"
-                  style={{ backgroundColor: idx % 2 === 0 ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.85)' }}
-                  onClick={() => {
-                    setActiveCategoryId(cat.id);
-                    setMobileView('products');
-                  }}>
-                  {cat.name}
-                </Button>
-              ))}
+              {categories.map((cat, idx) => {
+                const colors = [
+                  '#2E7D32', '#D84315', '#1565C0', '#6A1B9A', '#C62828',
+                  '#00838F', '#EF6C00', '#4527A0', '#0277BD', '#AD1457',
+                ];
+                const bgColor = colors[(idx + 1) % colors.length];
+                return (
+                  <Button key={cat.id}
+                    variant="default"
+                    className="h-28 flex flex-col items-center justify-center gap-2 rounded-2xl text-lg relative font-bold shadow-md active:scale-95 transition-all text-white border-none"
+                    style={{ backgroundColor: bgColor }}
+                    onClick={() => {
+                      setActiveCategoryId(cat.id);
+                      setMobileView('products');
+                    }}>
+                    {cat.name}
+                  </Button>
+                );
+              })}
             </div>
 
             {/* Footer Categorias */}
