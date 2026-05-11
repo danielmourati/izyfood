@@ -11,8 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert, Filter, Search as SearchIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
 
@@ -66,6 +67,13 @@ export default function Caixa() {
   const [movementAuthChecking, setMovementAuthChecking] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [hasPendingItems, setHasPendingItems] = useState(false);
+  
+  // History filters
+  const [historyUsers, setHistoryUsers] = useState<{id: string, name: string}[]>([]);
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterUser, setFilterUser] = useState('all');
+  const [isFiltering, setIsFiltering] = useState(false);
 
   useEffect(() => { fetchCurrent(); }, []);
 
@@ -92,15 +100,42 @@ export default function Caixa() {
       setMovements([]);
     }
 
-    const { data: hist } = await supabase
+    setHistory((hist || []).map(dbToCashRegister));
+    
+    // Fetch users for filter
+    const { data: profs } = await supabase.from('profiles').select('id, name');
+    if (profs) setHistoryUsers(profs);
+    
+    setLoading(false);
+  }
+
+  async function handleFilterHistory() {
+    setIsFiltering(true);
+    let query = supabase
       .from('cash_registers')
       .select('*')
       .not('closed_at', 'is', null)
-      .order('closed_at', { ascending: false })
-      .limit(10);
+      .order('closed_at', { ascending: false });
 
-    setHistory((hist || []).map(dbToCashRegister));
-    setLoading(false);
+    if (filterStartDate) {
+      query = query.gte('opened_at', new Date(filterStartDate).toISOString());
+    }
+    if (filterEndDate) {
+      const end = new Date(filterEndDate);
+      end.setHours(23, 59, 59, 999);
+      query = query.lte('opened_at', end.toISOString());
+    }
+    if (filterUser !== 'all') {
+      query = query.eq('opened_by', filterUser);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      toast.error('Erro ao filtrar histórico');
+    } else {
+      setHistory((data || []).map(dbToCashRegister));
+    }
+    setIsFiltering(false);
   }
 
   async function handleOpen() {
@@ -530,20 +565,52 @@ export default function Caixa() {
         </>
       )}
 
-      {history.length > 0 && (
+      {history.length > 0 || filterStartDate || filterUser !== 'all' ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <History className="h-5 w-5" /> Histórico
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Filter UI */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
+                <Input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="h-9 text-xs" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
+                <Input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="h-9 text-xs" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase text-muted-foreground">Usuário</Label>
+                <Select value={filterUser} onValueChange={setFilterUser}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {historyUsers.map(u => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button onClick={handleFilterHistory} className="w-full h-9 gap-2" disabled={isFiltering}>
+                  {isFiltering ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
+                  Filtrar
+                </Button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               {history.map(h => (
                 <button
                   key={h.id}
                   onClick={() => { setClosedRegister(h); setShowReceipt(true); }}
-                  className="w-full flex justify-between items-center rounded-lg bg-muted/50 hover:bg-muted px-4 py-3 text-sm transition-colors"
+                  className="w-full flex justify-between items-center rounded-lg bg-muted/50 hover:bg-muted px-4 py-3 text-sm transition-colors border border-transparent hover:border-primary/20"
                 >
                   <div className="text-left">
                     <p className="font-medium text-foreground">
@@ -558,10 +625,13 @@ export default function Caixa() {
                   <span className="font-bold text-foreground">{fmt(h.totalSales)}</span>
                 </button>
               ))}
+              {history.length === 0 && (
+                <p className="text-center py-6 text-sm text-muted-foreground">Nenhum caixa encontrado com estes filtros.</p>
+              )}
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       {closedRegister && (
         <CashRegisterReceipt
@@ -801,31 +871,41 @@ function ServiceFeeCommissionCard({ salesInPeriod, orders, currentRegister }: { 
         </div>
 
         {attendants.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">Vendas e comissões por atendente:</p>
-            <div className="space-y-2">
-              {attendants.map(att => {
-                const vendido = attendantSales[att.id] || 0;
-                const comissao = att.commission > 0 ? (vendido * att.commission) / 100 : 0;
-                return (
-                  <div key={att.id} className="bg-muted/50 rounded-lg p-3 space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium text-sm text-foreground">{att.name}</span>
-                      <span className="text-xs text-muted-foreground">{att.commission}% comissão</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Vendeu</span>
-                      <span className="font-medium text-foreground">{fmt(vendido)}</span>
-                    </div>
-                    {comissao > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Comissão</span>
-                        <span className="font-medium text-primary">{fmt(comissao)}</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-foreground px-1">Vendas e comissões por atendente:</p>
+            <div className="border rounded-lg overflow-hidden bg-card">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead className="h-9 text-[11px] uppercase">Atendente</TableHead>
+                    <TableHead className="h-9 text-[11px] uppercase text-center">%</TableHead>
+                    <TableHead className="h-9 text-[11px] uppercase text-right">Vendido</TableHead>
+                    <TableHead className="h-9 text-[11px] uppercase text-right">Comissão</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {attendants.map(att => {
+                    const vendido = attendantSales[att.id] || 0;
+                    const comissao = att.commission > 0 ? (vendido * att.commission) / 100 : 0;
+                    if (vendido === 0 && comissao === 0) return null;
+                    return (
+                      <TableRow key={att.id} className="h-10">
+                        <TableCell className="py-2 text-xs font-medium">{att.name}</TableCell>
+                        <TableCell className="py-2 text-xs text-center text-muted-foreground">{att.commission}%</TableCell>
+                        <TableCell className="py-2 text-xs text-right font-medium">{fmt(vendido)}</TableCell>
+                        <TableCell className="py-2 text-xs text-right font-bold text-primary">{fmt(comissao)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {attendants.every(att => (attendantSales[att.id] || 0) === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-4 text-xs text-muted-foreground italic">
+                        Nenhuma venda registrada neste período.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
           </div>
         )}
