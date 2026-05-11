@@ -594,37 +594,59 @@ export default function Caixa() {
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6 pt-2">
               <div className="space-y-4">
-                {/* Filter UI */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
-                    <Input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="h-9 text-xs" />
+                {/* Quick date shortcuts */}
+                <div className="flex flex-wrap gap-1.5">
+                  {([['today','Hoje'],['yesterday','Ontem'],['lastweek','Sem. passada'],['lastmonth','Mês passado']] as const).map(([p, l]) => {
+                    function applyHistoryQuick(preset: string) {
+                      const now = new Date();
+                      if (preset === 'today') { const d = now.toISOString().slice(0,10); setFilterStartDate(d); setFilterEndDate(d); }
+                      else if (preset === 'yesterday') { const y = new Date(now); y.setDate(y.getDate()-1); const d = y.toISOString().slice(0,10); setFilterStartDate(d); setFilterEndDate(d); }
+                      else if (preset === 'lastweek') { const dow = now.getDay(); const mon = new Date(now); mon.setDate(now.getDate()-((dow+6)%7)-7); const sun = new Date(mon); sun.setDate(mon.getDate()+6); setFilterStartDate(mon.toISOString().slice(0,10)); setFilterEndDate(sun.toISOString().slice(0,10)); }
+                      else { const first = new Date(now.getFullYear(), now.getMonth()-1, 1); const last = new Date(now.getFullYear(), now.getMonth(), 0); setFilterStartDate(first.toISOString().slice(0,10)); setFilterEndDate(last.toISOString().slice(0,10)); }
+                    }
+                    return (
+                      <button key={p} onClick={() => applyHistoryQuick(p)}
+                        className="text-[11px] px-2.5 py-1 rounded-full border border-muted bg-muted/30 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors font-medium">
+                        {l}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Filter inputs — responsive */}
+                <div className="bg-muted/30 p-3 rounded-lg border border-muted space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
+                      <Input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="h-8 text-xs" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
+                      <Input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="h-8 text-xs" />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
-                    <Input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="h-9 text-xs" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] uppercase text-muted-foreground">Usuário</Label>
-                    <Select value={filterUser} onValueChange={setFilterUser}>
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="Todos" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        {historyUsers.map(u => (
-                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-end">
-                    <Button onClick={handleFilterHistory} className="w-full h-9 gap-2" disabled={isFiltering}>
-                      {isFiltering ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
-                      Filtrar
-                    </Button>
+                  <div className="flex gap-2">
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Usuário</Label>
+                      <Select value={filterUser} onValueChange={setFilterUser}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Todos" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          {historyUsers.map(u => (
+                            <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <Button onClick={handleFilterHistory} className="h-8 gap-1.5 px-3 shrink-0" disabled={isFiltering}>
+                        {isFiltering ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-3.5 w-3.5" />}
+                        Filtrar
+                      </Button>
+                    </div>
                   </div>
                 </div>
+
 
                 <div className="space-y-2">
                   {history.map(h => (
@@ -843,17 +865,39 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
   const [endDate, setEndDate] = useState('');
   const [selectedAttendant, setSelectedAttendant] = useState('all');
   const [isSearching, setIsSearching] = useState(false);
+  const [filterLabel, setFilterLabel] = useState('');
+
+  function applyQuickDate(preset: 'today' | 'yesterday' | 'lastweek' | 'lastmonth', label: string) {
+    const now = new Date();
+    let s = '', e = '';
+    if (preset === 'today') {
+      s = e = now.toISOString().slice(0, 10);
+    } else if (preset === 'yesterday') {
+      const y = new Date(now); y.setDate(y.getDate() - 1);
+      s = e = y.toISOString().slice(0, 10);
+    } else if (preset === 'lastweek') {
+      const dow = now.getDay();
+      const mon = new Date(now); mon.setDate(now.getDate() - ((dow + 6) % 7) - 7);
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      s = mon.toISOString().slice(0, 10); e = sun.toISOString().slice(0, 10);
+    } else {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      s = first.toISOString().slice(0, 10); e = last.toISOString().slice(0, 10);
+    }
+    setStartDate(s); setEndDate(e); setFilterLabel(label);
+  }
 
   useEffect(() => {
     async function fetchAttendants() {
       const { data: members } = await supabase.from('tenant_members').select('user_id, commission_percentage, role');
       const { data: profiles } = await supabase.from('profiles').select('id, name');
-      if (!members || !profiles) return;
+      if (!members) return;
       const atts = members
         .filter(m => (m as any).role === 'atendente' || (m as any).role === 'admin')
         .map(m => {
-          const p = profiles.find(pr => pr.id === m.user_id);
-          return { id: m.user_id, name: p?.name || 'Desconhecido', commission: Number((m as any).commission_percentage || 0) };
+          const p = profiles?.find(pr => pr.id === m.user_id);
+          return { id: m.user_id, name: p?.name || `Atendente (${m.user_id.slice(0,6)})`, commission: Number((m as any).commission_percentage || 0) };
         });
       setAttendants(atts);
     }
@@ -904,52 +948,67 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
     }
   }
 
-  const displayedAttendants = selectedAttendant === 'all' 
-    ? attendants 
-    : attendants.filter(a => a.id === selectedAttendant);
+  const displayedAttendants = selectedAttendant === 'all' ? attendants : attendants.filter(a => a.id === selectedAttendant);
+  const periodLabel = filterLabel || (startDate || endDate ? `${startDate} → ${endDate}` : '');
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
-        <div className="space-y-1">
-          <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
-          <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 text-xs" />
+      {/* Quick date shortcuts */}
+      <div className="flex flex-wrap gap-1.5">
+        {([['today','Hoje'],['yesterday','Ontem'],['lastweek','Sem. passada'],['lastmonth','Mês passado']] as const).map(([p, l]) => (
+          <button key={p} onClick={() => applyQuickDate(p, l)}
+            className="text-[11px] px-2.5 py-1 rounded-full border border-muted bg-muted/30 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors font-medium">
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* Filters — responsive, no overflow */}
+      <div className="bg-muted/30 p-3 rounded-lg border border-muted space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
+            <Input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setFilterLabel(''); }} className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
+            <Input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setFilterLabel(''); }} className="h-8 text-xs" />
+          </div>
         </div>
-        <div className="space-y-1">
-          <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
-          <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 text-xs" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[10px] uppercase text-muted-foreground">Atendente</Label>
-          <Select value={selectedAttendant} onValueChange={setSelectedAttendant}>
-            <SelectTrigger className="h-9 text-xs">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {attendants.map(u => (
-                <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-end">
-          <Button onClick={handleSearch} className="w-full h-9 gap-2" disabled={isSearching}>
-            {isSearching ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
-            Filtrar
-          </Button>
+        <div className="flex gap-2">
+          <div className="space-y-1 flex-1 min-w-0">
+            <Label className="text-[10px] uppercase text-muted-foreground">Atendente</Label>
+            <Select value={selectedAttendant} onValueChange={setSelectedAttendant}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Todos" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {attendants.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-end">
+            <Button onClick={handleSearch} className="h-8 gap-1.5 px-3 shrink-0" disabled={isSearching}>
+              {isSearching ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-3.5 w-3.5" />}
+              Filtrar
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className="rounded-lg bg-amber-500/10 p-3">
-        <p className="text-xs text-muted-foreground">Total Taxa de Serviço (Mesa)</p>
+        <p className="text-xs text-muted-foreground">
+          Total Taxa de Serviço (Mesa)
+          {periodLabel && <span className="ml-1 text-primary font-medium">· {periodLabel}</span>}
+        </p>
         <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{fmt(totalServiceFee)}</p>
       </div>
 
       {displayedAttendants.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm font-medium text-foreground px-1">Vendas e comissões por atendente:</p>
+          <p className="text-sm font-medium text-foreground px-1">
+            Vendas e comissões por atendente:
+            {periodLabel && <span className="ml-2 text-xs text-primary font-normal">· {periodLabel}</span>}
+          </p>
           <div className="border rounded-lg overflow-hidden bg-card">
             <Table>
               <TableHeader className="bg-muted/50">
@@ -977,7 +1036,7 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
                 {(filteredSales.length === 0 || !displayedAttendants.some(att => (attendantSales[att.id] || 0) > 0)) && (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-4 text-xs text-muted-foreground italic">
-                      Nenhuma venda encontrada para este filtro.
+                      {filteredSales.length === 0 ? 'Aplique um filtro para ver os dados.' : 'Nenhuma venda neste período.'}
                     </TableCell>
                   </TableRow>
                 )}
