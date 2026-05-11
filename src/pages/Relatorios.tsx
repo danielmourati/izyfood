@@ -576,6 +576,102 @@ const Relatorios = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="produtos" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" /> {productReport.title}
+                </CardTitle>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select value={productFilter} onValueChange={(v) => setProductFilter(v as typeof productFilter)}>
+                    <SelectTrigger className="h-9 w-[180px]">
+                      <SelectValue placeholder="Filtro" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="categoria">Por Categoria</SelectItem>
+                      <SelectItem value="baixo">Estoque Baixo</SelectItem>
+                      <SelectItem value="mais">Mais Vendidos</SelectItem>
+                      <SelectItem value="menos">Menos Vendidos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {productFilter === 'categoria' && (
+                    <Select value={productCategoryId} onValueChange={setProductCategoryId}>
+                      <SelectTrigger className="h-9 w-[180px]">
+                        <SelectValue placeholder="Categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        {categories.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {productFilter === 'baixo' && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">≤</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={lowStockThreshold}
+                        onChange={(e) => setLowStockThreshold(Math.max(0, Number(e.target.value) || 0))}
+                        className="h-9 w-16 rounded-md border bg-background px-2 text-sm"
+                      />
+                    </div>
+                  )}
+                  <Button onClick={handlePrintProducts} variant="default" className="h-9 gap-1.5">
+                    <Printer className="h-4 w-4" /> Imprimir A4
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {productReport.list.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      <TableHead>Produto</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead className="text-right">Preço</TableHead>
+                      <TableHead className="text-center">Estoque</TableHead>
+                      {(productFilter === 'mais' || productFilter === 'menos') && (
+                        <>
+                          <TableHead className="text-center">Vendidos</TableHead>
+                          <TableHead className="text-right">Faturado</TableHead>
+                        </>
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productReport.list.map((p, idx) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{p.categoryName}</TableCell>
+                        <TableCell className="text-right">R$ {fmt(p.price)}</TableCell>
+                        <TableCell className={`text-center ${p.controlStock && p.stock <= lowStockThreshold ? 'text-destructive font-semibold' : ''}`}>
+                          {p.controlStock ? `${p.stock.toString().replace('.', ',')} ${p.unit}` : '—'}
+                        </TableCell>
+                        {(productFilter === 'mais' || productFilter === 'menos') && (
+                          <>
+                            <TableCell className="text-center">{p.soldQty.toString().replace('.', ',')}</TableCell>
+                            <TableCell className="text-right font-semibold text-primary">R$ {fmt(p.soldTotal)}</TableCell>
+                          </>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-center text-muted-foreground py-12">Sem produtos para os filtros selecionados</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
