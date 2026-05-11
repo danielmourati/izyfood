@@ -10,27 +10,44 @@ interface CategoryBarProps {
 
 export function CategoryBar({ categories, activeCategoryId, onSelect }: CategoryBarProps) {
   const baseClass =
-    'shrink-0 px-4 py-2.5 rounded-xl text-sm font-heading font-semibold tracking-wide transition-all whitespace-nowrap';
-  const activeClass =
-    'bg-primary/80 text-primary-foreground shadow-md ring-2 ring-primary-foreground/30';
-  const inactiveClass =
-    'bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground';
+    'shrink-0 px-4 py-2.5 rounded-xl text-sm font-heading font-semibold tracking-wide transition-all whitespace-nowrap text-white';
+
+  const getColor = (index: number) => {
+    const colors = [
+      'bg-[#2E7D32]', // Verde escuro
+      'bg-[#D84315]', // Laranja escuro
+      'bg-[#1565C0]', // Azul
+      'bg-[#6A1B9A]', // Roxo
+      'bg-[#C62828]', // Vermelho
+      'bg-[#00838F]', // Ciano escuro
+      'bg-[#EF6C00]', // Laranja
+      'bg-[#4527A0]', // Roxo escuro
+      'bg-[#0277BD]', // Azul claro
+      'bg-[#AD1457]', // Rosa escuro
+    ];
+    return colors[index % colors.length];
+  };
+
+  const getActiveState = (isActive: boolean) => 
+    isActive 
+      ? 'opacity-100 shadow-md ring-2 ring-offset-2 ring-slate-400 scale-[1.02]' 
+      : 'opacity-85 hover:opacity-100';
 
   return (
     <ScrollArea className="w-full">
       <div className="flex gap-3 pb-2 px-1 snap-x snap-mandatory">
         <button
           onClick={() => onSelect('all')}
-          className={cn(baseClass, 'snap-start', activeCategoryId === 'all' ? activeClass : inactiveClass)}
+          className={cn(baseClass, getColor(0), getActiveState(activeCategoryId === 'all'), 'snap-start')}
         >
           Todos
         </button>
 
-        {categories.map(cat => (
+        {categories.map((cat, index) => (
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            className={cn(baseClass, 'snap-start', activeCategoryId === cat.id ? activeClass : inactiveClass)}
+            className={cn(baseClass, getColor(index + 1), getActiveState(activeCategoryId === cat.id), 'snap-start')}
           >
             {cat.name}
           </button>
