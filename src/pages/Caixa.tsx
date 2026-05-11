@@ -14,7 +14,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert, Filter, Search as SearchIcon } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert, Filter, Search as SearchIcon, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
 
@@ -569,76 +570,90 @@ export default function Caixa() {
         </Card>
 
         {/* Service fee & commission section */}
-        <ServiceFeeCommissionCard orders={orders} />
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="commissions" className="border-none">
+            <AccordionTrigger className="hover:no-underline py-0">
+              <div className="w-full text-left">
+                <ServiceFeeCommissionCard orders={orders} />
+              </div>
+            </AccordionTrigger>
+          </AccordionItem>
+        </Accordion>
         </>
       )}
 
       {history.length > 0 || filterStartDate || filterUser !== 'all' ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <History className="h-5 w-5" /> Histórico
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Filter UI */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
-                <Input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="h-9 text-xs" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
-                <Input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="h-9 text-xs" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase text-muted-foreground">Usuário</Label>
-                <Select value={filterUser} onValueChange={setFilterUser}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {historyUsers.map(u => (
-                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end">
-                <Button onClick={handleFilterHistory} className="w-full h-9 gap-2" disabled={isFiltering}>
-                  {isFiltering ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
-                  Filtrar
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {history.map(h => (
-                <button
-                  key={h.id}
-                  onClick={() => { setClosedRegister(h); setShowReceipt(true); }}
-                  className="w-full flex justify-between items-center rounded-lg bg-muted/50 hover:bg-muted px-4 py-3 text-sm transition-colors border border-transparent hover:border-primary/20"
-                >
-                  <div className="text-left">
-                    <p className="font-medium text-foreground">
-                      {new Date(h.openedAt).toLocaleDateString('pt-BR')}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(h.openedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      {' → '}
-                      {h.closedAt && new Date(h.closedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="history" className="border-none">
+            <Card>
+              <AccordionTrigger className="hover:no-underline px-6">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <History className="h-5 w-5" /> Histórico de Caixa
+                </CardTitle>
+              </AccordionTrigger>
+              <AccordionContent>
+                <CardContent className="space-y-4">
+                  {/* Filter UI */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Início</Label>
+                      <Input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="h-9 text-xs" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Fim</Label>
+                      <Input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="h-9 text-xs" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Usuário</Label>
+                      <Select value={filterUser} onValueChange={setFilterUser}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Todos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          {historyUsers.map(u => (
+                            <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <Button onClick={handleFilterHistory} className="w-full h-9 gap-2" disabled={isFiltering}>
+                        {isFiltering ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-4 w-4" />}
+                        Filtrar
+                      </Button>
+                    </div>
                   </div>
-                  <span className="font-bold text-foreground">{fmt(h.totalSales)}</span>
-                </button>
-              ))}
-              {history.length === 0 && (
-                <p className="text-center py-6 text-sm text-muted-foreground">Nenhum caixa encontrado com estes filtros.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+
+                  <div className="space-y-2">
+                    {history.map(h => (
+                      <button
+                        key={h.id}
+                        onClick={() => { setClosedRegister(h); setShowReceipt(true); }}
+                        className="w-full flex justify-between items-center rounded-lg bg-muted/50 hover:bg-muted px-4 py-3 text-sm transition-colors border border-transparent hover:border-primary/20"
+                      >
+                        <div className="text-left">
+                          <p className="font-medium text-foreground">
+                            {new Date(h.openedAt).toLocaleDateString('pt-BR')}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(h.openedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            {' → '}
+                            {h.closedAt && new Date(h.closedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <span className="font-bold text-foreground">{fmt(h.totalSales)}</span>
+                      </button>
+                    ))}
+                    {history.length === 0 && (
+                      <p className="text-center py-6 text-sm text-muted-foreground">Nenhum caixa encontrado com estes filtros.</p>
+                    )}
+                  </div>
+                </CardContent>
+              </AccordionContent>
+            </Card>
+          </AccordionItem>
+        </Accordion>
       ) : null}
 
       {closedRegister && (
@@ -895,13 +910,14 @@ function ServiceFeeCommissionCard({ orders }: { salesInPeriod: any[]; orders: an
     : attendants.filter(a => a.id === selectedAttendant);
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="border-none shadow-none bg-transparent">
+      <AccordionTrigger className="hover:no-underline px-6 py-4 bg-card rounded-t-xl border">
         <CardTitle className="flex items-center gap-2 text-lg">
           <DollarSign className="h-5 w-5" /> Taxa de Serviço & Comissões
         </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      </AccordionTrigger>
+      <AccordionContent className="bg-card rounded-b-xl border border-t-0">
+        <CardContent className="space-y-4 pt-4">
         {/* Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-lg border border-muted">
           <div className="space-y-1">
@@ -978,7 +994,7 @@ function ServiceFeeCommissionCard({ orders }: { salesInPeriod: any[]; orders: an
             </div>
           </div>
         )}
-      </CardContent>
+      </AccordionContent>
     </Card>
   );
 }
