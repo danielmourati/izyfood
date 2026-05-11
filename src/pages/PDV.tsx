@@ -245,18 +245,20 @@ const PDV = () => {
         t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t
       ));
     }
-    if (!order || order.total === 0) {
-      setOrders(prev => prev.filter(o => o.id !== orderId));
-      // Remove from DB if it exists
-      if (pedidoParam) {
-        await supabase.from('orders').delete().eq('id', orderId).catch(() => {});
+    try {
+      if (!order || order.total === 0) {
+        setOrders(prev => prev.filter(o => o.id !== orderId));
+        if (pedidoParam) {
+          await supabase.from('orders').delete().eq('id', orderId);
+        }
+      } else {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelado' } : o));
+        if (pedidoParam) {
+          await supabase.from('orders').update({ status: 'cancelado' }).eq('id', orderId);
+        }
       }
-    } else {
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelado' } : o));
-      // Update DB status
-      if (pedidoParam) {
-        await supabase.from('orders').update({ status: 'cancelado' }).eq('id', orderId).catch(() => {});
-      }
+    } catch (err) {
+      console.error('cancelOrder DB error', err);
     }
     if (tableNumber) navigate('/');
     else navigate('/pdv', { replace: true });
