@@ -23,6 +23,7 @@ export interface Product {
   image?: string;
   loyaltyEligible: boolean;
   controlStock: boolean;
+  supplierId?: string;
 }
 
 export interface ProductNoteOption {

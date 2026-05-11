@@ -8,8 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Upload, X, Search, Tag } from 'lucide-react';
-import { Product, ProductType, ProductCategory, ProductNoteOption } from '@/types';
+import { Plus, Pencil, Trash2, Upload, X, Search, Tag, Building2 } from 'lucide-react';
 
 const emptyProductForm = {
   name: '',
@@ -22,6 +21,7 @@ const emptyProductForm = {
   image: '',
   loyaltyEligible: false,
   controlStock: true,
+  supplierId: '',
 };
 
 const emptyNoteOptionForm = {
@@ -35,7 +35,7 @@ const emptyNoteOptionForm = {
 const emptyCategoryForm = { name: '' };
 
 const Produtos = () => {
-  const { products, setProducts, categories, setCategories, noteOptions, setNoteOptions } = useStore();
+  const { products, setProducts, categories, setCategories, noteOptions, setNoteOptions, suppliers, setSuppliers } = useStore();
 
   // Product state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,6 +59,11 @@ const Produtos = () => {
   const [optFormOpen, setOptFormOpen] = useState(false);
   const [editingOptId, setEditingOptId] = useState<string | null>(null);
   const [optForm, setOptForm] = useState(emptyNoteOptionForm);
+
+  // New supplier inline modal
+  const [newSupplierOpen, setNewSupplierOpen] = useState(false);
+  const [supplierForm, setSupplierForm] = useState({ name: '', contact: '' });
+  const [supplierSaving, setSupplierSaving] = useState(false);
 
   const getCat = (id: string) => categories.find(c => c.id === id);
 
@@ -88,6 +93,7 @@ const Produtos = () => {
       image: p.image || '',
       loyaltyEligible: p.loyaltyEligible,
       controlStock: p.controlStock,
+      supplierId: p.supplierId || '',
     });
     setDialogOpen(true);
   };
@@ -123,6 +129,7 @@ const Produtos = () => {
       image: form.image || undefined,
       loyaltyEligible: form.loyaltyEligible,
       controlStock: form.controlStock,
+      supplierId: form.supplierId || undefined,
     };
     if (editingId) {
       setProducts(prev => prev.map(p => p.id === editingId ? product : p));
@@ -435,6 +442,30 @@ const Produtos = () => {
                 <span className="text-sm">⭐ Elegível para pontuação fidelidade</span>
               </label>
             </div>
+
+            {/* Supplier field */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label>Fornecedor</Label>
+                <button
+                  type="button"
+                  onClick={() => { setSupplierForm({ name: '', contact: '' }); setNewSupplierOpen(true); }}
+                  className="flex items-center gap-1 text-[11px] text-primary hover:underline opacity-70 hover:opacity-100 transition-opacity"
+                >
+                  <Building2 className="h-3 w-3" /> Novo fornecedor
+                </button>
+              </div>
+              <select
+                className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                value={form.supplierId}
+                onChange={e => setForm(f => ({ ...f, supplierId: e.target.value }))}
+              >
+                <option value="">Nenhum</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}{s.contact ? ` · ${s.contact}` : ''}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
               <Button onClick={save}>{editingId ? 'Salvar' : 'Cadastrar'}</Button>
@@ -644,6 +675,63 @@ const Produtos = () => {
                 {editingOptId ? 'Salvar' : 'Cadastrar'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Supplier Inline Modal */}
+      <Dialog open={newSupplierOpen} onOpenChange={setNewSupplierOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" /> Novo Fornecedor
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome *</Label>
+              <Input
+                autoFocus
+                value={supplierForm.name}
+                onChange={e => setSupplierForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Ex: Distribuidora ABC"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Contato <span className="text-muted-foreground font-normal text-xs">(opcional)</span></Label>
+              <Input
+                value={supplierForm.contact}
+                onChange={e => setSupplierForm(f => ({ ...f, contact: e.target.value }))}
+                placeholder="Telefone, e-mail ou WhatsApp"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1" onClick={() => setNewSupplierOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={!supplierForm.name.trim() || supplierSaving}
+              onClick={() => {
+                if (!supplierForm.name.trim()) return;
+                setSupplierSaving(true);
+                const newSupplier: Supplier = {
+                  id: crypto.randomUUID(),
+                  name: supplierForm.name.trim(),
+                  contact: supplierForm.contact.trim(),
+                };
+                setSuppliers(prev => [...prev, newSupplier]);
+                setForm(f => ({ ...f, supplierId: newSupplier.id }));
+                setSupplierForm({ name: '', contact: '' });
+                setNewSupplierOpen(false);
+                setSupplierSaving(false);
+              }}
+            >
+              Salvar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
