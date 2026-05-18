@@ -98,7 +98,7 @@ export function usePrinter() {
   };
 
   const defaultPrinter = printers.find(p => p.is_default) || printers[0];
-  const paperWidth = defaultPrinter?.paper_width || 80;
+  const paperWidth = defaultPrinter?.paper_width || 58; // Default para 58mm (mini impressoras térmicas)
 
   const pairBluetooth = async () => {
     const name = await connectBluetooth();
@@ -114,18 +114,28 @@ export function usePrinter() {
   };
 
   const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string) => {
-    if (defaultPrinter?.connection_type === 'bluetooth' && isBluetoothConnected()) {
-      await printViaBluetooth(data);
-    } else if ((defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && isQzConnected()) {
+    // 1. Bluetooth (ESC/POS) - Prioridade se estiver conectado e for a impressora padrão (ou se não houver padrão)
+    if (isBluetoothConnected() && (!defaultPrinter || defaultPrinter.connection_type === 'bluetooth')) {
+      try {
+        await printViaBluetooth(data);
+        return; // Sucesso, finaliza aqui
+      } catch (err) {
+        console.error('Erro na impressão Bluetooth, caindo para HTML...', err);
+      }
+    } 
+    
+    // 2. QZ Tray (USB/Rede)
+    if ((defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && isQzConnected()) {
       try {
         await printViaQzTray(data, defaultPrinter.address);
+        return; // Sucesso, finaliza aqui
       } catch (err) {
         console.error('QZ Tray print error, falling back to HTML:', err);
-        printViaHtmlFallback(htmlFallback, title, paperWidth);
       }
-    } else {
-      printViaHtmlFallback(htmlFallback, title, paperWidth);
     }
+    
+    // 3. Fallback para HTML (Abre a janela nativa do Android/Windows)
+    printViaHtmlFallback(htmlFallback, title, paperWidth);
   };
 
   const printOrder = async (order: any) => {
