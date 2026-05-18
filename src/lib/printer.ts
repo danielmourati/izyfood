@@ -45,11 +45,14 @@ export async function connectBluetooth(): Promise<string> {
     if (devices.length > 0) {
       // Use the first one or try to match by name if we stored it
       const device = devices[0];
-      try {
-        const name = await _connectToDevice(device);
-        return name;
-      } catch (err) {
-        console.warn('Reconnection to authorized device failed:', err);
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const name = await _connectToDevice(device);
+          return name;
+        } catch (err) {
+          console.warn(`Tentativa ${attempt} de reconectar falhou:`, err);
+          if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
+        }
       }
     }
   }
@@ -76,11 +79,24 @@ export async function tryReconnectBluetooth(): Promise<string | null> {
     const devices = await bt.getDevices();
     if (devices.length > 0) {
       const device = devices[0];
-      const name = await _connectToDevice(device);
-      return name;
+      
+      // Tentar reconectar com retentativas (impressoras térmicas demoram a voltar a anunciar o GATT após reload)
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`Tentativa ${attempt} de auto-reconexão Bluetooth ao dispositivo ${device.name}...`);
+          const name = await _connectToDevice(device);
+          return name;
+        } catch (err) {
+          console.warn(`Falha na tentativa ${attempt} de auto-reconexão:`, err);
+          if (attempt < 3) {
+            // Aguardar 2 segundos antes de tentar de novo
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        }
+      }
     }
   } catch (err) {
-    console.warn('Auto-reconnection to authorized device failed:', err);
+    console.warn('Erro ao acessar dispositivos Bluetooth pareados:', err);
   }
   return null;
 }
