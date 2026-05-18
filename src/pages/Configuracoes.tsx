@@ -725,7 +725,8 @@ function PermissoesTab() {
 
     const attendants = (profiles || []).filter(p => {
       const role = roles?.find(r => r.user_id === p.id);
-      return role?.role === 'atendente';
+      const effectiveRole = role?.role || 'atendente';
+      return effectiveRole === 'atendente';
     }).map(p => ({ id: p.id, name: p.name, email: p.email, role: 'atendente' }));
 
     setUsers(attendants);
