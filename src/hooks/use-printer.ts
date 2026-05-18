@@ -11,6 +11,7 @@ import {
   initQzTray,
   isQzConnected,
   printViaQzTray,
+  getBluetoothDeviceName,
 } from '@/lib/printer';
 import {
   buildOrderReceipt,
@@ -69,13 +70,25 @@ export function usePrinter() {
           setBtConnected(true);
           setBtDeviceName(name);
         } else {
-          setBtConnected(isBluetoothConnected());
+          const connected = isBluetoothConnected();
+          setBtConnected(connected);
+          if (connected) setBtDeviceName(getBluetoothDeviceName());
         }
       } else {
         setBtConnected(true);
+        setBtDeviceName(getBluetoothDeviceName());
       }
     };
     initConnections();
+  }, []);
+
+  useEffect(() => {
+    const handleBtConnected = (e: any) => {
+      setBtConnected(true);
+      setBtDeviceName(e.detail?.name || 'Impressora Bluetooth');
+    };
+    window.addEventListener('bt_connected', handleBtConnected);
+    return () => window.removeEventListener('bt_connected', handleBtConnected);
   }, []);
 
   const retryQzConnection = async () => {

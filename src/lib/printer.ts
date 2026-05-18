@@ -122,7 +122,9 @@ async function _connectToDevice(device: any): Promise<string> {
           const char = await service.getCharacteristic(charUuid);
           _device = device;
           _characteristic = char;
-          return device.name || 'Impressora Bluetooth';
+          const deviceName = device.name || 'Impressora Bluetooth';
+          window.dispatchEvent(new CustomEvent('bt_connected', { detail: { name: deviceName } }));
+          return deviceName;
         } catch { /* try next */ }
       }
       // If specific chars not found, try first writable
@@ -131,7 +133,9 @@ async function _connectToDevice(device: any): Promise<string> {
         if (c.properties.write || c.properties.writeWithoutResponse) {
           _device = device;
           _characteristic = c;
-          return device.name || 'Impressora Bluetooth';
+          const deviceName = device.name || 'Impressora Bluetooth';
+          window.dispatchEvent(new CustomEvent('bt_connected', { detail: { name: deviceName } }));
+          return deviceName;
         }
       }
     } catch { /* try next service */ }
@@ -154,6 +158,10 @@ export function disconnectBluetooth(): void {
  */
 export function isBluetoothConnected(): boolean {
   return !!_device?.gatt?.connected && !!_characteristic;
+}
+
+export function getBluetoothDeviceName(): string | null {
+  return _device?.name || (_device ? 'Impressora Bluetooth' : null);
 }
 
 /**
