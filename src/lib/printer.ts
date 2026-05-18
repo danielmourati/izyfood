@@ -3,6 +3,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import qz from 'qz-tray';
 
 const PRINTER_SERVICE_UUIDS = [
   '000018f0-0000-1000-8000-00805f9b34fb', // generic thermal
@@ -61,6 +62,27 @@ export async function connectBluetooth(): Promise<string> {
   });
 
   return _connectToDevice(device);
+}
+
+/**
+ * Try to automatically reconnect to the last paired device on load.
+ * Does not throw on failure, silently ignores.
+ */
+export async function tryReconnectBluetooth(): Promise<string | null> {
+  const bt = (navigator as any).bluetooth;
+  if (!bt || !bt.getDevices) return null;
+
+  try {
+    const devices = await bt.getDevices();
+    if (devices.length > 0) {
+      const device = devices[0];
+      const name = await _connectToDevice(device);
+      return name;
+    }
+  } catch (err) {
+    console.warn('Auto-reconnection to authorized device failed:', err);
+  }
+  return null;
 }
 
 /**
@@ -136,6 +158,73 @@ export async function printViaBluetooth(data: Uint8Array): Promise<void> {
   }
 }
 
+// ---- QZ Tray Integration ----
+
+let _qzConnected = false;
+
+/**
+ * Check if QZ Tray is available and connect.
+ */
+export async function initQzTray(): Promise<boolean> {
+  if (_qzConnected && qz.websocket.isActive()) return true;
+  
+  try {
+    if (!qz.websocket.isActive()) {
+      await qz.websocket.connect({ retries: 0 });
+    }
+    _qzConnected = true;
+    return true;
+  } catch (err) {
+    console.warn('QZ Tray não está em execução ou acessível:', err);
+    _qzConnected = false;
+    return false;
+  }
+}
+
+export function isQzConnected(): boolean {
+  return _qzConnected && qz.websocket.isActive();
+}
+
+/**
+ * Get all system printers via QZ Tray.
+ */
+export async function getQzPrinters(): Promise<string[]> {
+  if (!isQzConnected()) return [];
+  try {
+    return await qz.printers.find();
+  } catch (e) {
+    console.error('Erro ao buscar impressoras QZ:', e);
+    return [];
+  }
+}
+
+/**
+ * Print ESC/POS bytes via QZ Tray.
+ */
+export async function printViaQzTray(data: Uint8Array, printerName?: string): Promise<void> {
+  if (!isQzConnected()) throw new Error('QZ Tray não conectado.');
+
+  // Find the printer
+  const printers = await qz.printers.find();
+  if (printers.length === 0) throw new Error('Nenhuma impressora encontrada no sistema.');
+
+  let targetPrinter = printers[0]; // fallback to default
+  if (printerName && printerName !== 'SYSTEM_BROWSER') {
+    // try to match exactly or partially
+    const match = printers.find((p: string) => p.toLowerCase() === printerName.toLowerCase()) 
+      || printers.find((p: string) => p.toLowerCase().includes(printerName.toLowerCase()));
+    if (match) targetPrinter = match;
+  }
+
+  // qz.print needs data in hex format for raw bytes
+  const hexData = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  const config = qz.configs.create(targetPrinter);
+  await qz.print(config, [
+    { type: 'raw', format: 'hex', data: hexData }
+  ]);
+}
+
 /**
  * Fallback: open a formatted HTML receipt in a new window and trigger print.
  */
@@ -172,7 +261,7 @@ export function printViaHtmlFallback(
       .mb-1 { margin-bottom: 4px; }
       @media print { 
         body { width: ${printWidth}; padding: 0 16px; }
-        @page { margin: 0; }
+        @page { margin: 0; size: ${paperWidth}mm auto; }
       }
     </style></head><body>${htmlContent}</body></html>
   `);

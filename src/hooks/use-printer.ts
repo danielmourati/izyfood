@@ -7,6 +7,10 @@ import {
   disconnectBluetooth,
   printViaBluetooth,
   printViaHtmlFallback,
+  tryReconnectBluetooth,
+  initQzTray,
+  isQzConnected,
+  printViaQzTray,
 } from '@/lib/printer';
 import {
   buildOrderReceipt,
@@ -28,6 +32,7 @@ export function usePrinter() {
   const [loading, setLoading] = useState(true);
   const [btConnected, setBtConnected] = useState(false);
   const [btDeviceName, setBtDeviceName] = useState<string | null>(null);
+  const [qzConnected, setQzConnected] = useState(false);
 
   const fetchPrinters = useCallback(async () => {
     const { data } = await supabase
@@ -36,10 +41,14 @@ export function usePrinter() {
       .order('is_default', { ascending: false });
     
     if (data) {
-      const mapped = data.map((p: any) => ({
-        ...p,
-        connection_type: (p.connection_type === 'network' && p.address === 'SYSTEM_BROWSER') ? 'system' : p.connection_type
-      }));
+      const mapped = data.map((p: any) => {
+        const isSystem = p.connection_type === 'network' && (p.address === 'SYSTEM_BROWSER' || p.address?.startsWith('SYSTEM:'));
+        return {
+          ...p,
+          connection_type: isSystem ? 'system' : p.connection_type,
+          address: isSystem ? p.address.replace('SYSTEM:', '').replace('SYSTEM_BROWSER', 'BROWSER') : p.address
+        };
+      });
       setPrinters(mapped as unknown as PrinterConfig[]);
     }
     setLoading(false);
@@ -48,7 +57,25 @@ export function usePrinter() {
   useEffect(() => { fetchPrinters(); }, [fetchPrinters]);
 
   useEffect(() => {
-    setBtConnected(isBluetoothConnected());
+    const initConnections = async () => {
+      // Try QZ
+      const qzReady = await initQzTray();
+      setQzConnected(qzReady);
+
+      // Try BT Auto-reconnect
+      if (!isBluetoothConnected()) {
+        const name = await tryReconnectBluetooth();
+        if (name) {
+          setBtConnected(true);
+          setBtDeviceName(name);
+        } else {
+          setBtConnected(isBluetoothConnected());
+        }
+      } else {
+        setBtConnected(true);
+      }
+    };
+    initConnections();
   }, []);
 
   const defaultPrinter = printers.find(p => p.is_default) || printers[0];
@@ -70,6 +97,13 @@ export function usePrinter() {
   const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string) => {
     if (defaultPrinter?.connection_type === 'bluetooth' && isBluetoothConnected()) {
       await printViaBluetooth(data);
+    } else if ((defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && isQzConnected()) {
+      try {
+        await printViaQzTray(data, defaultPrinter.address);
+      } catch (err) {
+        console.error('QZ Tray print error, falling back to HTML:', err);
+        printViaHtmlFallback(htmlFallback, title, paperWidth);
+      }
     } else {
       printViaHtmlFallback(htmlFallback, title, paperWidth);
     }
@@ -113,6 +147,7 @@ export function usePrinter() {
     btConnected,
     btDeviceName,
     btAvailable: isBluetoothAvailable(),
+    qzConnected,
     fetchPrinters,
     pairBluetooth,
     unpairBluetooth,

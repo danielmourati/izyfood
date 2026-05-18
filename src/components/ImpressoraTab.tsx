@@ -12,11 +12,12 @@ import { usePrinter, type PrinterConfig } from '@/hooks/use-printer';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getQzPrinters } from '@/lib/printer';
 
 export function ImpressoraTab() {
   const { user } = useAuth();
   const {
-    printers, loading, btAvailable, btConnected, btDeviceName,
+    printers, loading, btAvailable, btConnected, btDeviceName, qzConnected,
     fetchPrinters, pairBluetooth, unpairBluetooth, printTest,
   } = usePrinter();
 
@@ -25,6 +26,13 @@ export function ImpressoraTab() {
   const [saving, setSaving] = useState(false);
   const [pairing, setPairing] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [qzPrintersList, setQzPrintersList] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (qzConnected && showForm && form.connection_type === 'system') {
+      getQzPrinters().then(setQzPrintersList);
+    }
+  }, [qzConnected, showForm, form.connection_type]);
 
   const resetForm = () => {
     setForm({ name: '', connection_type: 'bluetooth', address: '', paper_width: 80, is_default: false });
@@ -46,7 +54,7 @@ export function ImpressoraTab() {
         name: form.name.trim(),
         // DB constraint only allows 'bluetooth' or 'network'
         connection_type: form.connection_type === 'system' ? 'network' : form.connection_type,
-        address: form.connection_type === 'system' ? 'SYSTEM_BROWSER' : (form.address.trim() || ''),
+        address: form.connection_type === 'system' ? `SYSTEM:${form.address.trim() || 'BROWSER'}` : (form.address.trim() || ''),
         paper_width: form.paper_width,
         is_default: form.is_default,
         tenant_id: user.tenantId
@@ -140,6 +148,28 @@ export function ImpressoraTab() {
         </CardContent>
       </Card>
 
+      {/* QZ Tray status */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Monitor className="h-5 w-5" /> Agente de Impressão (QZ Tray)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-3">
+            <Badge variant={qzConnected ? 'default' : 'secondary'}>
+              {qzConnected ? 'Conectado (Pronto para uso)' : 'Não detectado'}
+            </Badge>
+          </div>
+          {!qzConnected && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Para impressão direta em impressoras USB ou de Rede (sem janela de confirmação), você precisa ter o QZ Tray rodando neste computador.{' '}
+              <a href="https://qz.io/download/" target="_blank" rel="noreferrer" className="text-primary underline">Baixar QZ Tray</a>
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Printer list */}
       <Card>
         <CardHeader>
@@ -225,6 +255,27 @@ export function ImpressoraTab() {
               <div className="space-y-2">
                 <Label>Endereço IP</Label>
                 <Input placeholder="192.168.1.100:9100" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+              </div>
+            )}
+            {form.connection_type === 'system' && qzConnected && (
+              <div className="space-y-2">
+                <Label>Impressora do Sistema</Label>
+                <Select value={form.address} onValueChange={v => setForm(f => ({ ...f, address: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    {qzPrintersList.map(p => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Impressoras detectadas pelo QZ Tray neste computador.</p>
+              </div>
+            )}
+            {form.connection_type === 'system' && !qzConnected && (
+              <div className="space-y-2">
+                <Label>Nome exato no sistema</Label>
+                <Input placeholder="Ex: L3150 Series" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+                <p className="text-xs text-muted-foreground">Digite exatamente como está no Painel de Controle (ou instale o QZ Tray para listar automaticamente).</p>
               </div>
             )}
             <div className="space-y-2">
