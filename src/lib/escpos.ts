@@ -3,6 +3,8 @@
  * Produces Uint8Array buffers ready to send via Bluetooth or network.
  */
 
+import { supabase } from '@/integrations/supabase/client';
+
 const ESC = 0x1B;
 const GS = 0x1D;
 
@@ -105,6 +107,8 @@ interface OrderData {
   items: OrderItem[];
   total: number;
   customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
   createdAt: string;
   operatorName?: string;
 }
@@ -131,7 +135,41 @@ interface CashCloseData {
 }
 
 function colsForWidth(paperWidth: number): number {
-  return paperWidth === 58 ? 32 : 48;
+  return paperWidth <= 58 ? 32 : 48;
+}
+
+export interface PrintSettings {
+  address?: string;
+  document?: string;
+  documentType?: 'cnpj' | 'cpf';
+  whatsapp?: string;
+  pixKey?: string;
+  instagram?: string;
+  thankMessage?: string;
+  showAddress?: boolean;
+  showDocument?: boolean;
+  showWhatsapp?: boolean;
+  showPixKey?: boolean;
+  showInstagram?: boolean;
+  showThankMessage?: boolean;
+}
+
+let _cachedPrintSettings: PrintSettings | null = null;
+
+export async function fetchPrintSettings(tenantId: string): Promise<PrintSettings> {
+  const { data } = await supabase
+    .from('store_settings')
+    .select('print_settings')
+    .eq('tenant_id', tenantId)
+    .limit(1)
+    .single();
+  const ps = (data as any)?.print_settings;
+  _cachedPrintSettings = ps && typeof ps === 'object' ? ps as PrintSettings : {};
+  return _cachedPrintSettings!;
+}
+
+export function getCachedPrintSettings(): PrintSettings {
+  return _cachedPrintSettings || {};
 }
 
 const paymentLabels: Record<string, string> = {
@@ -166,15 +204,29 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array
 
   parts.push(CMD_ALIGN_CENTER);
   parts.push(text(`* Cod. Pers./Senha: ${orderNo} *\n`));
-  const mesa = order.tableNumber ? `MESA: ${String(order.tableNumber).padStart(3, '0')}` : 'BALCÃO';
-  parts.push(CMD_BOLD_ON, text(`${mesa}\n\n`), CMD_BOLD_OFF);
+  
+  let tipoPedido = 'BALCÃO';
+  if (order.orderType === 'delivery') {
+    tipoPedido = 'DELIVERY';
+  } else if (order.orderType === 'retirada') {
+    tipoPedido = 'RETIRADA';
+  } else if (order.tableNumber) {
+    tipoPedido = `MESA: ${String(order.tableNumber).padStart(3, '0')}`;
+  } else if (order.orderType && orderTypeLabels[order.orderType]) {
+    tipoPedido = orderTypeLabels[order.orderType].toUpperCase();
+  }
+
+  parts.push(CMD_BOLD_ON, text(`${tipoPedido}\n\n`), CMD_BOLD_OFF);
 
   parts.push(CMD_ALIGN_LEFT);
-  if (order.customerName) {
-    parts.push(text(`${order.customerName}\n\n`));
-  } else {
-    parts.push(text(`Sem Nome\n\n`));
-  }
+  
+  const customerLine = order.orderType === 'delivery'
+    ? `${order.customerName || 'Sem Nome'}${order.customerAddress ? ' - ' + order.customerAddress : ''}`
+    : order.orderType === 'retirada'
+    ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
+    : (order.customerName || 'Sem Nome');
+
+  parts.push(text(`Cliente: ${customerLine}\n\n`));
 
   // Items
   for (const item of order.items) {
@@ -200,7 +252,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array
 /**
  * Build a CONTA (bill / receipt for customer after payment).
  */
-export function buildBillReceipt(bill: BillData, paperWidth = 80): Uint8Array {
+export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
   const cols = colsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
@@ -211,8 +263,15 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80): Uint8Array {
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
     CMD_ALIGN_LEFT,
     lineOf('=', cols),
-    row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols),
   ];
+
+  // Dynamic header from print settings
+  if (ps.showAddress && ps.address) parts.push(text(`${ps.address}\n`));
+  if (ps.showDocument && ps.document) parts.push(text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
+  if (ps.showWhatsapp && ps.whatsapp) parts.push(text(`WhatsApp: ${ps.whatsapp}\n`));
+  if (ps.showAddress || ps.showDocument || ps.showWhatsapp) parts.push(lineOf('-', cols));
+
+  parts.push(row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
 
   if (bill.tableNumber) parts.push(row('Mesa:', String(bill.tableNumber), cols));
   if (bill.customerName) parts.push(row('Cliente:', bill.customerName, cols));
@@ -260,8 +319,21 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80): Uint8Array {
   }
 
   parts.push(lineOf('=', cols));
-  parts.push(CMD_ALIGN_CENTER, text('Obrigado pela preferencia!\n'));
-  parts.push(feedAndCut());
+
+  // Dynamic footer from print settings
+  const hasFooter = (ps.showThankMessage && ps.thankMessage) || (ps.showPixKey && ps.pixKey) || (ps.showInstagram && ps.instagram);
+  if (hasFooter) {
+    parts.push(CMD_ALIGN_CENTER);
+    if (ps.showPixKey && ps.pixKey) parts.push(text(`PIX: ${ps.pixKey}\n`));
+    if (ps.showInstagram && ps.instagram) parts.push(text(`Instagram: ${ps.instagram}\n`));
+    if (ps.showThankMessage && ps.thankMessage) {
+      parts.push(CMD_BOLD_ON, text(`${ps.thankMessage}\n`), CMD_BOLD_OFF);
+    }
+    parts.push(CMD_ALIGN_LEFT);
+  }
+
+  // Minimal feed then cut (2 lines instead of 4 to save paper)
+  parts.push(new Uint8Array([0x0A, 0x0A]), CMD_PARTIAL_CUT);
 
   return concat(...parts);
 }

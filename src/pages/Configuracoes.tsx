@@ -80,6 +80,44 @@ const Configuracoes = () => {
   );
 };
 
+function applyMask(value: string, type: 'cnpj' | 'cpf' | 'phone'): string {
+  const d = value.replace(/\D/g, '');
+  if (type === 'cnpj') {
+    return d.slice(0, 14)
+      .replace(/(\d{2})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1/$2')
+      .replace(/(\d{4})(\d)/, '$1-$2');
+  }
+  if (type === 'cpf') {
+    return d.slice(0, 11)
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+  // phone
+  if (d.length <= 10) {
+    return d.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3').trim().replace(/-$/, '');
+  }
+  return d.slice(0, 11).replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3').trim().replace(/-$/, '');
+}
+
+interface PrintSettings {
+  address?: string;
+  document?: string;
+  documentType?: 'cnpj' | 'cpf';
+  whatsapp?: string;
+  pixKey?: string;
+  instagram?: string;
+  thankMessage?: string;
+  showAddress?: boolean;
+  showDocument?: boolean;
+  showWhatsapp?: boolean;
+  showPixKey?: boolean;
+  showInstagram?: boolean;
+  showThankMessage?: boolean;
+}
+
 function GeralTab() {
   const { settings, updateTableCount } = useStore();
   const { user } = useAuth();
@@ -92,11 +130,21 @@ function GeralTab() {
   const [uploading, setUploading] = useState(false);
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [uploadingCarousel, setUploadingCarousel] = useState(false);
+  const [printSettings, setPrintSettings] = useState<PrintSettings>({
+    address: '', document: '', documentType: 'cnpj', whatsapp: '',
+    pixKey: '', instagram: '', thankMessage: 'Obrigado pela preferência!',
+    showAddress: true, showDocument: true, showWhatsapp: true,
+    showPixKey: true, showInstagram: true, showThankMessage: true,
+  });
 
   useEffect(() => {
     if (user?.tenantId) {
-      supabase.from('store_settings').select('service_fee_percentage').eq('tenant_id', user.tenantId).limit(1).then(({ data }) => {
-        if (data && data.length > 0) setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
+      supabase.from('store_settings').select('service_fee_percentage, print_settings').eq('tenant_id', user.tenantId).limit(1).then(({ data }) => {
+        if (data && data.length > 0) {
+          setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
+          const ps = (data[0] as any).print_settings;
+          if (ps && typeof ps === 'object') setPrintSettings(prev => ({ ...prev, ...ps }));
+        }
       });
       supabase.from('tenants').select('name, logo, login_icon, login_carousel_images').eq('id', user.tenantId).single().then(({ data }) => {
         if (data) {
@@ -199,12 +247,14 @@ function GeralTab() {
       if (existing && existing.length > 0) {
         await supabase.from('store_settings').update({ 
           service_fee_percentage: fee, 
-          table_count: count 
+          table_count: count,
+          print_settings: printSettings,
         } as any).eq('tenant_id', user.tenantId);
       } else {
         await supabase.from('store_settings').insert({ 
           table_count: count, 
           service_fee_percentage: fee,
+          print_settings: printSettings,
           tenant_id: user.tenantId 
         } as any);
       }
@@ -214,6 +264,8 @@ function GeralTab() {
       toast.error('Erro ao salvar configurações');
     }
   };
+
+  const updatePS = (key: keyof PrintSettings, value: any) => setPrintSettings(prev => ({ ...prev, [key]: value }));
 
   return (
     <div className="space-y-4">
@@ -240,6 +292,37 @@ function GeralTab() {
             <div className="flex-1 space-y-2">
               <Label>Nome do Estabelecimento</Label>
               <Input value={tenantName} onChange={e => setTenantName(e.target.value)} placeholder="Nome da sua loja" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="space-y-2">
+              <Label>Endereço</Label>
+              <Input value={printSettings.address || ''} onChange={e => updatePS('address', e.target.value)} placeholder="Rua Exemplo, 123 - Bairro" />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo de Documento</Label>
+              <div className="flex gap-2">
+                <select className="flex h-10 w-28 rounded-md border border-input bg-background px-3 py-2 text-sm" value={printSettings.documentType || 'cnpj'} onChange={e => updatePS('documentType', e.target.value as 'cnpj' | 'cpf')}>
+                  <option value="cnpj">CNPJ</option>
+                  <option value="cpf">CPF</option>
+                </select>
+                <Input
+                  className="flex-1"
+                  value={printSettings.document || ''}
+                  onChange={e => updatePS('document', applyMask(e.target.value, printSettings.documentType || 'cnpj'))}
+                  placeholder={printSettings.documentType === 'cpf' ? '000.000.000-00' : '00.000.000/0000-00'}
+                  maxLength={printSettings.documentType === 'cpf' ? 14 : 18}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>WhatsApp</Label>
+              <Input
+                value={printSettings.whatsapp || ''}
+                onChange={e => updatePS('whatsapp', applyMask(e.target.value, 'phone'))}
+                placeholder="(00) 00000-0000"
+                maxLength={15}
+              />
             </div>
           </div>
         </CardContent>
@@ -316,6 +399,77 @@ function GeralTab() {
             </div>
           </div>
           <Button onClick={handleSave}>Salvar</Button>
+        </CardContent>
+      </Card>
+
+      {/* Cabeçalho e Rodapé do Recibo */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Printer className="h-5 w-5" /> Recibo / Conta — Visibilidade do Cabeçalho</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">Escolha quais informações do estabelecimento serão exibidas no topo do recibo impresso.</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between py-2 border-b">
+              <div>
+                <p className="text-sm font-medium">Endereço</p>
+                <p className="text-xs text-muted-foreground">{printSettings.address || 'Não configurado'}</p>
+              </div>
+              <Switch checked={!!printSettings.showAddress} onCheckedChange={v => updatePS('showAddress', v)} />
+            </div>
+            <div className="flex items-center justify-between py-2 border-b">
+              <div>
+                <p className="text-sm font-medium">{printSettings.documentType?.toUpperCase() || 'CNPJ'}</p>
+                <p className="text-xs text-muted-foreground">{printSettings.document || 'Não configurado'}</p>
+              </div>
+              <Switch checked={!!printSettings.showDocument} onCheckedChange={v => updatePS('showDocument', v)} />
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm font-medium">WhatsApp</p>
+                <p className="text-xs text-muted-foreground">{printSettings.whatsapp || 'Não configurado'}</p>
+              </div>
+              <Switch checked={!!printSettings.showWhatsapp} onCheckedChange={v => updatePS('showWhatsapp', v)} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Printer className="h-5 w-5" /> Recibo / Conta — Rodapé Personalizado</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">Informações exibidas no final do recibo. Ative apenas o que deseja imprimir.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Chave PIX</Label>
+              <Input value={printSettings.pixKey || ''} onChange={e => updatePS('pixKey', e.target.value)} placeholder="email@exemplo.com ou CPF/CNPJ" />
+            </div>
+            <div className="space-y-2">
+              <Label>Instagram</Label>
+              <Input value={printSettings.instagram || ''} onChange={e => updatePS('instagram', e.target.value)} placeholder="@seurestaurante" />
+            </div>
+            <div className="sm:col-span-2 space-y-2">
+              <Label>Mensagem de Obrigado</Label>
+              <Input value={printSettings.thankMessage || ''} onChange={e => updatePS('thankMessage', e.target.value)} placeholder="Obrigado pela preferência!" />
+            </div>
+          </div>
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between py-2 border-b">
+              <p className="text-sm font-medium">Exibir Chave PIX</p>
+              <Switch checked={!!printSettings.showPixKey} onCheckedChange={v => updatePS('showPixKey', v)} />
+            </div>
+            <div className="flex items-center justify-between py-2 border-b">
+              <p className="text-sm font-medium">Exibir Instagram</p>
+              <Switch checked={!!printSettings.showInstagram} onCheckedChange={v => updatePS('showInstagram', v)} />
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <p className="text-sm font-medium">Exibir Mensagem de Obrigado</p>
+              <Switch checked={!!printSettings.showThankMessage} onCheckedChange={v => updatePS('showThankMessage', v)} />
+            </div>
+          </div>
+          <Button onClick={handleSave}>Salvar Tudo</Button>
         </CardContent>
       </Card>
     </div>

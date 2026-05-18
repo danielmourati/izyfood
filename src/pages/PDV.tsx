@@ -384,6 +384,8 @@ const PDV = () => {
       items: unprintedItems, // Enviar apenas os novos itens
       operatorName: user?.name,
       customerName: cust?.name || manualCustomerName || undefined,
+      customerPhone: cust?.phone || undefined,
+      customerAddress: cust?.address || undefined,
     };
 
     // 1. Enviar para a impressora
@@ -438,6 +440,8 @@ const PDV = () => {
       items,
       operatorName: user?.name,
       customerName: cust?.name || manualCustomerName || undefined,
+      customerPhone: cust?.phone || undefined,
+      customerAddress: cust?.address || undefined,
     };
     try {
       await printOrder(orderData);
