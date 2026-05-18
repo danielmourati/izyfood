@@ -130,6 +130,7 @@ function GeralTab() {
   const [uploading, setUploading] = useState(false);
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [uploadingCarousel, setUploadingCarousel] = useState(false);
+  const [savingPrint, setSavingPrint] = useState(false);
   const [printSettings, setPrintSettings] = useState<PrintSettings>({
     address: '', document: '', documentType: 'cnpj', whatsapp: '',
     pixKey: '', instagram: '', thankMessage: 'Obrigado pela preferência!',
@@ -262,6 +263,37 @@ function GeralTab() {
     } catch (err: any) {
       console.error('Error saving settings:', err);
       toast.error('Erro ao salvar configurações');
+    }
+  };
+
+  const handleSavePrintSettings = async () => {
+    if (!user?.tenantId) { toast.error('Sessão inválida, recarregue a página.'); return; }
+    setSavingPrint(true);
+    try {
+      const { data: existing } = await supabase
+        .from('store_settings')
+        .select('id')
+        .eq('tenant_id', user.tenantId)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        const { error } = await supabase
+          .from('store_settings')
+          .update({ print_settings: printSettings } as any)
+          .eq('tenant_id', user.tenantId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('store_settings')
+          .insert({ print_settings: printSettings, tenant_id: user.tenantId } as any);
+        if (error) throw error;
+      }
+      toast.success('Configurações de impressão salvas com sucesso!');
+    } catch (err: any) {
+      console.error('Error saving print settings:', err);
+      toast.error('Erro ao salvar: ' + (err.message || 'verifique sua conexão'));
+    } finally {
+      setSavingPrint(false);
     }
   };
 
@@ -469,7 +501,10 @@ function GeralTab() {
               <Switch checked={!!printSettings.showThankMessage} onCheckedChange={v => updatePS('showThankMessage', v)} />
             </div>
           </div>
-          <Button onClick={handleSave}>Salvar Tudo</Button>
+          <Button onClick={handleSavePrintSettings} disabled={savingPrint} className="gap-2">
+            {savingPrint && <Loader2 className="h-4 w-4 animate-spin" />}
+            {savingPrint ? 'Salvando...' : 'Salvar Tudo'}
+          </Button>
         </CardContent>
       </Card>
     </div>
