@@ -28,6 +28,8 @@ export function ImpressoraTab() {
   const [testing, setTesting] = useState(false);
   const [qzPrintersList, setQzPrintersList] = useState<string[]>([]);
 
+  const isDesktop = React.useMemo(() => !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent), []);
+
   React.useEffect(() => {
     if (qzConnected && showForm && form.connection_type === 'system') {
       getQzPrinters().then(setQzPrintersList);
@@ -130,6 +132,16 @@ export function ImpressoraTab() {
             </p>
           ) : (
             <>
+              {isDesktop && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-600 dark:text-amber-400 space-y-1.5 mb-2">
+                  <p className="font-bold flex items-center gap-1.5 text-sm">
+                    ⚠️ Conexão via Computador / Desktop Detectada
+                  </p>
+                  <p>
+                    O pareamento Bluetooth direto pelo navegador no Windows/Mac possui gargalos no sistema operacional e pode falhar ao imprimir comandas ou contas inteiras. Para computadores de caixa, recomendamos ignorar o Bluetooth e utilizar o <strong>Agente de Impressão (QZ Tray)</strong> abaixo para estabilidade e velocidade máximas.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-3">
                 <Badge variant={btConnected ? 'default' : 'secondary'}>
                   {btConnected ? `Conectado: ${btDeviceName}` : 'Desconectado'}
@@ -137,9 +149,9 @@ export function ImpressoraTab() {
                 {btConnected ? (
                   <Button variant="outline" size="sm" onClick={unpairBluetooth}>Desconectar</Button>
                 ) : (
-                  <Button size="sm" onClick={handlePair} disabled={pairing}>
+                  <Button size="sm" onClick={handlePair} disabled={pairing || isDesktop} variant={isDesktop ? "secondary" : "default"} title={isDesktop ? "Recomendado apenas para celular/tablet" : ""}>
                     {pairing && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                    Parear Impressora
+                    Parear Impressora {isDesktop && "(Mobile)"}
                   </Button>
                 )}
               </div>

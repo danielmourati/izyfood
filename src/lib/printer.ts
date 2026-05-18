@@ -171,7 +171,7 @@ export function getBluetoothDeviceName(): string | null {
 export async function printViaBluetooth(data: Uint8Array): Promise<void> {
   if (!_characteristic) throw new Error('Impressora não conectada.');
 
-  const CHUNK = 512;
+  const CHUNK = 256; // Reduced from 512 to 256 to prevent MTU/GATT overflow on larger receipts
   for (let i = 0; i < data.length; i += CHUNK) {
     const chunk = data.slice(i, i + CHUNK);
     if (_characteristic.properties.writeWithoutResponse) {
@@ -181,7 +181,7 @@ export async function printViaBluetooth(data: Uint8Array): Promise<void> {
     }
     // Small delay between chunks
     if (i + CHUNK < data.length) {
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 100)); // Increased delay for stability
     }
   }
 }
