@@ -228,38 +228,40 @@ function GeralTab() {
 
   const handleSave = async () => {
     if (!user?.tenantId) return;
-    
+    try {
+      if (tenantName.trim()) {
+        await supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId);
+      }
+      toast.success('Nome do estabelecimento salvo!');
+    } catch (err: any) {
+      toast.error('Erro ao salvar nome');
+    }
+  };
+
+  const handleSaveGeneralSettings = async () => {
+    if (!user?.tenantId) return;
     const count = parseInt(tableCount);
     if (isNaN(count) || count < 5 || count > 100) {
       toast.error('Mínimo de 5 mesas');
       return;
     }
-    
     try {
       updateTableCount(count);
-
-      if (tenantName.trim()) {
-        await supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId);
-      }
-
       const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
       const { data: existing } = await supabase.from('store_settings').select('id').eq('tenant_id', user.tenantId).limit(1);
-      
       if (existing && existing.length > 0) {
-        await supabase.from('store_settings').update({ 
-          service_fee_percentage: fee, 
+        await supabase.from('store_settings').update({
+          service_fee_percentage: fee,
           table_count: count,
-          print_settings: printSettings,
         } as any).eq('tenant_id', user.tenantId);
       } else {
-        await supabase.from('store_settings').insert({ 
-          table_count: count, 
+        await supabase.from('store_settings').insert({
+          table_count: count,
           service_fee_percentage: fee,
-          print_settings: printSettings,
-          tenant_id: user.tenantId 
+          tenant_id: user.tenantId
         } as any);
       }
-      toast.success('Configurações salvas!');
+      toast.success('Configurações gerais salvas!');
     } catch (err: any) {
       console.error('Error saving settings:', err);
       toast.error('Erro ao salvar configurações');
@@ -301,6 +303,7 @@ function GeralTab() {
 
   return (
     <div className="space-y-4">
+      {/* Card 1: Identidade Visual */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5" /> Estabelecimento</CardTitle>
@@ -326,13 +329,24 @@ function GeralTab() {
               <Input value={tenantName} onChange={e => setTenantName(e.target.value)} placeholder="Nome da sua loja" />
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <div className="space-y-2">
+          <Button onClick={handleSave} variant="outline" size="sm">Salvar Nome</Button>
+        </CardContent>
+      </Card>
+
+      {/* Card 2: Informações Fiscais e de Contato */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Informações do Estabelecimento</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">Dados que aparecerão no cabeçalho dos recibos impressos. Configure quais são exibidos nos cards de impressão abaixo.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2 sm:col-span-2">
               <Label>Endereço</Label>
-              <Input value={printSettings.address || ''} onChange={e => updatePS('address', e.target.value)} placeholder="Rua Exemplo, 123 - Bairro" />
+              <Input value={printSettings.address || ''} onChange={e => updatePS('address', e.target.value)} placeholder="Rua Exemplo, 123 - Bairro - Cidade/UF" />
             </div>
             <div className="space-y-2">
-              <Label>Tipo de Documento</Label>
+              <Label>CNPJ / CPF</Label>
               <div className="flex gap-2">
                 <select className="flex h-10 w-28 rounded-md border border-input bg-background px-3 py-2 text-sm" value={printSettings.documentType || 'cnpj'} onChange={e => updatePS('documentType', e.target.value as 'cnpj' | 'cpf')}>
                   <option value="cnpj">CNPJ</option>
@@ -357,6 +371,10 @@ function GeralTab() {
               />
             </div>
           </div>
+          <Button onClick={handleSavePrintSettings} disabled={savingPrint} size="sm" variant="outline" className="gap-2">
+            {savingPrint && <Loader2 className="h-4 w-4 animate-spin" />}
+            {savingPrint ? 'Salvando...' : 'Salvar Informações'}
+          </Button>
         </CardContent>
       </Card>
 
@@ -430,7 +448,7 @@ function GeralTab() {
               <Input type="text" inputMode="decimal" placeholder="Ex: 10" value={serviceFee} onChange={e => setServiceFee(e.target.value)} />
             </div>
           </div>
-          <Button onClick={handleSave}>Salvar</Button>
+          <Button onClick={handleSaveGeneralSettings}>Salvar</Button>
         </CardContent>
       </Card>
 
