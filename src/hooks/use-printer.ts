@@ -17,6 +17,8 @@ import {
   buildOrderReceipt,
   buildBillReceipt,
   buildCashCloseReceipt,
+  fetchPrintSettings,
+  getCachedPrintSettings,
 } from '@/lib/escpos';
 
 export interface PrinterConfig {
@@ -80,6 +82,16 @@ export function usePrinter() {
       }
     };
     initConnections();
+
+    // Load print settings into cache for bill printing
+    if (typeof window !== 'undefined') {
+      supabase.from('store_settings').select('tenant_id').limit(1).then(({ data }) => {
+        if (data && data.length > 0) {
+          const tenantId = (data[0] as any).tenant_id;
+          if (tenantId) fetchPrintSettings(tenantId).catch(() => {});
+        }
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -145,7 +157,8 @@ export function usePrinter() {
   };
 
   const printBill = async (bill: any) => {
-    const escpos = buildBillReceipt(bill, paperWidth);
+    const ps = getCachedPrintSettings();
+    const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill);
     await sendToPrinter(escpos, html, 'Conta');
   };
