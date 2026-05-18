@@ -83,15 +83,27 @@ export function usePrinter() {
     };
     initConnections();
 
-    // Load print settings into cache for bill printing
-    if (typeof window !== 'undefined') {
-      supabase.from('store_settings').select('tenant_id').limit(1).then(({ data }) => {
-        if (data && data.length > 0) {
-          const tenantId = (data[0] as any).tenant_id;
-          if (tenantId) fetchPrintSettings(tenantId).catch(() => {});
+    // Load print settings from localStorage into cache
+    supabase.from('store_settings').select('tenant_id').limit(1).then(({ data }) => {
+      if (data && data.length > 0) {
+        const tenantId = (data[0] as any).tenant_id;
+        if (tenantId) {
+          const lsKey = `print_settings_${tenantId}`;
+          const saved = localStorage.getItem(lsKey);
+          if (saved) {
+            try {
+              const ps = JSON.parse(saved);
+              // Hydrate the escpos cache directly
+              fetchPrintSettings(tenantId).catch(() => {});
+              // Override with localStorage value
+              (window as any).__printSettingsCache = ps;
+            } catch {}
+          } else {
+            fetchPrintSettings(tenantId).catch(() => {});
+          }
         }
-      });
-    }
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -157,7 +169,16 @@ export function usePrinter() {
   };
 
   const printBill = async (bill: any) => {
-    const ps = getCachedPrintSettings();
+    // Read print settings directly from localStorage at print time for freshness
+    let ps: any = {};
+    try {
+      const { data } = await supabase.from('store_settings').select('tenant_id').limit(1);
+      const tenantId = (data as any)?.[0]?.tenant_id;
+      if (tenantId) {
+        const saved = localStorage.getItem(`print_settings_${tenantId}`);
+        if (saved) ps = JSON.parse(saved);
+      }
+    } catch {}
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill);
     await sendToPrinter(escpos, html, 'Conta');

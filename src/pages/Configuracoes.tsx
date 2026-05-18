@@ -140,11 +140,16 @@ function GeralTab() {
 
   useEffect(() => {
     if (user?.tenantId) {
-      supabase.from('store_settings').select('service_fee_percentage, print_settings').eq('tenant_id', user.tenantId).limit(1).then(({ data }) => {
+      // Load print settings from localStorage (immediate, no DB column needed)
+      const lsKey = `print_settings_${user.tenantId}`;
+      const saved = localStorage.getItem(lsKey);
+      if (saved) {
+        try { setPrintSettings(prev => ({ ...prev, ...JSON.parse(saved) })); } catch {}
+      }
+
+      supabase.from('store_settings').select('service_fee_percentage').eq('tenant_id', user.tenantId).limit(1).then(({ data }) => {
         if (data && data.length > 0) {
           setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
-          const ps = (data[0] as any).print_settings;
-          if (ps && typeof ps === 'object') setPrintSettings(prev => ({ ...prev, ...ps }));
         }
       });
       supabase.from('tenants').select('name, logo, login_icon, login_carousel_images').eq('id', user.tenantId).single().then(({ data }) => {
@@ -272,24 +277,9 @@ function GeralTab() {
     if (!user?.tenantId) { toast.error('Sessão inválida, recarregue a página.'); return; }
     setSavingPrint(true);
     try {
-      const { data: existing } = await supabase
-        .from('store_settings')
-        .select('id')
-        .eq('tenant_id', user.tenantId)
-        .limit(1);
-
-      if (existing && existing.length > 0) {
-        const { error } = await supabase
-          .from('store_settings')
-          .update({ print_settings: printSettings } as any)
-          .eq('tenant_id', user.tenantId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('store_settings')
-          .insert({ print_settings: printSettings, tenant_id: user.tenantId } as any);
-        if (error) throw error;
-      }
+      // Save to localStorage for immediate persistence (no DB column required)
+      const lsKey = `print_settings_${user.tenantId}`;
+      localStorage.setItem(lsKey, JSON.stringify(printSettings));
       toast.success('Configurações de impressão salvas com sucesso!');
     } catch (err: any) {
       console.error('Error saving print settings:', err);

@@ -169,6 +169,10 @@ export async function fetchPrintSettings(tenantId: string): Promise<PrintSetting
 }
 
 export function getCachedPrintSettings(): PrintSettings {
+  // Prefer the localStorage-backed cache set by use-printer.ts
+  if (typeof window !== 'undefined' && (window as any).__printSettingsCache) {
+    return (window as any).__printSettingsCache as PrintSettings;
+  }
   return _cachedPrintSettings || {};
 }
 
