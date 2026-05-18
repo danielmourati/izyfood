@@ -78,6 +78,12 @@ export function usePrinter() {
     initConnections();
   }, []);
 
+  const retryQzConnection = async () => {
+    const qzReady = await initQzTray();
+    setQzConnected(qzReady);
+    return qzReady;
+  };
+
   const defaultPrinter = printers.find(p => p.is_default) || printers[0];
   const paperWidth = defaultPrinter?.paper_width || 80;
 
@@ -148,6 +154,7 @@ export function usePrinter() {
     btDeviceName,
     btAvailable: isBluetoothAvailable(),
     qzConnected,
+    retryQzConnection,
     fetchPrinters,
     pairBluetooth,
     unpairBluetooth,

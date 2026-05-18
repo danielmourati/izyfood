@@ -17,7 +17,7 @@ import { getQzPrinters } from '@/lib/printer';
 export function ImpressoraTab() {
   const { user } = useAuth();
   const {
-    printers, loading, btAvailable, btConnected, btDeviceName, qzConnected,
+    printers, loading, btAvailable, btConnected, btDeviceName, qzConnected, retryQzConnection,
     fetchPrinters, pairBluetooth, unpairBluetooth, printTest,
   } = usePrinter();
 
@@ -160,6 +160,16 @@ export function ImpressoraTab() {
             <Badge variant={qzConnected ? 'default' : 'secondary'}>
               {qzConnected ? 'Conectado (Pronto para uso)' : 'Não detectado'}
             </Badge>
+            {!qzConnected && (
+              <Button variant="outline" size="sm" onClick={async () => {
+                const toastId = toast.loading('Buscando QZ Tray...');
+                const ready = await retryQzConnection();
+                if (ready) toast.success('QZ Tray conectado com sucesso!', { id: toastId });
+                else toast.error('QZ Tray não detectado. Verifique se o aplicativo está aberto e rodando.', { id: toastId });
+              }}>
+                Conectar
+              </Button>
+            )}
           </div>
           {!qzConnected && (
             <p className="text-sm text-muted-foreground mt-2">

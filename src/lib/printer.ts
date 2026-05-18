@@ -170,7 +170,7 @@ export async function initQzTray(): Promise<boolean> {
   
   try {
     if (!qz.websocket.isActive()) {
-      await qz.websocket.connect({ retries: 0 });
+      await qz.websocket.connect({ host: 'localhost', retries: 2, delay: 1 });
     }
     _qzConnected = true;
     return true;
