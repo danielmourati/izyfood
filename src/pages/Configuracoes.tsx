@@ -119,7 +119,7 @@ interface PrintSettings {
 }
 
 function GeralTab() {
-  const { settings, updateTableCount } = useStore();
+  const { settings, updateTableCount, setSettings } = useStore();
   const { user } = useAuth();
   const [tableCount, setTableCount] = useState(settings.tableCount.toString());
   const [serviceFee, setServiceFee] = useState('');
@@ -149,9 +149,11 @@ function GeralTab() {
       }
 
       // 2. Then fetch from Supabase (authoritative, synced across devices)
-      supabase.from('store_settings').select('service_fee_percentage, print_settings').eq('tenant_id', user.tenantId).limit(1).then(({ data }) => {
-        if (data && data.length > 0) {
-          setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
+      supabase.from('store_settings').select('service_fee_percentage, print_settings').eq('tenant_id', user.tenantId).limit(1).then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          const rawFee = (data[0] as any).service_fee_percentage;
+          // Always set a value: show the number if > 0, else show empty so placeholder is visible
+          setServiceFee(rawFee != null && Number(rawFee) !== 0 ? String(rawFee) : '');
           const ps = (data[0] as any).print_settings;
           if (ps && typeof ps === 'object' && Object.keys(ps).length > 0) {
             // Supabase has data — it's the source of truth, sync to localStorage too
@@ -164,6 +166,9 @@ function GeralTab() {
               supabase.from('store_settings').update({ print_settings: localPs } as any).eq('tenant_id', user.tenantId).then(() => {});
             } catch {}
           }
+        } else {
+          // No row found or error — keep empty so placeholder shows, value will be created on first save
+          setServiceFee('');
         }
       });
 
@@ -260,17 +265,15 @@ function GeralTab() {
 
     setSavingGeneral(true);
     try {
-      const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
+      const fee = parseFloat((serviceFee || '0').replace(',', '.'));
+      const validFee = isNaN(fee) ? 0 : fee;
 
-      // 1. Update table count in Store Context (handles physical table seeding/deleting)
-      await updateTableCount(count);
-
-      // 2. Save store name (tenant name)
-      const saveTenantPromise = tenantName.trim() 
+      // 1. Save store name (tenant name)
+      const saveTenantPromise = tenantName.trim()
         ? supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId)
         : Promise.resolve();
 
-      // 3. Save store_settings (both general settings and print settings)
+      // 2. Upsert store_settings in ONE write (avoids race with updateTableCount)
       const { data: existing } = await supabase
         .from('store_settings')
         .select('id')
@@ -279,7 +282,7 @@ function GeralTab() {
 
       const settingsPayload = {
         table_count: count,
-        service_fee_percentage: fee,
+        service_fee_percentage: validFee,
         print_settings: printSettings,
       };
 
@@ -292,13 +295,17 @@ function GeralTab() {
       } else {
         saveSettingsPromise = supabase
           .from('store_settings')
-          .insert({
-            ...settingsPayload,
-            tenant_id: user.tenantId,
-          } as any);
+          .insert({ ...settingsPayload, tenant_id: user.tenantId } as any);
       }
 
       await Promise.all([saveTenantPromise, saveSettingsPromise]);
+
+      // 3. Sync table count: update React state + add/remove physical tables (no extra DB write to store_settings)
+      setSettings(prev => ({ ...prev, tableCount: count }));
+      await updateTableCount(count);
+
+      // Reflect saved fee back in input
+      setServiceFee(validFee !== 0 ? String(validFee) : '');
 
       // Sync print settings back to local storage and cache
       const lsKey = `print_settings_${user.tenantId}`;

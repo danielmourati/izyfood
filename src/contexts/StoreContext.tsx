@@ -362,13 +362,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateTableCount = useCallback(async (count: number) => {
     const validCount = Math.max(5, count);
     setSettings(prev => ({ ...prev, tableCount: validCount }));
-    const { data: existing } = await supabase.from('store_settings').select('id').limit(1);
-    if (existing && existing.length > 0) {
-      await supabase.from('store_settings').update({ table_count: validCount }).eq('id', existing[0].id);
-    } else {
-      await supabase.from('store_settings').insert({ table_count: validCount } as any);
-    }
-    // Add/remove tables
+    // Note: store_settings DB write is handled by the caller (Configuracoes.tsx handleSaveAll)
+    // Here we only manage the physical store_tables rows
     const currentTables = await supabase.from('store_tables').select('number').order('number');
     const currentNumbers = (currentTables.data || []).map(t => t.number);
     const maxNumber = currentNumbers.length > 0 ? Math.max(...currentNumbers) : 0;
@@ -380,7 +375,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }));
       await supabase.from('store_tables').insert(newTables);
     } else if (validCount < currentNumbers.length) {
-      // Find the tables to delete (the ones with the highest numbers)
       const toDelete = currentNumbers.sort((a, b) => b - a).slice(0, currentNumbers.length - validCount);
       if (toDelete.length > 0) {
         await supabase.from('store_tables').delete().in('number', toDelete);
@@ -388,8 +382,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     // Refetch tables
     const { data: tbls } = await supabase.from('store_tables').select('*').order('number');
-
-    // Deduplicate in memory just to be safe during refetch mapping
     const uniqueTbls = [];
     const seen = new Set();
     for (const t of (tbls || [])) {

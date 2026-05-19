@@ -335,9 +335,9 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   }
 
   parts.push(lineOf('=', cols));
-  parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
-  parts.push(row('TOTAL', fmtBRL(bill.total), Math.floor(cols / 2)));
-  parts.push(CMD_INIT, CMD_CODEPAGE_PC860);
+  parts.push(CMD_BOLD_ON);
+  parts.push(row('TOTAL', fmtBRL(bill.total), cols));
+  parts.push(CMD_BOLD_OFF);
 
   // Payment
   if (bill.paymentSplits && bill.paymentSplits.length > 0) {
@@ -401,9 +401,9 @@ export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80): Uin
   parts.push(row('Fiado:', fmtBRL(data.totalFiado), cols));
 
   parts.push(lineOf('-', cols));
-  parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
-  parts.push(row('TOTAL', fmtBRL(data.totalSales), Math.floor(cols / 2)));
-  parts.push(CMD_INIT, CMD_CODEPAGE_PC860);
+  parts.push(CMD_BOLD_ON);
+  parts.push(row('TOTAL', fmtBRL(data.totalSales), cols));
+  parts.push(CMD_BOLD_OFF);
 
   parts.push(lineOf('-', cols));
   const saldo = data.initialAmount + data.totalCash;
