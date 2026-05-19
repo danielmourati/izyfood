@@ -131,6 +131,8 @@ function GeralTab() {
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [uploadingCarousel, setUploadingCarousel] = useState(false);
   const [savingPrint, setSavingPrint] = useState(false);
+  const [savingTenantName, setSavingTenantName] = useState(false);
+  const [savingGeneral, setSavingGeneral] = useState(false);
   const [printSettings, setPrintSettings] = useState<PrintSettings>({
     address: '', document: '', documentType: 'cnpj', whatsapp: '',
     pixKey: '', instagram: '', thankMessage: 'Obrigado pela preferência!',
@@ -248,13 +250,16 @@ function GeralTab() {
 
   const handleSave = async () => {
     if (!user?.tenantId) return;
+    setSavingTenantName(true);
     try {
       if (tenantName.trim()) {
         await supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId);
       }
-      toast.success('Nome do estabelecimento salvo!');
+      toast.success('Nome do estabelecimento salvo e sincronizado!');
     } catch (err: any) {
       toast.error('Erro ao salvar nome');
+    } finally {
+      setSavingTenantName(false);
     }
   };
 
@@ -265,6 +270,7 @@ function GeralTab() {
       toast.error('Mínimo de 5 mesas');
       return;
     }
+    setSavingGeneral(true);
     try {
       updateTableCount(count);
       const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
@@ -281,10 +287,12 @@ function GeralTab() {
           tenant_id: user.tenantId
         } as any);
       }
-      toast.success('Configurações gerais salvas!');
+      toast.success('Configurações gerais salvas e sincronizadas!');
     } catch (err: any) {
       console.error('Error saving settings:', err);
       toast.error('Erro ao salvar configurações');
+    } finally {
+      setSavingGeneral(false);
     }
   };
 
@@ -331,6 +339,17 @@ function GeralTab() {
 
   return (
     <div className="space-y-4">
+      {/* Aviso de Sincronização */}
+      <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4 flex gap-3 text-amber-800 dark:text-amber-300">
+        <Printer className="h-5 w-5 shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <h4 className="font-semibold text-sm">Sincronização Automática em Nuvem</h4>
+          <p className="text-xs leading-relaxed">
+            As alterações salvas nesta página são sincronizadas em tempo real com todos os outros caixas, tablets e celulares que imprimem no seu estabelecimento.
+          </p>
+        </div>
+      </div>
+
       {/* Card 1: Identidade Visual */}
       <Card>
         <CardHeader>
@@ -357,7 +376,10 @@ function GeralTab() {
               <Input value={tenantName} onChange={e => setTenantName(e.target.value)} placeholder="Nome da sua loja" />
             </div>
           </div>
-          <Button onClick={handleSave} variant="outline" size="sm">Salvar Nome</Button>
+          <Button onClick={handleSave} variant="outline" size="sm" className="gap-2" disabled={savingTenantName}>
+            {savingTenantName && <Loader2 className="h-4 w-4 animate-spin" />}
+            {savingTenantName ? 'Salvando...' : 'Salvar Nome'}
+          </Button>
         </CardContent>
       </Card>
 
@@ -476,7 +498,10 @@ function GeralTab() {
               <Input type="text" inputMode="decimal" placeholder="Ex: 10" value={serviceFee} onChange={e => setServiceFee(e.target.value)} />
             </div>
           </div>
-          <Button onClick={handleSaveGeneralSettings}>Salvar</Button>
+          <Button onClick={handleSaveGeneralSettings} className="gap-2" disabled={savingGeneral}>
+            {savingGeneral && <Loader2 className="h-4 w-4 animate-spin" />}
+            {savingGeneral ? 'Salvando...' : 'Salvar'}
+          </Button>
         </CardContent>
       </Card>
 
@@ -509,6 +534,12 @@ function GeralTab() {
               </div>
               <Switch checked={!!printSettings.showWhatsapp} onCheckedChange={v => updatePS('showWhatsapp', v)} />
             </div>
+          </div>
+          <div className="pt-4 border-t flex justify-end">
+            <Button onClick={handleSavePrintSettings} disabled={savingPrint} size="sm" variant="outline" className="gap-2">
+              {savingPrint && <Loader2 className="h-4 w-4 animate-spin" />}
+              {savingPrint ? 'Salvando...' : 'Salvar Visibilidade'}
+            </Button>
           </div>
         </CardContent>
       </Card>

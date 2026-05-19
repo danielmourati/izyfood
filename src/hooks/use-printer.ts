@@ -167,15 +167,41 @@ export function usePrinter() {
   };
 
   const printBill = async (bill: any) => {
-    // Read print settings directly from localStorage at print time for freshness
     let ps: any = {};
     const tenantId = user?.tenantId;
     if (tenantId) {
-      const saved = localStorage.getItem(`print_settings_${tenantId}`);
-      if (saved) {
-        try {
-          ps = JSON.parse(saved);
-        } catch {}
+      // 1. Try to fetch the freshest print settings from Supabase with a fast timeout (800ms)
+      try {
+        const fetchPromise = supabase
+          .from('store_settings')
+          .select('print_settings')
+          .eq('tenant_id', tenantId)
+          .single();
+          
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 800)
+        );
+        
+        const result: any = await Promise.race([fetchPromise, timeoutPromise]);
+        const dbPs = result?.data?.print_settings;
+        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
+          ps = dbPs;
+          // Sync back to local storage and cached memory
+          localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(dbPs));
+          (window as any).__printSettingsCache = dbPs;
+        } else {
+          // Fallback to local storage if empty or error
+          const saved = localStorage.getItem(`print_settings_${tenantId}`);
+          if (saved) ps = JSON.parse(saved);
+        }
+      } catch (err) {
+        // Fallback to local storage if offline/timeout/error
+        const saved = localStorage.getItem(`print_settings_${tenantId}`);
+        if (saved) {
+          try {
+            ps = JSON.parse(saved);
+          } catch {}
+        }
       }
     } else {
       ps = getCachedPrintSettings();
