@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   isBluetoothAvailable,
   isBluetoothConnected,
@@ -31,6 +32,7 @@ export interface PrinterConfig {
 }
 
 export function usePrinter() {
+  const { user } = useAuth();
   const [printers, setPrinters] = useState<PrinterConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [btConnected, setBtConnected] = useState(false);
@@ -84,27 +86,23 @@ export function usePrinter() {
     initConnections();
 
     // Load print settings from localStorage into cache
-    supabase.from('store_settings').select('tenant_id').limit(1).then(({ data }) => {
-      if (data && data.length > 0) {
-        const tenantId = (data[0] as any).tenant_id;
-        if (tenantId) {
-          const lsKey = `print_settings_${tenantId}`;
-          const saved = localStorage.getItem(lsKey);
-          if (saved) {
-            try {
-              const ps = JSON.parse(saved);
-              // Hydrate the escpos cache directly
-              fetchPrintSettings(tenantId).catch(() => {});
-              // Override with localStorage value
-              (window as any).__printSettingsCache = ps;
-            } catch {}
-          } else {
-            fetchPrintSettings(tenantId).catch(() => {});
-          }
-        }
+    if (user?.tenantId) {
+      const tenantId = user.tenantId;
+      const lsKey = `print_settings_${tenantId}`;
+      const saved = localStorage.getItem(lsKey);
+      if (saved) {
+        try {
+          const ps = JSON.parse(saved);
+          // Hydrate the escpos cache directly
+          fetchPrintSettings(tenantId).catch(() => {});
+          // Override with localStorage value
+          (window as any).__printSettingsCache = ps;
+        } catch {}
+      } else {
+        fetchPrintSettings(tenantId).catch(() => {});
       }
-    });
-  }, []);
+    }
+  }, [user?.tenantId]);
 
   useEffect(() => {
     const handleBtConnected = (e: any) => {
@@ -171,16 +169,19 @@ export function usePrinter() {
   const printBill = async (bill: any) => {
     // Read print settings directly from localStorage at print time for freshness
     let ps: any = {};
-    try {
-      const { data } = await supabase.from('store_settings').select('tenant_id').limit(1);
-      const tenantId = (data as any)?.[0]?.tenant_id;
-      if (tenantId) {
-        const saved = localStorage.getItem(`print_settings_${tenantId}`);
-        if (saved) ps = JSON.parse(saved);
+    const tenantId = user?.tenantId;
+    if (tenantId) {
+      const saved = localStorage.getItem(`print_settings_${tenantId}`);
+      if (saved) {
+        try {
+          ps = JSON.parse(saved);
+        } catch {}
       }
-    } catch {}
+    } else {
+      ps = getCachedPrintSettings();
+    }
     const escpos = buildBillReceipt(bill, paperWidth, ps);
-    const html = buildBillHtml(bill);
+    const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta');
   };
 
@@ -288,7 +289,7 @@ function buildOrderHtml(order: any): string {
   `;
 }
 
-function buildBillHtml(bill: any): string {
+function buildBillHtml(bill: any, ps: any = {}): string {
   const items = (bill.items || []).map((i: any) => {
     const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}x`;
     let html = `<div class="row"><span>${qty} ${i.name || 'Item'}</span><span>${fmtBRL(i.subtotal || 0)}</span></div>`;
@@ -311,7 +312,35 @@ function buildBillHtml(bill: any): string {
 
   const createdAt = bill.createdAt || new Date().toISOString();
 
+  let headerHtml = '';
+  if (ps.showAddress && ps.address) {
+    headerHtml += `<div class="center" style="font-size: 12px; margin-bottom: 2px;">${ps.address}</div>`;
+  }
+  if (ps.showDocument && ps.document) {
+    headerHtml += `<div class="center" style="font-size: 12px; margin-bottom: 2px;">${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}</div>`;
+  }
+  if (ps.showWhatsapp && ps.whatsapp) {
+    headerHtml += `<div class="center" style="font-size: 12px; margin-bottom: 4px;">WhatsApp: ${ps.whatsapp}</div>`;
+  }
+  if (headerHtml) {
+    headerHtml += '<div class="line"></div>';
+  }
+
+  let footerHtml = '';
+  if (ps.showPixKey && ps.pixKey) {
+    footerHtml += `<div class="center" style="font-size: 11px; margin-top: 4px;">PIX: ${ps.pixKey}</div>`;
+  }
+  if (ps.showInstagram && ps.instagram) {
+    footerHtml += `<div class="center" style="font-size: 11px; margin-top: 2px;">Instagram: @${ps.instagram.replace('@', '')}</div>`;
+  }
+  if (ps.showThankMessage && ps.thankMessage) {
+    footerHtml += `<p class="center" style="font-size: 12px; margin-top: 10px; font-weight: bold;">${ps.thankMessage}</p>`;
+  } else {
+    footerHtml += `<p class="center" style="font-size: 12px; margin-top: 10px;">Obrigado pela preferência!</p>`;
+  }
+
   return `
+    ${headerHtml}
     <div class="big">RESUMO DA CONTA</div>
     <div class="line"></div>
     ${bill.tableNumber ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber}</span></div>` : ''}
@@ -325,7 +354,7 @@ function buildBillHtml(bill: any): string {
     <div class="row bold" style="font-size: 16px;"><span>TOTAL</span><span>${fmtBRL(bill.total || 0)}</span></div>
     ${payments ? `<div class="line" style="margin-top:10px;"></div><p class="bold">PAGAMENTO:</p>${payments}` : ''}
     <div class="line" style="margin-top: 20px;"></div>
-    <p class="center" style="font-size: 12px; margin-top: 10px;">Obrigado pela preferência!</p>
+    ${footerHtml}
   `;
 }
 
