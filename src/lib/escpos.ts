@@ -78,7 +78,7 @@ function center(s: string, cols: number): Uint8Array {
 }
 
 function fmtBRL(v: number): string {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return `R$ ${v.toFixed(2).replace('.', ',')}`;
 }
 
 function fmtDate(iso: string): string {
@@ -157,14 +157,20 @@ export interface PrintSettings {
 let _cachedPrintSettings: PrintSettings | null = null;
 
 export async function fetchPrintSettings(tenantId: string): Promise<PrintSettings> {
-  const { data } = await supabase
-    .from('store_settings')
-    .select('print_settings')
-    .eq('tenant_id', tenantId)
-    .limit(1)
-    .single();
-  const ps = (data as any)?.print_settings;
-  _cachedPrintSettings = ps && typeof ps === 'object' ? ps as PrintSettings : {};
+  try {
+    const [settingsRes, tenantRes] = await Promise.all([
+      supabase.from('store_settings').select('print_settings').eq('tenant_id', tenantId).limit(1).maybeSingle(),
+      supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
+    ]);
+    const ps = (settingsRes?.data as any)?.print_settings;
+    const name = (tenantRes?.data as any)?.name;
+    
+    const printSettings = ps && typeof ps === 'object' ? { ...(ps as PrintSettings), storeName: name } : { storeName: name };
+    _cachedPrintSettings = printSettings;
+  } catch (e) {
+    console.error('fetchPrintSettings error', e);
+    if (!_cachedPrintSettings) _cachedPrintSettings = {};
+  }
   return _cachedPrintSettings!;
 }
 
@@ -262,18 +268,40 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     CMD_INIT,
     CMD_CODEPAGE_PC860,
     CMD_ALIGN_CENTER,
+  ];
+
+  // Dynamic header from print settings (ABOVE CONTA, and CENTERED)
+  let hasHeader = false;
+  if (ps.storeName) {
+    parts.push(CMD_BOLD_ON, text(`${ps.storeName.toUpperCase()}\n`), CMD_BOLD_OFF);
+    hasHeader = true;
+  }
+  if (ps.showAddress && ps.address) {
+    parts.push(text(`${ps.address}\n`));
+    hasHeader = true;
+  }
+  if (ps.showDocument && ps.document) {
+    parts.push(text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
+    hasHeader = true;
+  }
+  if (ps.showWhatsapp && ps.whatsapp) {
+    parts.push(text(`WhatsApp: ${ps.whatsapp}\n`));
+    hasHeader = true;
+  }
+
+  if (hasHeader) {
+    parts.push(lineOf('-', cols));
+  }
+
+  // Now print "CONTA"
+  parts.push(
+    CMD_ALIGN_CENTER,
     CMD_BOLD_ON, CMD_DOUBLE_ON,
     text('CONTA\n'),
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
     CMD_ALIGN_LEFT,
     lineOf('=', cols),
-  ];
-
-  // Dynamic header from print settings
-  if (ps.showAddress && ps.address) parts.push(text(`${ps.address}\n`));
-  if (ps.showDocument && ps.document) parts.push(text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
-  if (ps.showWhatsapp && ps.whatsapp) parts.push(text(`WhatsApp: ${ps.whatsapp}\n`));
-  if (ps.showAddress || ps.showDocument || ps.showWhatsapp) parts.push(lineOf('-', cols));
+  );
 
   parts.push(row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
 
@@ -308,8 +336,8 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   parts.push(lineOf('=', cols));
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
-  parts.push(row('TOTAL', fmtBRL(bill.total), cols));
-  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
+  parts.push(row('TOTAL', fmtBRL(bill.total), Math.floor(cols / 2)));
+  parts.push(CMD_INIT, CMD_CODEPAGE_PC860);
 
   // Payment
   if (bill.paymentSplits && bill.paymentSplits.length > 0) {
@@ -374,8 +402,8 @@ export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80): Uin
 
   parts.push(lineOf('-', cols));
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
-  parts.push(row('TOTAL VENDAS', fmtBRL(data.totalSales), cols));
-  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
+  parts.push(row('TOTAL', fmtBRL(data.totalSales), Math.floor(cols / 2)));
+  parts.push(CMD_INIT, CMD_CODEPAGE_PC860);
 
   parts.push(lineOf('-', cols));
   const saldo = data.initialAmount + data.totalCash;

@@ -170,25 +170,30 @@ export function usePrinter() {
     let ps: any = {};
     const tenantId = user?.tenantId;
     if (tenantId) {
-      // 1. Try to fetch the freshest print settings from Supabase with a fast timeout (800ms)
+      // 1. Try to fetch the freshest print settings and store name from Supabase with a fast timeout (800ms)
       try {
-        const fetchPromise = supabase
-          .from('store_settings')
-          .select('print_settings')
-          .eq('tenant_id', tenantId)
-          .single();
+        const fetchPromise = Promise.all([
+          supabase.from('store_settings').select('print_settings').eq('tenant_id', tenantId).limit(1).maybeSingle(),
+          supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
+        ]);
           
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Timeout')), 800)
         );
         
-        const result: any = await Promise.race([fetchPromise, timeoutPromise]);
-        const dbPs = result?.data?.print_settings;
-        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
-          ps = dbPs;
+        const results = await Promise.race([fetchPromise, timeoutPromise]) as any[];
+        const settingsRes = results[0];
+        const tenantRes = results[1];
+        
+        const dbPs = settingsRes?.data?.print_settings;
+        const tenantName = tenantRes?.data?.name;
+        
+        if (dbPs && typeof dbPs === 'object') {
+          const updatedPs = { ...dbPs, storeName: tenantName };
+          ps = updatedPs;
           // Sync back to local storage and cached memory
-          localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(dbPs));
-          (window as any).__printSettingsCache = dbPs;
+          localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(updatedPs));
+          (window as any).__printSettingsCache = updatedPs;
         } else {
           // Fallback to local storage if empty or error
           const saved = localStorage.getItem(`print_settings_${tenantId}`);
@@ -339,6 +344,9 @@ function buildBillHtml(bill: any, ps: any = {}): string {
   const createdAt = bill.createdAt || new Date().toISOString();
 
   let headerHtml = '';
+  if (ps.storeName) {
+    headerHtml += `<div class="center bold" style="font-size: 16px; margin-bottom: 4px; text-transform: uppercase;">${ps.storeName}</div>`;
+  }
   if (ps.showAddress && ps.address) {
     headerHtml += `<div class="center" style="font-size: 12px; margin-bottom: 2px;">${ps.address}</div>`;
   }
