@@ -142,41 +142,56 @@ function GeralTab() {
     if (user?.tenantId) {
       const lsKey = `print_settings_${user.tenantId}`;
 
-      // 1. Load immediately from localStorage (instant, no latency)
+      // 1. Load immediately from localStorage (instant, no latency on same device)
       const savedLocal = localStorage.getItem(lsKey);
       if (savedLocal) {
         try { setPrintSettings(prev => ({ ...prev, ...JSON.parse(savedLocal) })); } catch {}
       }
 
-      // 2. Then fetch from Supabase (authoritative, synced across devices)
-      supabase.from('store_settings').select('service_fee_percentage, print_settings').eq('tenant_id', user.tenantId).limit(1).then(({ data, error }) => {
-        if (!error && data && data.length > 0) {
-          const rawFee = (data[0] as any).service_fee_percentage;
-          // Always set a value: show the number if > 0, else show empty so placeholder is visible
+      // 2. Fetch from Supabase in parallel — always authoritative (works across devices)
+      Promise.all([
+        supabase.from('store_settings')
+          .select('service_fee_percentage, table_count, print_settings')
+          .eq('tenant_id', user.tenantId)
+          .limit(1)
+          .single(),
+        supabase.from('tenants')
+          .select('name, logo, login_icon, login_carousel_images')
+          .eq('id', user.tenantId)
+          .single(),
+      ]).then(([settingsRes, tenantRes]) => {
+        // -- Store settings --
+        if (!settingsRes.error && settingsRes.data) {
+          const row = settingsRes.data as any;
+          // Service fee
+          const rawFee = row.service_fee_percentage;
           setServiceFee(rawFee != null && Number(rawFee) !== 0 ? String(rawFee) : '');
-          const ps = (data[0] as any).print_settings;
-          if (ps && typeof ps === 'object' && Object.keys(ps).length > 0) {
-            // Supabase has data — it's the source of truth, sync to localStorage too
+
+          // Print settings — apply unconditionally when the DB has data, even partial
+          const ps = row.print_settings;
+          if (ps && typeof ps === 'object') {
+            // Merge DB data on top of defaults (DB is source of truth)
             setPrintSettings(prev => ({ ...prev, ...ps }));
+            // Backfill localStorage on this new device so next reload is instant
             localStorage.setItem(lsKey, JSON.stringify({ ...JSON.parse(savedLocal || '{}'), ...ps }));
           } else if (savedLocal) {
-            // Supabase column exists but is empty — push localStorage data up to Supabase
+            // DB has empty print_settings — push this device's localStorage data up
             try {
               const localPs = JSON.parse(savedLocal);
-              supabase.from('store_settings').update({ print_settings: localPs } as any).eq('tenant_id', user.tenantId).then(() => {});
+              supabase.from('store_settings')
+                .update({ print_settings: localPs } as any)
+                .eq('tenant_id', user.tenantId)
+                .then(() => {});
             } catch {}
           }
-        } else {
-          // No row found or error — keep empty so placeholder shows, value will be created on first save
-          setServiceFee('');
         }
-      });
 
-      supabase.from('tenants').select('name, logo, login_icon, login_carousel_images').eq('id', user.tenantId).single().then(({ data }) => {
-        if (data) {
-          setTenantName(data.name);
-          setTenantLogo(data.logo);
-          setLoginIcon(data.login_icon);
+        // -- Tenant info --
+        if (!tenantRes.error && tenantRes.data) {
+          const data = tenantRes.data as any;
+          setTenantName(data.name ?? '');
+          setTenantLogo(data.logo ?? null);
+          setLoginIcon(data.login_icon ?? null);
           const imgs = data.login_carousel_images as string[] | null;
           if (imgs && Array.isArray(imgs)) setCarouselImages(imgs);
         }
