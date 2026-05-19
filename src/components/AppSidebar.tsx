@@ -42,7 +42,7 @@ const navItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === 'collapsed';
   const { user, isAdmin, logout } = useAuth();
   const { permissions } = useAttendantPermissions();
@@ -69,6 +69,12 @@ export function AppSidebar() {
     if (item.permissionKey) return permissions[item.permissionKey];
     return false;
   });
+
+  const handleItemClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
@@ -106,6 +112,7 @@ export function AppSidebar() {
                       end={item.path === ''}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                       activeClassName="bg-primary text-primary-foreground font-semibold shadow-sm"
+                      onClick={handleItemClick}
                     >
                       <item.icon className="h-[18px] w-[18px] shrink-0" />
                       {!collapsed && <span className="text-sm">{item.title}</span>}
@@ -125,7 +132,7 @@ export function AppSidebar() {
           {user?.role === 'superadmin' && (
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
-                <NavLink to={`/${slug}/admin`} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" activeClassName="bg-primary text-primary-foreground font-semibold shadow-sm">
+                <NavLink to={`/${slug}/admin`} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" activeClassName="bg-primary text-primary-foreground font-semibold shadow-sm" onClick={handleItemClick}>
                   <Shield className="h-[18px] w-[18px] shrink-0" />
                   {!collapsed && <span className="text-sm">Super Admin</span>}
                 </NavLink>
@@ -153,8 +160,8 @@ export function AppSidebar() {
             {!collapsed && <Settings className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 mb-2">
-            <DropdownMenuItem onClick={() => navigate('/configuracoes')}><UserIcon className="h-4 w-4 mr-2" /> Meu Perfil</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate('/configuracoes')}><Settings className="h-4 w-4 mr-2" /> Configurações</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><UserIcon className="h-4 w-4 mr-2" /> Meu Perfil</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><Settings className="h-4 w-4 mr-2" /> Configurações</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="text-destructive"><LogOut className="h-4 w-4 mr-2" /> Sair</DropdownMenuItem>
           </DropdownMenuContent>
