@@ -130,8 +130,6 @@ function GeralTab() {
   const [uploading, setUploading] = useState(false);
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [uploadingCarousel, setUploadingCarousel] = useState(false);
-  const [savingPrint, setSavingPrint] = useState(false);
-  const [savingTenantName, setSavingTenantName] = useState(false);
   const [savingGeneral, setSavingGeneral] = useState(false);
   const [printSettings, setPrintSettings] = useState<PrintSettings>({
     address: '', document: '', documentType: 'cnpj', whatsapp: '',
@@ -248,90 +246,72 @@ function GeralTab() {
     toast.success('Imagem removida');
   };
 
-  const handleSave = async () => {
-    if (!user?.tenantId) return;
-    setSavingTenantName(true);
-    try {
-      if (tenantName.trim()) {
-        await supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId);
-      }
-      toast.success('Nome do estabelecimento salvo e sincronizado!');
-    } catch (err: any) {
-      toast.error('Erro ao salvar nome');
-    } finally {
-      setSavingTenantName(false);
-    }
-  };
-
-  const handleSaveGeneralSettings = async () => {
-    if (!user?.tenantId) return;
-    const count = parseInt(tableCount);
-    if (isNaN(count) || count < 5 || count > 100) {
-      toast.error('Mínimo de 5 mesas');
+  const handleSaveAll = async () => {
+    if (!user?.tenantId) {
+      toast.error('Sessão inválida, recarregue a página.');
       return;
     }
+
+    const count = parseInt(tableCount);
+    if (isNaN(count) || count < 5 || count > 100) {
+      toast.error('Quantidade de mesas deve ser entre 5 e 100.');
+      return;
+    }
+
     setSavingGeneral(true);
     try {
-      updateTableCount(count);
       const fee = parseFloat(serviceFee.replace(',', '.')) || 0;
-      const { data: existing } = await supabase.from('store_settings').select('id').eq('tenant_id', user.tenantId).limit(1);
-      if (existing && existing.length > 0) {
-        await supabase.from('store_settings').update({
-          service_fee_percentage: fee,
-          table_count: count,
-        } as any).eq('tenant_id', user.tenantId);
-      } else {
-        await supabase.from('store_settings').insert({
-          table_count: count,
-          service_fee_percentage: fee,
-          tenant_id: user.tenantId
-        } as any);
-      }
-      toast.success('Configurações gerais salvas e sincronizadas!');
-    } catch (err: any) {
-      console.error('Error saving settings:', err);
-      toast.error('Erro ao salvar configurações');
-    } finally {
-      setSavingGeneral(false);
-    }
-  };
 
-  const handleSavePrintSettings = async () => {
-    if (!user?.tenantId) { toast.error('Sessão inválida, recarregue a página.'); return; }
-    setSavingPrint(true);
-    try {
-      const lsKey = `print_settings_${user.tenantId}`;
+      // 1. Update table count in Store Context (handles physical table seeding/deleting)
+      await updateTableCount(count);
 
-      // 1. Always save to localStorage (instant, works offline)
-      localStorage.setItem(lsKey, JSON.stringify(printSettings));
+      // 2. Save store name (tenant name)
+      const saveTenantPromise = tenantName.trim() 
+        ? supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId)
+        : Promise.resolve();
 
-      // 2. Try to save to Supabase (sync across devices)
-      const { data: existing, error: fetchError } = await supabase
+      // 3. Save store_settings (both general settings and print settings)
+      const { data: existing } = await supabase
         .from('store_settings')
         .select('id')
         .eq('tenant_id', user.tenantId)
         .limit(1);
 
-      if (!fetchError) {
-        if (existing && existing.length > 0) {
-          await supabase
-            .from('store_settings')
-            .update({ print_settings: printSettings } as any)
-            .eq('tenant_id', user.tenantId);
-        } else {
-          await supabase
-            .from('store_settings')
-            .insert({ print_settings: printSettings, tenant_id: user.tenantId } as any);
-        }
+      const settingsPayload = {
+        table_count: count,
+        service_fee_percentage: fee,
+        print_settings: printSettings,
+      };
+
+      let saveSettingsPromise;
+      if (existing && existing.length > 0) {
+        saveSettingsPromise = supabase
+          .from('store_settings')
+          .update(settingsPayload as any)
+          .eq('tenant_id', user.tenantId);
+      } else {
+        saveSettingsPromise = supabase
+          .from('store_settings')
+          .insert({
+            ...settingsPayload,
+            tenant_id: user.tenantId,
+          } as any);
       }
 
-      toast.success('Configurações de impressão salvas e sincronizadas!');
+      await Promise.all([saveTenantPromise, saveSettingsPromise]);
+
+      // Sync print settings back to local storage and cache
+      const lsKey = `print_settings_${user.tenantId}`;
+      const updatedPs = { ...printSettings, storeName: tenantName.trim() };
+      localStorage.setItem(lsKey, JSON.stringify(updatedPs));
+      (window as any).__printSettingsCache = updatedPs;
+
+      toast.success('Configurações salvas e sincronizadas com sucesso!');
     } catch (err: any) {
-      // Supabase failed but localStorage worked — still a success for the user
-      toast.success('Configurações salvas localmente. (Sincronização pendente)');
-      console.warn('print_settings sync error:', err);
+      console.error('Error saving settings:', err);
+      toast.error('Erro ao salvar configurações.');
     } finally {
-      setSavingPrint(false);
+      setSavingGeneral(false);
     }
   };
 
@@ -376,10 +356,6 @@ function GeralTab() {
               <Input value={tenantName} onChange={e => setTenantName(e.target.value)} placeholder="Nome da sua loja" />
             </div>
           </div>
-          <Button onClick={handleSave} variant="outline" size="sm" className="gap-2" disabled={savingTenantName}>
-            {savingTenantName && <Loader2 className="h-4 w-4 animate-spin" />}
-            {savingTenantName ? 'Salvando...' : 'Salvar Nome'}
-          </Button>
         </CardContent>
       </Card>
 
@@ -421,10 +397,6 @@ function GeralTab() {
               />
             </div>
           </div>
-          <Button onClick={handleSavePrintSettings} disabled={savingPrint} size="sm" variant="outline" className="gap-2">
-            {savingPrint && <Loader2 className="h-4 w-4 animate-spin" />}
-            {savingPrint ? 'Salvando...' : 'Salvar Informações'}
-          </Button>
         </CardContent>
       </Card>
 
@@ -498,10 +470,6 @@ function GeralTab() {
               <Input type="text" inputMode="decimal" placeholder="Ex: 10" value={serviceFee} onChange={e => setServiceFee(e.target.value)} />
             </div>
           </div>
-          <Button onClick={handleSaveGeneralSettings} className="gap-2" disabled={savingGeneral}>
-            {savingGeneral && <Loader2 className="h-4 w-4 animate-spin" />}
-            {savingGeneral ? 'Salvando...' : 'Salvar'}
-          </Button>
         </CardContent>
       </Card>
 
@@ -534,12 +502,6 @@ function GeralTab() {
               </div>
               <Switch checked={!!printSettings.showWhatsapp} onCheckedChange={v => updatePS('showWhatsapp', v)} />
             </div>
-          </div>
-          <div className="pt-4 border-t flex justify-end">
-            <Button onClick={handleSavePrintSettings} disabled={savingPrint} size="sm" variant="outline" className="gap-2">
-              {savingPrint && <Loader2 className="h-4 w-4 animate-spin" />}
-              {savingPrint ? 'Salvando...' : 'Salvar Visibilidade'}
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -578,12 +540,15 @@ function GeralTab() {
               <Switch checked={!!printSettings.showThankMessage} onCheckedChange={v => updatePS('showThankMessage', v)} />
             </div>
           </div>
-          <Button onClick={handleSavePrintSettings} disabled={savingPrint} className="gap-2">
-            {savingPrint && <Loader2 className="h-4 w-4 animate-spin" />}
-            {savingPrint ? 'Salvando...' : 'Salvar Tudo'}
-          </Button>
         </CardContent>
       </Card>
+
+      <div className="flex justify-end pt-4">
+        <Button onClick={handleSaveAll} size="lg" className="w-full sm:w-auto gap-2" disabled={savingGeneral}>
+          {savingGeneral && <Loader2 className="h-4 w-4 animate-spin" />}
+          {savingGeneral ? 'Salvando tudo...' : 'Salvar Tudo'}
+        </Button>
+      </div>
     </div>
   );
 }
