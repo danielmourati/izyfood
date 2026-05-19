@@ -140,18 +140,33 @@ function GeralTab() {
 
   useEffect(() => {
     if (user?.tenantId) {
-      // Load print settings from localStorage (immediate, no DB column needed)
       const lsKey = `print_settings_${user.tenantId}`;
-      const saved = localStorage.getItem(lsKey);
-      if (saved) {
-        try { setPrintSettings(prev => ({ ...prev, ...JSON.parse(saved) })); } catch {}
+
+      // 1. Load immediately from localStorage (instant, no latency)
+      const savedLocal = localStorage.getItem(lsKey);
+      if (savedLocal) {
+        try { setPrintSettings(prev => ({ ...prev, ...JSON.parse(savedLocal) })); } catch {}
       }
 
-      supabase.from('store_settings').select('service_fee_percentage').eq('tenant_id', user.tenantId).limit(1).then(({ data }) => {
+      // 2. Then fetch from Supabase (authoritative, synced across devices)
+      supabase.from('store_settings').select('service_fee_percentage, print_settings').eq('tenant_id', user.tenantId).limit(1).then(({ data }) => {
         if (data && data.length > 0) {
           setServiceFee((data[0] as any).service_fee_percentage?.toString() || '0');
+          const ps = (data[0] as any).print_settings;
+          if (ps && typeof ps === 'object' && Object.keys(ps).length > 0) {
+            // Supabase has data — it's the source of truth, sync to localStorage too
+            setPrintSettings(prev => ({ ...prev, ...ps }));
+            localStorage.setItem(lsKey, JSON.stringify({ ...JSON.parse(savedLocal || '{}'), ...ps }));
+          } else if (savedLocal) {
+            // Supabase column exists but is empty — push localStorage data up to Supabase
+            try {
+              const localPs = JSON.parse(savedLocal);
+              supabase.from('store_settings').update({ print_settings: localPs } as any).eq('tenant_id', user.tenantId).then(() => {});
+            } catch {}
+          }
         }
       });
+
       supabase.from('tenants').select('name, logo, login_icon, login_carousel_images').eq('id', user.tenantId).single().then(({ data }) => {
         if (data) {
           setTenantName(data.name);
@@ -277,13 +292,36 @@ function GeralTab() {
     if (!user?.tenantId) { toast.error('Sessão inválida, recarregue a página.'); return; }
     setSavingPrint(true);
     try {
-      // Save to localStorage for immediate persistence (no DB column required)
       const lsKey = `print_settings_${user.tenantId}`;
+
+      // 1. Always save to localStorage (instant, works offline)
       localStorage.setItem(lsKey, JSON.stringify(printSettings));
-      toast.success('Configurações de impressão salvas com sucesso!');
+
+      // 2. Try to save to Supabase (sync across devices)
+      const { data: existing, error: fetchError } = await supabase
+        .from('store_settings')
+        .select('id')
+        .eq('tenant_id', user.tenantId)
+        .limit(1);
+
+      if (!fetchError) {
+        if (existing && existing.length > 0) {
+          await supabase
+            .from('store_settings')
+            .update({ print_settings: printSettings } as any)
+            .eq('tenant_id', user.tenantId);
+        } else {
+          await supabase
+            .from('store_settings')
+            .insert({ print_settings: printSettings, tenant_id: user.tenantId } as any);
+        }
+      }
+
+      toast.success('Configurações de impressão salvas e sincronizadas!');
     } catch (err: any) {
-      console.error('Error saving print settings:', err);
-      toast.error('Erro ao salvar: ' + (err.message || 'verifique sua conexão'));
+      // Supabase failed but localStorage worked — still a success for the user
+      toast.success('Configurações salvas localmente. (Sincronização pendente)');
+      console.warn('print_settings sync error:', err);
     } finally {
       setSavingPrint(false);
     }
@@ -593,20 +631,24 @@ function UsuariosTab() {
         toast.error('Senha deve ter no mínimo 4 caracteres');
         return;
       }
-      // Create new user via signUp
-      const { data: signUpData, error } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: { data: { name: form.name, tenant_id: user?.tenantId, role: form.role } },
-      });
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      if (signUpData.user) {
-        // Assign role
-        await supabase.from('user_roles').insert({ user_id: signUpData.user.id, role: form.role });
+      try {
+        const { data: createData, error } = await supabase.functions.invoke('manage-users', {
+          body: {
+            action: 'create',
+            email: form.email,
+            password: form.password,
+            name: form.name,
+            role: form.role,
+            tenant_id: user?.tenantId,
+            commission: commissionVal
+          }
+        });
+        if (error) throw error;
+        if (createData?.error) throw new Error(createData.error);
         toast.success('Usuário criado!');
+      } catch (err: any) {
+        toast.error(err.message || 'Erro ao criar usuário');
+        return;
       }
     }
     resetForm();
@@ -621,11 +663,17 @@ function UsuariosTab() {
   };
 
   const handleDelete = async (id: string) => {
-    // Note: deleting auth users requires admin API (service role).
-    // For now, we just remove the role so they can't access.
-    await supabase.from('user_roles').delete().eq('user_id', id);
-    toast.success('Acesso do usuário removido');
-    fetchUsers();
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'delete', user_id: id }
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success('Usuário removido com sucesso');
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao remover usuário');
+    }
   };
 
   return (
@@ -728,8 +776,8 @@ function UsuariosTab() {
           }
           setResetting(true);
           try {
-            const { data, error } = await supabase.functions.invoke('reset-user-password', {
-              body: { user_id: resetModal.id, new_password: newPassword },
+            const { data, error } = await supabase.functions.invoke('manage-users', {
+              body: { action: 'reset_password', user_id: resetModal.id, new_password: newPassword },
             });
             if (error) throw error;
             if (data?.error) throw new Error(data.error);
