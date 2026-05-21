@@ -287,6 +287,8 @@ export function printViaHtmlFallback(
       .bold { font-weight: bold; }
       .big { font-size: 16px; font-weight: bold; text-align: center; margin: 8px 0; }
       .mb-1 { margin-bottom: 4px; }
+      .header-text { font-size: 11px; }
+      .footer-text { font-size: 12px; }
       @media print { 
         body { width: ${printWidth}; padding: 0 16px; }
         @page { margin: 0; size: ${paperWidth}mm auto; }

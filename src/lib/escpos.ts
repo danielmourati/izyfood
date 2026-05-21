@@ -53,6 +53,10 @@ export const CMD_DOUBLE_OFF = new Uint8Array([GS, 0x21, 0x00]);
 export const CMD_CUT = new Uint8Array([GS, 0x56, 0x00]);
 /** Partial cut */
 export const CMD_PARTIAL_CUT = new Uint8Array([GS, 0x56, 0x01]);
+/** Select Font B (smaller, condensed) */
+export const CMD_FONT_B = new Uint8Array([ESC, 0x4D, 0x01]);
+/** Select Font A (normal) */
+export const CMD_FONT_A = new Uint8Array([ESC, 0x4D, 0x00]);
 /** Feed n lines then cut */
 export function feedAndCut(lines = 4): Uint8Array {
   const feeds = new Uint8Array(lines).fill(0x0A);
@@ -270,8 +274,9 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     CMD_ALIGN_CENTER,
   ];
 
-  // Dynamic header from print settings (ABOVE CONTA, and CENTERED)
+  // Dynamic header from print settings (ABOVE CONTA, and CENTERED) — Font B (smaller)
   let hasHeader = false;
+  parts.push(CMD_FONT_B);
   if (ps.storeName) {
     parts.push(CMD_BOLD_ON, text(`${ps.storeName.toUpperCase()}\n`), CMD_BOLD_OFF);
     hasHeader = true;
@@ -288,6 +293,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     parts.push(text(`WhatsApp: ${ps.whatsapp}\n`));
     hasHeader = true;
   }
+  parts.push(CMD_FONT_A);
 
   if (hasHeader) {
     parts.push(lineOf('-', cols));
@@ -367,16 +373,16 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   parts.push(lineOf('=', cols));
 
-  // Dynamic footer from print settings
+  // Dynamic footer from print settings — Font B (smaller)
   const hasFooter = (ps.showThankMessage && ps.thankMessage) || (ps.showPixKey && ps.pixKey) || (ps.showInstagram && ps.instagram);
   if (hasFooter) {
-    parts.push(CMD_ALIGN_CENTER);
+    parts.push(CMD_ALIGN_CENTER, CMD_FONT_B);
     if (ps.showPixKey && ps.pixKey) parts.push(text(`PIX: ${ps.pixKey}\n`));
     if (ps.showInstagram && ps.instagram) parts.push(text(`Instagram: ${ps.instagram}\n`));
     if (ps.showThankMessage && ps.thankMessage) {
       parts.push(CMD_BOLD_ON, text(`${ps.thankMessage}\n`), CMD_BOLD_OFF);
     }
-    parts.push(CMD_ALIGN_LEFT);
+    parts.push(CMD_FONT_A, CMD_ALIGN_LEFT);
   }
 
   // Minimal feed then cut (2 lines instead of 4 to save paper)

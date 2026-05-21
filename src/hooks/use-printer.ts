@@ -348,13 +348,13 @@ function buildBillHtml(bill: any, ps: any = {}): string {
     headerHtml += `<div class="center bold" style="font-size: 16px; margin-bottom: 4px; text-transform: uppercase;">${ps.storeName}</div>`;
   }
   if (ps.showAddress && ps.address) {
-    headerHtml += `<div class="center" style="font-size: 12px; margin-bottom: 2px;">${ps.address}</div>`;
+    headerHtml += `<div class="center header-text" style="margin-bottom: 2px;">${ps.address}</div>`;
   }
   if (ps.showDocument && ps.document) {
-    headerHtml += `<div class="center" style="font-size: 12px; margin-bottom: 2px;">${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}</div>`;
+    headerHtml += `<div class="center header-text" style="margin-bottom: 2px;">${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}</div>`;
   }
   if (ps.showWhatsapp && ps.whatsapp) {
-    headerHtml += `<div class="center" style="font-size: 12px; margin-bottom: 4px;">WhatsApp: ${ps.whatsapp}</div>`;
+    headerHtml += `<div class="center header-text" style="margin-bottom: 4px;">WhatsApp: ${ps.whatsapp}</div>`;
   }
   if (headerHtml) {
     headerHtml += '<div class="line"></div>';
@@ -362,15 +362,15 @@ function buildBillHtml(bill: any, ps: any = {}): string {
 
   let footerHtml = '';
   if (ps.showPixKey && ps.pixKey) {
-    footerHtml += `<div class="center" style="font-size: 11px; margin-top: 4px;">PIX: ${ps.pixKey}</div>`;
+    footerHtml += `<div class="center footer-text" style="margin-top: 4px;">PIX: ${ps.pixKey}</div>`;
   }
   if (ps.showInstagram && ps.instagram) {
-    footerHtml += `<div class="center" style="font-size: 11px; margin-top: 2px;">Instagram: @${ps.instagram.replace('@', '')}</div>`;
+    footerHtml += `<div class="center footer-text" style="margin-top: 2px;">Instagram: @${ps.instagram.replace('@', '')}</div>`;
   }
   if (ps.showThankMessage && ps.thankMessage) {
-    footerHtml += `<p class="center" style="font-size: 12px; margin-top: 10px; font-weight: bold;">${ps.thankMessage}</p>`;
+    footerHtml += `<p class="center footer-text bold" style="margin-top: 10px; margin-bottom: 0;">${ps.thankMessage}</p>`;
   } else {
-    footerHtml += `<p class="center" style="font-size: 12px; margin-top: 10px;">Obrigado pela preferência!</p>`;
+    footerHtml += `<p class="center footer-text" style="margin-top: 10px; margin-bottom: 0;">Obrigado pela preferência!</p>`;
   }
 
   // Dynamically calculate total if bill.total is falsy or 0
