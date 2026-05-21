@@ -390,8 +390,9 @@ function buildBillHtml(bill: any, ps: any = {}): string {
     ${headerHtml}
     <div class="big">RESUMO DA CONTA</div>
     <div class="line"></div>
+    <div class="row"><span>Tipo:</span><span>${orderTypeLabels[bill.orderType] || bill.orderType || 'Mesa'}</span></div>
     ${bill.tableNumber ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber}</span></div>` : ''}
-    <div style="display: flex; gap: 4px; font-size: 12px; margin-bottom: 2px;"><span>Cliente:</span><span>${bill.customerName || 'Consumidor'}</span></div>
+    ${bill.customerName ? `<div class="row"><span>Cliente:</span><span>${bill.customerName}</span></div>` : ''}
     <div class="row"><span>Data:</span><span>${fmtDate(createdAt)}</span></div>
     <div class="line"></div>
     <div style="margin: 10px 0;">
@@ -400,8 +401,9 @@ function buildBillHtml(bill: any, ps: any = {}): string {
     <div class="line"></div>
     <div class="row bold" style="font-size: 16px;"><span>TOTAL</span><span>${fmtBRL(totalBilled)}</span></div>
     ${payments ? `<div class="line" style="margin-top:10px;"></div><p class="bold">PAGAMENTO:</p>${payments}` : ''}
-    <div class="line" style="margin-top: 20px;"></div>
-    ${footerHtml}
+    <div class="footer-text" style="border-top: 1px dashed #000; margin-top: 12px; padding-top: 6px;">
+      ${footerHtml}
+    </div>
   `;
 }
 

@@ -276,26 +276,25 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   // Dynamic header from print settings (ABOVE CONTA, and CENTERED) — Font B (smaller)
   let hasHeader = false;
-  parts.push(CMD_FONT_B);
-  if (ps.storeName) {
-    parts.push(CMD_BOLD_ON, text(`${ps.storeName.toUpperCase()}\n`), CMD_BOLD_OFF);
-    hasHeader = true;
-  }
-  if (ps.showAddress && ps.address) {
-    parts.push(text(`${ps.address}\n`));
-    hasHeader = true;
-  }
-  if (ps.showDocument && ps.document) {
-    parts.push(text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
-    hasHeader = true;
-  }
-  if (ps.showWhatsapp && ps.whatsapp) {
-    parts.push(text(`WhatsApp: ${ps.whatsapp}\n`));
-    hasHeader = true;
-  }
-  parts.push(CMD_FONT_A);
-
-  if (hasHeader) {
+  if (ps.storeName || (ps.showAddress && ps.address) || (ps.showDocument && ps.document) || (ps.showWhatsapp && ps.whatsapp)) {
+    parts.push(CMD_FONT_B);
+    if (ps.storeName) {
+      parts.push(CMD_BOLD_ON, text(`${ps.storeName.toUpperCase()}\n`), CMD_BOLD_OFF);
+      hasHeader = true;
+    }
+    if (ps.showAddress && ps.address) {
+      parts.push(text(`${ps.address}\n`));
+      hasHeader = true;
+    }
+    if (ps.showDocument && ps.document) {
+      parts.push(text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
+      hasHeader = true;
+    }
+    if (ps.showWhatsapp && ps.whatsapp) {
+      parts.push(text(`WhatsApp: ${ps.whatsapp}\n`));
+      hasHeader = true;
+    }
+    parts.push(CMD_FONT_A);
     parts.push(lineOf('-', cols));
   }
 
@@ -310,9 +309,8 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   );
 
   parts.push(row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
-
   if (bill.tableNumber) parts.push(row('Mesa:', String(bill.tableNumber), cols));
-  if (bill.customerName) parts.push(text(`Cliente: ${bill.customerName}\n`));
+  if (bill.customerName) parts.push(row('Cliente:', bill.customerName, cols));
   parts.push(row('Data:', fmtDate(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
@@ -371,7 +369,8 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     parts.push(row('Pgto:', paymentLabels[bill.paymentMethod] || bill.paymentMethod, cols));
   }
 
-  parts.push(lineOf('=', cols));
+  // Separador antes do rodapé — Font B (menor, ~12px)
+  parts.push(CMD_FONT_B, lineOf('-', cols), CMD_FONT_A);
 
   // Dynamic footer from print settings — Font B (smaller)
   const hasFooter = (ps.showThankMessage && ps.thankMessage) || (ps.showPixKey && ps.pixKey) || (ps.showInstagram && ps.instagram);
