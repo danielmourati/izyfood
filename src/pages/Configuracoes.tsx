@@ -315,8 +315,8 @@ function GeralTab() {
 
       await Promise.all([saveTenantPromise, saveSettingsPromise]);
 
-      // 3. Sync table count: update React state + add/remove physical tables (no extra DB write to store_settings)
-      setSettings(prev => ({ ...prev, tableCount: count }));
+      // 3. Sync table count and fee back into context so all components see the new values immediately
+      setSettings(prev => ({ ...prev, tableCount: count, serviceFeePercentage: validFee || undefined }));
       await updateTableCount(count);
 
       // Reflect saved fee back in input

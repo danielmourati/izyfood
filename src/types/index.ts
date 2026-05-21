@@ -147,6 +147,7 @@ export interface DiscountCoupon {
 
 export interface StoreSettings {
   tableCount: number;
+  serviceFeePercentage?: number;
 }
 
 export interface CashRegister {

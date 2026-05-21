@@ -165,7 +165,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setCoupons((cpns || []).map(dbToCoupon));
       setNoteOptions((opts || []).map(dbToNoteOption));
       if (setts && setts.length > 0) {
-        setSettings({ tableCount: setts[0].table_count });
+        setSettings({
+          tableCount: setts[0].table_count,
+          serviceFeePercentage: setts[0].service_fee_percentage ? Number(setts[0].service_fee_percentage) : undefined,
+        });
       }
       setIsCashRegisterOpen(!!(cashRegs && cashRegs.length > 0));
       setLoading(false);
