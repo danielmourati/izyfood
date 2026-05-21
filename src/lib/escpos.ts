@@ -306,7 +306,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   parts.push(row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
 
   if (bill.tableNumber) parts.push(row('Mesa:', String(bill.tableNumber), cols));
-  if (bill.customerName) parts.push(row('Cliente:', bill.customerName, cols));
+  if (bill.customerName) parts.push(text(`Cliente: ${bill.customerName}\n`));
   parts.push(row('Data:', fmtDate(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
@@ -323,9 +323,23 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   parts.push(lineOf('-', cols));
 
+  // Dynamically calculate total if bill.total is falsy or 0
+  let totalBilled = bill.total || 0;
+  const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
+    const itemSubtotal = item.subtotal ?? (item.price * (item.weight ?? item.quantity));
+    return acc + (itemSubtotal || 0);
+  }, 0);
+  
+  if (!totalBilled || totalBilled === 0) {
+    const discountVal = bill.discount ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount) : 0;
+    const serviceFeeVal = bill.serviceFee || 0;
+    const deliveryFeeVal = bill.deliveryFee || 0;
+    totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
+  }
+
   if (bill.discount && bill.discount > 0) {
     const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';
-    parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? bill.total * bill.discount / 100 : bill.discount)}`, cols));
+    parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
   }
   if (bill.serviceFee && bill.serviceFee > 0) {
     parts.push(row('Taxa de serviço', fmtBRL(bill.serviceFee), cols));
@@ -335,9 +349,10 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   }
 
   parts.push(lineOf('=', cols));
-  parts.push(CMD_BOLD_ON);
-  parts.push(row('TOTAL', fmtBRL(bill.total), cols));
-  parts.push(CMD_BOLD_OFF);
+  parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
+  const doubleCols = Math.floor(cols / 2);
+  parts.push(row('TOTAL', fmtBRL(totalBilled), doubleCols));
+  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
 
   // Payment
   if (bill.paymentSplits && bill.paymentSplits.length > 0) {

@@ -369,7 +369,7 @@ const PDV = () => {
 
   const currentOrder: Order = {
     id: currentOrderId, items: cart, total, orderType, status: 'aberto',
-    tableNumber, customerId: selectedCustomerId || undefined, createdAt: new Date().toISOString(),
+    tableNumber: tableNumber || existingOrder?.tableNumber, customerId: selectedCustomerId || undefined, createdAt: new Date().toISOString(),
   };
 
   const handleSendAndHold = async () => {
