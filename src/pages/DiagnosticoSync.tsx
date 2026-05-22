@@ -175,6 +175,35 @@ export default function DiagnosticoSync() {
     }, 8000);
   }, [user?.tenantId]);
 
+  const checkConsistency = useCallback(async () => {
+    if (!user?.tenantId) return;
+    setCheckingConsistency(true);
+    const { data, error } = await supabase
+      .from('store_settings')
+      .select('table_count, service_fee_percentage, print_settings')
+      .eq('tenant_id', user.tenantId);
+    if (!error) {
+      const rows = data || [];
+      const first: any = rows[0];
+      setConsistency({
+        rowCount: rows.length,
+        tableCount: first?.table_count ?? null,
+        serviceFeePercentage: first?.service_fee_percentage != null ? Number(first.service_fee_percentage) : null,
+        hasPrintSettings: !!(first?.print_settings && Object.keys(first.print_settings).length > 0),
+        checkedAt: Date.now(),
+      });
+    }
+    setCheckingConsistency(false);
+  }, [user?.tenantId]);
+
+  // Auto-check consistency on mount and whenever store_settings event arrives
+  useEffect(() => { checkConsistency(); }, [checkConsistency]);
+  useEffect(() => {
+    const lastEvt = states['store_settings']?.lastEventAt;
+    if (lastEvt) checkConsistency();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [states['store_settings']?.lastEventAt]);
+
   const copyReport = useCallback(() => {
     const report = {
       generatedAt: new Date().toISOString(),
