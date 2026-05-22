@@ -62,6 +62,14 @@ const formatRelative = (ts: number | null) => {
   return `${Math.floor(diff / 3600)}h atrás`;
 };
 
+interface SettingsConsistency {
+  rowCount: number;
+  tableCount: number | null;
+  serviceFeePercentage: number | null;
+  hasPrintSettings: boolean;
+  checkedAt: number;
+}
+
 export default function DiagnosticoSync() {
   const { user } = useAuth();
   const [states, setStates] = useState<Record<string, TableState>>(() => {
@@ -74,6 +82,8 @@ export default function DiagnosticoSync() {
   const [pinging, setPinging] = useState(false);
   const [lastPing, setLastPing] = useState<{ sentAt: number; receivedAt: number | null; latencyMs: number | null } | null>(null);
   const [tick, setTick] = useState(0);
+  const [consistency, setConsistency] = useState<SettingsConsistency | null>(null);
+  const [checkingConsistency, setCheckingConsistency] = useState(false);
   const channelsRef = useRef<RealtimeChannel[]>([]);
   const pingSentAtRef = useRef<number | null>(null);
 
