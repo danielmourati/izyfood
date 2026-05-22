@@ -169,57 +169,43 @@ export function usePrinter() {
   const printBill = async (bill: any) => {
     let ps: any = {};
     const tenantId = user?.tenantId;
+
+    // 1) Start with whatever cache we have (memory or localStorage)
     if (tenantId) {
-      // 1. Try to fetch the freshest print settings and store name from Supabase with a fast timeout (800ms)
-      try {
-        const fetchPromise = Promise.all([
-          supabase.from('store_settings').select('print_settings').eq('tenant_id', tenantId).limit(1).maybeSingle(),
-          supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
-        ]);
-          
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 800)
-        );
-        
-        const results = await Promise.race([fetchPromise, timeoutPromise]) as any[];
-        const settingsRes = results[0];
-        const tenantRes = results[1];
-        
-        const dbPs = settingsRes?.data?.print_settings;
-        const tenantName = tenantRes?.data?.name;
-        
-        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
-          const updatedPs = { ...dbPs, storeName: tenantName };
-          ps = updatedPs;
-          // Sync back to local storage and cached memory
-          localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(updatedPs));
-          (window as any).__printSettingsCache = updatedPs;
-        } else {
-          // Fallback to local storage if empty or error
-          const saved = localStorage.getItem(`print_settings_${tenantId}`);
-          if (saved) {
-            try {
-              const localPs = JSON.parse(saved);
-              ps = { ...localPs, storeName: tenantName };
-            } catch {
-              ps = { storeName: tenantName };
-            }
-          } else {
-            ps = { storeName: tenantName };
-          }
-        }
-      } catch (err) {
-        // Fallback to local storage if offline/timeout/error
+      const cached = (window as any).__printSettingsCache;
+      if (cached && typeof cached === 'object' && Object.keys(cached).length > 0) {
+        ps = { ...cached };
+      } else {
         const saved = localStorage.getItem(`print_settings_${tenantId}`);
         if (saved) {
-          try {
-            ps = JSON.parse(saved);
-          } catch {}
+          try { ps = JSON.parse(saved); } catch {}
         }
       }
     } else {
       ps = getCachedPrintSettings();
     }
+
+    // 2) Try to refresh from DB (no race timeout). If it succeeds, override; if it fails, keep cache.
+    if (tenantId) {
+      try {
+        const [settingsRes, tenantRes] = await Promise.all([
+          supabase.from('store_settings').select('print_settings').eq('tenant_id', tenantId).limit(1).maybeSingle(),
+          supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle(),
+        ]);
+        const dbPs = (settingsRes?.data as any)?.print_settings;
+        const tenantName = (tenantRes?.data as any)?.name;
+        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
+          ps = { ...dbPs, storeName: tenantName || ps.storeName };
+          localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(ps));
+          (window as any).__printSettingsCache = ps;
+        } else if (tenantName) {
+          ps = { ...ps, storeName: tenantName };
+        }
+      } catch (err) {
+        console.warn('printBill: usando cache (fetch falhou)', err);
+      }
+    }
+
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta');
