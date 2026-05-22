@@ -18,6 +18,7 @@ import Entregas from "./pages/Entregas";
 import Caixa from "./pages/Caixa";
 import Configuracoes from "./pages/Configuracoes";
 import SuperAdmin from "./pages/SuperAdmin";
+import DiagnosticoSync from "./pages/DiagnosticoSync";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
