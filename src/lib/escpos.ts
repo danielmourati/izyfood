@@ -94,6 +94,13 @@ function fmtDate(iso: string): string {
 
 // ---------- receipt builders ----------
 
+/** Helper to align left and right text within given column width */
+function leftRightAlign(left: string, right: string, cols: number): Uint8Array {
+  const gap = cols - left.length - right.length;
+  if (gap < 1) return text(left + ' ' + right + '\n');
+  return text(left + ' '.repeat(gap) + right + '\n');
+}
+
 interface OrderItem {
   name: string;
   quantity: number;
@@ -278,22 +285,25 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   let hasHeader = false;
   if (ps.storeName || (ps.showAddress && ps.address) || (ps.showDocument && ps.document) || (ps.showWhatsapp && ps.whatsapp)) {
     parts.push(CMD_FONT_B);
+    // Centered header lines
     if (ps.storeName) {
-      parts.push(CMD_BOLD_ON, text(`${ps.storeName.toUpperCase()}\n`), CMD_BOLD_OFF);
+      parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName.toUpperCase()}\n`), CMD_BOLD_OFF);
       hasHeader = true;
     }
     if (ps.showAddress && ps.address) {
-      parts.push(text(`${ps.address}\n`));
+      parts.push(CMD_ALIGN_CENTER, text(`${ps.address}\n`));
       hasHeader = true;
     }
     if (ps.showDocument && ps.document) {
-      parts.push(text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
+      parts.push(CMD_ALIGN_CENTER, text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
       hasHeader = true;
     }
     if (ps.showWhatsapp && ps.whatsapp) {
-      parts.push(text(`WhatsApp: ${ps.whatsapp}\n`));
+      parts.push(CMD_ALIGN_CENTER, text(`WhatsApp: ${ps.whatsapp}\n`));
       hasHeader = true;
     }
+    // Reset to left alignment for body
+    parts.push(CMD_ALIGN_LEFT);
     parts.push(CMD_FONT_A);
     parts.push(lineOf('-', cols));
   }
@@ -308,19 +318,19 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     lineOf('=', cols),
   );
 
-  parts.push(row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
-  if (bill.tableNumber) parts.push(row('Mesa:', String(bill.tableNumber), cols));
-  if (bill.customerName) parts.push(row('Cliente:', bill.customerName, cols));
-  parts.push(row('Data:', fmtDate(bill.createdAt), cols));
+  parts.push(leftRightAlign('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
+  if (bill.tableNumber) parts.push(leftRightAlign('Mesa:', String(bill.tableNumber), cols));
+  if (bill.customerName) parts.push(leftRightAlign('Cliente:', bill.customerName, cols));
+  parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
   // Items with price
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    parts.push(row(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    parts.push(leftRightAlign(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        parts.push(row(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
+        parts.push(leftRightAlign(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
       }
     }
   }
@@ -355,7 +365,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   parts.push(lineOf('=', cols));
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
   const doubleCols = Math.floor(cols / 2);
-  parts.push(row('TOTAL', fmtBRL(totalBilled), doubleCols));
+  parts.push(leftRightAlign('TOTAL', fmtBRL(totalBilled), doubleCols));
   parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
 
   // Payment
