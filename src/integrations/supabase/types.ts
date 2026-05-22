@@ -775,6 +775,7 @@ export type Database = {
       store_settings: {
         Row: {
           id: string
+          print_settings: Json
           service_fee_percentage: number
           table_count: number
           tenant_id: string
@@ -782,6 +783,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          print_settings?: Json
           service_fee_percentage?: number
           table_count?: number
           tenant_id?: string
@@ -789,6 +791,7 @@ export type Database = {
         }
         Update: {
           id?: string
+          print_settings?: Json
           service_fee_percentage?: number
           table_count?: number
           tenant_id?: string
@@ -798,7 +801,7 @@ export type Database = {
           {
             foreignKeyName: "store_settings_tenant_id_fkey"
             columns: ["tenant_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },

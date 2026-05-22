@@ -45,7 +45,7 @@ export function usePrinter() {
       .from('printer_configs')
       .select('*')
       .order('is_default', { ascending: false });
-    
+
     if (data) {
       const mapped = data.map((p: any) => {
         const isSystem = p.connection_type === 'network' && (p.address === 'SYSTEM_BROWSER' || p.address?.startsWith('SYSTEM:'));
@@ -132,8 +132,8 @@ export function usePrinter() {
       } catch (err) {
         console.error('Erro na impressão Bluetooth, caindo para HTML...', err);
       }
-    } 
-    
+    }
+
     // 2. QZ Tray (USB/Rede)
     if ((defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && isQzConnected()) {
       try {
@@ -143,7 +143,7 @@ export function usePrinter() {
         console.error('QZ Tray print error, falling back to HTML:', err);
       }
     }
-    
+
     // 3. Fallback para HTML (Abre a janela nativa do Android/Windows)
     printViaHtmlFallback(htmlFallback, title, paperWidth);
   };
@@ -156,25 +156,57 @@ export function usePrinter() {
 
   const printBill = async (bill: any) => {
     const tenantId = user?.tenantId;
-    if (!tenantId) {
-      console.error('[printBill] Tenant não disponível. Impressão cancelada.');
-      return;
-    }
-
-    // Use the global context printSettings (already synced from DB + Realtime)
-    let ps = printSettings;
-
-    // Safety net: if context is still at defaults (e.g. first mount race), do a direct fetch
-    const isEmpty = !ps.storeName && !ps.address && !ps.whatsapp;
-    if (isEmpty) {
-      console.warn('[printBill] printSettings em memória está vazio, buscando do banco...');
+    if (tenantId) {
+      // 1. Try to fetch the freshest print settings and store name from Supabase with a fast timeout (800ms)
       try {
-        ps = await fetchPrintSettings(tenantId);
-      } catch {
-        console.error('[printBill] Falha ao buscar printSettings do banco. Imprimindo sem cabeçalho.');
-      }
-    }
+        const fetchPromise = Promise.all([
+          supabase.from('store_settings').select('print_settings').eq('tenant_id', tenantId).limit(1).maybeSingle(),
+          supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
+        ]);
 
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout')), 800)
+        );
+
+        const results = await Promise.race([fetchPromise, timeoutPromise]) as any[];
+        const settingsRes = results[0];
+        const tenantRes = results[1];
+
+        const dbPs = settingsRes?.data?.print_settings;
+        const tenantName = tenantRes?.data?.name;
+
+        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
+          const updatedPs = { ...dbPs, storeName: tenantName };
+          ps = updatedPs;
+          // Sync back to local storage and cached memory
+          localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(updatedPs));
+          (window as any).__printSettingsCache = updatedPs;
+        } else {
+          // Fallback to local storage if empty or error
+          const saved = localStorage.getItem(`print_settings_${tenantId}`);
+          if (saved) {
+            try {
+              const localPs = JSON.parse(saved);
+              ps = { ...localPs, storeName: tenantName };
+            } catch {
+              ps = { storeName: tenantName };
+            }
+          } else {
+            ps = { storeName: tenantName };
+          }
+        }
+      } catch (err) {
+        // Fallback to local storage if offline/timeout/error
+        const saved = localStorage.getItem(`print_settings_${tenantId}`);
+        if (saved) {
+          try {
+            ps = JSON.parse(saved);
+          } catch { }
+        }
+      }
+    } else {
+      ps = getCachedPrintSettings();
+    }
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta');
@@ -244,7 +276,7 @@ function buildOrderHtml(order: any): string {
     }
     return html;
   }).join('');
-  
+
   const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
   const createdAt = order.createdAt || new Date().toISOString();
 
@@ -264,8 +296,8 @@ function buildOrderHtml(order: any): string {
   const customerLine = order.orderType === 'delivery'
     ? `${order.customerName || 'Sem Nome'}${order.customerAddress ? ' — ' + order.customerAddress : ''}`
     : order.orderType === 'retirada'
-    ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
-    : (order.customerName || 'Sem Nome');
+      ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
+      : (order.customerName || 'Sem Nome');
 
   return `
     <div class="center" style="font-size: 14px; margin-bottom: 8px;">Cozinha Principal</div>
@@ -356,7 +388,7 @@ function buildBillHtml(bill: any, ps: any = {}): string {
     <div class="line"></div>
     <div class="row"><span>Tipo:</span><span>${orderTypeLabels[bill.orderType] || bill.orderType || 'Mesa'}</span></div>
     ${(bill.tableNumber || bill.orderType === 'mesa') ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber || 'N/A'}</span></div>` : ''}
-    <div class="row"><span>Cliente:</span><span>${bill.customerName || 'Consumidor'}</span></div>
+    <div class="row"><span>Cliente:</span><span>${bill.customerName || ''}</span></div>
     <div class="row"><span>Data:</span><span>${fmtDate(createdAt)}</span></div>
     <div class="line"></div>
     <div style="margin: 10px 0;">

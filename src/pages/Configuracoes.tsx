@@ -140,7 +140,7 @@ function GeralTab() {
       // 1. Load immediately from localStorage (instant, no latency on same device)
       const savedLocal = localStorage.getItem(lsKey);
       if (savedLocal) {
-        try { setPrintSettings(prev => ({ ...prev, ...JSON.parse(savedLocal) })); } catch {}
+        try { setPrintSettings(prev => ({ ...prev, ...JSON.parse(savedLocal) })); } catch { }
       }
 
       // 2. Fetch from Supabase in parallel — always authoritative (works across devices)
@@ -181,7 +181,7 @@ function GeralTab() {
                       if (error) console.error('Erro ao subir configurações locais para o banco:', error);
                     });
                 }
-              } catch {}
+              } catch { }
             }
           } else {
             // DB does not have any row in store_settings for this tenant
@@ -200,7 +200,7 @@ function GeralTab() {
                       if (error) console.error('Erro ao inicializar store_settings com configurações locais:', error);
                     });
                 }
-              } catch {}
+              } catch { }
             }
           }
         }
@@ -354,40 +354,18 @@ function GeralTab() {
         .eq('tenant_id', user.tenantId)
         .limit(1);
 
-      // Build a complete, merged printSettings to prevent partial overwrites
-      const fullPrintSettings = {
-        address: printSettings.address ?? '',
-        document: printSettings.document ?? '',
-        documentType: printSettings.documentType ?? 'cnpj',
-        whatsapp: printSettings.whatsapp ?? '',
-        pixKey: printSettings.pixKey ?? '',
-        instagram: printSettings.instagram ?? '',
-        thankMessage: printSettings.thankMessage ?? 'Obrigado pela preferência!',
-        showAddress: printSettings.showAddress ?? false,
-        showDocument: printSettings.showDocument ?? false,
-        showWhatsapp: printSettings.showWhatsapp ?? false,
-        showPixKey: printSettings.showPixKey ?? false,
-        showInstagram: printSettings.showInstagram ?? false,
-        showThankMessage: printSettings.showThankMessage ?? false,
-      };
-
       const settingsPayload = {
+        tenant_id: user.tenantId,
         table_count: count,
         service_fee_percentage: validFee,
         print_settings: fullPrintSettings,
       };
 
-      let saveSettingsPromise;
-      if (existing && existing.length > 0) {
-        saveSettingsPromise = supabase
-          .from('store_settings')
-          .update(settingsPayload as any)
-          .eq('tenant_id', user.tenantId);
-      } else {
-        saveSettingsPromise = supabase
-          .from('store_settings')
-          .insert({ ...settingsPayload, tenant_id: user.tenantId } as any);
-      }
+      const saveSettingsPromise = supabase
+        .from('store_settings')
+        .upsert(settingsPayload as any, { onConflict: 'tenant_id' })
+        .select()
+        .single();
 
       const [tenantRes, settingsRes] = await Promise.all([saveTenantPromise, saveSettingsPromise]);
 
@@ -780,122 +758,122 @@ function UsuariosTab() {
 
   return (
     <>
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Usuários</CardTitle>
-        {!showForm && (
-          <Button size="sm" onClick={() => setShowForm(true)}><Plus className="h-4 w-4 mr-1" /> Novo</Button>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {showForm && (
-          <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Nome</Label>
-                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome completo" />
-              </div>
-              <div className="space-y-1">
-                <Label>Email</Label>
-                <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com" disabled={!!editingId} />
-              </div>
-              <div className="space-y-1">
-                <Label>Função</Label>
-                <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as AppRole }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Administrador</SelectItem>
-                    <SelectItem value="atendente">Atendente</SelectItem>
-                    <SelectItem value="motoboy">Motoboy</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {!editingId && (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Usuários</CardTitle>
+          {!showForm && (
+            <Button size="sm" onClick={() => setShowForm(true)}><Plus className="h-4 w-4 mr-1" /> Novo</Button>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {showForm && (
+            <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Senha</Label>
-                  <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+                  <Label>Nome</Label>
+                  <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome completo" />
                 </div>
-              )}
-              {(form.role === 'atendente') && (
                 <div className="space-y-1">
-                  <Label>Comissão (%)</Label>
-                  <Input type="text" inputMode="decimal" value={form.commission} onChange={e => setForm(f => ({ ...f, commission: e.target.value }))} placeholder="Ex: 5" />
+                  <Label>Email</Label>
+                  <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com" disabled={!!editingId} />
                 </div>
-              )}
+                <div className="space-y-1">
+                  <Label>Função</Label>
+                  <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as AppRole }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="atendente">Atendente</SelectItem>
+                      <SelectItem value="motoboy">Motoboy</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {!editingId && (
+                  <div className="space-y-1">
+                    <Label>Senha</Label>
+                    <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+                  </div>
+                )}
+                {(form.role === 'atendente') && (
+                  <div className="space-y-1">
+                    <Label>Comissão (%)</Label>
+                    <Input type="text" inputMode="decimal" value={form.commission} onChange={e => setForm(f => ({ ...f, commission: e.target.value }))} placeholder="Ex: 5" />
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSave}><Check className="h-4 w-4 mr-1" /> {editingId ? 'Atualizar' : 'Criar'}</Button>
+                <Button size="sm" variant="ghost" onClick={resetForm}><X className="h-4 w-4 mr-1" /> Cancelar</Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleSave}><Check className="h-4 w-4 mr-1" /> {editingId ? 'Atualizar' : 'Criar'}</Button>
-              <Button size="sm" variant="ghost" onClick={resetForm}><X className="h-4 w-4 mr-1" /> Cancelar</Button>
-            </div>
-          </div>
-        )}
+          )}
 
-        {loadingUsers ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
-        ) : (
+          {loadingUsers ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
+          ) : (
+            <div className="space-y-2">
+              {users.map(u => (
+                <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
+                  <div>
+                    <p className="font-medium text-foreground">{u.name}</p>
+                    <p className="text-sm text-muted-foreground">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{roleLabels[u.role]}</Badge>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(u)}>
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setResetModal(u)} title="Redefinir senha">
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(u.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!resetModal} onOpenChange={() => { setResetModal(null); setNewPassword(''); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Redefinir Senha</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Usuário: <strong>{resetModal?.name}</strong> ({resetModal?.email})
+          </p>
           <div className="space-y-2">
-            {users.map(u => (
-              <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
-                <div>
-                  <p className="font-medium text-foreground">{u.name}</p>
-                  <p className="text-sm text-muted-foreground">{u.email}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{roleLabels[u.role]}</Badge>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(u)}>
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setResetModal(u)} title="Redefinir senha">
-                    <KeyRound className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(u.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+            <Label>Nova Senha</Label>
+            <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
           </div>
-        )}
-      </CardContent>
-    </Card>
-
-    <Dialog open={!!resetModal} onOpenChange={() => { setResetModal(null); setNewPassword(''); }}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Redefinir Senha</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Usuário: <strong>{resetModal?.name}</strong> ({resetModal?.email})
-        </p>
-        <div className="space-y-2">
-          <Label>Nova Senha</Label>
-          <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
-        </div>
-        <Button onClick={async () => {
-          if (!resetModal || !newPassword || newPassword.length < 6) {
-            toast.error('Senha deve ter pelo menos 6 caracteres');
-            return;
-          }
-          setResetting(true);
-          try {
-            const { data, error } = await supabase.functions.invoke('manage-users', {
-              body: { action: 'reset_password', user_id: resetModal.id, new_password: newPassword },
-            });
-            if (error) throw error;
-            if (data?.error) throw new Error(data.error);
-            toast.success(`Senha de ${resetModal.name} redefinida!`);
-            setResetModal(null);
-            setNewPassword('');
-          } catch (err: any) {
-            toast.error(err.message || 'Erro ao redefinir senha');
-          } finally {
-            setResetting(false);
-          }
-        }} disabled={resetting} className="w-full">
-          {resetting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Redefinindo...</> : 'Redefinir Senha'}
-        </Button>
-      </DialogContent>
-    </Dialog>
+          <Button onClick={async () => {
+            if (!resetModal || !newPassword || newPassword.length < 6) {
+              toast.error('Senha deve ter pelo menos 6 caracteres');
+              return;
+            }
+            setResetting(true);
+            try {
+              const { data, error } = await supabase.functions.invoke('manage-users', {
+                body: { action: 'reset_password', user_id: resetModal.id, new_password: newPassword },
+              });
+              if (error) throw error;
+              if (data?.error) throw new Error(data.error);
+              toast.success(`Senha de ${resetModal.name} redefinida!`);
+              setResetModal(null);
+              setNewPassword('');
+            } catch (err: any) {
+              toast.error(err.message || 'Erro ao redefinir senha');
+            } finally {
+              setResetting(false);
+            }
+          }} disabled={resetting} className="w-full">
+            {resetting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Redefinindo...</> : 'Redefinir Senha'}
+          </Button>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

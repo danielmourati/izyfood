@@ -362,7 +362,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   if (bill.tableNumber || bill.orderType === 'mesa') {
     parts.push(leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
-  parts.push(leftRightAlign('Cliente:', bill.customerName || 'Consumidor', cols));
+  parts.push(leftRightAlign('Cliente:', bill.customerName || '', cols));
   parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
@@ -379,19 +379,15 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   parts.push(lineOf('-', cols));
 
-  // Dynamically calculate total if bill.total is falsy or 0
-  let totalBilled = bill.total || 0;
+  // Always recompute totals from items + adjustments so service fee/discount/delivery are included
   const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
     const itemSubtotal = item.subtotal ?? (item.price * (item.weight ?? item.quantity));
     return acc + (itemSubtotal || 0);
   }, 0);
-  
-  if (!totalBilled || totalBilled === 0) {
-    const discountVal = bill.discount ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount) : 0;
-    const serviceFeeVal = bill.serviceFee || 0;
-    const deliveryFeeVal = bill.deliveryFee || 0;
-    totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
-  }
+  const discountVal = bill.discount ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount) : 0;
+  const serviceFeeVal = bill.serviceFee || 0;
+  const deliveryFeeVal = bill.deliveryFee || 0;
+  const totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
 
   if (bill.discount && bill.discount > 0) {
     const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';

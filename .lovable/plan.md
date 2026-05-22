@@ -1,65 +1,87 @@
-## Objetivo
+## Diagnóstico
 
-Permitir que o usuário acrescente **observações** e **complementos** a um item já lançado no carrinho do PDV, tanto no desktop quanto no mobile, reaproveitando o `ItemNotesModal` que já existe (já está plugado via `setEditingItemNotesId`, só falta o gatilho na UI do item).
+O problema não está no canal Realtime em si: o diagnóstico mostra eventos chegando. A divergência acontece porque algumas partes do app recebem o evento, mas não aplicam corretamente o novo estado, e porque há inconsistência no banco para `store_settings`.
 
-## Onde o botão vai aparecer
+Pontos encontrados:
 
-Cada linha de item do carrinho em `src/pages/PDV.tsx` → componente `CartContent` (renderização única que serve mobile e desktop, por volta das linhas 955–1010).
+- `store_settings` tem mais de uma linha para o mesmo tenant em pelo menos um caso, então telas diferentes podem ler linhas diferentes.
+- A coluna `print_settings` é usada pelo código, mas não existe no banco atual, então as configurações de impressão/tenant podem falhar ou não persistir corretamente.
+- No `StoreContext`, o evento Realtime de `store_settings` atualiza apenas `tableCount` e descarta `serviceFeePercentage`.
+- O checkout busca a taxa de serviço com `.limit(1)` sem filtrar por tenant e sem usar o estado global, então pode pegar a linha errada.
+- A sidebar carrega nome/logo do tenant só uma vez e não assina Realtime, então a mudança aparece no diagnóstico mas não reflete na UI.
+- O salvamento de configurações faz `select().limit(1)` + update/insert manual, o que permite duplicidade e comportamento divergente.
 
-Hoje cada item tem:
-- À direita: ícone "lixeira" (excluir) no topo + subtotal embaixo.
-- Abaixo: stepper de quantidade (− qty +).
+## Plano de correção
 
-Vamos acrescentar um botão "Observações / Complementos" ao lado do botão excluir, com tratamento responsivo:
+### 1. Normalizar `store_settings` no banco
 
-```text
-Mobile (< 1024px) — minimalista, só ícone
-┌──────────────────────────────────────────────┐
-│ Açaí 500g                          [📝] [🗑] │
-│ Obs: sem leite condensado                    │
-│ [− 1 +]                          R$ 25,00    │
-└──────────────────────────────────────────────┘
+Criar uma migration para:
 
-Desktop (≥ 1024px) — botão com rótulo curto
-┌──────────────────────────────────────────────┐
-│ Açaí 500g           [📝 Obs/Compl.]   [🗑]   │
-│ Obs: sem leite condensado                    │
-│ [− 1 +]                          R$ 25,00    │
-└──────────────────────────────────────────────┘
-```
+- adicionar `print_settings jsonb default '{}'`, caso ainda não exista;
+- remover duplicidades de `store_settings`, mantendo a linha mais recente de cada tenant;
+- criar uma restrição única para permitir apenas uma configuração por tenant;
+- garantir `REPLICA IDENTITY FULL` em `store_settings`;
+- garantir que `store_settings` esteja na publicação Realtime sem quebrar caso já esteja;
+- ajustar a política de atualização para validar também o novo valor com `WITH CHECK`.
 
-- **Mobile**: `Button variant="ghost" size="icon"` com ícone `FileEdit` (lucide), 28×28, cor neutra com hover sutil. Fica imediatamente à esquerda da lixeira para manter padrão "ações do item agrupadas".
-- **Desktop**: mesmo botão, mas com rótulo "Obs/Compl." visível usando a classe `hidden lg:inline` no texto (o ícone permanece sempre visível). Assim usamos **um único componente** com comportamento responsivo via Tailwind, sem duplicar código.
-- Indicador visual quando o item já tem observação ou complemento: ícone ganha cor `text-primary` e um pequeno `dot` (ponto colorido) no canto, para o usuário saber rapidamente que aquele item já foi customizado.
+Resultado esperado: cada tenant terá uma única fonte confiável de configurações.
 
-Acessibilidade: `aria-label="Observações e complementos"` e `title` no botão.
+### 2. Corrigir o salvamento da tela Configurações
 
-## Comportamento
+Alterar `Configuracoes.tsx` para:
 
-- Ao clicar: chama `setEditingItemNotesId(item.id)` (prop já passada para `CartContent`).
-- O `ItemNotesModal` já existente abre, já carrega observações pré-cadastradas filtradas pela categoria do produto, e os complementos da categoria. O usuário pode marcar tags, digitar "outras observações" e ajustar quantidade dos complementos.
-- Ao confirmar, o `handleConfirmNotes` (já implementado, linha ~156) atualiza `notes`, `selectedComplements` e recalcula `subtotal`.
-- O auto-save com debounce de 500ms já persiste a alteração no pedido.
+- salvar `store_settings` usando `upsert` por `tenant_id`, em vez de `select + update/insert`;
+- manter `table_count`, `service_fee_percentage` e `print_settings` na mesma gravação;
+- após salvar, reler a linha persistida ou usar o retorno do `upsert` para confirmar o estado real;
+- tratar erro específico quando o banco rejeitar a gravação, para não parecer que salvou quando não salvou.
 
-## Regra de bloqueio (consistência com o sistema)
+Resultado esperado: taxa de serviço e dados de impressão ficam gravados no banco e propagam para outros dispositivos.
 
-- Se o item já estiver `printed: true` (já enviado para a cozinha), **desabilitar** o botão (igual ao que já é feito com o stepper de quantidade nas linhas 992/1002). Isso evita que observações sejam alteradas após o envio sem rastreabilidade.
-- O botão excluir continua com a proteção atual (`handleProtectedRemove`), nada muda nele.
+### 3. Corrigir aplicação dos eventos Realtime no estado global
 
-## Detalhes técnicos
+Alterar `StoreContext.tsx` para:
 
-Arquivo único alterado: **`src/pages/PDV.tsx`**, dentro de `CartContent` (~linha 978).
+- mapear `store_settings` incluindo `tableCount` e `serviceFeePercentage`;
+- no Realtime de `store_settings`, preservar os campos existentes e atualizar também `serviceFeePercentage`;
+- buscar `store_settings` de forma determinística por tenant e linha única;
+- evitar que uma atualização parcial apague dados já carregados.
 
-- Importar `FileEdit` de `lucide-react` (já existe `import { ... } from 'lucide-react'`).
-- No bloco `<div className="flex flex-col items-end shrink-0 ...">`, transformar o topo em um pequeno cluster horizontal com 2 botões:
-  - Botão "Obs/Compl." (novo) → `onClick={() => setEditingItemNotesId?.(item.id)}`, `disabled={item.printed}`.
-  - Botão lixeira (existente).
-- Marcador "tem customização": `const hasCustom = !!item.notes || (item.selectedComplements?.length ?? 0) > 0;` para alterar a cor do ícone e mostrar um `span` ponto.
+Resultado esperado: o app deixa de apenas “receber evento” e passa a atualizar o estado usado pelas telas.
 
-Nada muda no `ItemNotesModal.tsx`, no schema do banco, nem na lógica de cálculo — toda a infraestrutura já existe.
+### 4. Corrigir taxa de serviço no checkout
 
-## Fora do escopo
+Alterar `CheckoutModal.tsx` para:
 
-- Não alterar fluxo de impressão.
-- Não criar um modal novo no desktop: o `ItemNotesModal` atual já é responsivo (`sm:max-w-md sm:mx-auto sm:border-x sm:shadow-2xl`) e funciona bem como modal centralizado em telas grandes e como bottom sheet em mobile.
-- Não mexer no botão "+" do produto (adicionar ao carrinho com observações já no momento da inclusão fica como melhoria futura, se desejado).
+- usar `settings.serviceFeePercentage` do `useStore()` como fonte principal;
+- remover ou corrigir a busca sem tenant em `store_settings`;
+- se houver busca direta, filtrar pelo tenant e usar `.maybeSingle()` após a constraint única.
+
+Resultado esperado: a taxa salva em Configurações aparece corretamente no fechamento de Mesa.
+
+### 5. Sincronizar identidade visual/tenant na UI
+
+Alterar `AppSidebar.tsx` para:
+
+- assinar Realtime da tabela `tenants` filtrando pelo tenant atual;
+- atualizar nome e logo quando outro dispositivo salvar;
+- limpar o canal ao desmontar.
+
+Resultado esperado: nome/logo alterados em um dispositivo aparecem no outro sem F5.
+
+### 6. Melhorar o Diagnóstico Sync para detectar divergência real
+
+Ajustar `DiagnosticoSync.tsx` para deixar claro que canal conectado não basta:
+
+- mostrar uma checagem de consistência de `store_settings` por tenant;
+- exibir alerta se houver mais de uma linha para o tenant;
+- mostrar o valor atual persistido de `service_fee_percentage`, `table_count` e presença de `print_settings`;
+- manter o ping, mas separar “canal conectado” de “estado aplicado”.
+
+Resultado esperado: a tela passa a diagnosticar o problema real, não apenas a conexão websocket.
+
+## Validação após implementar
+
+- Salvar taxa de serviço em um dispositivo e confirmar no outro sem atualizar a página.
+- Abrir checkout de uma Mesa e confirmar que a taxa aplicada bate com Configurações.
+- Alterar nome/logo do estabelecimento no mobile e confirmar sidebar/configurações no desktop.
+- Conferir no Diagnóstico Sync: uma única linha de `store_settings`, canais OK e valores persistidos corretos.

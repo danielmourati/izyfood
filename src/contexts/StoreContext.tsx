@@ -146,9 +146,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('store_tables').select('*').order('number'),
         supabase.from('coupons').select('*'),
         supabase.from('product_note_options').select('*'),
-        tenantId
-          ? supabase.from('store_settings').select('*').eq('tenant_id', tenantId).limit(1)
-          : supabase.from('store_settings').select('*').limit(1),
+        supabase.from('store_settings').select('*').limit(1),
         supabase.from('cash_registers').select('id').is('closed_at', null).limit(1),
         tenantId
           ? supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
@@ -229,7 +227,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                     else console.log('[StoreContext] localStorage printSettings pushed to DB');
                   });
               }
-            } catch {}
+            } catch { }
           } else {
             const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, storeName: tenantName };
             setPrintSettings(merged);
@@ -324,27 +322,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-          setSettings(prev => ({
-            ...prev,
-            tableCount: payload.new.table_count,
-            serviceFeePercentage: payload.new.service_fee_percentage
-              ? Number(payload.new.service_fee_percentage) : prev.serviceFeePercentage,
-          }));
-          // Sync printSettings from realtime (another device saved)
-          const dbPs = payload.new.print_settings;
-          if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
-            const tid = tenantIdRef.current;
-            const lsKey2 = tid ? `print_settings_${tid}` : null;
-            setPrintSettings(prev => {
-              const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, ...prev, ...dbPs };
-              if (lsKey2) {
-                localStorage.setItem(lsKey2, JSON.stringify(merged));
-                (window as any).__printSettingsCache = merged;
-              }
-              console.log('[StoreContext] printSettings updated via Realtime');
-              return merged;
-            });
-          }
+          setSettings({ tableCount: payload.new.table_count });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_registers' }, () => {

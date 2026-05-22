@@ -1,5 +1,5 @@
 import {
-  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, Shield, LogOut, User as UserIcon, Home as HomeIcon
+  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, Shield, LogOut, User as UserIcon, Home as HomeIcon, Activity
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,12 +55,28 @@ export function AppSidebar() {
 
   useEffect(() => {
     if (!user?.tenantId) return;
-    supabase.from('tenants').select('logo, name').eq('id', user.tenantId).single().then(({ data }) => {
+    const tenantId = user.tenantId;
+    supabase.from('tenants').select('logo, name').eq('id', tenantId).single().then(({ data }) => {
       if (data) {
         setTenantLogo(data.logo);
         setTenantName(data.name);
       }
     });
+
+    const channel = supabase
+      .channel(`sidebar-tenant-${tenantId}-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'tenants',
+        filter: `id=eq.${tenantId}`,
+      }, (payload: any) => {
+        if (payload.new?.name !== undefined) setTenantName(payload.new.name);
+        if (payload.new?.logo !== undefined) setTenantLogo(payload.new.logo);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user?.tenantId]);
 
   const items = navItems.filter(item => {
@@ -130,14 +146,24 @@ export function AppSidebar() {
 
         <SidebarMenu>
           {user?.role === 'superadmin' && (
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild>
-                <NavLink to={`/${slug}/admin`} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" activeClassName="bg-primary text-primary-foreground font-semibold shadow-sm" onClick={handleItemClick}>
-                  <Shield className="h-[18px] w-[18px] shrink-0" />
-                  {!collapsed && <span className="text-sm">Super Admin</span>}
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to={`/${slug}/admin`} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" activeClassName="bg-primary text-primary-foreground font-semibold shadow-sm" onClick={handleItemClick}>
+                    <Shield className="h-[18px] w-[18px] shrink-0" />
+                    {!collapsed && <span className="text-sm">Super Admin</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to={`/${slug}/diagnostico-sync`} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" activeClassName="bg-primary text-primary-foreground font-semibold shadow-sm" onClick={handleItemClick}>
+                    <Activity className="h-[18px] w-[18px] shrink-0" />
+                    {!collapsed && <span className="text-sm">Diagnóstico Sync</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </>
           )}
         </SidebarMenu>
 

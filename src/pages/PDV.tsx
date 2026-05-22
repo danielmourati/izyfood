@@ -31,7 +31,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 };
 
 const PDV = () => {
-  const { products, categories, orders, setOrders, tables, setTables, getCategoryById } = useStore();
+  const { products, categories, orders, setOrders, tables, setTables, getCategoryById, settings } = useStore();
   const { user, isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useTenantNavigate();
@@ -454,10 +454,16 @@ const PDV = () => {
   const handlePrintBill = async () => {
     if (cart.length === 0) return;
     const cust = customers.find(c => c.id === currentOrder.customerId);
+    const itemsTotal = (currentOrder.items || []).reduce((acc: number, it: any) => acc + (it.subtotal ?? (it.price * (it.weight ?? it.quantity))), 0);
+    const feePct = settings.serviceFeePercentage ?? 0;
+    const isMesa = currentOrder.orderType === 'mesa';
+    const serviceFee = isMesa && feePct > 0 ? (itemsTotal * feePct) / 100 : 0;
     const billData = {
       ...currentOrder,
       operatorName: user?.name,
       customerName: cust?.name || manualCustomerName || 'Consumidor',
+      serviceFee: serviceFee > 0 ? serviceFee : undefined,
+      total: itemsTotal + serviceFee,
     };
     try {
       await printBill(billData);

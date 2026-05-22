@@ -29,7 +29,7 @@ const methods: { key: PaymentMethod; label: string; icon: React.ElementType }[] 
 
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
   const navigate = useTenantNavigate();
-  const { completeSale, customers, coupons, products, isCashRegisterOpen } = useStore();
+  const { completeSale, customers, coupons, products, isCashRegisterOpen, settings } = useStore();
   const [cashRegisterChecked, setCashRegisterChecked] = useState(false);
   const [localCashOpen, setLocalCashOpen] = useState(false);
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
@@ -43,18 +43,16 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [redeemCount, setRedeemCount] = useState(0);
   const [occupantCount, setOccupantCount] = useState('');
-  const [serviceFeePercentage, setServiceFeePercentage] = useState(0);
-  
 
-  // Re-check cash register status and fetch service fee when modal opens
+  // Service fee comes from global store (kept in sync via Realtime across devices)
+  const serviceFeePercentage = settings.serviceFeePercentage ?? 0;
+
+  // Re-check cash register status when modal opens
   useEffect(() => {
     if (open) {
       supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
         setLocalCashOpen(!!(data && data.length > 0));
         setCashRegisterChecked(true);
-      });
-      supabase.from('store_settings').select('service_fee_percentage').limit(1).then(({ data }) => {
-        if (data && data.length > 0) setServiceFeePercentage(Number((data[0] as any).service_fee_percentage || 0));
       });
     } else {
       setCashRegisterChecked(false);
