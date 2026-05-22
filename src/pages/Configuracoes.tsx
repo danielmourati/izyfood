@@ -358,7 +358,7 @@ function GeralTab() {
         tenant_id: user.tenantId,
         table_count: count,
         service_fee_percentage: validFee,
-        print_settings: fullPrintSettings,
+        print_settings: printSettings,
       };
 
       const saveSettingsPromise = supabase
@@ -385,7 +385,7 @@ function GeralTab() {
 
       // 4. Immediately update context printSettings (don't wait for Realtime round-trip)
       const lsKey = `print_settings_${user.tenantId}`;
-      const updatedPs = { ...fullPrintSettings, storeName: tenantName.trim() };
+      const updatedPs = { ...printSettings, storeName: tenantName.trim() };
       setPrintSettings(updatedPs);
       localStorage.setItem(lsKey, JSON.stringify(updatedPs));
       (window as any).__printSettingsCache = updatedPs;

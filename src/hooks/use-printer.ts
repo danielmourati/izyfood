@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/contexts/StoreContext';
+import { supabase } from '@/integrations/supabase/client';
 import {
   isBluetoothAvailable,
   isBluetoothConnected,
@@ -148,65 +149,66 @@ export function usePrinter() {
     printViaHtmlFallback(htmlFallback, title, paperWidth);
   };
 
+  const getLatestPrintSettings = async (tenantId: string | undefined): Promise<any> => {
+    if (!tenantId) return getCachedPrintSettings();
+
+    try {
+      const fetchPromise = Promise.all([
+        supabase.from('store_settings').select('print_settings').eq('tenant_id', tenantId).limit(1).maybeSingle(),
+        supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
+      ]);
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout')), 800)
+      );
+
+      const results = await Promise.race([fetchPromise, timeoutPromise]) as any[];
+      const settingsRes = results[0];
+      const tenantRes = results[1];
+
+      const dbPs = settingsRes?.data?.print_settings;
+      const tenantName = tenantRes?.data?.name;
+
+      if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
+        const updatedPs = { ...dbPs, storeName: tenantName };
+        localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(updatedPs));
+        (window as any).__printSettingsCache = updatedPs;
+        return updatedPs;
+      } else {
+        const saved = localStorage.getItem(`print_settings_${tenantId}`);
+        if (saved) {
+          try {
+            const localPs = JSON.parse(saved);
+            return { ...localPs, storeName: tenantName };
+          } catch {
+            return { storeName: tenantName };
+          }
+        } else {
+          return { storeName: tenantName };
+        }
+      }
+    } catch (err) {
+      const saved = localStorage.getItem(`print_settings_${tenantId}`);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return getCachedPrintSettings();
+        }
+      }
+      return getCachedPrintSettings();
+    }
+  };
+
   const printOrder = async (order: any) => {
-    const escpos = buildOrderReceipt(order, paperWidth);
-    const html = buildOrderHtml(order);
+    const ps = await getLatestPrintSettings(user?.tenantId);
+    const escpos = buildOrderReceipt(order, paperWidth, ps);
+    const html = buildOrderHtml(order, ps);
     await sendToPrinter(escpos, html, 'Comanda');
   };
 
   const printBill = async (bill: any) => {
-    const tenantId = user?.tenantId;
-    if (tenantId) {
-      // 1. Try to fetch the freshest print settings and store name from Supabase with a fast timeout (800ms)
-      try {
-        const fetchPromise = Promise.all([
-          supabase.from('store_settings').select('print_settings').eq('tenant_id', tenantId).limit(1).maybeSingle(),
-          supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
-        ]);
-
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout')), 800)
-        );
-
-        const results = await Promise.race([fetchPromise, timeoutPromise]) as any[];
-        const settingsRes = results[0];
-        const tenantRes = results[1];
-
-        const dbPs = settingsRes?.data?.print_settings;
-        const tenantName = tenantRes?.data?.name;
-
-        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
-          const updatedPs = { ...dbPs, storeName: tenantName };
-          ps = updatedPs;
-          // Sync back to local storage and cached memory
-          localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(updatedPs));
-          (window as any).__printSettingsCache = updatedPs;
-        } else {
-          // Fallback to local storage if empty or error
-          const saved = localStorage.getItem(`print_settings_${tenantId}`);
-          if (saved) {
-            try {
-              const localPs = JSON.parse(saved);
-              ps = { ...localPs, storeName: tenantName };
-            } catch {
-              ps = { storeName: tenantName };
-            }
-          } else {
-            ps = { storeName: tenantName };
-          }
-        }
-      } catch (err) {
-        // Fallback to local storage if offline/timeout/error
-        const saved = localStorage.getItem(`print_settings_${tenantId}`);
-        if (saved) {
-          try {
-            ps = JSON.parse(saved);
-          } catch { }
-        }
-      }
-    } else {
-      ps = getCachedPrintSettings();
-    }
+    const ps = await getLatestPrintSettings(user?.tenantId);
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta');
@@ -262,7 +264,7 @@ function fmtDate(iso: string) {
 const orderTypeLabels: Record<string, string> = { balcao: 'Balcão', mesa: 'Mesa', delivery: 'Delivery', retirada: 'Retirada' };
 const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX', cartao: 'Cartão', fiado: 'Fiado' };
 
-function buildOrderHtml(order: any): string {
+function buildOrderHtml(order: any, ps: any = {}): string {
   const items = (order.items || []).map((i: any) => {
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
     let html = `<p class="bold" style="margin: 0 0 2px 0;">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
@@ -299,7 +301,36 @@ function buildOrderHtml(order: any): string {
       ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
       : (order.customerName || 'Sem Nome');
 
+  let headerHtml = '';
+  if (ps.storeName) {
+    headerHtml += `<div class="center bold" style="font-size: 16px; margin-bottom: 4px; text-transform: uppercase;">${ps.storeName}</div>`;
+  }
+  if (ps.showAddress && ps.address) {
+    headerHtml += `<div class="center header-text" style="margin-bottom: 2px;">${ps.address}</div>`;
+  }
+  if (ps.showDocument && ps.document) {
+    headerHtml += `<div class="center header-text" style="margin-bottom: 2px;">${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}</div>`;
+  }
+  if (ps.showWhatsapp && ps.whatsapp) {
+    headerHtml += `<div class="center header-text" style="margin-bottom: 4px;">WhatsApp: ${ps.whatsapp}</div>`;
+  }
+  if (headerHtml) {
+    headerHtml += '<div class="line"></div>';
+  }
+
+  let footerHtml = '';
+  if (ps.showPixKey && ps.pixKey) {
+    footerHtml += `<div class="center footer-text" style="margin-top: 4px;">PIX: ${ps.pixKey}</div>`;
+  }
+  if (ps.showInstagram && ps.instagram) {
+    footerHtml += `<div class="center footer-text" style="margin-top: 2px;">Instagram: @${ps.instagram.replace('@', '')}</div>`;
+  }
+  if (ps.showThankMessage && ps.thankMessage) {
+    footerHtml += `<p class="center footer-text bold" style="margin-top: 10px; margin-bottom: 0;">${ps.thankMessage}</p>`;
+  }
+
   return `
+    ${headerHtml}
     <div class="center" style="font-size: 14px; margin-bottom: 8px;">Cozinha Principal</div>
     <div style="margin-bottom: 8px;">${fmtDate(createdAt)} | Pedido: ${orderNo}</div>
     <div class="center" style="margin-bottom: 4px; font-size: 12px;">* Senha: ${orderNo} *</div>
@@ -313,6 +344,11 @@ function buildOrderHtml(order: any): string {
     
     <div class="line" style="margin-top: 12px;"></div>
     <div style="margin-top: 6px; font-size: 11px; color: #444;">Atendente: ${order.operatorName || 'Não informado'}</div>
+    ${footerHtml ? `
+    <div class="footer-text" style="border-top: 1px dashed #000; margin-top: 12px; padding-top: 6px;">
+      ${footerHtml}
+    </div>
+    ` : ''}
   `;
 }
 

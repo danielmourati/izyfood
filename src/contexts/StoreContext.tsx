@@ -322,7 +322,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-          setSettings({ tableCount: payload.new.table_count });
+          setSettings({
+            tableCount: payload.new.table_count,
+            serviceFeePercentage: payload.new.service_fee_percentage ? Number(payload.new.service_fee_percentage) : undefined,
+          });
+          const ps = payload.new.print_settings;
+          if (ps && typeof ps === 'object' && Object.keys(ps).length > 0) {
+            setPrintSettings(prev => {
+              const merged = { ...prev, ...ps };
+              if (tenantIdRef.current) {
+                localStorage.setItem(`print_settings_${tenantIdRef.current}`, JSON.stringify(merged));
+              }
+              (window as any).__printSettingsCache = merged;
+              return merged;
+            });
+          }
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_registers' }, () => {

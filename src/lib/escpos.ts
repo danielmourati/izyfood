@@ -250,15 +250,45 @@ const orderTypeLabels: Record<string, string> = {
 /**
  * Build a COMANDA (order ticket for kitchen / production).
  */
-export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array {
+export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
   const cols = colsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
     CMD_CODEPAGE_PC860,
+  ];
+
+  // Dynamic header from print settings (ABOVE COMANDA, and CENTERED) — Font B (smaller)
+  let hasHeader = false;
+  if (ps.storeName || (ps.showAddress && ps.address) || (ps.showDocument && ps.document) || (ps.showWhatsapp && ps.whatsapp)) {
+    parts.push(CMD_FONT_B);
+    // Centered header lines
+    if (ps.storeName) {
+      parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName.toUpperCase()}\n`), CMD_BOLD_OFF);
+      hasHeader = true;
+    }
+    if (ps.showAddress && ps.address) {
+      parts.push(CMD_ALIGN_CENTER, text(`${ps.address}\n`));
+      hasHeader = true;
+    }
+    if (ps.showDocument && ps.document) {
+      parts.push(CMD_ALIGN_CENTER, text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
+      hasHeader = true;
+    }
+    if (ps.showWhatsapp && ps.whatsapp) {
+      parts.push(CMD_ALIGN_CENTER, text(`WhatsApp: ${ps.whatsapp}\n`));
+      hasHeader = true;
+    }
+    // Reset to left alignment for body
+    parts.push(CMD_ALIGN_LEFT);
+    parts.push(CMD_FONT_A);
+    parts.push(lineOf('-', cols));
+  }
+
+  parts.push(
     CMD_ALIGN_CENTER,
     text('Cozinha Principal\n\n'),
     CMD_ALIGN_LEFT,
-  ];
+  );
 
   const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
   parts.push(text(`${fmtDate(order.createdAt)} Pedido No: ${orderNo}\n\n`));
@@ -305,6 +335,18 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80): Uint8Array
   parts.push(text('Atendente do Pedido:\n'));
   parts.push(text(`${order.operatorName || 'Não informado'}\n`));
   
+  // Separador antes do rodapé — Font B (menor, ~12px)
+  const hasFooter = (ps.showThankMessage && ps.thankMessage) || (ps.showPixKey && ps.pixKey) || (ps.showInstagram && ps.instagram);
+  if (hasFooter) {
+    parts.push(CMD_FONT_B, lineOf('-', cols), CMD_ALIGN_CENTER);
+    if (ps.showPixKey && ps.pixKey) parts.push(text(`PIX: ${ps.pixKey}\n`));
+    if (ps.showInstagram && ps.instagram) parts.push(text(`Instagram: ${ps.instagram}\n`));
+    if (ps.showThankMessage && ps.thankMessage) {
+      parts.push(CMD_BOLD_ON, text(`${ps.thankMessage}\n`), CMD_BOLD_OFF);
+    }
+    parts.push(CMD_FONT_A, CMD_ALIGN_LEFT);
+  }
+
   parts.push(feedAndCut());
 
   return concat(...parts);
