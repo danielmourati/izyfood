@@ -352,30 +352,19 @@ function GeralTab() {
         ? supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId)
         : Promise.resolve();
 
-      // 2. Upsert store_settings in ONE write (avoids race with updateTableCount)
-      const { data: existing } = await supabase
-        .from('store_settings')
-        .select('id')
-        .eq('tenant_id', user.tenantId)
-        .limit(1);
-
+      // 2. Upsert store_settings in ONE write (unique constraint on tenant_id prevents duplicates)
       const settingsPayload = {
+        tenant_id: user.tenantId,
         table_count: count,
         service_fee_percentage: validFee,
         print_settings: printSettings,
       };
 
-      let saveSettingsPromise;
-      if (existing && existing.length > 0) {
-        saveSettingsPromise = supabase
-          .from('store_settings')
-          .update(settingsPayload as any)
-          .eq('tenant_id', user.tenantId);
-      } else {
-        saveSettingsPromise = supabase
-          .from('store_settings')
-          .insert({ ...settingsPayload, tenant_id: user.tenantId } as any);
-      }
+      const saveSettingsPromise = supabase
+        .from('store_settings')
+        .upsert(settingsPayload as any, { onConflict: 'tenant_id' })
+        .select()
+        .single();
 
       const [tenantRes, settingsRes] = await Promise.all([saveTenantPromise, saveSettingsPromise]);
 

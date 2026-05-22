@@ -125,7 +125,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('store_tables').select('*').order('number'),
         supabase.from('coupons').select('*'),
         supabase.from('product_note_options').select('*'),
-        supabase.from('store_settings').select('*').limit(1),
+        supabase.from('store_settings').select('*').eq('tenant_id', user.tenantId).maybeSingle().then(r => ({ data: r.data ? [r.data] : [] })),
         supabase.from('cash_registers').select('id').is('closed_at', null).limit(1),
       ]);
 
@@ -251,7 +251,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-          setSettings({ tableCount: payload.new.table_count });
+          const row: any = payload.new;
+          setSettings(prev => ({
+            ...prev,
+            tableCount: row.table_count ?? prev.tableCount,
+            serviceFeePercentage: row.service_fee_percentage != null ? Number(row.service_fee_percentage) : prev.serviceFeePercentage,
+          }));
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_registers' }, () => {

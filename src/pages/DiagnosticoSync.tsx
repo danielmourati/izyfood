@@ -62,6 +62,14 @@ const formatRelative = (ts: number | null) => {
   return `${Math.floor(diff / 3600)}h atrás`;
 };
 
+interface SettingsConsistency {
+  rowCount: number;
+  tableCount: number | null;
+  serviceFeePercentage: number | null;
+  hasPrintSettings: boolean;
+  checkedAt: number;
+}
+
 export default function DiagnosticoSync() {
   const { user } = useAuth();
   const [states, setStates] = useState<Record<string, TableState>>(() => {
@@ -74,6 +82,8 @@ export default function DiagnosticoSync() {
   const [pinging, setPinging] = useState(false);
   const [lastPing, setLastPing] = useState<{ sentAt: number; receivedAt: number | null; latencyMs: number | null } | null>(null);
   const [tick, setTick] = useState(0);
+  const [consistency, setConsistency] = useState<SettingsConsistency | null>(null);
+  const [checkingConsistency, setCheckingConsistency] = useState(false);
   const channelsRef = useRef<RealtimeChannel[]>([]);
   const pingSentAtRef = useRef<number | null>(null);
 
@@ -165,6 +175,35 @@ export default function DiagnosticoSync() {
     }, 8000);
   }, [user?.tenantId]);
 
+  const checkConsistency = useCallback(async () => {
+    if (!user?.tenantId) return;
+    setCheckingConsistency(true);
+    const { data, error } = await supabase
+      .from('store_settings')
+      .select('table_count, service_fee_percentage, print_settings')
+      .eq('tenant_id', user.tenantId);
+    if (!error) {
+      const rows = data || [];
+      const first: any = rows[0];
+      setConsistency({
+        rowCount: rows.length,
+        tableCount: first?.table_count ?? null,
+        serviceFeePercentage: first?.service_fee_percentage != null ? Number(first.service_fee_percentage) : null,
+        hasPrintSettings: !!(first?.print_settings && Object.keys(first.print_settings).length > 0),
+        checkedAt: Date.now(),
+      });
+    }
+    setCheckingConsistency(false);
+  }, [user?.tenantId]);
+
+  // Auto-check consistency on mount and whenever store_settings event arrives
+  useEffect(() => { checkConsistency(); }, [checkConsistency]);
+  useEffect(() => {
+    const lastEvt = states['store_settings']?.lastEventAt;
+    if (lastEvt) checkConsistency();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [states['store_settings']?.lastEventAt]);
+
   const copyReport = useCallback(() => {
     const report = {
       generatedAt: new Date().toISOString(),
@@ -249,6 +288,54 @@ export default function DiagnosticoSync() {
           </CardContent>
         </Card>
       )}
+
+      {/* Consistency check — separates "channel connected" from "state actually persisted" */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>Estado persistido em store_settings</span>
+            <Button size="sm" variant="outline" onClick={checkConsistency} disabled={checkingConsistency}>
+              {checkingConsistency ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-2" />}
+              Reconferir
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {!consistency ? (
+            <p className="text-muted-foreground text-xs">Aguardando leitura…</p>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Linhas para este tenant</span>
+                {consistency.rowCount === 1 ? (
+                  <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30">
+                    1 (correto)
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-red-500/40 text-red-700 dark:text-red-400">
+                    {consistency.rowCount} — divergência!
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Taxa de serviço salva</span>
+                <span className="font-mono">{consistency.serviceFeePercentage ?? '—'}%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Quantidade de mesas salva</span>
+                <span className="font-mono">{consistency.tableCount ?? '—'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Configurações de impressão</span>
+                <Badge variant="outline">{consistency.hasPrintSettings ? 'preenchido' : 'vazio'}</Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground pt-2 border-t border-border/60">
+                Esta seção lê o banco diretamente. Se o canal recebe evento mas estes valores não mudam, o problema está na gravação (não no Realtime).
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Tables grid */}
       <Card>

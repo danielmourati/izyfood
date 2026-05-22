@@ -1,95 +1,87 @@
-# Plano: Verificar e Diagnosticar Sincronização Realtime
+## Diagnóstico
 
-## 1. Resultado da Auditoria (já executada)
+O problema não está no canal Realtime em si: o diagnóstico mostra eventos chegando. A divergência acontece porque algumas partes do app recebem o evento, mas não aplicam corretamente o novo estado, e porque há inconsistência no banco para `store_settings`.
 
-### ✅ Tabelas sincronizando (15)
-`attendant_permissions`, `cash_registers`, `categories`, `coupons`, `customers`, `orders`, `product_note_options`, `products`, `sales`, `stock_entries`, `store_settings`, `store_tables`, `suppliers`, `tenant_members`, `tenants`
+Pontos encontrados:
 
-### ❌ Tabelas FORA da publication realtime (6)
-| Tabela | Impacto |
-|---|---|
-| **`printer_configs`** | 🔴 Crítico — impressora cadastrada no desktop não aparece no mobile sem F5 |
-| **`cash_movements`** | 🟡 Entradas/saídas manuais de caixa não atualizam ao vivo |
-| `commission_records` | 🟢 Baixo — só consultado em fechamento |
-| `profiles` | 🟢 Baixo — nome/foto do usuário |
-| `user_roles` | 🟢 Baixo — raro mudar em runtime |
-| `audit_logs` | 🟢 Append-only, refresh manual OK |
+- `store_settings` tem mais de uma linha para o mesmo tenant em pelo menos um caso, então telas diferentes podem ler linhas diferentes.
+- A coluna `print_settings` é usada pelo código, mas não existe no banco atual, então as configurações de impressão/tenant podem falhar ou não persistir corretamente.
+- No `StoreContext`, o evento Realtime de `store_settings` atualiza apenas `tableCount` e descarta `serviceFeePercentage`.
+- O checkout busca a taxa de serviço com `.limit(1)` sem filtrar por tenant e sem usar o estado global, então pode pegar a linha errada.
+- A sidebar carrega nome/logo do tenant só uma vez e não assina Realtime, então a mudança aparece no diagnóstico mas não reflete na UI.
+- O salvamento de configurações faz `select().limit(1)` + update/insert manual, o que permite duplicidade e comportamento divergente.
 
-### ⚠️ Sem `REPLICA IDENTITY FULL` (3)
-`printer_configs`, `product_note_options`, `commission_records` — sem isso, eventos de UPDATE/DELETE chegam sem o `old` record, quebrando merges no cliente.
+## Plano de correção
 
----
+### 1. Normalizar `store_settings` no banco
 
-## 2. Migration de Correção
+Criar uma migration para:
 
-```sql
-ALTER TABLE public.printer_configs REPLICA IDENTITY FULL;
-ALTER TABLE public.cash_movements REPLICA IDENTITY FULL;
-ALTER TABLE public.product_note_options REPLICA IDENTITY FULL;
-ALTER TABLE public.commission_records REPLICA IDENTITY FULL;
+- adicionar `print_settings jsonb default '{}'`, caso ainda não exista;
+- remover duplicidades de `store_settings`, mantendo a linha mais recente de cada tenant;
+- criar uma restrição única para permitir apenas uma configuração por tenant;
+- garantir `REPLICA IDENTITY FULL` em `store_settings`;
+- garantir que `store_settings` esteja na publicação Realtime sem quebrar caso já esteja;
+- ajustar a política de atualização para validar também o novo valor com `WITH CHECK`.
 
-ALTER PUBLICATION supabase_realtime ADD TABLE
-  public.printer_configs,
-  public.cash_movements,
-  public.commission_records,
-  public.profiles,
-  public.user_roles;
-```
-(`audit_logs` fica fora — não precisa de live update.)
+Resultado esperado: cada tenant terá uma única fonte confiável de configurações.
 
----
+### 2. Corrigir o salvamento da tela Configurações
 
-## 3. Tela `/diagnostico-sync` (somente Superadmin)
+Alterar `Configuracoes.tsx` para:
 
-Nova rota acessível via `/:slug/diagnostico-sync`, protegida por `requireRole=['superadmin']`.
+- salvar `store_settings` usando `upsert` por `tenant_id`, em vez de `select + update/insert`;
+- manter `table_count`, `service_fee_percentage` e `print_settings` na mesma gravação;
+- após salvar, reler a linha persistida ou usar o retorno do `upsert` para confirmar o estado real;
+- tratar erro específico quando o banco rejeitar a gravação, para não parecer que salvou quando não salvou.
 
-### Layout
-```text
-┌─ Diagnóstico de Sincronização ───────────────────────┐
-│                                                       │
-│  Status global: 🟢 12 canais ativos                  │
-│                                                       │
-│  ┌─ Tabela ────────┬─ Canal ─┬─ Último evento ──┐    │
-│  │ tenants         │ 🟢 OK   │ 2s atrás (UPDATE) │    │
-│  │ products        │ 🟢 OK   │ 14s atrás (INSERT)│    │
-│  │ printer_configs │ 🟢 OK   │ nunca             │    │
-│  │ orders          │ 🟢 OK   │ 1m atrás (UPDATE) │    │
-│  │ ...             │         │                   │    │
-│  └─────────────────┴─────────┴───────────────────┘    │
-│                                                       │
-│  [Disparar ping de teste em todas as tabelas]        │
-│  [Copiar relatório]                                  │
-└───────────────────────────────────────────────────────┘
-```
+Resultado esperado: taxa de serviço e dados de impressão ficam gravados no banco e propagam para outros dispositivos.
 
-### Funcionamento
-- Ao montar, abre um `supabase.channel()` para cada tabela monitorada (12 críticas).
-- Mostra status em tempo real: `SUBSCRIBED` (🟢), `CHANNEL_ERROR` (🔴), `TIMED_OUT` (🟡).
-- Contador de eventos recebidos por tabela + timestamp do último.
-- Botão "Disparar ping": faz um UPDATE inócuo em `store_settings` (atualiza `updated_at`) para confirmar round-trip end-to-end. Mede latência ms entre disparo e recepção.
-- Botão "Copiar relatório": gera JSON com snapshot do estado (útil para suporte).
-- Limpa todos os canais no unmount.
+### 3. Corrigir aplicação dos eventos Realtime no estado global
 
-### Como usar para validar cross-device
-1. Abra `/diagnostico-sync` no desktop.
-2. Em outro dispositivo, edite qualquer entidade (ex.: nome da loja).
-3. No desktop, a linha correspondente acende com timestamp "agora" e contador +1.
-4. Se não acender → aquela tabela tem problema de publication/RLS.
+Alterar `StoreContext.tsx` para:
 
----
+- mapear `store_settings` incluindo `tableCount` e `serviceFeePercentage`;
+- no Realtime de `store_settings`, preservar os campos existentes e atualizar também `serviceFeePercentage`;
+- buscar `store_settings` de forma determinística por tenant e linha única;
+- evitar que uma atualização parcial apague dados já carregados.
 
-## 4. Arquivos a criar/editar
+Resultado esperado: o app deixa de apenas “receber evento” e passa a atualizar o estado usado pelas telas.
 
-- **Migration** (novo arquivo SQL com os ALTERs acima)
-- **`src/pages/DiagnosticoSync.tsx`** — nova página
-- **`src/App.tsx`** — adicionar rota `/:slug/diagnostico-sync`
-- **`src/components/Sidebar.tsx`** (ou equivalente) — link "Diagnóstico" visível só para superadmin
-- **Memória** — atualizar `mem://architecture/data-storage` registrando que `printer_configs` e `cash_movements` agora sincronizam
+### 4. Corrigir taxa de serviço no checkout
 
----
+Alterar `CheckoutModal.tsx` para:
 
-## 5. O que NÃO faz parte deste plano
-- Refatorar `usePrinter` ou hooks já existentes (apenas a infra de sync é corrigida; o consumo já está pronto).
-- Mudar lógica de negócio de caixa, impressão ou pedidos.
+- usar `settings.serviceFeePercentage` do `useStore()` como fonte principal;
+- remover ou corrigir a busca sem tenant em `store_settings`;
+- se houver busca direta, filtrar pelo tenant e usar `.maybeSingle()` após a constraint única.
 
-Posso prosseguir?
+Resultado esperado: a taxa salva em Configurações aparece corretamente no fechamento de Mesa.
+
+### 5. Sincronizar identidade visual/tenant na UI
+
+Alterar `AppSidebar.tsx` para:
+
+- assinar Realtime da tabela `tenants` filtrando pelo tenant atual;
+- atualizar nome e logo quando outro dispositivo salvar;
+- limpar o canal ao desmontar.
+
+Resultado esperado: nome/logo alterados em um dispositivo aparecem no outro sem F5.
+
+### 6. Melhorar o Diagnóstico Sync para detectar divergência real
+
+Ajustar `DiagnosticoSync.tsx` para deixar claro que canal conectado não basta:
+
+- mostrar uma checagem de consistência de `store_settings` por tenant;
+- exibir alerta se houver mais de uma linha para o tenant;
+- mostrar o valor atual persistido de `service_fee_percentage`, `table_count` e presença de `print_settings`;
+- manter o ping, mas separar “canal conectado” de “estado aplicado”.
+
+Resultado esperado: a tela passa a diagnosticar o problema real, não apenas a conexão websocket.
+
+## Validação após implementar
+
+- Salvar taxa de serviço em um dispositivo e confirmar no outro sem atualizar a página.
+- Abrir checkout de uma Mesa e confirmar que a taxa aplicada bate com Configurações.
+- Alterar nome/logo do estabelecimento no mobile e confirmar sidebar/configurações no desktop.
+- Conferir no Diagnóstico Sync: uma única linha de `store_settings`, canais OK e valores persistidos corretos.
