@@ -120,7 +120,7 @@ export default function DiagnosticoSync() {
                 status === 'SUBSCRIBED' ? 'ok' :
                 status === 'CHANNEL_ERROR' ? 'error' :
                 status === 'TIMED_OUT' ? 'timeout' : 'connecting',
-              lastError: status !== 'SUBSCRIBED' && status !== 'SUBSCRIBED' ? status : undefined,
+              lastError: status !== 'SUBSCRIBED' ? String(status) : undefined,
             },
           }));
         });
