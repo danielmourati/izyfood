@@ -68,6 +68,7 @@ function TenantRoutes() {
         <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute superadminOnly><SuperAdmin /></ProtectedRoute>} />
+        <Route path="/diagnostico-sync" element={<ProtectedRoute superadminOnly><DiagnosticoSync /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>
