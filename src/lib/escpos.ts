@@ -333,8 +333,10 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   );
 
   parts.push(leftRightAlign('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
-  if (bill.tableNumber) parts.push(leftRightAlign('Mesa:', String(bill.tableNumber), cols));
-  if (bill.customerName) parts.push(leftRightAlign('Cliente:', bill.customerName, cols));
+  if (bill.tableNumber || bill.orderType === 'mesa') {
+    parts.push(leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), cols));
+  }
+  parts.push(leftRightAlign('Cliente:', bill.customerName || 'Consumidor', cols));
   parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
