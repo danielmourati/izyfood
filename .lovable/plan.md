@@ -1,46 +1,95 @@
-# Sincronização entre dispositivos + layout do cupom de Conta
+# Plano: Verificar e Diagnosticar Sincronização Realtime
 
-## Diagnóstico do não-sincronismo (mobile → desktop)
+## 1. Resultado da Auditoria (já executada)
 
-A tabela **`tenants`** (nome da loja, logo, ícones, carrossel) **não estava no publication realtime** do Supabase. Por isso, salvar no mobile não disparava o evento `UPDATE` no desktop — só apareciam mudanças após F5.
+### ✅ Tabelas sincronizando (15)
+`attendant_permissions`, `cash_registers`, `categories`, `coupons`, `customers`, `orders`, `product_note_options`, `products`, `sales`, `stock_entries`, `store_settings`, `store_tables`, `suppliers`, `tenant_members`, `tenants`
 
-A `store_settings` já estava no realtime, então as configurações de impressão sincronizavam — mas o nome e logo da loja não. ✅ Migration já aplicada para adicionar `tenants` ao publication com `REPLICA IDENTITY FULL`.
+### ❌ Tabelas FORA da publication realtime (6)
+| Tabela | Impacto |
+|---|---|
+| **`printer_configs`** | 🔴 Crítico — impressora cadastrada no desktop não aparece no mobile sem F5 |
+| **`cash_movements`** | 🟡 Entradas/saídas manuais de caixa não atualizam ao vivo |
+| `commission_records` | 🟢 Baixo — só consultado em fechamento |
+| `profiles` | 🟢 Baixo — nome/foto do usuário |
+| `user_roles` | 🟢 Baixo — raro mudar em runtime |
+| `audit_logs` | 🟢 Append-only, refresh manual OK |
 
-## Mudanças de código a aplicar
+### ⚠️ Sem `REPLICA IDENTITY FULL` (3)
+`printer_configs`, `product_note_options`, `commission_records` — sem isso, eventos de UPDATE/DELETE chegam sem o `old` record, quebrando merges no cliente.
 
-### 1. `src/lib/escpos.ts` — corrigir build error
-Adicionar `storeName?: string` na interface `PrintSettings` (já é usado no fetch e no header do cupom, faltava na tipagem).
+---
 
-### 2. `src/lib/escpos.ts` — layout do cupom Conta
-A função `buildBillReceipt` **já produz exatamente** o layout pedido (linhas 339-344):
+## 2. Migration de Correção
+
+```sql
+ALTER TABLE public.printer_configs REPLICA IDENTITY FULL;
+ALTER TABLE public.cash_movements REPLICA IDENTITY FULL;
+ALTER TABLE public.product_note_options REPLICA IDENTITY FULL;
+ALTER TABLE public.commission_records REPLICA IDENTITY FULL;
+
+ALTER PUBLICATION supabase_realtime ADD TABLE
+  public.printer_configs,
+  public.cash_movements,
+  public.commission_records,
+  public.profiles,
+  public.user_roles;
 ```
-Tipo:                               Mesa
-Mesa:                                  1
-Cliente:                          Daniel
-Data:               21/05/2026, 17:23
+(`audit_logs` fica fora — não precisa de live update.)
+
+---
+
+## 3. Tela `/diagnostico-sync` (somente Superadmin)
+
+Nova rota acessível via `/:slug/diagnostico-sync`, protegida por `requireRole=['superadmin']`.
+
+### Layout
+```text
+┌─ Diagnóstico de Sincronização ───────────────────────┐
+│                                                       │
+│  Status global: 🟢 12 canais ativos                  │
+│                                                       │
+│  ┌─ Tabela ────────┬─ Canal ─┬─ Último evento ──┐    │
+│  │ tenants         │ 🟢 OK   │ 2s atrás (UPDATE) │    │
+│  │ products        │ 🟢 OK   │ 14s atrás (INSERT)│    │
+│  │ printer_configs │ 🟢 OK   │ nunca             │    │
+│  │ orders          │ 🟢 OK   │ 1m atrás (UPDATE) │    │
+│  │ ...             │         │                   │    │
+│  └─────────────────┴─────────┴───────────────────┘    │
+│                                                       │
+│  [Disparar ping de teste em todas as tabelas]        │
+│  [Copiar relatório]                                  │
+└───────────────────────────────────────────────────────┘
 ```
-Nenhuma mudança necessária no ESC/POS, desde que o `bill` recebido carregue `tableNumber` e `customerName`. Vou verificar em `PDV.tsx`/`CheckoutModal.tsx` se esses campos são preenchidos ao chamar `printBill`, e ajustar se faltar.
 
-### 3. `src/hooks/use-printer.ts` — `buildBillHtml` (fallback navegador)
-Hoje o HTML fallback omite "Tipo:", usa default "Consumidor" mesmo sem cliente, e formata como linhas `row` simples. Refatorar para:
-- Adicionar linha "Tipo:" sempre
-- Adicionar "Mesa:" quando `tableNumber` ou `orderType === 'mesa'`
-- Linha "Cliente:" mostra o nome real (não "Consumidor" se vazio — mostra em branco)
-- Linha "Data:" no mesmo padrão
-- Usar `<div class="row">` (já tem `justify-content: space-between` no CSS do fallback) para alinhamento esquerda/direita consistente
+### Funcionamento
+- Ao montar, abre um `supabase.channel()` para cada tabela monitorada (12 críticas).
+- Mostra status em tempo real: `SUBSCRIBED` (🟢), `CHANNEL_ERROR` (🔴), `TIMED_OUT` (🟡).
+- Contador de eventos recebidos por tabela + timestamp do último.
+- Botão "Disparar ping": faz um UPDATE inócuo em `store_settings` (atualiza `updated_at`) para confirmar round-trip end-to-end. Mede latência ms entre disparo e recepção.
+- Botão "Copiar relatório": gera JSON com snapshot do estado (útil para suporte).
+- Limpa todos os canais no unmount.
 
-### 4. `src/pages/Configuracoes.tsx` — realtime de `tenants`
-Já tem assinatura `postgres_changes` em `tenants` (linhas 247-257). Com o publication agora correto, vai funcionar sem mudança de código.
+### Como usar para validar cross-device
+1. Abra `/diagnostico-sync` no desktop.
+2. Em outro dispositivo, edite qualquer entidade (ex.: nome da loja).
+3. No desktop, a linha correspondente acende com timestamp "agora" e contador +1.
+4. Se não acender → aquela tabela tem problema de publication/RLS.
 
-## Verificação após aplicar
+---
 
-1. Abrir Configurações no desktop e no mobile lado a lado.
-2. Alterar nome da loja no mobile, salvar.
-3. Confirmar que o desktop atualiza sem F5.
-4. Imprimir uma Conta de Mesa com cliente "Daniel" e verificar via fallback HTML que aparece:
-   - Tipo: ... Mesa
-   - Mesa: ... 1
-   - Cliente: ... Daniel
-   - Data: ... 21/05/2026, 17:23
+## 4. Arquivos a criar/editar
 
-Posso seguir aplicando as 3 mudanças de código?
+- **Migration** (novo arquivo SQL com os ALTERs acima)
+- **`src/pages/DiagnosticoSync.tsx`** — nova página
+- **`src/App.tsx`** — adicionar rota `/:slug/diagnostico-sync`
+- **`src/components/Sidebar.tsx`** (ou equivalente) — link "Diagnóstico" visível só para superadmin
+- **Memória** — atualizar `mem://architecture/data-storage` registrando que `printer_configs` e `cash_movements` agora sincronizam
+
+---
+
+## 5. O que NÃO faz parte deste plano
+- Refatorar `usePrinter` ou hooks já existentes (apenas a infra de sync é corrigida; o consumo já está pronto).
+- Mudar lógica de negócio de caixa, impressão ou pedidos.
+
+Posso prosseguir?

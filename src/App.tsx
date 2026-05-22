@@ -18,6 +18,7 @@ import Entregas from "./pages/Entregas";
 import Caixa from "./pages/Caixa";
 import Configuracoes from "./pages/Configuracoes";
 import SuperAdmin from "./pages/SuperAdmin";
+import DiagnosticoSync from "./pages/DiagnosticoSync";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ function TenantRoutes() {
         <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute superadminOnly><SuperAdmin /></ProtectedRoute>} />
+        <Route path="/diagnostico-sync" element={<ProtectedRoute superadminOnly><DiagnosticoSync /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>
