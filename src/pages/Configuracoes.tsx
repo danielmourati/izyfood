@@ -220,6 +220,46 @@ function GeralTab() {
           if (imgs && Array.isArray(imgs)) setCarouselImages(imgs);
         }
       });
+
+      // 3. Realtime subscription to receive updates from other devices instantly
+      const channelName = `config-realtime-${user.tenantId}-${Math.random().toString(36).slice(2)}`;
+      const channel = supabase.channel(channelName)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'store_settings',
+          filter: `tenant_id=eq.${user.tenantId}`
+        }, (payload) => {
+          const ps = payload.new.print_settings;
+          if (ps && typeof ps === 'object' && Object.keys(ps).length > 0) {
+            setPrintSettings(prev => ({ ...prev, ...ps }));
+            localStorage.setItem(lsKey, JSON.stringify(ps));
+            (window as any).__printSettingsCache = ps;
+          }
+          if (payload.new.service_fee_percentage != null) {
+            const rawFee = payload.new.service_fee_percentage;
+            setServiceFee(rawFee !== 0 ? String(rawFee) : '');
+          }
+          if (payload.new.table_count != null) {
+            setTableCount(String(payload.new.table_count));
+          }
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tenants',
+          filter: `id=eq.${user.tenantId}`
+        }, (payload) => {
+          if (payload.new.name) setTenantName(payload.new.name);
+          if (payload.new.logo !== undefined) setTenantLogo(payload.new.logo);
+          if (payload.new.login_icon !== undefined) setLoginIcon(payload.new.login_icon);
+          if (payload.new.login_carousel_images !== undefined) setCarouselImages(payload.new.login_carousel_images || []);
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user?.tenantId]);
 

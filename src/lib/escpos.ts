@@ -179,6 +179,10 @@ export async function fetchPrintSettings(tenantId: string): Promise<PrintSetting
     let printSettings: PrintSettings;
     if (ps && typeof ps === 'object' && Object.keys(ps).length > 0) {
       printSettings = { ...(ps as PrintSettings), storeName: name };
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(printSettings));
+        (window as any).__printSettingsCache = printSettings;
+      }
     } else {
       let localPs: any = {};
       if (typeof window !== 'undefined') {
