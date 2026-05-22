@@ -401,7 +401,7 @@ function buildBillHtml(bill: any, ps: any = {}): string {
     <div class="line"></div>
     <div class="row"><span>Tipo:</span><span>${orderTypeLabels[bill.orderType] || bill.orderType || 'Mesa'}</span></div>
     ${(bill.tableNumber || bill.orderType === 'mesa') ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber || 'N/A'}</span></div>` : ''}
-    <div class="row"><span>Cliente:</span><span>${bill.customerName || 'Consumidor'}</span></div>
+    <div class="row"><span>Cliente:</span><span>${bill.customerName || ''}</span></div>
     <div class="row"><span>Data:</span><span>${fmtDate(createdAt)}</span></div>
     <div class="line"></div>
     <div style="margin: 10px 0;">
