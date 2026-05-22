@@ -146,7 +146,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('store_tables').select('*').order('number'),
         supabase.from('coupons').select('*'),
         supabase.from('product_note_options').select('*'),
-        supabase.from('store_settings').select('*').limit(1),
+        tenantId
+          ? supabase.from('store_settings').select('*').eq('tenant_id', tenantId).limit(1)
+          : supabase.from('store_settings').select('*').limit(1),
         supabase.from('cash_registers').select('id').is('closed_at', null).limit(1),
         tenantId
           ? supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
@@ -322,6 +324,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+          if (tenantIdRef.current && payload.new.tenant_id !== tenantIdRef.current) {
+            return;
+          }
           setSettings({
             tableCount: payload.new.table_count,
             serviceFeePercentage: payload.new.service_fee_percentage ? Number(payload.new.service_fee_percentage) : undefined,

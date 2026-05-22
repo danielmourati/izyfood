@@ -159,7 +159,7 @@ export function usePrinter() {
       ]);
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout')), 800)
+        setTimeout(() => reject(new Error('Timeout')), 2500)
       );
 
       const results = await Promise.race([fetchPromise, timeoutPromise]) as any[];
