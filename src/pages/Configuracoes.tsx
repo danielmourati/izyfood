@@ -119,7 +119,7 @@ interface PrintSettings {
 }
 
 function GeralTab() {
-  const { settings, updateTableCount, setSettings } = useStore();
+  const { settings, updateTableCount, setSettings, printSettings, setPrintSettings } = useStore();
   const { user } = useAuth();
   const [tableCount, setTableCount] = useState(settings.tableCount.toString());
   const [serviceFee, setServiceFee] = useState('');
@@ -131,12 +131,7 @@ function GeralTab() {
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [uploadingCarousel, setUploadingCarousel] = useState(false);
   const [savingGeneral, setSavingGeneral] = useState(false);
-  const [printSettings, setPrintSettings] = useState<PrintSettings>({
-    address: '', document: '', documentType: 'cnpj', whatsapp: '',
-    pixKey: '', instagram: '', thankMessage: 'Obrigado pela preferência!',
-    showAddress: true, showDocument: true, showWhatsapp: true,
-    showPixKey: true, showInstagram: true, showThankMessage: true,
-  });
+  // printSettings lives in StoreContext — no local duplication needed
 
   useEffect(() => {
     if (user?.tenantId) {
@@ -359,10 +354,27 @@ function GeralTab() {
         .eq('tenant_id', user.tenantId)
         .limit(1);
 
+      // Build a complete, merged printSettings to prevent partial overwrites
+      const fullPrintSettings = {
+        address: printSettings.address ?? '',
+        document: printSettings.document ?? '',
+        documentType: printSettings.documentType ?? 'cnpj',
+        whatsapp: printSettings.whatsapp ?? '',
+        pixKey: printSettings.pixKey ?? '',
+        instagram: printSettings.instagram ?? '',
+        thankMessage: printSettings.thankMessage ?? 'Obrigado pela preferência!',
+        showAddress: printSettings.showAddress ?? false,
+        showDocument: printSettings.showDocument ?? false,
+        showWhatsapp: printSettings.showWhatsapp ?? false,
+        showPixKey: printSettings.showPixKey ?? false,
+        showInstagram: printSettings.showInstagram ?? false,
+        showThankMessage: printSettings.showThankMessage ?? false,
+      };
+
       const settingsPayload = {
         table_count: count,
         service_fee_percentage: validFee,
-        print_settings: printSettings,
+        print_settings: fullPrintSettings,
       };
 
       let saveSettingsPromise;
@@ -393,9 +405,10 @@ function GeralTab() {
       // Reflect saved fee back in input
       setServiceFee(validFee !== 0 ? String(validFee) : '');
 
-      // Sync print settings back to local storage and cache
+      // 4. Immediately update context printSettings (don't wait for Realtime round-trip)
       const lsKey = `print_settings_${user.tenantId}`;
-      const updatedPs = { ...printSettings, storeName: tenantName.trim() };
+      const updatedPs = { ...fullPrintSettings, storeName: tenantName.trim() };
+      setPrintSettings(updatedPs);
       localStorage.setItem(lsKey, JSON.stringify(updatedPs));
       (window as any).__printSettingsCache = updatedPs;
 

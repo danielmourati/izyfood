@@ -150,6 +150,7 @@ function colsForWidth(paperWidth: number): number {
 }
 
 export interface PrintSettings {
+  storeName?: string;
   address?: string;
   document?: string;
   documentType?: 'cnpj' | 'cpf';
@@ -165,6 +166,24 @@ export interface PrintSettings {
   showThankMessage?: boolean;
 }
 
+/** Safe defaults: all toggles false, all text empty — no field ever undefined */
+const PRINT_SETTINGS_DEFAULTS: Required<PrintSettings> = {
+  storeName: '',
+  address: '',
+  document: '',
+  documentType: 'cnpj',
+  whatsapp: '',
+  pixKey: '',
+  instagram: '',
+  thankMessage: 'Obrigado pela preferência!',
+  showAddress: false,
+  showDocument: false,
+  showWhatsapp: false,
+  showPixKey: false,
+  showInstagram: false,
+  showThankMessage: false,
+};
+
 let _cachedPrintSettings: PrintSettings | null = null;
 
 export async function fetchPrintSettings(tenantId: string): Promise<PrintSettings> {
@@ -174,41 +193,44 @@ export async function fetchPrintSettings(tenantId: string): Promise<PrintSetting
       supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
     ]);
     const ps = (settingsRes?.data as any)?.print_settings;
-    const name = (tenantRes?.data as any)?.name;
-    
+    const name = (tenantRes?.data as any)?.name ?? '';
+
     let printSettings: PrintSettings;
     if (ps && typeof ps === 'object' && Object.keys(ps).length > 0) {
-      printSettings = { ...(ps as PrintSettings), storeName: name };
+      printSettings = { ...PRINT_SETTINGS_DEFAULTS, ...ps, storeName: name };
+      console.log('[escpos] fetchPrintSettings: source=database');
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(printSettings));
         (window as any).__printSettingsCache = printSettings;
       }
     } else {
-      let localPs: any = {};
+      // DB empty — fallback to localStorage as last resort
+      let localPs: Partial<PrintSettings> = {};
       if (typeof window !== 'undefined') {
         const saved = window.localStorage.getItem(`print_settings_${tenantId}`);
         if (saved) {
-          try {
-            localPs = JSON.parse(saved);
-          } catch {}
+          try { localPs = JSON.parse(saved); } catch {}
+          console.log('[escpos] fetchPrintSettings: source=localStorage (DB was empty)');
+        } else {
+          console.log('[escpos] fetchPrintSettings: source=defaults (both DB and localStorage empty)');
         }
       }
-      printSettings = { ...localPs, storeName: name };
+      printSettings = { ...PRINT_SETTINGS_DEFAULTS, ...localPs, storeName: name };
     }
     _cachedPrintSettings = printSettings;
   } catch (e) {
-    console.error('fetchPrintSettings error', e);
-    if (!_cachedPrintSettings) _cachedPrintSettings = {};
+    console.error('[escpos] fetchPrintSettings error:', e);
+    if (!_cachedPrintSettings) _cachedPrintSettings = { ...PRINT_SETTINGS_DEFAULTS };
   }
   return _cachedPrintSettings!;
 }
 
 export function getCachedPrintSettings(): PrintSettings {
-  // Prefer the localStorage-backed cache set by use-printer.ts
+  // Prefer the window cache (set by StoreContext or use-printer)
   if (typeof window !== 'undefined' && (window as any).__printSettingsCache) {
     return (window as any).__printSettingsCache as PrintSettings;
   }
-  return _cachedPrintSettings || {};
+  return _cachedPrintSettings ?? { ...PRINT_SETTINGS_DEFAULTS };
 }
 
 const paymentLabels: Record<string, string> = {

@@ -3,6 +3,16 @@ import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderI
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { PrintSettings } from '@/lib/escpos';
+
+/** Canonical empty PrintSettings — all toggles off, all texts blank */
+const EMPTY_PRINT_SETTINGS: PrintSettings = {
+  address: '', document: '', documentType: 'cnpj', whatsapp: '',
+  pixKey: '', instagram: '', thankMessage: 'Obrigado pela preferência!',
+  showAddress: false, showDocument: false, showWhatsapp: false,
+  showPixKey: false, showInstagram: false, showThankMessage: false,
+  storeName: '',
+};
 
 interface StoreContextType {
   products: Product[];
@@ -27,6 +37,9 @@ interface StoreContextType {
   setNoteOptions: React.Dispatch<React.SetStateAction<ProductNoteOption[]>>;
   settings: StoreSettings;
   setSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
+  /** Consolidated print configuration for this tenant — always in memory, never stale */
+  printSettings: PrintSettings;
+  setPrintSettings: React.Dispatch<React.SetStateAction<PrintSettings>>;
   completeSale: (order: Order) => void;
   deductStock: (items: OrderItem[]) => void;
   getCategoryById: (id: string) => ProductCategory | undefined;
@@ -100,8 +113,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [coupons, setCoupons] = useState<DiscountCoupon[]>([]);
   const [noteOptions, setNoteOptions] = useState<ProductNoteOption[]>([]);
   const [settings, setSettings] = useState<StoreSettings>({ tableCount: 20 });
+  const [printSettings, setPrintSettings] = useState<PrintSettings>({ ...EMPTY_PRINT_SETTINGS });
   const [isCashRegisterOpen, setIsCashRegisterOpen] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const tenantIdRef = useRef<string | undefined>(undefined);
 
   // ============ Initial data fetch ============
   const userId = user?.id;
@@ -110,10 +125,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function fetchAll() {
+      // Grab tenantId from user to filter store_settings and tenants
+      const tenantId = user?.tenantId;
+      tenantIdRef.current = tenantId;
+      const lsKey = tenantId ? `print_settings_${tenantId}` : null;
+
       const [
         { data: cats }, { data: prods }, { data: custs }, { data: supps },
         { data: ords }, { data: sls }, { data: stks }, { data: tbls },
         { data: cpns }, { data: opts }, { data: setts }, { data: cashRegs },
+        tenantNameRes,
       ] = await Promise.all([
         supabase.from('categories').select('*'),
         supabase.from('products').select('*'),
@@ -125,8 +146,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('store_tables').select('*').order('number'),
         supabase.from('coupons').select('*'),
         supabase.from('product_note_options').select('*'),
-        supabase.from('store_settings').select('*').limit(1),
+        tenantId
+          ? supabase.from('store_settings').select('*').eq('tenant_id', tenantId).limit(1)
+          : supabase.from('store_settings').select('*').limit(1),
         supabase.from('cash_registers').select('id').is('closed_at', null).limit(1),
+        tenantId
+          ? supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
       ]);
 
       if (cancelled) return;
@@ -169,6 +195,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           tableCount: setts[0].table_count,
           serviceFeePercentage: setts[0].service_fee_percentage ? Number(setts[0].service_fee_percentage) : undefined,
         });
+
+        // ---- Load printSettings from DB and sync to localStorage + window cache ----
+        const tenantName = (tenantNameRes as any)?.data?.name || '';
+        const dbPs = (setts[0] as any).print_settings;
+        const hasDbData = dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0;
+
+        if (hasDbData) {
+          const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, ...dbPs, storeName: tenantName };
+          setPrintSettings(merged);
+          if (lsKey) {
+            localStorage.setItem(lsKey, JSON.stringify(merged));
+            (window as any).__printSettingsCache = merged;
+          }
+          console.log('[StoreContext] printSettings loaded from DB');
+        } else if (lsKey) {
+          // DB empty — try localStorage as seed
+          const saved = localStorage.getItem(lsKey);
+          if (saved) {
+            try {
+              const localPs: PrintSettings = JSON.parse(saved);
+              const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, ...localPs, storeName: tenantName };
+              setPrintSettings(merged);
+              (window as any).__printSettingsCache = merged;
+              console.log('[StoreContext] printSettings loaded from localStorage (DB was empty)');
+              // Push up to DB so other devices benefit
+              if (tenantId && Object.keys(localPs).length > 0) {
+                supabase.from('store_settings')
+                  .update({ print_settings: localPs } as any)
+                  .eq('tenant_id', tenantId)
+                  .then(({ error }) => {
+                    if (error) console.error('[StoreContext] Failed to push localPs to DB:', error);
+                    else console.log('[StoreContext] localStorage printSettings pushed to DB');
+                  });
+              }
+            } catch {}
+          } else {
+            const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, storeName: tenantName };
+            setPrintSettings(merged);
+          }
+        } else {
+          const tenantName2 = (tenantNameRes as any)?.data?.name || '';
+          setPrintSettings(prev => ({ ...prev, storeName: tenantName2 }));
+        }
+      } else {
+        // No store_settings row at all — seed from storeName only
+        const tenantName = (tenantNameRes as any)?.data?.name || '';
+        setPrintSettings(prev => ({ ...prev, storeName: tenantName }));
       }
       setIsCashRegisterOpen(!!(cashRegs && cashRegs.length > 0));
       setLoading(false);
@@ -251,7 +324,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-          setSettings({ tableCount: payload.new.table_count });
+          setSettings(prev => ({
+            ...prev,
+            tableCount: payload.new.table_count,
+            serviceFeePercentage: payload.new.service_fee_percentage
+              ? Number(payload.new.service_fee_percentage) : prev.serviceFeePercentage,
+          }));
+          // Sync printSettings from realtime (another device saved)
+          const dbPs = payload.new.print_settings;
+          if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
+            const tid = tenantIdRef.current;
+            const lsKey2 = tid ? `print_settings_${tid}` : null;
+            setPrintSettings(prev => {
+              const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, ...prev, ...dbPs };
+              if (lsKey2) {
+                localStorage.setItem(lsKey2, JSON.stringify(merged));
+                (window as any).__printSettingsCache = merged;
+              }
+              console.log('[StoreContext] printSettings updated via Realtime');
+              return merged;
+            });
+          }
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_registers' }, () => {
@@ -480,6 +573,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sales, setSales: setSalesWrapped, stockEntries, setStockEntries: setStockEntriesWrapped,
       coupons, setCoupons: setCouponsWrapped, noteOptions, setNoteOptions: setNoteOptionsWrapped,
       settings, setSettings,
+      printSettings, setPrintSettings,
       completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
     }}>
       {children}

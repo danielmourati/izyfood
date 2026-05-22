@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useStore } from '@/contexts/StoreContext';
 import {
   isBluetoothAvailable,
   isBluetoothConnected,
@@ -33,6 +33,7 @@ export interface PrinterConfig {
 
 export function usePrinter() {
   const { user } = useAuth();
+  const { printSettings } = useStore();
   const [printers, setPrinters] = useState<PrinterConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [btConnected, setBtConnected] = useState(false);
@@ -85,24 +86,11 @@ export function usePrinter() {
     };
     initConnections();
 
-    // Load print settings from localStorage into cache
-    if (user?.tenantId) {
-      const tenantId = user.tenantId;
-      const lsKey = `print_settings_${tenantId}`;
-      const saved = localStorage.getItem(lsKey);
-      if (saved) {
-        try {
-          const ps = JSON.parse(saved);
-          // Hydrate the escpos cache directly
-          fetchPrintSettings(tenantId).catch(() => {});
-          // Override with localStorage value
-          (window as any).__printSettingsCache = ps;
-        } catch {}
-      } else {
-        fetchPrintSettings(tenantId).catch(() => {});
-      }
+    // Mirror the context printSettings into the window cache for ESC/POS library compatibility
+    if (Object.keys(printSettings).length > 0 && (printSettings as any).storeName !== undefined) {
+      (window as any).__printSettingsCache = printSettings;
     }
-  }, [user?.tenantId]);
+  }, [user?.tenantId, printSettings]);
 
   useEffect(() => {
     const handleBtConnected = (e: any) => {
@@ -167,59 +155,26 @@ export function usePrinter() {
   };
 
   const printBill = async (bill: any) => {
-    let ps: any = {};
     const tenantId = user?.tenantId;
-    if (tenantId) {
-      // 1. Try to fetch the freshest print settings and store name from Supabase with a fast timeout (800ms)
-      try {
-        const fetchPromise = Promise.all([
-          supabase.from('store_settings').select('print_settings').eq('tenant_id', tenantId).limit(1).maybeSingle(),
-          supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
-        ]);
-          
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 800)
-        );
-        
-        const results = await Promise.race([fetchPromise, timeoutPromise]) as any[];
-        const settingsRes = results[0];
-        const tenantRes = results[1];
-        
-        const dbPs = settingsRes?.data?.print_settings;
-        const tenantName = tenantRes?.data?.name;
-        
-        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
-          const updatedPs = { ...dbPs, storeName: tenantName };
-          ps = updatedPs;
-          // Sync back to local storage and cached memory
-          localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(updatedPs));
-          (window as any).__printSettingsCache = updatedPs;
-        } else {
-          // Fallback to local storage if empty or error
-          const saved = localStorage.getItem(`print_settings_${tenantId}`);
-          if (saved) {
-            try {
-              const localPs = JSON.parse(saved);
-              ps = { ...localPs, storeName: tenantName };
-            } catch {
-              ps = { storeName: tenantName };
-            }
-          } else {
-            ps = { storeName: tenantName };
-          }
-        }
-      } catch (err) {
-        // Fallback to local storage if offline/timeout/error
-        const saved = localStorage.getItem(`print_settings_${tenantId}`);
-        if (saved) {
-          try {
-            ps = JSON.parse(saved);
-          } catch {}
-        }
-      }
-    } else {
-      ps = getCachedPrintSettings();
+    if (!tenantId) {
+      console.error('[printBill] Tenant não disponível. Impressão cancelada.');
+      return;
     }
+
+    // Use the global context printSettings (already synced from DB + Realtime)
+    let ps = printSettings;
+
+    // Safety net: if context is still at defaults (e.g. first mount race), do a direct fetch
+    const isEmpty = !ps.storeName && !ps.address && !ps.whatsapp;
+    if (isEmpty) {
+      console.warn('[printBill] printSettings em memória está vazio, buscando do banco...');
+      try {
+        ps = await fetchPrintSettings(tenantId);
+      } catch {
+        console.error('[printBill] Falha ao buscar printSettings do banco. Imprimindo sem cabeçalho.');
+      }
+    }
+
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta');
