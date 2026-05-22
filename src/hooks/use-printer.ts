@@ -201,14 +201,36 @@ export function usePrinter() {
   };
 
   const printOrder = async (order: any) => {
-    const ps = await getLatestPrintSettings(user?.tenantId);
+    // Use Context printSettings as the guaranteed baseline (always in memory, loaded on boot,
+    // kept in sync via Supabase Realtime). Then optionally enrich with a fresh DB fetch.
+    let ps: any = { ...printSettings };
+    try {
+      const fresh = await getLatestPrintSettings(user?.tenantId);
+      if (fresh && Object.keys(fresh).length > 0) {
+        ps = { ...ps, ...fresh };
+      }
+    } catch {
+      // Network failed — Context baseline is sufficient
+    }
+    console.log('[printOrder] printSettings usados:', JSON.stringify(ps));
     const escpos = buildOrderReceipt(order, paperWidth, ps);
     const html = buildOrderHtml(order, ps);
     await sendToPrinter(escpos, html, 'Comanda');
   };
 
   const printBill = async (bill: any) => {
-    const ps = await getLatestPrintSettings(user?.tenantId);
+    // Use Context printSettings as the guaranteed baseline (always in memory, loaded on boot,
+    // kept in sync via Supabase Realtime). Then optionally enrich with a fresh DB fetch.
+    let ps: any = { ...printSettings };
+    try {
+      const fresh = await getLatestPrintSettings(user?.tenantId);
+      if (fresh && Object.keys(fresh).length > 0) {
+        ps = { ...ps, ...fresh };
+      }
+    } catch {
+      // Network failed — Context baseline is sufficient
+    }
+    console.log('[printBill] printSettings usados:', JSON.stringify(ps));
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta');
