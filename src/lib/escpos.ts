@@ -150,6 +150,7 @@ function colsForWidth(paperWidth: number): number {
 }
 
 export interface PrintSettings {
+  storeName?: string;
   address?: string;
   document?: string;
   documentType?: 'cnpj' | 'cpf';
@@ -340,7 +341,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   if (bill.tableNumber || bill.orderType === 'mesa') {
     parts.push(leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
-  parts.push(leftRightAlign('Cliente:', bill.customerName || 'Consumidor', cols));
+  parts.push(leftRightAlign('Cliente:', bill.customerName || '', cols));
   parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
