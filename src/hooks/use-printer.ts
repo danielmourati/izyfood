@@ -188,7 +188,7 @@ export function usePrinter() {
         const dbPs = settingsRes?.data?.print_settings;
         const tenantName = tenantRes?.data?.name;
         
-        if (dbPs && typeof dbPs === 'object') {
+        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
           const updatedPs = { ...dbPs, storeName: tenantName };
           ps = updatedPs;
           // Sync back to local storage and cached memory
@@ -197,7 +197,16 @@ export function usePrinter() {
         } else {
           // Fallback to local storage if empty or error
           const saved = localStorage.getItem(`print_settings_${tenantId}`);
-          if (saved) ps = JSON.parse(saved);
+          if (saved) {
+            try {
+              const localPs = JSON.parse(saved);
+              ps = { ...localPs, storeName: tenantName };
+            } catch {
+              ps = { storeName: tenantName };
+            }
+          } else {
+            ps = { storeName: tenantName };
+          }
         }
       } catch (err) {
         // Fallback to local storage if offline/timeout/error

@@ -160,29 +160,53 @@ function GeralTab() {
           .eq('id', user.tenantId)
           .single(),
       ]).then(([settingsRes, tenantRes]) => {
-        // -- Store settings --
-        if (!settingsRes.error && settingsRes.data) {
-          const row = settingsRes.data as any;
-          // Service fee
-          const rawFee = row.service_fee_percentage;
-          setServiceFee(rawFee != null && Number(rawFee) !== 0 ? String(rawFee) : '');
+        if (!settingsRes.error) {
+          if (settingsRes.data) {
+            const row = settingsRes.data as any;
+            // Service fee
+            const rawFee = row.service_fee_percentage;
+            setServiceFee(rawFee != null && Number(rawFee) !== 0 ? String(rawFee) : '');
 
-          // Print settings — apply unconditionally when the DB has data, even partial
-          const ps = row.print_settings;
-          if (ps && typeof ps === 'object') {
-            // Merge DB data on top of defaults (DB is source of truth)
-            setPrintSettings(prev => ({ ...prev, ...ps }));
-            // Backfill localStorage on this new device so next reload is instant
-            localStorage.setItem(lsKey, JSON.stringify({ ...JSON.parse(savedLocal || '{}'), ...ps }));
-          } else if (savedLocal) {
-            // DB has empty print_settings — push this device's localStorage data up
-            try {
-              const localPs = JSON.parse(savedLocal);
-              supabase.from('store_settings')
-                .update({ print_settings: localPs } as any)
-                .eq('tenant_id', user.tenantId)
-                .then(() => {});
-            } catch {}
+            // Print settings — apply unconditionally when the DB has data, even partial
+            const ps = row.print_settings;
+            if (ps && typeof ps === 'object' && Object.keys(ps).length > 0) {
+              // Merge DB data on top of defaults (DB is source of truth)
+              setPrintSettings(prev => ({ ...prev, ...ps }));
+              // Backfill localStorage on this new device so next reload is instant
+              localStorage.setItem(lsKey, JSON.stringify({ ...JSON.parse(savedLocal || '{}'), ...ps }));
+            } else if (savedLocal) {
+              // DB has empty print_settings — push this device's localStorage data up
+              try {
+                const localPs = JSON.parse(savedLocal);
+                if (Object.keys(localPs).length > 0) {
+                  supabase.from('store_settings')
+                    .update({ print_settings: localPs } as any)
+                    .eq('tenant_id', user.tenantId)
+                    .then(({ error }) => {
+                      if (error) console.error('Erro ao subir configurações locais para o banco:', error);
+                    });
+                }
+              } catch {}
+            }
+          } else {
+            // DB does not have any row in store_settings for this tenant
+            if (savedLocal) {
+              try {
+                const localPs = JSON.parse(savedLocal);
+                if (Object.keys(localPs).length > 0) {
+                  supabase.from('store_settings')
+                    .insert({
+                      tenant_id: user.tenantId,
+                      table_count: 20,
+                      service_fee_percentage: 0,
+                      print_settings: localPs,
+                    } as any)
+                    .then(({ error }) => {
+                      if (error) console.error('Erro ao inicializar store_settings com configurações locais:', error);
+                    });
+                }
+              } catch {}
+            }
           }
         }
 
@@ -313,7 +337,14 @@ function GeralTab() {
           .insert({ ...settingsPayload, tenant_id: user.tenantId } as any);
       }
 
-      await Promise.all([saveTenantPromise, saveSettingsPromise]);
+      const [tenantRes, settingsRes] = await Promise.all([saveTenantPromise, saveSettingsPromise]);
+
+      if (tenantRes && (tenantRes as any).error) {
+        throw new Error((tenantRes as any).error.message || 'Erro ao salvar dados do estabelecimento.');
+      }
+      if (settingsRes && (settingsRes as any).error) {
+        throw new Error((settingsRes as any).error.message || 'Erro ao salvar configurações do caixa/impressão.');
+      }
 
       // 3. Sync table count and fee back into context so all components see the new values immediately
       setSettings(prev => ({ ...prev, tableCount: count, serviceFeePercentage: validFee || undefined }));
