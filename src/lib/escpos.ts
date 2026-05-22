@@ -150,6 +150,7 @@ function colsForWidth(paperWidth: number): number {
 }
 
 export interface PrintSettings {
+  storeName?: string;
   address?: string;
   document?: string;
   documentType?: 'cnpj' | 'cpf';
