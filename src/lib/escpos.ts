@@ -49,6 +49,10 @@ export const CMD_ALIGN_RIGHT = new Uint8Array([ESC, 0x61, 0x02]);
 export const CMD_DOUBLE_ON = new Uint8Array([GS, 0x21, 0x11]);
 /** Double height off */
 export const CMD_DOUBLE_OFF = new Uint8Array([GS, 0x21, 0x00]);
+/** Reset printer text mode: normal width/height, no condensed/double flags */
+export const CMD_PRINT_MODE_NORMAL = new Uint8Array([ESC, 0x21, 0x00]);
+/** Reset character spacing to printer default */
+export const CMD_CHAR_SPACING_DEFAULT = new Uint8Array([ESC, 0x20, 0x00]);
 /** Full cut */
 export const CMD_CUT = new Uint8Array([GS, 0x56, 0x00]);
 /** Partial cut */
@@ -147,6 +151,16 @@ interface CashCloseData {
 
 function colsForWidth(paperWidth: number): number {
   return paperWidth <= 58 ? 32 : 48;
+}
+
+function detailColsForWidth(paperWidth: number): number {
+  const cols = colsForWidth(paperWidth);
+  // Small safety margin avoids cheap mobile thermal printers clipping the rightmost characters.
+  return Math.max(24, cols - (paperWidth <= 58 ? 2 : 4));
+}
+
+function normalTextMode(): Uint8Array {
+  return concat(CMD_PRINT_MODE_NORMAL, CMD_DOUBLE_OFF, CMD_FONT_A, CMD_CHAR_SPACING_DEFAULT, CMD_BOLD_OFF);
 }
 
 export interface PrintSettings {
