@@ -386,6 +386,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   // Each detail field as a row(): label left, value right.
   parts.push(CMD_ALIGN_LEFT, row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
+  parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
   if (bill.tableNumber || bill.orderType === 'mesa') {
     parts.push(CMD_ALIGN_LEFT, row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
