@@ -146,7 +146,7 @@ function fmtBRL(v: number): string {
 /**
  * Wraps long item names into 2 lines, keeping the price aligned to the right on the first line.
  */
-function rowWrap(prefix: string, name: string, price: string, cols: number): Uint8Array {
+function rowWrapWithPrefix(prefix: string, name: string, price: string, cols: number): Uint8Array {
   const limit = cols - prefix.length - price.length - 1; // space available for name on line 1
 
   if (name.length <= cols - prefix.length - price.length) {
