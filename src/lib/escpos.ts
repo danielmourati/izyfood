@@ -386,7 +386,6 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   // Each detail field as a row(): label left, value right.
   parts.push(CMD_ALIGN_LEFT, row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
-  parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
   if (bill.tableNumber || bill.orderType === 'mesa') {
     parts.push(CMD_ALIGN_LEFT, row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
@@ -394,13 +393,13 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   parts.push(CMD_ALIGN_LEFT, row('Data:', fmtDate(bill.createdAt), cols));
   parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
 
-  // Items with price
+  // Items with price — each item as a row()
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    parts.push(leftRightAlign(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    parts.push(CMD_ALIGN_LEFT, row(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        parts.push(leftRightAlign(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
+        parts.push(CMD_ALIGN_LEFT, row(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
       }
     }
   }
