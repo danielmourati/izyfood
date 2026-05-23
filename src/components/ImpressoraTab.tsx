@@ -17,8 +17,9 @@ import { getQzPrinters } from '@/lib/printer';
 export function ImpressoraTab() {
   const { user } = useAuth();
   const {
-    printers, loading, btAvailable, btConnected, btDeviceName, qzConnected, retryQzConnection,
-    fetchPrinters, pairBluetooth, unpairBluetooth, printTest,
+    printers, loading, btAvailable, btConnected, btDeviceName, lastPairedName,
+    qzConnected, retryQzConnection,
+    fetchPrinters, pairBluetooth, unpairBluetooth, reconnectPrinter, forgetPrinter, printTest,
   } = usePrinter();
 
   const [showForm, setShowForm] = useState(false);
