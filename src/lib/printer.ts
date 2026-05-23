@@ -176,7 +176,7 @@ export async function tryReconnectBluetooth(): Promise<string | null> {
 async function _connectToDevice(device: any): Promise<string> {
   if (!device.gatt) throw new Error('Dispositivo não suporta GATT.');
 
-  const server = await device.gatt.connect();
+  const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
 
   // Try each known service / characteristic
   for (const svcUuid of PRINTER_SERVICE_UUIDS) {
@@ -188,7 +188,10 @@ async function _connectToDevice(device: any): Promise<string> {
           _device = device;
           _characteristic = char;
           const deviceName = device.name || 'Impressora Bluetooth';
+          _attachDisconnectHandler(device);
+          _startKeepAlive();
           window.dispatchEvent(new CustomEvent('bt_connected', { detail: { name: deviceName } }));
+          _emitStatus(true, deviceName);
           return deviceName;
         } catch { /* try next */ }
       }
@@ -199,7 +202,10 @@ async function _connectToDevice(device: any): Promise<string> {
           _device = device;
           _characteristic = c;
           const deviceName = device.name || 'Impressora Bluetooth';
+          _attachDisconnectHandler(device);
+          _startKeepAlive();
           window.dispatchEvent(new CustomEvent('bt_connected', { detail: { name: deviceName } }));
+          _emitStatus(true, deviceName);
           return deviceName;
         }
       }
