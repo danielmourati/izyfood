@@ -26,9 +26,34 @@ let _characteristic: any = null;
 let _keepAliveTimer: any = null;
 let _reconnecting = false;
 let _disconnectHandlerAttached = false;
+let _autoReconnectStarted = false;
+let _autoReconnectTimer: any = null;
 
 const KEEPALIVE_INTERVAL_MS = 15000; // verifica a cada 15s
 const RECONNECT_BACKOFF_MS = 2000;
+const AUTO_RECONNECT_INTERVAL_MS = 30000; // tenta a cada 30s enquanto desconectado
+
+const LS_LAST_NAME = 'bt_last_device_name';
+const LS_LAST_ID = 'bt_last_device_id';
+
+function _saveLastDevice(device: any) {
+  try {
+    if (device?.name) localStorage.setItem(LS_LAST_NAME, device.name);
+    if (device?.id) localStorage.setItem(LS_LAST_ID, device.id);
+  } catch { /* ignore */ }
+}
+
+export function getLastPairedDeviceName(): string | null {
+  try { return localStorage.getItem(LS_LAST_NAME); } catch { return null; }
+}
+
+export function forgetBluetoothDevice() {
+  try {
+    localStorage.removeItem(LS_LAST_NAME);
+    localStorage.removeItem(LS_LAST_ID);
+  } catch { /* ignore */ }
+  disconnectBluetooth();
+}
 
 function _emitStatus(connected: boolean, name?: string | null) {
   try {
