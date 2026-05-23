@@ -444,7 +444,10 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   parts.push(normalTextMode(), CMD_ALIGN_LEFT, lineOf('-', cols));
 
   // Each detail field as a row(): label left, value right.
-  parts.push(row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType || 'Mesa', cols));
+  const rawOrderType = bill.orderType?.toLowerCase().trim() || '';
+  const orderTypeVal = (orderTypeLabels[rawOrderType] || bill.orderType || 'Mesa').trim();
+  const formattedOrderType = orderTypeVal.charAt(0).toUpperCase() + orderTypeVal.slice(1);
+  parts.push(row('Tipo:', formattedOrderType, cols));
   if (bill.tableNumber || bill.orderType === 'mesa') {
     parts.push(row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
