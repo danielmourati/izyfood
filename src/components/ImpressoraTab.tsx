@@ -143,7 +143,7 @@ export function ImpressoraTab() {
                   </p>
                 </div>
               )}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <Badge variant={btConnected ? 'default' : 'secondary'}>
                   {btConnected ? `Conectado: ${btDeviceName}` : 'Desconectado'}
                 </Badge>
@@ -156,6 +156,26 @@ export function ImpressoraTab() {
                   </Button>
                 )}
               </div>
+              {!btConnected && lastPairedName && (
+                <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground bg-muted/40 border rounded-md p-2">
+                  <span>Última impressora pareada: <strong className="text-foreground">{lastPairedName}</strong></span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const toastId = toast.loading('Reconectando à última impressora...');
+                      const ok = await reconnectPrinter();
+                      if (ok) toast.success('Reconectado!', { id: toastId });
+                      else toast.error('Não foi possível reconectar automaticamente. Toque em "Parear Impressora" para reautorizar.', { id: toastId });
+                    }}
+                  >
+                    Reconectar agora
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={forgetPrinter}>
+                    Esquecer
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </CardContent>
