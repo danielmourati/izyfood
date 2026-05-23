@@ -150,9 +150,9 @@ export function ImpressoraTab() {
                 {btConnected ? (
                   <Button variant="outline" size="sm" onClick={unpairBluetooth}>Desconectar</Button>
                 ) : (
-                  <Button size="sm" onClick={handlePair} disabled={pairing || isDesktop} variant={isDesktop ? "secondary" : "default"} title={isDesktop ? "Recomendado apenas para celular/tablet" : ""}>
+                  <Button size="sm" onClick={handlePair} disabled={pairing}>
                     {pairing && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                    Parear Impressora {isDesktop && "(Mobile)"}
+                    Parear Impressora
                   </Button>
                 )}
               </div>
