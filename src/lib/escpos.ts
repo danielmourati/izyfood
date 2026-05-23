@@ -409,6 +409,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   }
 
   parts.push(lineOf('-', cols));
+  parts.push(text('\n'));
 
   // Always recompute totals from items + adjustments so service fee/discount/delivery are included
   const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
