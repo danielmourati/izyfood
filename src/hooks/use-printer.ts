@@ -536,23 +536,34 @@ function buildBillHtml(bill: any, ps: any = {}): string {
     footerHtml += `<p class="center footer-text" style="margin-top: 10px; margin-bottom: 0;">Obrigado pela preferência!</p>`;
   }
 
-  // Dynamically calculate total if bill.total is falsy or 0
   let totalBilled = bill.total || 0;
-  if (!totalBilled || totalBilled === 0) {
-    const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
-      const itemSubtotal = item.subtotal ?? (item.price * (item.weight ?? item.quantity));
-      return acc + (itemSubtotal || 0);
-    }, 0);
-    const discountVal = bill.discount ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount) : 0;
-    const serviceFeeVal = bill.serviceFee || 0;
-    const deliveryFeeVal = bill.deliveryFee || 0;
-    totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
-  }
+
+
+  // Compute fees & total
+  const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
+    const itemSubtotal = item.subtotal ?? (item.price * (item.weight ?? item.quantity));
+    return acc + (itemSubtotal || 0);
+  }, 0);
+  const discountVal = bill.discount
+    ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount)
+    : 0;
+  const serviceFeeVal = bill.serviceFee || 0;
+  const deliveryFeeVal = bill.deliveryFee || 0;
+  totalBilled = bill.total && bill.total > 0
+    ? bill.total
+    : itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
+
+  const discountLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';
+  const feesHtml = `
+    ${discountVal > 0 ? `<div class="row"><span>${discountLabel}</span><span>-${fmtBRL(discountVal)}</span></div>` : ''}
+    ${serviceFeeVal > 0 ? `<div class="row"><span>Taxa de Serviço:</span><span>${fmtBRL(serviceFeeVal)}</span></div>` : ''}
+    ${deliveryFeeVal > 0 ? `<div class="row"><span>Taxa de entrega:</span><span>${fmtBRL(deliveryFeeVal)}</span></div>` : ''}
+  `;
 
   return `
     ${headerHtml}
     <div class="big">RESUMO DA CONTA</div>
-    <div class="line"></div>
+    <div class="line-solid"></div>
     <div class="row"><span>Tipo:</span><span>${orderTypeLabels[bill.orderType] || bill.orderType || 'Mesa'}</span></div>
     ${(bill.tableNumber || bill.orderType === 'mesa') ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber || 'N/A'}</span></div>` : ''}
     <div class="row"><span>Cliente:</span><span>${bill.customerName || ''}</span></div>
@@ -562,6 +573,8 @@ function buildBillHtml(bill: any, ps: any = {}): string {
       ${items || '<p class="center">Nenhum item</p>'}
     </div>
     <div class="line"></div>
+    ${feesHtml}
+    <div class="line-solid"></div>
     <div class="row bold" style="font-size: 16px;"><span>TOTAL</span><span>${fmtBRL(totalBilled)}</span></div>
     ${payments ? `<div class="line" style="margin-top:10px;"></div><p class="bold">PAGAMENTO:</p>${payments}` : ''}
     <div class="footer-text" style="border-top: 1px dashed #000; margin-top: 12px; padding-top: 6px;">
