@@ -67,8 +67,15 @@ interface SettingsConsistency {
   tableCount: number | null;
   serviceFeePercentage: number | null;
   hasPrintSettings: boolean;
+  dbToggles: Record<string, boolean>;
+  dbTexts: Record<string, string>;
+  deviceToggles: Record<string, boolean>;
+  deviceTexts: Record<string, string>;
   checkedAt: number;
 }
+
+const PS_TOGGLE_KEYS = ['showAddress', 'showDocument', 'showWhatsapp', 'showPixKey', 'showInstagram', 'showThankMessage'] as const;
+const PS_TEXT_KEYS = ['storeName', 'address', 'document', 'whatsapp', 'pixKey', 'instagram', 'thankMessage'] as const;
 
 export default function DiagnosticoSync() {
   const { user } = useAuth();
