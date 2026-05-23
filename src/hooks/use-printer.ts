@@ -531,18 +531,6 @@ function buildBillHtml(bill: any, ps: any = {}): string {
     footerHtml += `<p class="center footer-text" style="margin-top: 10px; margin-bottom: 0;">Obrigado pela preferência!</p>`;
   }
 
-  // Dynamically calculate total if bill.total is falsy or 0
-  let totalBilled = bill.total || 0;
-  if (!totalBilled || totalBilled === 0) {
-    const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
-      const itemSubtotal = item.subtotal ?? (item.price * (item.weight ?? item.quantity));
-      return acc + (itemSubtotal || 0);
-    }, 0);
-    const discountVal = bill.discount ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount) : 0;
-    const serviceFeeVal = bill.serviceFee || 0;
-    const deliveryFeeVal = bill.deliveryFee || 0;
-    totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
-  }
 
   return `
     ${headerHtml}
