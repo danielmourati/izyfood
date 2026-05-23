@@ -432,56 +432,24 @@ function buildOrderHtml(order: any, ps: any = {}): string {
       ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
       : (order.customerName || 'Sem Nome');
 
-  let headerHtml = '';
-  if (ps.storeName) {
-    headerHtml += `<div class="center bold" style="font-size: 16px; margin-bottom: 4px; text-transform: uppercase;">${ps.storeName}</div>`;
-  }
-  if (ps.showAddress && ps.address) {
-    headerHtml += `<div class="center header-text" style="margin-bottom: 2px;">${ps.address}</div>`;
-  }
-  if (ps.showDocument && ps.document) {
-    headerHtml += `<div class="center header-text" style="margin-bottom: 2px;">${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}</div>`;
-  }
-  if (ps.showWhatsapp && ps.whatsapp) {
-    headerHtml += `<div class="center header-text" style="margin-bottom: 4px;">WhatsApp: ${ps.whatsapp}</div>`;
-  }
-  if (headerHtml) {
-    headerHtml += '<div class="line"></div>';
-  }
-
-  let footerHtml = '';
-  if (ps.showPixKey && ps.pixKey) {
-    footerHtml += `<div class="center footer-text" style="margin-top: 4px;">PIX: ${ps.pixKey}</div>`;
-  }
-  if (ps.showInstagram && ps.instagram) {
-    footerHtml += `<div class="center footer-text" style="margin-top: 2px;">Instagram: @${ps.instagram.replace('@', '')}</div>`;
-  }
-  if (ps.showThankMessage && ps.thankMessage) {
-    footerHtml += `<p class="center footer-text bold" style="margin-top: 10px; margin-bottom: 0;">${ps.thankMessage}</p>`;
-  }
-
+  // Comanda da cozinha: sem cabeçalho de loja e sem rodapé promocional.
   return `
-    ${headerHtml}
-    <div class="center" style="font-size: 14px; margin-bottom: 8px;">Cozinha Principal</div>
+    <div class="center bold" style="font-size: 16px; margin-bottom: 8px;">Cozinha Principal</div>
     <div style="margin-bottom: 8px;">${fmtDate(createdAt)} | Pedido: ${orderNo}</div>
     <div class="center" style="margin-bottom: 4px; font-size: 12px;">* Senha: ${orderNo} *</div>
     <div class="center bold" style="font-size: 20px; border: ${tipoBorder}; color: ${tipoColor}; padding: 6px 4px; margin: 10px 0; letter-spacing: 1px;">${tipoLabel}</div>
-    
+
     <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;">Cliente: <strong>${customerLine}</strong></div>
-    
+
     <div style="margin-top: 6px;">
       ${items || '<p class="center">Nenhum item</p>'}
     </div>
-    
+
     <div class="line" style="margin-top: 12px;"></div>
     <div style="margin-top: 6px; font-size: 11px; color: #444;">Atendente: ${order.operatorName || 'Não informado'}</div>
-    ${footerHtml ? `
-    <div class="footer-text" style="border-top: 1px dashed #000; margin-top: 12px; padding-top: 6px;">
-      ${footerHtml}
-    </div>
-    ` : ''}
   `;
 }
+
 
 function buildBillHtml(bill: any, ps: any = {}): string {
   const items = (bill.items || []).map((i: any) => {

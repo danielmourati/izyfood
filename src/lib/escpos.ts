@@ -271,35 +271,12 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
     CMD_CODEPAGE_PC860,
   ];
 
-  // Dynamic header — each field evaluated independently.
-  // storeName is ALWAYS printed if non-empty (mandatory branding, no toggle needed).
-  const hasStoreName = !!(ps.storeName && ps.storeName.trim());
-  const hasAddress   = !!(ps.showAddress && ps.address);
-  const hasDocument  = !!(ps.showDocument && ps.document);
-  const hasWhatsapp  = !!(ps.showWhatsapp && ps.whatsapp);
-  const hasAnyHeader = hasStoreName || hasAddress || hasDocument || hasWhatsapp;
-
-  if (hasAnyHeader) {
-    // Use Font A for direct Bluetooth receipts: several mobile thermal printers ignore Font B.
-    parts.push(CMD_FONT_A);
-    if (hasStoreName) {
-      parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName!.trim().toUpperCase()}\n`), CMD_BOLD_OFF);
-    }
-    if (hasAddress) {
-      parts.push(CMD_ALIGN_CENTER, text(`${ps.address}\n`));
-    }
-    if (hasDocument) {
-      parts.push(CMD_ALIGN_CENTER, text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
-    }
-    if (hasWhatsapp) {
-      parts.push(CMD_ALIGN_CENTER, text(`WhatsApp: ${ps.whatsapp}\n`));
-    }
-    parts.push(CMD_ALIGN_LEFT, CMD_FONT_A, lineOf('-', cols));
-  }
-
+  // Comanda da cozinha: sem cabeçalho de loja (nome, endereço, CNPJ, WhatsApp).
   parts.push(
     CMD_ALIGN_CENTER,
+    CMD_BOLD_ON,
     text('Cozinha Principal\n\n'),
+    CMD_BOLD_OFF,
     CMD_ALIGN_LEFT,
   );
 
@@ -308,7 +285,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
 
   parts.push(CMD_ALIGN_CENTER);
   parts.push(text(`* Cod. Pers./Senha: ${orderNo} *\n`));
-  
+
   let tipoPedido = 'BALCÃO';
   if (order.orderType === 'delivery') {
     tipoPedido = 'DELIVERY';
@@ -323,14 +300,15 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   parts.push(CMD_BOLD_ON, text(`${tipoPedido}\n\n`), CMD_BOLD_OFF);
 
   parts.push(CMD_ALIGN_LEFT);
-  
+
   const customerLine = order.orderType === 'delivery'
     ? `${order.customerName || 'Sem Nome'}${order.customerAddress ? ' - ' + order.customerAddress : ''}`
     : order.orderType === 'retirada'
     ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
     : (order.customerName || 'Sem Nome');
 
-  parts.push(text(`Cliente: ${customerLine}\n\n`));
+  parts.push(text('Cliente: '), CMD_BOLD_ON, text(`${customerLine}\n\n`), CMD_BOLD_OFF);
+
 
   // Items
   for (const item of order.items) {
@@ -348,24 +326,8 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   parts.push(text('Atendente do Pedido:\n'));
   parts.push(text(`${order.operatorName || 'Não informado'}\n`));
   
-  // Footer — each field evaluated independently.
-  // thankMessage fallback so something always prints in the footer if showThankMessage is ON.
-  const footerPixKey    = !!(ps.showPixKey && ps.pixKey);
-  const footerInstagram = !!(ps.showInstagram && ps.instagram);
-  const footerThankMsg  = ps.showThankMessage
-    ? (ps.thankMessage || 'Obrigado pela preferência!')
-    : null;
-  const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
+  // Comanda da cozinha: sem rodapé promocional (PIX, Instagram, mensagem de agradecimento).
 
-  if (hasFooter) {
-    parts.push(CMD_FONT_A, lineOf('-', cols), CMD_ALIGN_CENTER);
-    if (footerPixKey)    parts.push(text(`PIX: ${ps.pixKey}\n`));
-    if (footerInstagram) parts.push(text(`Instagram: ${ps.instagram}\n`));
-    if (footerThankMsg) {
-      parts.push(CMD_BOLD_ON, text(`${footerThankMsg}\n`), CMD_BOLD_OFF);
-    }
-    parts.push(CMD_FONT_A, CMD_ALIGN_LEFT);
-  }
 
   parts.push(feedAndCut());
 
