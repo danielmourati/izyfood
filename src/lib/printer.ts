@@ -125,12 +125,12 @@ export function isBluetoothAvailable(): boolean {
  * Request and connect to a Bluetooth thermal printer.
  * Returns the device name or throws on failure.
  */
-export async function connectBluetooth(): Promise<string> {
+export async function connectBluetooth(options: { forcePairing?: boolean } = {}): Promise<string> {
   const bt = (navigator as any).bluetooth;
   if (!bt) throw new Error('Web Bluetooth não suportado neste navegador.');
 
   // Try to find already authorized devices first
-  if (bt.getDevices) {
+  if (!options.forcePairing && bt.getDevices) {
     const devices = await bt.getDevices();
     if (devices.length > 0) {
       // Use the first one or try to match by name if we stored it
