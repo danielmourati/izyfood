@@ -445,7 +445,8 @@ export function printViaHtmlFallback(
         box-sizing: border-box; 
         overflow-x: hidden;
       }
-      .line { border-top: 1px dashed #000; margin: 6px 0; width: 100%; }
+      .line { border-top: 1px dashed #000; margin: 6px -16px; width: calc(100% + 32px); }
+      .line-solid { border-top: 2px solid #000; margin: 6px -16px; width: calc(100% + 32px); }
       .center { text-align: center; }
       .row { display: flex; justify-content: space-between; gap: 2px; }
       .bold { font-weight: bold; }
