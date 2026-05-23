@@ -758,7 +758,7 @@ function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen,
   tables, onSelectTable, selectedCustomerId, onSelectCustomer, isHeldMesa,
   onPrintOrder, onReprintOrder, onPrintBill, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder,
-  manualCustomerName, setManualCustomerName
+  manualCustomerName, setManualCustomerName, printWarning
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
@@ -775,6 +775,7 @@ function CartContent({
   onDeleteOrder?: () => void;
   manualCustomerName?: string;
   setManualCustomerName?: (val: string) => void;
+  printWarning?: string | null;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
@@ -937,6 +938,17 @@ function CartContent({
           />
         )}
       </div>
+
+      {printWarning && (
+        <div className="px-3 pt-3">
+          <Alert className="border-warning/50 bg-warning/10">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <AlertDescription className="text-sm font-medium text-foreground">
+              {printWarning}
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Customer Selector */}
       <div className="px-3 py-2 border-b space-y-1">
