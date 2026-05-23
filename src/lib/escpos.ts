@@ -435,13 +435,13 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   parts.push(CMD_ALIGN_LEFT, row('Data:', fmtDate(bill.createdAt), cols));
   parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
 
-  // Items with price — each item as a row()
+  // Items with price — each item as a rowWrap() so long names break into multiple lines.
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    parts.push(CMD_ALIGN_LEFT, row(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    parts.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        parts.push(CMD_ALIGN_LEFT, row(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
+        parts.push(rowWrap(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
       }
     }
   }
@@ -458,22 +458,29 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const deliveryFeeVal = bill.deliveryFee || 0;
   const totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
 
+  const hasAnyAdjustment = (bill.discount && bill.discount > 0) || serviceFeeVal > 0 || deliveryFeeVal > 0;
+
   if (bill.discount && bill.discount > 0) {
     const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%):` : 'Desconto:';
-    parts.push(CMD_ALIGN_LEFT, row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
+    parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? itemsTotal * bill.discount / 100 : bill.discount)}`, cols));
   }
   if (serviceFeeVal > 0) {
-    parts.push(CMD_ALIGN_LEFT, row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
+    parts.push(row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
   }
   if (deliveryFeeVal > 0) {
-    parts.push(CMD_ALIGN_LEFT, row('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
+    parts.push(row('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
   }
 
-  parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
+  if (hasAnyAdjustment) {
+    parts.push(lineOf('-', cols));
+  }
+
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
   const doubleCols = Math.floor(cols / 2);
   parts.push(leftRightAlign('TOTAL', fmtBRL(totalBilled), doubleCols));
-  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
+  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF, normalTextMode(), CMD_ALIGN_LEFT);
+  parts.push(lineOf('-', cols));
+
 
   // Payment
   if (bill.paymentSplits && bill.paymentSplits.length > 0) {
