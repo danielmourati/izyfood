@@ -171,8 +171,25 @@ export function usePrinter() {
       setBtConnected(true);
       setBtDeviceName(e.detail?.name || 'Impressora Bluetooth');
     };
+    const handleBtStatus = (e: any) => {
+      const connected = !!e.detail?.connected;
+      setBtConnected(connected);
+      if (connected && e.detail?.name) setBtDeviceName(e.detail.name);
+    };
     window.addEventListener('bt_connected', handleBtConnected);
-    return () => window.removeEventListener('bt_connected', handleBtConnected);
+    window.addEventListener('bt_status', handleBtStatus);
+
+    // Polling leve para refletir o estado real (gatt pode cair sem evento em alguns navegadores)
+    const poll = setInterval(() => {
+      const connected = isBluetoothConnected();
+      setBtConnected(prev => prev === connected ? prev : connected);
+    }, 5000);
+
+    return () => {
+      window.removeEventListener('bt_connected', handleBtConnected);
+      window.removeEventListener('bt_status', handleBtStatus);
+      clearInterval(poll);
+    };
   }, []);
 
   const retryQzConnection = async () => {
