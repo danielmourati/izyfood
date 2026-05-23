@@ -49,6 +49,10 @@ export const CMD_ALIGN_RIGHT = new Uint8Array([ESC, 0x61, 0x02]);
 export const CMD_DOUBLE_ON = new Uint8Array([GS, 0x21, 0x11]);
 /** Double height off */
 export const CMD_DOUBLE_OFF = new Uint8Array([GS, 0x21, 0x00]);
+/** Reset printer text mode: normal width/height, no condensed/double flags */
+export const CMD_PRINT_MODE_NORMAL = new Uint8Array([ESC, 0x21, 0x00]);
+/** Reset character spacing to printer default */
+export const CMD_CHAR_SPACING_DEFAULT = new Uint8Array([ESC, 0x20, 0x00]);
 /** Full cut */
 export const CMD_CUT = new Uint8Array([GS, 0x56, 0x00]);
 /** Partial cut */
@@ -147,6 +151,16 @@ interface CashCloseData {
 
 function colsForWidth(paperWidth: number): number {
   return paperWidth <= 58 ? 32 : 48;
+}
+
+function detailColsForWidth(paperWidth: number): number {
+  const cols = colsForWidth(paperWidth);
+  // Small safety margin avoids cheap mobile thermal printers clipping the rightmost characters.
+  return Math.max(24, cols - (paperWidth <= 58 ? 2 : 4));
+}
+
+function normalTextMode(): Uint8Array {
+  return concat(CMD_PRINT_MODE_NORMAL, CMD_DOUBLE_OFF, CMD_FONT_A, CMD_CHAR_SPACING_DEFAULT, CMD_BOLD_OFF);
 }
 
 export interface PrintSettings {
@@ -363,9 +377,11 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
  */
 export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
   const cols = colsForWidth(paperWidth);
+  const detailCols = detailColsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
     CMD_CODEPAGE_PC860,
+    normalTextMode(),
     CMD_ALIGN_CENTER,
   ];
 
@@ -403,14 +419,15 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
     CMD_ALIGN_LEFT,
     lineOf('=', cols),
+    normalTextMode(),
   );
 
-  parts.push(leftRightAlign('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
+  parts.push(leftRightAlign('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, detailCols));
   if (bill.tableNumber || bill.orderType === 'mesa') {
-    parts.push(leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), cols));
+    parts.push(leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), detailCols));
   }
-  parts.push(leftRightAlign('Cliente:', bill.customerName || '', cols));
-  parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), cols));
+  parts.push(leftRightAlign('Cliente:', bill.customerName || '', detailCols));
+  parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), detailCols));
   parts.push(lineOf('-', cols));
 
   // Items with price
@@ -441,7 +458,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
   }
   if (bill.serviceFee && bill.serviceFee > 0) {
-    parts.push(leftRightAlign('Taxa de Serviço:', fmtBRL(bill.serviceFee), cols));
+    parts.push(leftRightAlign('Taxa de Serviço:', fmtBRL(bill.serviceFee), detailCols));
   }
   if (bill.deliveryFee && bill.deliveryFee > 0) {
     parts.push(row('Taxa de entrega', fmtBRL(bill.deliveryFee), cols));
