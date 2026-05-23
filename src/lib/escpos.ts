@@ -420,6 +420,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     normalTextMode(),
     CMD_ALIGN_LEFT,
     lineOf('=', cols),
+    text('\n'),
   );
 
   // Each detail field on its own left-aligned line, followed by a line break.
