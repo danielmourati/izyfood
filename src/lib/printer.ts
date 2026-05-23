@@ -219,9 +219,12 @@ async function _connectToDevice(device: any): Promise<string> {
  * Disconnect current Bluetooth device.
  */
 export function disconnectBluetooth(): void {
+  stopBluetoothKeepAlive();
   if (_device?.gatt?.connected) _device.gatt.disconnect();
   _device = null;
   _characteristic = null;
+  _disconnectHandlerAttached = false;
+  _emitStatus(false, null);
 }
 
 /**
@@ -237,22 +240,43 @@ export function getBluetoothDeviceName(): string | null {
 
 /**
  * Send raw ESC/POS bytes via Bluetooth.
- * Splits into 512-byte chunks for BLE reliability.
+ * Splits into 256-byte chunks for BLE reliability and auto-reconecta se cair.
  */
 export async function printViaBluetooth(data: Uint8Array): Promise<void> {
-  if (!_characteristic) throw new Error('Impressora não conectada.');
+  // Garante conexão (reconecta se necessário) antes de imprimir
+  if (!isBluetoothConnected()) {
+    const ok = await ensureBluetoothConnected();
+    if (!ok || !_characteristic) throw new Error('Impressora não conectada.');
+  }
 
-  const CHUNK = 256; // Reduced from 512 to 256 to prevent MTU/GATT overflow on larger receipts
-  for (let i = 0; i < data.length; i += CHUNK) {
-    const chunk = data.slice(i, i + CHUNK);
-    if (_characteristic.properties.writeWithoutResponse) {
-      await _characteristic.writeValueWithoutResponse(chunk);
-    } else {
-      await _characteristic.writeValueWithResponse(chunk);
+  const CHUNK = 256;
+  try {
+    for (let i = 0; i < data.length; i += CHUNK) {
+      const chunk = data.slice(i, i + CHUNK);
+      if (_characteristic.properties.writeWithoutResponse) {
+        await _characteristic.writeValueWithoutResponse(chunk);
+      } else {
+        await _characteristic.writeValueWithResponse(chunk);
+      }
+      if (i + CHUNK < data.length) {
+        await new Promise(r => setTimeout(r, 100));
+      }
     }
-    // Small delay between chunks
-    if (i + CHUNK < data.length) {
-      await new Promise(r => setTimeout(r, 100)); // Increased delay for stability
+  } catch (err) {
+    // Se cair no meio, tenta reconectar uma vez e reenviar
+    console.warn('[bt] erro durante impressão, tentando reconectar e reenviar:', err);
+    const ok = await ensureBluetoothConnected();
+    if (!ok || !_characteristic) throw err;
+    for (let i = 0; i < data.length; i += CHUNK) {
+      const chunk = data.slice(i, i + CHUNK);
+      if (_characteristic.properties.writeWithoutResponse) {
+        await _characteristic.writeValueWithoutResponse(chunk);
+      } else {
+        await _characteristic.writeValueWithResponse(chunk);
+      }
+      if (i + CHUNK < data.length) {
+        await new Promise(r => setTimeout(r, 100));
+      }
     }
   }
 }
