@@ -80,47 +80,55 @@ function row(label: string, value: string, cols: number): Uint8Array {
   return text(label + ' '.repeat(gap) + value + '\n');
 }
 
-/**
- * Like row(), but if label+value doesn't fit in cols, wraps the label across
- * multiple lines (word-aware) and places the value right-aligned on the LAST line.
- * Used for item names that can exceed the paper width.
- */
 function rowWrap(label: string, value: string, cols: number): Uint8Array {
   if (label.length + 1 + value.length <= cols) {
     return row(label, value, cols);
   }
-  // Reserve space on the last line: value + at least 1 space.
-  const lastLineLabelMax = Math.max(1, cols - value.length - 1);
-  // Word-wrap the label honoring lastLineLabelMax on the final line and cols on prior lines.
-  const words = label.split(/\s+/).filter(Boolean);
+
+  // Get leading whitespace of label to indent wrapped lines
+  const indentMatch = label.match(/^(\s+)/);
+  const indent = indentMatch ? indentMatch[1] : '';
+
+  const words = label.trim().split(/\s+/);
   const lines: string[] = [];
-  let current = '';
-  for (const w of words) {
-    const candidate = current ? current + ' ' + w : w;
-    // Hard-split words longer than the available width
-    if (w.length > cols) {
-      if (current) { lines.push(current); current = ''; }
-      let rest = w;
-      while (rest.length > cols) { lines.push(rest.slice(0, cols)); rest = rest.slice(cols); }
-      current = rest;
-      continue;
+  let current = indent;
+
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const candidate = current === indent ? indent + w : current + ' ' + w;
+    if (candidate.length <= cols) {
+      current = candidate;
+    } else {
+      if (current !== indent) {
+        lines.push(current);
+      }
+      current = indent + w;
+      // Handle case where a single word is longer than cols
+      while (current.length > cols) {
+        lines.push(current.slice(0, cols));
+        current = indent + current.slice(cols);
+      }
     }
-    if (candidate.length <= cols) current = candidate;
-    else { lines.push(current); current = w; }
   }
-  if (current) lines.push(current);
-  // If last line + value doesn't fit, push value to its own line.
+  if (current && current !== indent) {
+    lines.push(current);
+  }
+
+  // Now, the last line needs to fit value.
   let last = lines.pop() ?? '';
   if (last.length + 1 + value.length > cols) {
-    lines.push(last);
-    last = '';
+    if (last) {
+      lines.push(last);
+    }
+    last = indent;
   }
-  const out: string[] = lines.slice();
-  const gap = Math.max(1, cols - last.length - value.length);
-  out.push(last + ' '.repeat(gap) + value);
-  return text(out.join('\n') + '\n');
-}
 
+  const gap = cols - last.length - value.length;
+  const lastLine = last + ' '.repeat(gap) + value;
+  lines.push(lastLine);
+
+  return text(lines.join('\n') + '\n');
+}
 
 function center(s: string, cols: number): Uint8Array {
   const pad = Math.max(0, Math.floor((cols - s.length) / 2));
@@ -143,35 +151,7 @@ function fmtBRL(v: number): string {
   return `R$${formatted}`;
 }
 
-/**
- * Wraps long item names into 2 lines, keeping the price aligned to the right on the first line.
- */
-function rowWrapWithPrefix(prefix: string, name: string, price: string, cols: number): Uint8Array {
-  const limit = cols - prefix.length - price.length - 1; // space available for name on line 1
 
-  if (name.length <= cols - prefix.length - price.length) {
-    const gap = cols - prefix.length - name.length - price.length;
-    return text(`${prefix}${name}${' '.repeat(gap)}${price}\n`);
-  }
-
-  let splitIdx = name.lastIndexOf(' ', limit);
-  if (splitIdx === -1 || splitIdx < Math.floor(limit * 0.6)) {
-    splitIdx = limit;
-  }
-
-  const part1 = name.substring(0, splitIdx).trimEnd();
-  const part2 = name.substring(splitIdx).trimStart();
-
-  const gap1 = cols - prefix.length - part1.length - price.length;
-  const line1 = `${prefix}${part1}${' '.repeat(gap1)}${price}\n`;
-
-  const indent = prefix.replace(/\S/g, ' ');
-  const maxPart2Len = cols - indent.length;
-  const part2Fitted = part2.substring(0, maxPart2Len);
-  const line2 = `${indent}${part2Fitted}\n`;
-
-  return text(line1 + line2);
-}
 
 
 function fmtDate(iso: string): string {
@@ -424,7 +404,6 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
  */
 export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
   const cols = colsForWidth(paperWidth);
-  const detailCols = detailColsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
     CMD_CODEPAGE_PC860,
@@ -433,7 +412,6 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   ];
 
   // Dynamic header — each field evaluated independently.
-  // storeName is ALWAYS printed if non-empty (mandatory branding, no toggle needed).
   const hasStoreName = !!(ps.storeName && ps.storeName.trim());
   const hasAddress = !!(ps.showAddress && ps.address);
   const hasDocument = !!(ps.showDocument && ps.document);
@@ -441,8 +419,6 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasAnyHeader = hasStoreName || hasAddress || hasDocument || hasWhatsapp;
 
   if (hasAnyHeader) {
-    // Use Font A for direct Bluetooth receipts: several mobile thermal printers ignore Font B.
-    parts.push(CMD_FONT_A);
     if (hasStoreName) {
       parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName!.trim().toUpperCase()}\n`), CMD_BOLD_OFF);
     }
@@ -455,7 +431,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     if (hasWhatsapp) {
       parts.push(CMD_ALIGN_CENTER, text(`WhatsApp: ${ps.whatsapp}\n`));
     }
-    parts.push(CMD_ALIGN_LEFT, CMD_FONT_A, lineOf('-', cols));
+    parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
   }
 
   // Print "CONTA"
@@ -464,34 +440,33 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     CMD_BOLD_ON, CMD_DOUBLE_ON,
     text('CONTA\n'),
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
-    normalTextMode(),
-    CMD_ALIGN_LEFT,
-    lineOf('-', cols),
   );
+  parts.push(normalTextMode(), CMD_ALIGN_LEFT, lineOf('-', cols));
 
   // Each detail field as a row(): label left, value right.
-  parts.push(CMD_ALIGN_LEFT, row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
+  parts.push(row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType || 'Mesa', cols));
   if (bill.tableNumber || bill.orderType === 'mesa') {
-    parts.push(CMD_ALIGN_LEFT, row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
+    parts.push(row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
-  parts.push(leftRightAlign('Cliente:', bill.customerName || '', cols));
-  parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), cols));
+  parts.push(row('Cliente:', bill.customerName?.trim() || 'Consumidor', cols));
+  parts.push(row('Data:', fmtDate(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
   // Items with price — each item as a rowWrap() so long names break into multiple lines.
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    parts.push(leftRightAlign(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    parts.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        parts.push(leftRightAlign(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
+        const compQty = `${comp.quantity}x`;
+        const compPrice = fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity));
+        parts.push(rowWrap(`  + ${compQty} ${comp.name}`, compPrice, cols));
       }
     }
   }
-
   parts.push(lineOf('-', cols));
 
-  // Always recompute totals from items + adjustments so service fee/discount/delivery are included
+  // Adjustments
   const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
     const itemSubtotal = item.subtotal ?? (item.price * (item.weight ?? item.quantity));
     return acc + (itemSubtotal || 0);
@@ -501,39 +476,44 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const deliveryFeeVal = bill.deliveryFee || 0;
   const totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
 
-  const hasAnyAdjustment = (bill.discount && bill.discount > 0) || serviceFeeVal > 0 || deliveryFeeVal > 0;
-
-  if (bill.discount && bill.discount > 0) {
-    const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';
-    parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
-  }
-  if (bill.serviceFee && bill.serviceFee > 0) {
-    parts.push(row('Taxa de serviço', fmtBRL(bill.serviceFee), cols));
-  }
-  if (bill.deliveryFee && bill.deliveryFee > 0) {
-    parts.push(row('Taxa de entrega', fmtBRL(bill.deliveryFee), cols));
-  }
-
-  parts.push(lineOf('=', cols));
-  parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
-  const doubleCols = Math.floor(cols / 2);
-  parts.push(leftRightAlign('TOTAL', fmtBRL(totalBilled), doubleCols));
-  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
-
-  // Payment
-  if (bill.paymentSplits && bill.paymentSplits.length > 0) {
-    parts.push(CMD_BOLD_ON, text('PAGAMENTO:\n'), CMD_BOLD_OFF);
-    for (const s of bill.paymentSplits) {
-      const methodLabel = paymentLabels[s.method] || s.method;
-      parts.push(leftRightAlign(methodLabel, fmtBRL(s.amount), cols));
+  const hasAnyAdjustment = discountVal > 0 || serviceFeeVal > 0 || deliveryFeeVal > 0;
+  if (hasAnyAdjustment) {
+    if (bill.discount && bill.discount > 0) {
+      const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%):` : 'Desconto:';
+      parts.push(row(discLabel, `-${fmtBRL(discountVal)}`, cols));
+    }
+    if (serviceFeeVal > 0) {
+      parts.push(row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
+    }
+    if (deliveryFeeVal > 0) {
+      parts.push(row('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
     }
     parts.push(lineOf('-', cols));
-  } else if (bill.paymentMethod) {
-    parts.push(row('Pgto:', paymentLabels[bill.paymentMethod] || bill.paymentMethod, cols));
+
   }
 
-  // Footer separator — Font B (smaller)
-  parts.push(CMD_FONT_B, lineOf('-', cols), CMD_FONT_A);
+  // TOTAL
+  parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
+  const doubleCols = Math.floor(cols / 2);
+  parts.push(row('TOTAL', fmtBRL(totalBilled), doubleCols));
+  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
+  parts.push(normalTextMode(), CMD_ALIGN_LEFT, lineOf('-', cols));
+
+  // Payment
+  const hasPayment = (bill.paymentSplits && bill.paymentSplits.length > 0) || !!bill.paymentMethod;
+  if (hasPayment) {
+    parts.push(CMD_BOLD_ON, text('PAGAMENTO:\n'), CMD_BOLD_OFF);
+    if (bill.paymentSplits && bill.paymentSplits.length > 0) {
+      for (const s of bill.paymentSplits) {
+        const methodLabel = paymentLabels[s.method] || s.method;
+        parts.push(row(methodLabel, fmtBRL(s.amount), cols));
+      }
+    } else if (bill.paymentMethod) {
+      const methodLabel = paymentLabels[bill.paymentMethod] || bill.paymentMethod;
+      parts.push(row(methodLabel, fmtBRL(totalBilled), cols));
+    }
+    parts.push(lineOf('-', cols));
+  }
 
   // Footer — each field evaluated independently.
   const footerPixKey = !!(ps.showPixKey && ps.pixKey);
@@ -544,7 +524,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
 
   if (hasFooter) {
-    parts.push(CMD_ALIGN_CENTER, CMD_FONT_B);
+    parts.push(CMD_ALIGN_CENTER);
     if (footerPixKey) parts.push(text(`PIX: ${ps.pixKey}\n`));
     if (footerInstagram) {
       const cleanInsta = ps.instagram!.startsWith('@') ? ps.instagram! : `@${ps.instagram!}`;
@@ -561,6 +541,8 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   return concat(...parts);
 }
+
+
 
 /**
  * Build FECHAMENTO DE CAIXA receipt.
