@@ -272,6 +272,7 @@ async function _connectToDevice(device: any): Promise<string> {
           const deviceName = device.name || 'Impressora Bluetooth';
           _attachDisconnectHandler(device);
           _startKeepAlive();
+          _saveLastDevice(device);
           window.dispatchEvent(new CustomEvent('bt_connected', { detail: { name: deviceName } }));
           _emitStatus(true, deviceName);
           return deviceName;
