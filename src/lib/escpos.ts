@@ -484,17 +484,16 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   // Payment
   if (bill.paymentSplits && bill.paymentSplits.length > 0) {
-    parts.push(lineOf('-', cols));
     parts.push(CMD_BOLD_ON, text('PAGAMENTO:\n'), CMD_BOLD_OFF);
     for (const s of bill.paymentSplits) {
       parts.push(row(paymentLabels[s.method] || s.method, fmtBRL(s.amount), cols));
     }
+    parts.push(lineOf('-', cols));
   } else if (bill.paymentMethod) {
     parts.push(row('Pgto:', paymentLabels[bill.paymentMethod] || bill.paymentMethod, cols));
+    parts.push(lineOf('-', cols));
   }
 
-  // Footer separator — Font B (smaller)
-  parts.push(CMD_FONT_A, lineOf('-', cols));
 
   // Footer — each field evaluated independently.
   // thankMessage uses a fallback so there's always a closing message if the toggle is ON.
