@@ -35,12 +35,13 @@ const Login = () => {
 
   useEffect(() => {
     if (!slug) return;
-    supabase.from('tenants').select('logo, name, login_icon, login_carousel_images').eq('slug', slug).single().then(({ data }) => {
-      if (data) {
-        setTenantLogo(data.logo);
-        setTenantName(data.name);
-        if (data.login_icon) setLoginIcon(data.login_icon);
-        const imgs = data.login_carousel_images as string[] | null;
+    (supabase.rpc as any)('get_tenant_branding', { _slug: slug }).then(({ data }: any) => {
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row) {
+        setTenantLogo(row.logo);
+        setTenantName(row.name);
+        if (row.login_icon) setLoginIcon(row.login_icon);
+        const imgs = row.login_carousel_images as string[] | null;
         if (imgs && Array.isArray(imgs) && imgs.length > 0) {
           setCarouselImages(imgs);
         }
