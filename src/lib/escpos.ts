@@ -380,21 +380,17 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     text('CONTA\n'),
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
     normalTextMode(),
-    text('\n'),
     CMD_ALIGN_LEFT,
-    lineOf('=', cols),
-    text('\n'),
+    lineOf('-', cols),
   );
 
-  // Each detail field on its own left-aligned line, followed by a line break.
-  // Re-assert LEFT alignment per line: some bluetooth thermal printers retain
-  // the previous CENTER alignment otherwise.
-  parts.push(CMD_ALIGN_LEFT, text(`Tipo: ${orderTypeLabels[bill.orderType] || bill.orderType}\n`));
+  // Each detail field as a row(): label left, value right.
+  parts.push(CMD_ALIGN_LEFT, row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
   if (bill.tableNumber || bill.orderType === 'mesa') {
-    parts.push(CMD_ALIGN_LEFT, text(`Mesa: ${bill.tableNumber || 'N/A'}\n`));
+    parts.push(CMD_ALIGN_LEFT, row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
-  parts.push(CMD_ALIGN_LEFT, text(`Cliente: ${bill.customerName || ''}\n`));
-  parts.push(CMD_ALIGN_LEFT, text(`Data: ${fmtDate(bill.createdAt)}\n`));
+  parts.push(CMD_ALIGN_LEFT, row('Cliente:', bill.customerName || '', cols));
+  parts.push(CMD_ALIGN_LEFT, row('Data:', fmtDate(bill.createdAt), cols));
   parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
 
   // Items with price
@@ -409,7 +405,6 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   }
 
   parts.push(lineOf('-', cols));
-  parts.push(text('\n'));
 
   // Always recompute totals from items + adjustments so service fee/discount/delivery are included
   const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
@@ -422,19 +417,17 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
 
   if (bill.discount && bill.discount > 0) {
-    const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';
-    parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
+    const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%):` : 'Desconto:';
+    parts.push(CMD_ALIGN_LEFT, row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
   }
   if (serviceFeeVal > 0) {
-    parts.push(row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
-    parts.push(text('\n'));
+    parts.push(CMD_ALIGN_LEFT, row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
   }
   if (deliveryFeeVal > 0) {
-    parts.push(CMD_ALIGN_LEFT, text('Taxa de entrega: '), text(`${fmtBRL(deliveryFeeVal)}\n`));
-    parts.push(text('\n'));
+    parts.push(CMD_ALIGN_LEFT, row('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
   }
 
-  parts.push(CMD_ALIGN_LEFT, lineOf('=', cols));
+  parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
   const doubleCols = Math.floor(cols / 2);
   parts.push(leftRightAlign('TOTAL', fmtBRL(totalBilled), doubleCols));
