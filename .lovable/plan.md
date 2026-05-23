@@ -1,87 +1,99 @@
-## Diagnóstico
+## Plano: Layout Definitivo do Cupom CONTA (58mm Bluetooth)
 
-O problema não está no canal Realtime em si: o diagnóstico mostra eventos chegando. A divergência acontece porque algumas partes do app recebem o evento, mas não aplicam corretamente o novo estado, e porque há inconsistência no banco para `store_settings`.
+### Contexto e diagnóstico
+A cada alteração o cupom sai desconfigurado porque:
+1. Mini-impressoras Bluetooth genéricas frequentemente **ignoram comandos** como Font B (`ESC M 1`), modo condensado e até double-height fora do alinhamento `CMD_ALIGN_LEFT`.
+2. A função `row()` atual **não trata nomes longos** — quando `label + value` excede 32 colunas, ela cai num fallback com apenas 1 espaço, achatando tudo.
+3. Os separadores `lineOf('-', cols)` foram adicionados/removidos pontualmente em iterações anteriores, sem um padrão claro de seções.
 
-Pontos encontrados:
+A solução é congelar um layout **setorizado** com regras determinísticas e uma função `rowWrap()` que quebra nomes longos em 2 linhas, mantendo o preço alinhado à direita na primeira linha.
 
-- `store_settings` tem mais de uma linha para o mesmo tenant em pelo menos um caso, então telas diferentes podem ler linhas diferentes.
-- A coluna `print_settings` é usada pelo código, mas não existe no banco atual, então as configurações de impressão/tenant podem falhar ou não persistir corretamente.
-- No `StoreContext`, o evento Realtime de `store_settings` atualiza apenas `tableCount` e descarta `serviceFeePercentage`.
-- O checkout busca a taxa de serviço com `.limit(1)` sem filtrar por tenant e sem usar o estado global, então pode pegar a linha errada.
-- A sidebar carrega nome/logo do tenant só uma vez e não assina Realtime, então a mudança aparece no diagnóstico mas não reflete na UI.
-- O salvamento de configurações faz `select().limit(1)` + update/insert manual, o que permite duplicidade e comportamento divergente.
+---
 
-## Plano de correção
+### Layout final (32 colunas, 58mm)
 
-### 1. Normalizar `store_settings` no banco
+```text
+        NOME DA LOJA              <- center+bold (se houver)
+       Rua Exemplo, 123           <- center (se showAddress)
+      CNPJ: 00.000.000/0001-00    <- center (se showDocument)
+       WhatsApp: 11999999999      <- center (se showWhatsapp)
+--------------------------------  <- separador (fim do cabeçalho)
+             CONTA                <- center+bold+double
+--------------------------------  <- separador (fim do título)
+Tipo:                       Mesa
+Mesa:                          5
+Cliente:             Consumidor
+Data:           22/05/2026 17:13
+--------------------------------  <- separador (fim dos dados)
+1x Açaí 500ml com complemen
+tos especiais             R$48,00
+  + 2x Granola            R$ 4,00
+2x Refrigerante 350ml     R$ 9,00
+--------------------------------  <- separador (fim dos itens)
+Desconto (10%):           -R$5,28
+Taxa de Serviço:          R$ 4,80
+Taxa de entrega:          R$ 5,00
+--------------------------------  <- separador (fim dos ajustes)
+TOTAL              R$ 52,80       <- bold + double (16 cols)
+--------------------------------  <- separador (fim do total)
+PAGAMENTO:                        <- bold
+Dinheiro                  R$30,00
+PIX                       R$22,80
+--------------------------------  <- separador (fim do pagamento)
+        PIX: chave@exemplo        <- center (se showPixKey)
+      Instagram: @minhaloja       <- center (se showInstagram)
+    Obrigado pela preferência!    <- center+bold (se showThankMessage)
+```
 
-Criar uma migration para:
+**Regra de ouro:** uma linha `lineOf('-', 32)` ao final de cada bloco lógico — cabeçalho, título, dados, itens, ajustes, total, pagamento. Nada de linhas em branco no meio.
 
-- adicionar `print_settings jsonb default '{}'`, caso ainda não exista;
-- remover duplicidades de `store_settings`, mantendo a linha mais recente de cada tenant;
-- criar uma restrição única para permitir apenas uma configuração por tenant;
-- garantir `REPLICA IDENTITY FULL` em `store_settings`;
-- garantir que `store_settings` esteja na publicação Realtime sem quebrar caso já esteja;
-- ajustar a política de atualização para validar também o novo valor com `WITH CHECK`.
+---
 
-Resultado esperado: cada tenant terá uma única fonte confiável de configurações.
+### Mudanças técnicas em `src/lib/escpos.ts`
 
-### 2. Corrigir o salvamento da tela Configurações
+**1. Nova função `rowWrap(label, value, cols)`**
+- Se `label.length + 1 + value.length <= cols` → comporta-se como `row()` atual.
+- Senão, quebra `label` em pedaços de `cols` caracteres respeitando palavras (split em espaço); a **última linha** carrega o `value` alinhado à direita.
+- Substitui `row()` apenas nos **itens e complementos** (onde nomes podem ser longos). Os 4 rótulos fixos (`Tipo/Mesa/Cliente/Data`) continuam com `row()` simples.
 
-Alterar `Configuracoes.tsx` para:
+**2. Compatibilidade Bluetooth (mini-printer genérica)**
+- Remover usos de `CMD_FONT_B` no rodapé (já está em Font A — confirmar e travar).
+- Garantir `normalTextMode()` antes de cada bloco que muda formatação (após `CONTA` double, após `TOTAL` double).
+- Manter apenas `CMD_BOLD_ON/OFF`, `CMD_DOUBLE_ON/OFF`, `CMD_ALIGN_*` — comandos universais.
+- Não usar code page específica em texto que pode falhar; manter `CMD_CODEPAGE_PC860` apenas no `CMD_INIT`.
 
-- salvar `store_settings` usando `upsert` por `tenant_id`, em vez de `select + update/insert`;
-- manter `table_count`, `service_fee_percentage` e `print_settings` na mesma gravação;
-- após salvar, reler a linha persistida ou usar o retorno do `upsert` para confirmar o estado real;
-- tratar erro específico quando o banco rejeitar a gravação, para não parecer que salvou quando não salvou.
+**3. Separadores fixos em `buildBillReceipt`**
+Ordem definitiva das chamadas `lineOf('-', cols)`:
+1. Depois do cabeçalho dinâmico (se houver qualquer campo)
+2. Depois de `text('CONTA\n')`
+3. Depois de `Data:` (fim dos dados)
+4. Depois do último item (fim dos itens)
+5. Depois do último ajuste (Desconto/Taxa Serviço/Taxa Entrega) — só se houver ao menos um
+6. Depois de `TOTAL`
+7. Depois do último split de pagamento — só se houver pagamento
 
-Resultado esperado: taxa de serviço e dados de impressão ficam gravados no banco e propagam para outros dispositivos.
+**4. Remover ruído**
+- Eliminar `parts.push(text('\n'))` órfãos remanescentes.
+- Remover `CMD_ALIGN_LEFT` repetidos antes de cada `row()` (já está em LEFT desde o título).
 
-### 3. Corrigir aplicação dos eventos Realtime no estado global
+---
 
-Alterar `StoreContext.tsx` para:
+### Arquivos afetados
+- **`src/lib/escpos.ts`** — adicionar `rowWrap()`, refatorar `buildBillReceipt()` para o layout setorizado acima.
+- **`src/test/escpos.test.ts`** — adicionar 2 testes: (a) item longo quebrado em 2 linhas com preço na 1ª, (b) presença de todos os 7 separadores na ordem correta.
 
-- mapear `store_settings` incluindo `tableCount` e `serviceFeePercentage`;
-- no Realtime de `store_settings`, preservar os campos existentes e atualizar também `serviceFeePercentage`;
-- buscar `store_settings` de forma determinística por tenant e linha única;
-- evitar que uma atualização parcial apague dados já carregados.
+---
 
-Resultado esperado: o app deixa de apenas “receber evento” e passa a atualizar o estado usado pelas telas.
+### Fora de escopo (não vou tocar agora)
+- `buildOrderReceipt` (comanda da cozinha) — layout diferente, já estável.
+- `buildCashCloseReceipt` (fechamento de caixa) — separado, sem reclamação.
+- Configurações do componente `ImpressoraTab` — apenas o renderer ESC/POS.
 
-### 4. Corrigir taxa de serviço no checkout
+---
 
-Alterar `CheckoutModal.tsx` para:
+### Validação após implementar
+1. Rodar `vitest src/test/escpos.test.ts` — todos os testes passam.
+2. Imprimir cupom de teste real na mini-printer Bluetooth com: 1 item curto, 1 item longo (>20 chars), 1 complemento, desconto + taxa de serviço, pagamento dividido em 2.
+3. Conferir visualmente que cada um dos 7 separadores aparece exatamente uma vez, full-width.
 
-- usar `settings.serviceFeePercentage` do `useStore()` como fonte principal;
-- remover ou corrigir a busca sem tenant em `store_settings`;
-- se houver busca direta, filtrar pelo tenant e usar `.maybeSingle()` após a constraint única.
-
-Resultado esperado: a taxa salva em Configurações aparece corretamente no fechamento de Mesa.
-
-### 5. Sincronizar identidade visual/tenant na UI
-
-Alterar `AppSidebar.tsx` para:
-
-- assinar Realtime da tabela `tenants` filtrando pelo tenant atual;
-- atualizar nome e logo quando outro dispositivo salvar;
-- limpar o canal ao desmontar.
-
-Resultado esperado: nome/logo alterados em um dispositivo aparecem no outro sem F5.
-
-### 6. Melhorar o Diagnóstico Sync para detectar divergência real
-
-Ajustar `DiagnosticoSync.tsx` para deixar claro que canal conectado não basta:
-
-- mostrar uma checagem de consistência de `store_settings` por tenant;
-- exibir alerta se houver mais de uma linha para o tenant;
-- mostrar o valor atual persistido de `service_fee_percentage`, `table_count` e presença de `print_settings`;
-- manter o ping, mas separar “canal conectado” de “estado aplicado”.
-
-Resultado esperado: a tela passa a diagnosticar o problema real, não apenas a conexão websocket.
-
-## Validação após implementar
-
-- Salvar taxa de serviço em um dispositivo e confirmar no outro sem atualizar a página.
-- Abrir checkout de uma Mesa e confirmar que a taxa aplicada bate com Configurações.
-- Alterar nome/logo do estabelecimento no mobile e confirmar sidebar/configurações no desktop.
-- Conferir no Diagnóstico Sync: uma única linha de `store_settings`, canais OK e valores persistidos corretos.
+Se algum ajuste ainda for necessário após esse layout-base, será **incremental sobre uma base estável** — sem refatorar tudo de novo.

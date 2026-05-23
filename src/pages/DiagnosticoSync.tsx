@@ -67,8 +67,15 @@ interface SettingsConsistency {
   tableCount: number | null;
   serviceFeePercentage: number | null;
   hasPrintSettings: boolean;
+  dbToggles: Record<string, boolean>;
+  dbTexts: Record<string, string>;
+  deviceToggles: Record<string, boolean>;
+  deviceTexts: Record<string, string>;
   checkedAt: number;
 }
+
+const PS_TOGGLE_KEYS = ['showAddress', 'showDocument', 'showWhatsapp', 'showPixKey', 'showInstagram', 'showThankMessage'] as const;
+const PS_TEXT_KEYS = ['storeName', 'address', 'document', 'whatsapp', 'pixKey', 'instagram', 'thankMessage'] as const;
 
 export default function DiagnosticoSync() {
   const { user } = useAuth();
@@ -185,11 +192,30 @@ export default function DiagnosticoSync() {
     if (!error) {
       const rows = data || [];
       const first: any = rows[0];
+      const dbPs: any = first?.print_settings || {};
+
+      let devicePs: any = {};
+      try {
+        const cache = (window as any).__printSettingsCache;
+        if (cache) devicePs = cache;
+        else {
+          const saved = localStorage.getItem(`print_settings_${user.tenantId}`);
+          if (saved) devicePs = JSON.parse(saved);
+        }
+      } catch { /* empty */ }
+
+      const pickToggles = (src: any) => PS_TOGGLE_KEYS.reduce((acc, k) => { acc[k] = !!src?.[k]; return acc; }, {} as Record<string, boolean>);
+      const pickTexts = (src: any) => PS_TEXT_KEYS.reduce((acc, k) => { acc[k] = String(src?.[k] ?? ''); return acc; }, {} as Record<string, string>);
+
       setConsistency({
         rowCount: rows.length,
         tableCount: first?.table_count ?? null,
         serviceFeePercentage: first?.service_fee_percentage != null ? Number(first.service_fee_percentage) : null,
         hasPrintSettings: !!(first?.print_settings && Object.keys(first.print_settings).length > 0),
+        dbToggles: pickToggles(dbPs),
+        dbTexts: pickTexts(dbPs),
+        deviceToggles: pickToggles(devicePs),
+        deviceTexts: pickTexts(devicePs),
         checkedAt: Date.now(),
       });
     }
@@ -329,9 +355,56 @@ export default function DiagnosticoSync() {
                 <span className="text-muted-foreground">Configurações de impressão</span>
                 <Badge variant="outline">{consistency.hasPrintSettings ? 'preenchido' : 'vazio'}</Badge>
               </div>
+
+              {/* Per-field comparison: DB (cloud) vs this device cache */}
+              <div className="pt-3 mt-2 border-t border-border/60 space-y-2">
+                <div className="text-xs font-semibold text-muted-foreground">Toggles de cabeçalho/rodapé</div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted-foreground">
+                      <th className="text-left font-medium pb-1">Campo</th>
+                      <th className="text-center font-medium pb-1">Nuvem</th>
+                      <th className="text-center font-medium pb-1">Este aparelho</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {PS_TOGGLE_KEYS.map((k) => {
+                      const dbOn = consistency.dbToggles[k];
+                      const devOn = consistency.deviceToggles[k];
+                      const diverge = dbOn !== devOn;
+                      return (
+                        <tr key={k} className={diverge ? 'bg-amber-500/10' : ''}>
+                          <td className="py-1 font-mono">{k}</td>
+                          <td className="py-1 text-center">{dbOn ? '✓' : '—'}</td>
+                          <td className="py-1 text-center">{devOn ? '✓' : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="text-xs font-semibold text-muted-foreground pt-2">Textos</div>
+                <table className="w-full text-xs">
+                  <tbody>
+                    {PS_TEXT_KEYS.map((k) => {
+                      const dbV = consistency.dbTexts[k];
+                      const devV = consistency.deviceTexts[k];
+                      const diverge = dbV !== devV;
+                      return (
+                        <tr key={k} className={diverge ? 'bg-amber-500/10' : ''}>
+                          <td className="py-1 font-mono w-32">{k}</td>
+                          <td className="py-1 truncate max-w-[120px]" title={dbV}>{dbV || '—'}</td>
+                          <td className="py-1 truncate max-w-[120px]" title={devV}>{devV || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
               <p className="text-[11px] text-muted-foreground pt-2 border-t border-border/60">
-                Esta seção lê o banco diretamente. Se o canal recebe evento mas estes valores não mudam, o problema está na gravação (não no Realtime).
+                Esta seção lê o banco diretamente e compara com o cache deste aparelho. Se "Este aparelho" estiver vazio mas a "Nuvem" tiver dados, recarregue a página neste aparelho — o app vai sincronizar e o cabeçalho/rodapé voltará a sair na impressão.
               </p>
+
             </>
           )}
         </CardContent>

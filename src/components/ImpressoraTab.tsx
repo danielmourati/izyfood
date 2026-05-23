@@ -17,8 +17,9 @@ import { getQzPrinters } from '@/lib/printer';
 export function ImpressoraTab() {
   const { user } = useAuth();
   const {
-    printers, loading, btAvailable, btConnected, btDeviceName, qzConnected, retryQzConnection,
-    fetchPrinters, pairBluetooth, unpairBluetooth, printTest,
+    printers, loading, btAvailable, btConnected, btDeviceName, lastPairedName,
+    qzConnected, retryQzConnection,
+    fetchPrinters, pairBluetooth, unpairBluetooth, reconnectPrinter, forgetPrinter, printTest,
   } = usePrinter();
 
   const [showForm, setShowForm] = useState(false);
@@ -142,19 +143,39 @@ export function ImpressoraTab() {
                   </p>
                 </div>
               )}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <Badge variant={btConnected ? 'default' : 'secondary'}>
                   {btConnected ? `Conectado: ${btDeviceName}` : 'Desconectado'}
                 </Badge>
                 {btConnected ? (
                   <Button variant="outline" size="sm" onClick={unpairBluetooth}>Desconectar</Button>
                 ) : (
-                  <Button size="sm" onClick={handlePair} disabled={pairing || isDesktop} variant={isDesktop ? "secondary" : "default"} title={isDesktop ? "Recomendado apenas para celular/tablet" : ""}>
+                  <Button size="sm" onClick={handlePair} disabled={pairing}>
                     {pairing && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                    Parear Impressora {isDesktop && "(Mobile)"}
+                    Parear Impressora
                   </Button>
                 )}
               </div>
+              {!btConnected && lastPairedName && (
+                <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground bg-muted/40 border rounded-md p-2">
+                  <span>Última impressora pareada: <strong className="text-foreground">{lastPairedName}</strong></span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const toastId = toast.loading('Reconectando à última impressora...');
+                      const ok = await reconnectPrinter();
+                      if (ok) toast.success('Reconectado!', { id: toastId });
+                      else toast.error('Não foi possível reconectar automaticamente. Toque em "Parear Impressora" para reautorizar.', { id: toastId });
+                    }}
+                  >
+                    Reconectar agora
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={forgetPrinter}>
+                    Esquecer
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </CardContent>

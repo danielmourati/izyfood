@@ -23,6 +23,96 @@ const PRINTER_CHAR_UUIDS = [
 
 let _device: any = null;
 let _characteristic: any = null;
+let _keepAliveTimer: any = null;
+let _reconnecting = false;
+let _disconnectHandlerAttached = false;
+let _autoReconnectStarted = false;
+let _autoReconnectTimer: any = null;
+
+const KEEPALIVE_INTERVAL_MS = 15000; // verifica a cada 15s
+const RECONNECT_BACKOFF_MS = 2000;
+const AUTO_RECONNECT_INTERVAL_MS = 30000; // tenta a cada 30s enquanto desconectado
+
+const LS_LAST_NAME = 'bt_last_device_name';
+const LS_LAST_ID = 'bt_last_device_id';
+
+function _saveLastDevice(device: any) {
+  try {
+    if (device?.name) localStorage.setItem(LS_LAST_NAME, device.name);
+    if (device?.id) localStorage.setItem(LS_LAST_ID, device.id);
+  } catch { /* ignore */ }
+}
+
+export function getLastPairedDeviceName(): string | null {
+  try { return localStorage.getItem(LS_LAST_NAME); } catch { return null; }
+}
+
+export function forgetBluetoothDevice() {
+  try {
+    localStorage.removeItem(LS_LAST_NAME);
+    localStorage.removeItem(LS_LAST_ID);
+  } catch { /* ignore */ }
+  disconnectBluetooth();
+}
+
+function _emitStatus(connected: boolean, name?: string | null) {
+  try {
+    window.dispatchEvent(new CustomEvent('bt_status', { detail: { connected, name: name || null } }));
+  } catch { /* ignore */ }
+}
+
+async function _reconnectCurrentDevice(): Promise<boolean> {
+  if (!_device || _reconnecting) return false;
+  _reconnecting = true;
+  try {
+    const name = await _connectToDevice(_device);
+    console.info('[bt] reconectado:', name);
+    return true;
+  } catch (err) {
+    console.warn('[bt] falha ao reconectar:', err);
+    return false;
+  } finally {
+    _reconnecting = false;
+  }
+}
+
+function _attachDisconnectHandler(device: any) {
+  if (_disconnectHandlerAttached) return;
+  _disconnectHandlerAttached = true;
+  device.addEventListener('gattserverdisconnected', async () => {
+    console.warn('[bt] gattserverdisconnected — tentando reconectar...');
+    _characteristic = null;
+    _emitStatus(false, device?.name);
+    // Backoff antes de tentar
+    setTimeout(() => { _reconnectCurrentDevice(); }, RECONNECT_BACKOFF_MS);
+  });
+}
+
+function _startKeepAlive() {
+  if (_keepAliveTimer) return;
+  _keepAliveTimer = setInterval(async () => {
+    if (!_device) return;
+    const connected = !!_device.gatt?.connected && !!_characteristic;
+    if (!connected && !_reconnecting) {
+      console.info('[bt] keepalive detectou desconexão, reconectando...');
+      await _reconnectCurrentDevice();
+    }
+  }, KEEPALIVE_INTERVAL_MS);
+}
+
+export function stopBluetoothKeepAlive() {
+  if (_keepAliveTimer) {
+    clearInterval(_keepAliveTimer);
+    _keepAliveTimer = null;
+  }
+}
+
+/** Garante conexão antes de imprimir; tenta reconectar se necessário. */
+export async function ensureBluetoothConnected(): Promise<boolean> {
+  if (isBluetoothConnected()) return true;
+  if (!_device) return false;
+  return await _reconnectCurrentDevice();
+}
 
 /**
  * Check if Web Bluetooth API is available.
@@ -35,12 +125,12 @@ export function isBluetoothAvailable(): boolean {
  * Request and connect to a Bluetooth thermal printer.
  * Returns the device name or throws on failure.
  */
-export async function connectBluetooth(): Promise<string> {
+export async function connectBluetooth(options: { forcePairing?: boolean } = {}): Promise<string> {
   const bt = (navigator as any).bluetooth;
   if (!bt) throw new Error('Web Bluetooth não suportado neste navegador.');
 
   // Try to find already authorized devices first
-  if (bt.getDevices) {
+  if (!options.forcePairing && bt.getDevices) {
     const devices = await bt.getDevices();
     if (devices.length > 0) {
       // Use the first one or try to match by name if we stored it
@@ -74,29 +164,35 @@ export async function tryReconnectBluetooth(): Promise<string | null> {
 
   try {
     const devices = await bt.getDevices();
-    if (devices.length > 0) {
-      const device = devices[0];
-      
-      // Adiciona listener para caso a impressora volte a anunciar depois
+    if (!devices || devices.length === 0) return null;
+
+    // Prioriza o último device salvo (por id ou nome)
+    const lastId = (() => { try { return localStorage.getItem(LS_LAST_ID); } catch { return null; } })();
+    const lastName = getLastPairedDeviceName();
+
+    const sorted = [...devices].sort((a: any, b: any) => {
+      const score = (d: any) => (lastId && d.id === lastId ? 2 : 0) + (lastName && d.name === lastName ? 1 : 0);
+      return score(b) - score(a);
+    });
+
+    for (const device of sorted) {
+      // Watcher para reconectar assim que voltar a anunciar
       const onAdv = async () => {
-        try {
-          await _connectToDevice(device);
-        } catch (e) { /* ignore */ }
+        try { await _connectToDevice(device); } catch { /* ignore */ }
       };
-      
-      device.addEventListener('advertisementreceived', onAdv);
       try {
+        device.addEventListener('advertisementreceived', onAdv);
         await device.watchAdvertisements();
       } catch (e) {
-        console.warn('watchAdvertisements não suportado', e);
+        // watchAdvertisements pode não estar disponível — ignora
       }
-      
-      // Tenta imediatamente
+
+      // Tenta conectar imediatamente
       try {
         const name = await _connectToDevice(device);
         return name;
       } catch (err) {
-        console.warn('Auto-reconexão imediata falhou. Aguardando advertisement:', err);
+        console.warn('[bt] auto-reconexão falhou para', device.name || device.id, err);
       }
     }
   } catch (err) {
@@ -106,12 +202,48 @@ export async function tryReconnectBluetooth(): Promise<string | null> {
 }
 
 /**
+ * Inicia o loop de auto-reconexão: tenta agora, agenda retries periódicos,
+ * e reagenda sempre que a aba voltar a ficar visível ou a rede voltar.
+ * Seguro chamar múltiplas vezes — só inicia uma única vez por sessão.
+ */
+export function startBluetoothAutoReconnect() {
+  if (_autoReconnectStarted) return;
+  _autoReconnectStarted = true;
+
+  const attempt = async () => {
+    if (isBluetoothConnected()) return;
+    if (!getLastPairedDeviceName()) return; // nada para reconectar
+    try { await tryReconnectBluetooth(); } catch { /* ignore */ }
+  };
+
+  // Primeira tentativa imediata
+  attempt();
+
+  // Tentativas periódicas
+  if (_autoReconnectTimer) clearInterval(_autoReconnectTimer);
+  _autoReconnectTimer = setInterval(attempt, AUTO_RECONNECT_INTERVAL_MS);
+
+  // Quando a aba volta a ficar visível
+  try {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') attempt();
+    });
+  } catch { /* ignore */ }
+
+  // Quando a rede volta
+  try {
+    window.addEventListener('online', () => { attempt(); });
+  } catch { /* ignore */ }
+}
+
+
+/**
  * Shared connection logic for requested or retrieved device.
  */
 async function _connectToDevice(device: any): Promise<string> {
   if (!device.gatt) throw new Error('Dispositivo não suporta GATT.');
 
-  const server = await device.gatt.connect();
+  const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
 
   // Try each known service / characteristic
   for (const svcUuid of PRINTER_SERVICE_UUIDS) {
@@ -123,7 +255,11 @@ async function _connectToDevice(device: any): Promise<string> {
           _device = device;
           _characteristic = char;
           const deviceName = device.name || 'Impressora Bluetooth';
+          _attachDisconnectHandler(device);
+          _startKeepAlive();
+          _saveLastDevice(device);
           window.dispatchEvent(new CustomEvent('bt_connected', { detail: { name: deviceName } }));
+          _emitStatus(true, deviceName);
           return deviceName;
         } catch { /* try next */ }
       }
@@ -134,7 +270,11 @@ async function _connectToDevice(device: any): Promise<string> {
           _device = device;
           _characteristic = c;
           const deviceName = device.name || 'Impressora Bluetooth';
+          _attachDisconnectHandler(device);
+          _startKeepAlive();
+          _saveLastDevice(device);
           window.dispatchEvent(new CustomEvent('bt_connected', { detail: { name: deviceName } }));
+          _emitStatus(true, deviceName);
           return deviceName;
         }
       }
@@ -148,9 +288,12 @@ async function _connectToDevice(device: any): Promise<string> {
  * Disconnect current Bluetooth device.
  */
 export function disconnectBluetooth(): void {
+  stopBluetoothKeepAlive();
   if (_device?.gatt?.connected) _device.gatt.disconnect();
   _device = null;
   _characteristic = null;
+  _disconnectHandlerAttached = false;
+  _emitStatus(false, null);
 }
 
 /**
@@ -166,22 +309,43 @@ export function getBluetoothDeviceName(): string | null {
 
 /**
  * Send raw ESC/POS bytes via Bluetooth.
- * Splits into 512-byte chunks for BLE reliability.
+ * Splits into 256-byte chunks for BLE reliability and auto-reconecta se cair.
  */
 export async function printViaBluetooth(data: Uint8Array): Promise<void> {
-  if (!_characteristic) throw new Error('Impressora não conectada.');
+  // Garante conexão (reconecta se necessário) antes de imprimir
+  if (!isBluetoothConnected()) {
+    const ok = await ensureBluetoothConnected();
+    if (!ok || !_characteristic) throw new Error('Impressora não conectada.');
+  }
 
-  const CHUNK = 256; // Reduced from 512 to 256 to prevent MTU/GATT overflow on larger receipts
-  for (let i = 0; i < data.length; i += CHUNK) {
-    const chunk = data.slice(i, i + CHUNK);
-    if (_characteristic.properties.writeWithoutResponse) {
-      await _characteristic.writeValueWithoutResponse(chunk);
-    } else {
-      await _characteristic.writeValueWithResponse(chunk);
+  const CHUNK = 256;
+  try {
+    for (let i = 0; i < data.length; i += CHUNK) {
+      const chunk = data.slice(i, i + CHUNK);
+      if (_characteristic.properties.writeWithoutResponse) {
+        await _characteristic.writeValueWithoutResponse(chunk);
+      } else {
+        await _characteristic.writeValueWithResponse(chunk);
+      }
+      if (i + CHUNK < data.length) {
+        await new Promise(r => setTimeout(r, 100));
+      }
     }
-    // Small delay between chunks
-    if (i + CHUNK < data.length) {
-      await new Promise(r => setTimeout(r, 100)); // Increased delay for stability
+  } catch (err) {
+    // Se cair no meio, tenta reconectar uma vez e reenviar
+    console.warn('[bt] erro durante impressão, tentando reconectar e reenviar:', err);
+    const ok = await ensureBluetoothConnected();
+    if (!ok || !_characteristic) throw err;
+    for (let i = 0; i < data.length; i += CHUNK) {
+      const chunk = data.slice(i, i + CHUNK);
+      if (_characteristic.properties.writeWithoutResponse) {
+        await _characteristic.writeValueWithoutResponse(chunk);
+      } else {
+        await _characteristic.writeValueWithResponse(chunk);
+      }
+      if (i + CHUNK < data.length) {
+        await new Promise(r => setTimeout(r, 100));
+      }
     }
   }
 }
@@ -281,7 +445,8 @@ export function printViaHtmlFallback(
         box-sizing: border-box; 
         overflow-x: hidden;
       }
-      .line { border-top: 1px dashed #000; margin: 6px 0; width: 100%; }
+      .line { border-top: 1px dashed #000; margin: 6px -16px; width: calc(100% + 32px); }
+      .line-solid { border-top: 2px solid #000; margin: 6px -16px; width: calc(100% + 32px); }
       .center { text-align: center; }
       .row { display: flex; justify-content: space-between; gap: 2px; }
       .bold { font-weight: bold; }

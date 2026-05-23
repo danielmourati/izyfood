@@ -969,6 +969,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_tenant_branding: {
+        Args: { _slug: string }
+        Returns: {
+          id: string
+          login_carousel_images: Json
+          login_icon: string
+          logo: string
+          name: string
+          slug: string
+        }[]
+      }
       get_user_tenant_id: { Args: never; Returns: string }
       has_role: {
         Args: {

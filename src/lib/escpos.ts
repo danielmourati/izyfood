@@ -49,6 +49,10 @@ export const CMD_ALIGN_RIGHT = new Uint8Array([ESC, 0x61, 0x02]);
 export const CMD_DOUBLE_ON = new Uint8Array([GS, 0x21, 0x11]);
 /** Double height off */
 export const CMD_DOUBLE_OFF = new Uint8Array([GS, 0x21, 0x00]);
+/** Reset printer text mode: normal width/height, no condensed/double flags */
+export const CMD_PRINT_MODE_NORMAL = new Uint8Array([ESC, 0x21, 0x00]);
+/** Reset character spacing to printer default */
+export const CMD_CHAR_SPACING_DEFAULT = new Uint8Array([ESC, 0x20, 0x00]);
 /** Full cut */
 export const CMD_CUT = new Uint8Array([GS, 0x56, 0x00]);
 /** Partial cut */
@@ -76,6 +80,48 @@ function row(label: string, value: string, cols: number): Uint8Array {
   return text(label + ' '.repeat(gap) + value + '\n');
 }
 
+/**
+ * Like row(), but if label+value doesn't fit in cols, wraps the label across
+ * multiple lines (word-aware) and places the value right-aligned on the LAST line.
+ * Used for item names that can exceed the paper width.
+ */
+function rowWrap(label: string, value: string, cols: number): Uint8Array {
+  if (label.length + 1 + value.length <= cols) {
+    return row(label, value, cols);
+  }
+  // Reserve space on the last line: value + at least 1 space.
+  const lastLineLabelMax = Math.max(1, cols - value.length - 1);
+  // Word-wrap the label honoring lastLineLabelMax on the final line and cols on prior lines.
+  const words = label.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const w of words) {
+    const candidate = current ? current + ' ' + w : w;
+    // Hard-split words longer than the available width
+    if (w.length > cols) {
+      if (current) { lines.push(current); current = ''; }
+      let rest = w;
+      while (rest.length > cols) { lines.push(rest.slice(0, cols)); rest = rest.slice(cols); }
+      current = rest;
+      continue;
+    }
+    if (candidate.length <= cols) current = candidate;
+    else { lines.push(current); current = w; }
+  }
+  if (current) lines.push(current);
+  // If last line + value doesn't fit, push value to its own line.
+  let last = lines.pop() ?? '';
+  if (last.length + 1 + value.length > cols) {
+    lines.push(last);
+    last = '';
+  }
+  const out: string[] = lines.slice();
+  const gap = Math.max(1, cols - last.length - value.length);
+  out.push(last + ' '.repeat(gap) + value);
+  return text(out.join('\n') + '\n');
+}
+
+
 function center(s: string, cols: number): Uint8Array {
   const pad = Math.max(0, Math.floor((cols - s.length) / 2));
   return text(' '.repeat(pad) + s + '\n');
@@ -102,28 +148,28 @@ function fmtBRL(v: number): string {
  */
 function rowWrap(prefix: string, name: string, price: string, cols: number): Uint8Array {
   const limit = cols - prefix.length - price.length - 1; // space available for name on line 1
-  
+
   if (name.length <= cols - prefix.length - price.length) {
     const gap = cols - prefix.length - name.length - price.length;
     return text(`${prefix}${name}${' '.repeat(gap)}${price}\n`);
   }
-  
+
   let splitIdx = name.lastIndexOf(' ', limit);
   if (splitIdx === -1 || splitIdx < Math.floor(limit * 0.6)) {
     splitIdx = limit;
   }
-  
+
   const part1 = name.substring(0, splitIdx).trimEnd();
   const part2 = name.substring(splitIdx).trimStart();
-  
+
   const gap1 = cols - prefix.length - part1.length - price.length;
   const line1 = `${prefix}${part1}${' '.repeat(gap1)}${price}\n`;
-  
+
   const indent = prefix.replace(/\S/g, ' ');
   const maxPart2Len = cols - indent.length;
   const part2Fitted = part2.substring(0, maxPart2Len);
   const line2 = `${indent}${part2Fitted}\n`;
-  
+
   return text(line1 + line2);
 }
 
@@ -192,6 +238,16 @@ function colsForWidth(paperWidth: number): number {
   return paperWidth <= 58 ? 32 : 48;
 }
 
+function detailColsForWidth(paperWidth: number): number {
+  const cols = colsForWidth(paperWidth);
+  // Small safety margin avoids cheap mobile thermal printers clipping the rightmost characters.
+  return Math.max(24, cols - (paperWidth <= 58 ? 2 : 4));
+}
+
+function normalTextMode(): Uint8Array {
+  return concat(CMD_PRINT_MODE_NORMAL, CMD_DOUBLE_OFF, CMD_FONT_A, CMD_CHAR_SPACING_DEFAULT, CMD_BOLD_OFF);
+}
+
 export interface PrintSettings {
   storeName?: string;
   address?: string;
@@ -252,7 +308,7 @@ export async function fetchPrintSettings(tenantId: string): Promise<PrintSetting
       if (typeof window !== 'undefined') {
         const saved = window.localStorage.getItem(`print_settings_${tenantId}`);
         if (saved) {
-          try { localPs = JSON.parse(saved); } catch {}
+          try { localPs = JSON.parse(saved); } catch { }
           console.log('[escpos] fetchPrintSettings: source=localStorage (DB was empty)');
         } else {
           console.log('[escpos] fetchPrintSettings: source=defaults (both DB and localStorage empty)');
@@ -300,34 +356,12 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
     CMD_CODEPAGE_PC860,
   ];
 
-  // Dynamic header — each field evaluated independently.
-  // storeName is ALWAYS printed if non-empty (mandatory branding, no toggle needed).
-  const hasStoreName = !!(ps.storeName && ps.storeName.trim());
-  const hasAddress   = !!(ps.showAddress && ps.address);
-  const hasDocument  = !!(ps.showDocument && ps.document);
-  const hasWhatsapp  = !!(ps.showWhatsapp && ps.whatsapp);
-  const hasAnyHeader = hasStoreName || hasAddress || hasDocument || hasWhatsapp;
-
-  if (hasAnyHeader) {
-    parts.push(CMD_FONT_B);
-    if (hasStoreName) {
-      parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName!.trim().toUpperCase()}\n`), CMD_BOLD_OFF);
-    }
-    if (hasAddress) {
-      parts.push(CMD_ALIGN_CENTER, text(`${ps.address}\n`));
-    }
-    if (hasDocument) {
-      parts.push(CMD_ALIGN_CENTER, text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
-    }
-    if (hasWhatsapp) {
-      parts.push(CMD_ALIGN_CENTER, text(`WhatsApp: ${ps.whatsapp}\n`));
-    }
-    parts.push(CMD_ALIGN_LEFT, CMD_FONT_A, lineOf('-', cols));
-  }
-
+  // Comanda da cozinha: sem cabeçalho de loja (nome, endereço, CNPJ, WhatsApp).
   parts.push(
     CMD_ALIGN_CENTER,
+    CMD_BOLD_ON,
     text('Cozinha Principal\n\n'),
+    CMD_BOLD_OFF,
     CMD_ALIGN_LEFT,
   );
 
@@ -336,7 +370,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
 
   parts.push(CMD_ALIGN_CENTER);
   parts.push(text(`* Cod. Pers./Senha: ${orderNo} *\n`));
-  
+
   let tipoPedido = 'BALCÃO';
   if (order.orderType === 'delivery') {
     tipoPedido = 'DELIVERY';
@@ -351,14 +385,15 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   parts.push(CMD_BOLD_ON, text(`${tipoPedido}\n\n`), CMD_BOLD_OFF);
 
   parts.push(CMD_ALIGN_LEFT);
-  
+
   const customerLine = order.orderType === 'delivery'
     ? `${order.customerName || 'Sem Nome'}${order.customerAddress ? ' - ' + order.customerAddress : ''}`
     : order.orderType === 'retirada'
-    ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
-    : (order.customerName || 'Sem Nome');
+      ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
+      : (order.customerName || 'Sem Nome');
 
-  parts.push(text(`Cliente: ${customerLine}\n\n`));
+  parts.push(text('Cliente: '), CMD_BOLD_ON, text(`${customerLine}\n\n`), CMD_BOLD_OFF);
+
 
   // Items
   for (const item of order.items) {
@@ -375,25 +410,9 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   parts.push(text('\n'));
   parts.push(text('Atendente do Pedido:\n'));
   parts.push(text(`${order.operatorName || 'Não informado'}\n`));
-  
-  // Footer — each field evaluated independently.
-  // thankMessage fallback so something always prints in the footer if showThankMessage is ON.
-  const footerPixKey    = !!(ps.showPixKey && ps.pixKey);
-  const footerInstagram = !!(ps.showInstagram && ps.instagram);
-  const footerThankMsg  = ps.showThankMessage
-    ? (ps.thankMessage || 'Obrigado pela preferência!')
-    : null;
-  const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
 
-  if (hasFooter) {
-    parts.push(CMD_FONT_B, lineOf('-', cols), CMD_ALIGN_CENTER);
-    if (footerPixKey)    parts.push(text(`PIX: ${ps.pixKey}\n`));
-    if (footerInstagram) parts.push(text(`Instagram: ${ps.instagram}\n`));
-    if (footerThankMsg) {
-      parts.push(CMD_BOLD_ON, text(`${footerThankMsg}\n`), CMD_BOLD_OFF);
-    }
-    parts.push(CMD_FONT_A, CMD_ALIGN_LEFT);
-  }
+  // Comanda da cozinha: sem rodapé promocional (PIX, Instagram, mensagem de agradecimento).
+
 
   parts.push(feedAndCut());
 
@@ -405,22 +424,25 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
  */
 export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
   const cols = colsForWidth(paperWidth);
+  const detailCols = detailColsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
     CMD_CODEPAGE_PC860,
+    normalTextMode(),
     CMD_ALIGN_CENTER,
   ];
 
   // Dynamic header — each field evaluated independently.
   // storeName is ALWAYS printed if non-empty (mandatory branding, no toggle needed).
   const hasStoreName = !!(ps.storeName && ps.storeName.trim());
-  const hasAddress   = !!(ps.showAddress && ps.address);
-  const hasDocument  = !!(ps.showDocument && ps.document);
-  const hasWhatsapp  = !!(ps.showWhatsapp && ps.whatsapp);
+  const hasAddress = !!(ps.showAddress && ps.address);
+  const hasDocument = !!(ps.showDocument && ps.document);
+  const hasWhatsapp = !!(ps.showWhatsapp && ps.whatsapp);
   const hasAnyHeader = hasStoreName || hasAddress || hasDocument || hasWhatsapp;
 
   if (hasAnyHeader) {
-    parts.push(CMD_FONT_B);
+    // Use Font A for direct Bluetooth receipts: several mobile thermal printers ignore Font B.
+    parts.push(CMD_FONT_A);
     if (hasStoreName) {
       parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName!.trim().toUpperCase()}\n`), CMD_BOLD_OFF);
     }
@@ -442,32 +464,27 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     CMD_BOLD_ON, CMD_DOUBLE_ON,
     text('CONTA\n'),
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
+    normalTextMode(),
     CMD_ALIGN_LEFT,
     lineOf('-', cols),
   );
 
-  parts.push(leftRightAlign('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
+  // Each detail field as a row(): label left, value right.
+  parts.push(CMD_ALIGN_LEFT, row('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
   if (bill.tableNumber || bill.orderType === 'mesa') {
-    parts.push(leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), cols));
+    parts.push(CMD_ALIGN_LEFT, row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
-  parts.push(leftRightAlign('Cliente:', bill.customerName?.trim() || 'Consumidor', cols));
+  parts.push(leftRightAlign('Cliente:', bill.customerName || '', cols));
   parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
-  // Items with price
+  // Items with price — each item as a rowWrap() so long names break into multiple lines.
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    const prefix = `${qty} `;
-    const priceStr = fmtBRL(item.subtotal ?? (item.price * (item.weight ?? item.quantity)));
-    parts.push(rowWrap(prefix, item.name, priceStr, cols));
-
+    parts.push(leftRightAlign(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        const compQty = `${comp.quantity}x`;
-        const compPrefix = `  + ${compQty} `;
-        const compPriceVal = comp.price * comp.quantity * (item.weight ? 1 : item.quantity);
-        const compPriceStr = fmtBRL(compPriceVal);
-        parts.push(rowWrap(compPrefix, comp.name, compPriceStr, cols));
+        parts.push(leftRightAlign(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
       }
     }
   }
@@ -484,24 +501,24 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const deliveryFeeVal = bill.deliveryFee || 0;
   const totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
 
+  const hasAnyAdjustment = (bill.discount && bill.discount > 0) || serviceFeeVal > 0 || deliveryFeeVal > 0;
+
   if (bill.discount && bill.discount > 0) {
     const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';
-    const discValueStr = `-${fmtBRL(discountVal)}`;
-    parts.push(leftRightAlign(`${discLabel}:`, discValueStr, cols));
+    parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
   }
-  if (serviceFeeVal && serviceFeeVal > 0) {
-    parts.push(leftRightAlign('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
+  if (bill.serviceFee && bill.serviceFee > 0) {
+    parts.push(row('Taxa de serviço', fmtBRL(bill.serviceFee), cols));
   }
-  if (deliveryFeeVal && deliveryFeeVal > 0) {
-    parts.push(leftRightAlign('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
+  if (bill.deliveryFee && bill.deliveryFee > 0) {
+    parts.push(row('Taxa de entrega', fmtBRL(bill.deliveryFee), cols));
   }
 
-  parts.push(lineOf('-', cols));
+  parts.push(lineOf('=', cols));
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
   const doubleCols = Math.floor(cols / 2);
   parts.push(leftRightAlign('TOTAL', fmtBRL(totalBilled), doubleCols));
   parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
-  parts.push(lineOf('-', cols));
 
   // Payment
   if (bill.paymentSplits && bill.paymentSplits.length > 0) {
@@ -512,23 +529,23 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     }
     parts.push(lineOf('-', cols));
   } else if (bill.paymentMethod) {
-    parts.push(CMD_BOLD_ON, text('PAGAMENTO:\n'), CMD_BOLD_OFF);
-    const methodLabel = paymentLabels[bill.paymentMethod] || bill.paymentMethod;
-    parts.push(leftRightAlign(methodLabel, fmtBRL(totalBilled), cols));
-    parts.push(lineOf('-', cols));
+    parts.push(row('Pgto:', paymentLabels[bill.paymentMethod] || bill.paymentMethod, cols));
   }
 
+  // Footer separator — Font B (smaller)
+  parts.push(CMD_FONT_B, lineOf('-', cols), CMD_FONT_A);
+
   // Footer — each field evaluated independently.
-  const footerPixKey    = !!(ps.showPixKey && ps.pixKey);
+  const footerPixKey = !!(ps.showPixKey && ps.pixKey);
   const footerInstagram = !!(ps.showInstagram && ps.instagram);
-  const footerThankMsg  = ps.showThankMessage
+  const footerThankMsg = ps.showThankMessage
     ? (ps.thankMessage || 'Obrigado pela preferência!')
     : null;
   const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
 
   if (hasFooter) {
-    parts.push(CMD_ALIGN_CENTER);
-    if (footerPixKey)    parts.push(text(`PIX: ${ps.pixKey}\n`));
+    parts.push(CMD_ALIGN_CENTER, CMD_FONT_B);
+    if (footerPixKey) parts.push(text(`PIX: ${ps.pixKey}\n`));
     if (footerInstagram) {
       const cleanInsta = ps.instagram!.startsWith('@') ? ps.instagram! : `@${ps.instagram!}`;
       parts.push(text(`Instagram: ${cleanInsta}\n`));
