@@ -192,11 +192,30 @@ export default function DiagnosticoSync() {
     if (!error) {
       const rows = data || [];
       const first: any = rows[0];
+      const dbPs: any = first?.print_settings || {};
+
+      let devicePs: any = {};
+      try {
+        const cache = (window as any).__printSettingsCache;
+        if (cache) devicePs = cache;
+        else {
+          const saved = localStorage.getItem(`print_settings_${user.tenantId}`);
+          if (saved) devicePs = JSON.parse(saved);
+        }
+      } catch { /* empty */ }
+
+      const pickToggles = (src: any) => PS_TOGGLE_KEYS.reduce((acc, k) => { acc[k] = !!src?.[k]; return acc; }, {} as Record<string, boolean>);
+      const pickTexts = (src: any) => PS_TEXT_KEYS.reduce((acc, k) => { acc[k] = String(src?.[k] ?? ''); return acc; }, {} as Record<string, string>);
+
       setConsistency({
         rowCount: rows.length,
         tableCount: first?.table_count ?? null,
         serviceFeePercentage: first?.service_fee_percentage != null ? Number(first.service_fee_percentage) : null,
         hasPrintSettings: !!(first?.print_settings && Object.keys(first.print_settings).length > 0),
+        dbToggles: pickToggles(dbPs),
+        dbTexts: pickTexts(dbPs),
+        deviceToggles: pickToggles(devicePs),
+        deviceTexts: pickTexts(devicePs),
         checkedAt: Date.now(),
       });
     }
