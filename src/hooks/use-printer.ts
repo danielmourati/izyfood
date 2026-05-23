@@ -386,13 +386,40 @@ function buildBillHtml(bill: any, ps: any = {}): string {
     return html;
   }).join('');
 
+  // Dynamically calculate total if bill.total is falsy or 0
+  let totalBilled = bill.total || 0;
+  const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
+    const itemSubtotal = item.subtotal ?? (item.price * (item.weight ?? item.quantity));
+    return acc + (itemSubtotal || 0);
+  }, 0);
+  const discountVal = bill.discount ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount) : 0;
+  const serviceFeeVal = bill.serviceFee || 0;
+  const deliveryFeeVal = bill.deliveryFee || 0;
+  
+  if (!totalBilled || totalBilled === 0) {
+    totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
+  }
+
+  let adjustmentsHtml = '';
+  if (bill.discount && bill.discount > 0) {
+    const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';
+    adjustmentsHtml += `<div class="row"><span>${discLabel}:</span><span>-${fmtBRL(discountVal)}</span></div>`;
+  }
+  if (serviceFeeVal > 0) {
+    adjustmentsHtml += `<div class="row"><span>Taxa de Serviço:</span><span>${fmtBRL(serviceFeeVal)}</span></div>`;
+  }
+  if (deliveryFeeVal > 0) {
+    adjustmentsHtml += `<div class="row"><span>Taxa de entrega:</span><span>${fmtBRL(deliveryFeeVal)}</span></div>`;
+  }
+
   let payments = '';
   if (bill.paymentSplits?.length) {
-    payments = bill.paymentSplits.map((s: any) =>
+    payments = `<p class="bold" style="margin: 4px 0;">PAGAMENTO:</p>` + bill.paymentSplits.map((s: any) =>
       `<div class="row"><span>${paymentLabels[s.method] || s.method}</span><span>${fmtBRL(s.amount || 0)}</span></div>`
     ).join('');
   } else if (bill.paymentMethod) {
-    payments = `<div class="row"><span>Pgto:</span><span>${paymentLabels[bill.paymentMethod] || bill.paymentMethod}</span></div>`;
+    payments = `<p class="bold" style="margin: 4px 0;">PAGAMENTO:</p>` +
+      `<div class="row"><span>${paymentLabels[bill.paymentMethod] || bill.paymentMethod}</span><span>${fmtBRL(totalBilled)}</span></div>`;
   }
 
   const createdAt = bill.createdAt || new Date().toISOString();
@@ -427,34 +454,22 @@ function buildBillHtml(bill: any, ps: any = {}): string {
     footerHtml += `<p class="center footer-text" style="margin-top: 10px; margin-bottom: 0;">Obrigado pela preferência!</p>`;
   }
 
-  // Dynamically calculate total if bill.total is falsy or 0
-  let totalBilled = bill.total || 0;
-  if (!totalBilled || totalBilled === 0) {
-    const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
-      const itemSubtotal = item.subtotal ?? (item.price * (item.weight ?? item.quantity));
-      return acc + (itemSubtotal || 0);
-    }, 0);
-    const discountVal = bill.discount ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount) : 0;
-    const serviceFeeVal = bill.serviceFee || 0;
-    const deliveryFeeVal = bill.deliveryFee || 0;
-    totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
-  }
-
   return `
     ${headerHtml}
-    <div class="big">RESUMO DA CONTA</div>
+    <div class="big" style="font-size: 20px; font-weight: bold; letter-spacing: 1px;">CONTA</div>
     <div class="line"></div>
     <div class="row"><span>Tipo:</span><span>${orderTypeLabels[bill.orderType] || bill.orderType || 'Mesa'}</span></div>
     ${(bill.tableNumber || bill.orderType === 'mesa') ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber || 'N/A'}</span></div>` : ''}
-    <div class="row"><span>Cliente:</span><span>${bill.customerName || ''}</span></div>
+    <div class="row"><span>Cliente:</span><span>${bill.customerName?.trim() || 'Consumidor'}</span></div>
     <div class="row"><span>Data:</span><span>${fmtDate(createdAt)}</span></div>
     <div class="line"></div>
     <div style="margin: 10px 0;">
       ${items || '<p class="center">Nenhum item</p>'}
     </div>
     <div class="line"></div>
+    ${adjustmentsHtml ? `${adjustmentsHtml}<div class="line"></div>` : ''}
     <div class="row bold" style="font-size: 16px;"><span>TOTAL</span><span>${fmtBRL(totalBilled)}</span></div>
-    ${payments ? `<div class="line" style="margin-top:10px;"></div><p class="bold">PAGAMENTO:</p>${payments}` : ''}
+    ${payments ? `<div class="line" style="margin-top:10px;"></div>${payments}` : ''}
     <div class="footer-text" style="border-top: 1px dashed #000; margin-top: 12px; padding-top: 6px;">
       ${footerHtml}
     </div>

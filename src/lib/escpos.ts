@@ -82,8 +82,51 @@ function center(s: string, cols: number): Uint8Array {
 }
 
 function fmtBRL(v: number): string {
-  return `R$ ${v.toFixed(2).replace('.', ',')}`;
+  if (v === undefined || v === null || isNaN(v)) {
+    return 'R$ 0,00';
+  }
+  const isNeg = v < 0;
+  const absVal = Math.abs(v);
+  const formatted = absVal.toFixed(2).replace('.', ',');
+  if (isNeg) {
+    return `-R$${formatted}`;
+  }
+  if (absVal < 10) {
+    return `R$ ${formatted}`;
+  }
+  return `R$${formatted}`;
 }
+
+/**
+ * Wraps long item names into 2 lines, keeping the price aligned to the right on the first line.
+ */
+function rowWrap(prefix: string, name: string, price: string, cols: number): Uint8Array {
+  const limit = cols - prefix.length - price.length - 1; // space available for name on line 1
+  
+  if (name.length <= cols - prefix.length - price.length) {
+    const gap = cols - prefix.length - name.length - price.length;
+    return text(`${prefix}${name}${' '.repeat(gap)}${price}\n`);
+  }
+  
+  let splitIdx = name.lastIndexOf(' ', limit);
+  if (splitIdx === -1 || splitIdx < Math.floor(limit * 0.6)) {
+    splitIdx = limit;
+  }
+  
+  const part1 = name.substring(0, splitIdx).trimEnd();
+  const part2 = name.substring(splitIdx).trimStart();
+  
+  const gap1 = cols - prefix.length - part1.length - price.length;
+  const line1 = `${prefix}${part1}${' '.repeat(gap1)}${price}\n`;
+  
+  const indent = prefix.replace(/\S/g, ' ');
+  const maxPart2Len = cols - indent.length;
+  const part2Fitted = part2.substring(0, maxPart2Len);
+  const line2 = `${indent}${part2Fitted}\n`;
+  
+  return text(line1 + line2);
+}
+
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -400,24 +443,31 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     text('CONTA\n'),
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
     CMD_ALIGN_LEFT,
-    lineOf('=', cols),
+    lineOf('-', cols),
   );
 
   parts.push(leftRightAlign('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, cols));
   if (bill.tableNumber || bill.orderType === 'mesa') {
     parts.push(leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
-  parts.push(leftRightAlign('Cliente:', bill.customerName || '', cols));
+  parts.push(leftRightAlign('Cliente:', bill.customerName?.trim() || 'Consumidor', cols));
   parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
   // Items with price
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    parts.push(leftRightAlign(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    const prefix = `${qty} `;
+    const priceStr = fmtBRL(item.subtotal ?? (item.price * (item.weight ?? item.quantity)));
+    parts.push(rowWrap(prefix, item.name, priceStr, cols));
+
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        parts.push(leftRightAlign(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
+        const compQty = `${comp.quantity}x`;
+        const compPrefix = `  + ${compQty} `;
+        const compPriceVal = comp.price * comp.quantity * (item.weight ? 1 : item.quantity);
+        const compPriceStr = fmtBRL(compPriceVal);
+        parts.push(rowWrap(compPrefix, comp.name, compPriceStr, cols));
       }
     }
   }
@@ -436,37 +486,39 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 
   if (bill.discount && bill.discount > 0) {
     const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';
-    parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
+    const discValueStr = `-${fmtBRL(discountVal)}`;
+    parts.push(leftRightAlign(`${discLabel}:`, discValueStr, cols));
   }
-  if (bill.serviceFee && bill.serviceFee > 0) {
-    parts.push(row('Taxa de serviço', fmtBRL(bill.serviceFee), cols));
+  if (serviceFeeVal && serviceFeeVal > 0) {
+    parts.push(leftRightAlign('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
   }
-  if (bill.deliveryFee && bill.deliveryFee > 0) {
-    parts.push(row('Taxa de entrega', fmtBRL(bill.deliveryFee), cols));
+  if (deliveryFeeVal && deliveryFeeVal > 0) {
+    parts.push(leftRightAlign('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
   }
 
-  parts.push(lineOf('=', cols));
+  parts.push(lineOf('-', cols));
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
   const doubleCols = Math.floor(cols / 2);
   parts.push(leftRightAlign('TOTAL', fmtBRL(totalBilled), doubleCols));
   parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
+  parts.push(lineOf('-', cols));
 
   // Payment
   if (bill.paymentSplits && bill.paymentSplits.length > 0) {
-    parts.push(lineOf('-', cols));
     parts.push(CMD_BOLD_ON, text('PAGAMENTO:\n'), CMD_BOLD_OFF);
     for (const s of bill.paymentSplits) {
-      parts.push(row(paymentLabels[s.method] || s.method, fmtBRL(s.amount), cols));
+      const methodLabel = paymentLabels[s.method] || s.method;
+      parts.push(leftRightAlign(methodLabel, fmtBRL(s.amount), cols));
     }
+    parts.push(lineOf('-', cols));
   } else if (bill.paymentMethod) {
-    parts.push(row('Pgto:', paymentLabels[bill.paymentMethod] || bill.paymentMethod, cols));
+    parts.push(CMD_BOLD_ON, text('PAGAMENTO:\n'), CMD_BOLD_OFF);
+    const methodLabel = paymentLabels[bill.paymentMethod] || bill.paymentMethod;
+    parts.push(leftRightAlign(methodLabel, fmtBRL(totalBilled), cols));
+    parts.push(lineOf('-', cols));
   }
 
-  // Footer separator — Font B (smaller)
-  parts.push(CMD_FONT_B, lineOf('-', cols), CMD_FONT_A);
-
   // Footer — each field evaluated independently.
-  // thankMessage uses a fallback so there's always a closing message if the toggle is ON.
   const footerPixKey    = !!(ps.showPixKey && ps.pixKey);
   const footerInstagram = !!(ps.showInstagram && ps.instagram);
   const footerThankMsg  = ps.showThankMessage
@@ -475,13 +527,16 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
 
   if (hasFooter) {
-    parts.push(CMD_ALIGN_CENTER, CMD_FONT_B);
+    parts.push(CMD_ALIGN_CENTER);
     if (footerPixKey)    parts.push(text(`PIX: ${ps.pixKey}\n`));
-    if (footerInstagram) parts.push(text(`Instagram: ${ps.instagram}\n`));
+    if (footerInstagram) {
+      const cleanInsta = ps.instagram!.startsWith('@') ? ps.instagram! : `@${ps.instagram!}`;
+      parts.push(text(`Instagram: ${cleanInsta}\n`));
+    }
     if (footerThankMsg) {
       parts.push(CMD_BOLD_ON, text(`${footerThankMsg}\n`), CMD_BOLD_OFF);
     }
-    parts.push(CMD_FONT_A, CMD_ALIGN_LEFT);
+    parts.push(CMD_ALIGN_LEFT);
   }
 
   // Minimal feed then cut (2 lines instead of 4 to save paper)
