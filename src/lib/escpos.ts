@@ -380,6 +380,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     text('CONTA\n'),
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
     normalTextMode(),
+    text('\n'),
     CMD_ALIGN_LEFT,
     lineOf('=', cols),
     text('\n'),
