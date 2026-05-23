@@ -441,7 +441,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
   }
   if (bill.serviceFee && bill.serviceFee > 0) {
-    parts.push(row('Taxa de serviço', fmtBRL(bill.serviceFee), cols));
+    parts.push(leftRightAlign('Taxa de Serviço:', fmtBRL(bill.serviceFee), cols));
   }
   if (bill.deliveryFee && bill.deliveryFee > 0) {
     parts.push(row('Taxa de entrega', fmtBRL(bill.deliveryFee), cols));
