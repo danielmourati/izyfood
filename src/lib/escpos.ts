@@ -80,6 +80,48 @@ function row(label: string, value: string, cols: number): Uint8Array {
   return text(label + ' '.repeat(gap) + value + '\n');
 }
 
+/**
+ * Like row(), but if label+value doesn't fit in cols, wraps the label across
+ * multiple lines (word-aware) and places the value right-aligned on the LAST line.
+ * Used for item names that can exceed the paper width.
+ */
+function rowWrap(label: string, value: string, cols: number): Uint8Array {
+  if (label.length + 1 + value.length <= cols) {
+    return row(label, value, cols);
+  }
+  // Reserve space on the last line: value + at least 1 space.
+  const lastLineLabelMax = Math.max(1, cols - value.length - 1);
+  // Word-wrap the label honoring lastLineLabelMax on the final line and cols on prior lines.
+  const words = label.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const w of words) {
+    const candidate = current ? current + ' ' + w : w;
+    // Hard-split words longer than the available width
+    if (w.length > cols) {
+      if (current) { lines.push(current); current = ''; }
+      let rest = w;
+      while (rest.length > cols) { lines.push(rest.slice(0, cols)); rest = rest.slice(cols); }
+      current = rest;
+      continue;
+    }
+    if (candidate.length <= cols) current = candidate;
+    else { lines.push(current); current = w; }
+  }
+  if (current) lines.push(current);
+  // If last line + value doesn't fit, push value to its own line.
+  let last = lines.pop() ?? '';
+  if (last.length + 1 + value.length > cols) {
+    lines.push(last);
+    last = '';
+  }
+  const out: string[] = lines.slice();
+  const gap = Math.max(1, cols - last.length - value.length);
+  out.push(last + ' '.repeat(gap) + value);
+  return text(out.join('\n') + '\n');
+}
+
+
 function center(s: string, cols: number): Uint8Array {
   const pad = Math.max(0, Math.floor((cols - s.length) / 2));
   return text(' '.repeat(pad) + s + '\n');
