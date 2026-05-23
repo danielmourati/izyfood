@@ -417,18 +417,22 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     CMD_BOLD_ON, CMD_DOUBLE_ON,
     text('CONTA\n'),
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
+    normalTextMode(),
     CMD_ALIGN_LEFT,
     lineOf('=', cols),
-    normalTextMode(),
   );
 
-  parts.push(leftRightAlign('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, detailCols));
+  // Force LEFT alignment before each detail row — some bluetooth thermal
+  // printers retain a previous CENTER alignment if it isn't re-asserted at
+  // the start of each new line, causing labels like "Tipo:" to be pushed
+  // to the right edge of the separator instead of staying left-aligned.
+  parts.push(CMD_ALIGN_LEFT, leftRightAlign('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, detailCols));
   if (bill.tableNumber || bill.orderType === 'mesa') {
-    parts.push(leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), detailCols));
+    parts.push(CMD_ALIGN_LEFT, leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), detailCols));
   }
-  parts.push(leftRightAlign('Cliente:', bill.customerName || '', detailCols));
-  parts.push(leftRightAlign('Data:', fmtDate(bill.createdAt), detailCols));
-  parts.push(lineOf('-', cols));
+  parts.push(CMD_ALIGN_LEFT, leftRightAlign('Cliente:', bill.customerName || '', detailCols));
+  parts.push(CMD_ALIGN_LEFT, leftRightAlign('Data:', fmtDate(bill.createdAt), detailCols));
+  parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
 
   // Items with price
   for (const item of bill.items) {
