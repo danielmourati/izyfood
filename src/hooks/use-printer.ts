@@ -23,12 +23,77 @@ import {
 } from '@/lib/escpos';
 import type { PrintSettings } from '@/lib/escpos';
 
-/** True when ps has at least one non-default text or any toggle on. */
+/** True when ps has print-specific content beyond the tenant name. */
 function isPrintSettingsUsable(ps: PrintSettings | null | undefined): boolean {
   if (!ps) return false;
-  const hasText = !!(ps.storeName || ps.address || ps.document || ps.whatsapp || ps.pixKey || ps.instagram || (ps.thankMessage && ps.thankMessage !== 'Obrigado pela preferência!'));
+  const hasText = !!(ps.address || ps.document || ps.whatsapp || ps.pixKey || ps.instagram || (ps.thankMessage && ps.thankMessage !== 'Obrigado pela preferência!'));
   const hasToggle = !!(ps.showAddress || ps.showDocument || ps.showWhatsapp || ps.showPixKey || ps.showInstagram || ps.showThankMessage);
   return hasText || hasToggle;
+}
+
+const printableText = (value?: string | null) => !!value && value.trim().length > 0;
+
+function readDeviceCachedPrintSettings(tenantId: string | undefined): PrintSettings | null {
+  if (typeof window === 'undefined') return null;
+
+  if (tenantId) {
+    try {
+      const saved = window.localStorage.getItem(`print_settings_${tenantId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          return parsed as PrintSettings;
+        }
+      }
+    } catch (err) {
+      console.warn('[print] cache local de print_settings inválido', err);
+    }
+  }
+
+  const memoryCache = (window as any).__printSettingsCache;
+  if (memoryCache && typeof memoryCache === 'object' && Object.keys(memoryCache).length > 0) {
+    return memoryCache as PrintSettings;
+  }
+
+  return null;
+}
+
+function validateBillPrintSettingsCache(tenantId: string | undefined, resolved: PrintSettings): string | null {
+  const cached = readDeviceCachedPrintSettings(tenantId) || resolved;
+
+  if (!tenantId) {
+    return 'Impressão bloqueada: a loja ainda não foi identificada neste aparelho. Reabra o PDV e tente novamente.';
+  }
+
+  if (!isPrintSettingsUsable(cached)) {
+    return 'Impressão bloqueada: as configurações de cabeçalho/rodapé estão vazias no cache deste aparelho. Abra Configurações > Impressora, salve novamente e tente imprimir a conta.';
+  }
+
+  const missing: string[] = [];
+  if (cached.showAddress && !printableText(cached.address)) missing.push('endereço');
+  if (cached.showDocument && !printableText(cached.document)) missing.push('documento');
+  if (cached.showWhatsapp && !printableText(cached.whatsapp)) missing.push('WhatsApp');
+  if (cached.showPixKey && !printableText(cached.pixKey)) missing.push('chave PIX');
+  if (cached.showInstagram && !printableText(cached.instagram)) missing.push('Instagram');
+  if (cached.showThankMessage && !printableText(cached.thankMessage)) missing.push('mensagem de agradecimento');
+
+  if (missing.length > 0) {
+    return `Impressão bloqueada: ${missing.join(', ')} ${missing.length === 1 ? 'está vazio' : 'estão vazios'} no cache deste aparelho.`;
+  }
+
+  const hasPrintableHeader = printableText(cached.storeName)
+    || !!(cached.showAddress && printableText(cached.address))
+    || !!(cached.showDocument && printableText(cached.document))
+    || !!(cached.showWhatsapp && printableText(cached.whatsapp));
+  const hasPrintableFooter = !!(cached.showPixKey && printableText(cached.pixKey))
+    || !!(cached.showInstagram && printableText(cached.instagram))
+    || !!(cached.showThankMessage && printableText(cached.thankMessage));
+
+  if (!hasPrintableHeader && !hasPrintableFooter) {
+    return 'Impressão bloqueada: nenhum campo visível de cabeçalho/rodapé está pronto neste aparelho.';
+  }
+
+  return null;
 }
 
 export interface PrinterConfig {
@@ -217,6 +282,11 @@ export function usePrinter() {
   const printBill = async (bill: any) => {
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printBill] printSettings usados:', JSON.stringify(ps));
+    const blockReason = validateBillPrintSettingsCache(user?.tenantId, ps);
+    if (blockReason) {
+      console.warn('[printBill] bloqueado por configuração incompleta:', blockReason);
+      throw new Error(blockReason);
+    }
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta');

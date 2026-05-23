@@ -60,6 +60,7 @@ const PDV = () => {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [manualCustomerName, setManualCustomerName] = useState('');
+  const [printWarning, setPrintWarning] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
@@ -453,6 +454,7 @@ const PDV = () => {
 
   const handlePrintBill = async () => {
     if (cart.length === 0) return;
+    setPrintWarning(null);
     const cust = customers.find(c => c.id === currentOrder.customerId);
     const itemsTotal = (currentOrder.items || []).reduce((acc: number, it: any) => acc + (it.subtotal ?? (it.price * (it.weight ?? it.quantity))), 0);
     const feePct = settings.serviceFeePercentage ?? 0;
@@ -469,7 +471,8 @@ const PDV = () => {
       await printBill(billData);
       toast.success('Conta enviada para impressão!');
     } catch (err) {
-      toast.error('Erro ao imprimir conta.');
+      const message = err instanceof Error ? err.message : 'Impressão bloqueada: confira as configurações de cabeçalho/rodapé neste aparelho.';
+      setPrintWarning(message);
     }
   };
 
@@ -553,6 +556,7 @@ const PDV = () => {
               selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
               manualCustomerName={manualCustomerName} setManualCustomerName={setManualCustomerName}
               onPrintOrder={handleSendAndHold} onReprintOrder={handleReprintOrder} onPrintBill={handlePrintBill}
+              printWarning={printWarning}
               setEditingItemNotesId={setEditingItemNotesId} isMobile={false} onAddNewItem={() => setMobileView('categories')}
               onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)} />
           </div>
@@ -717,6 +721,7 @@ const PDV = () => {
                 selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
                 manualCustomerName={manualCustomerName} setManualCustomerName={setManualCustomerName}
                 onPrintOrder={handleSendAndHold} onReprintOrder={handleReprintOrder} onPrintBill={handlePrintBill}
+                printWarning={printWarning}
                 setEditingItemNotesId={setEditingItemNotesId}
                 isMobile={true} onAddNewItem={() => setMobileView('categories')}
                 onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)}
@@ -753,7 +758,7 @@ function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen,
   tables, onSelectTable, selectedCustomerId, onSelectCustomer, isHeldMesa,
   onPrintOrder, onReprintOrder, onPrintBill, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder,
-  manualCustomerName, setManualCustomerName
+  manualCustomerName, setManualCustomerName, printWarning
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
@@ -770,6 +775,7 @@ function CartContent({
   onDeleteOrder?: () => void;
   manualCustomerName?: string;
   setManualCustomerName?: (val: string) => void;
+  printWarning?: string | null;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
@@ -932,6 +938,17 @@ function CartContent({
           />
         )}
       </div>
+
+      {printWarning && (
+        <div className="px-3 pt-3">
+          <Alert className="border-warning/50 bg-warning/10">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <AlertDescription className="text-sm font-medium text-foreground">
+              {printWarning}
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Customer Selector */}
       <div className="px-3 py-2 border-b space-y-1">

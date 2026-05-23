@@ -266,7 +266,8 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   const hasAnyHeader = hasStoreName || hasAddress || hasDocument || hasWhatsapp;
 
   if (hasAnyHeader) {
-    parts.push(CMD_FONT_B);
+    // Use Font A for direct Bluetooth receipts: several mobile thermal printers ignore Font B.
+    parts.push(CMD_FONT_A);
     if (hasStoreName) {
       parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName!.trim().toUpperCase()}\n`), CMD_BOLD_OFF);
     }
@@ -343,7 +344,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
 
   if (hasFooter) {
-    parts.push(CMD_FONT_B, lineOf('-', cols), CMD_ALIGN_CENTER);
+    parts.push(CMD_FONT_A, lineOf('-', cols), CMD_ALIGN_CENTER);
     if (footerPixKey)    parts.push(text(`PIX: ${ps.pixKey}\n`));
     if (footerInstagram) parts.push(text(`Instagram: ${ps.instagram}\n`));
     if (footerThankMsg) {
@@ -377,7 +378,8 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasAnyHeader = hasStoreName || hasAddress || hasDocument || hasWhatsapp;
 
   if (hasAnyHeader) {
-    parts.push(CMD_FONT_B);
+    // Use Font A for direct Bluetooth receipts: several mobile thermal printers ignore Font B.
+    parts.push(CMD_FONT_A);
     if (hasStoreName) {
       parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName!.trim().toUpperCase()}\n`), CMD_BOLD_OFF);
     }
@@ -463,7 +465,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   }
 
   // Footer separator — Font B (smaller)
-  parts.push(CMD_FONT_B, lineOf('-', cols), CMD_FONT_A);
+  parts.push(CMD_FONT_A, lineOf('-', cols));
 
   // Footer — each field evaluated independently.
   // thankMessage uses a fallback so there's always a closing message if the toggle is ON.
@@ -475,7 +477,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
 
   if (hasFooter) {
-    parts.push(CMD_ALIGN_CENTER, CMD_FONT_B);
+    parts.push(CMD_ALIGN_CENTER, CMD_FONT_A);
     if (footerPixKey)    parts.push(text(`PIX: ${ps.pixKey}\n`));
     if (footerInstagram) parts.push(text(`Instagram: ${ps.instagram}\n`));
     if (footerThankMsg) {
