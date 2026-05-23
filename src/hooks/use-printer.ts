@@ -213,6 +213,7 @@ export function usePrinter() {
     const name = await connectBluetooth();
     setBtConnected(true);
     setBtDeviceName(name);
+    setLastPairedName(getLastPairedDeviceName());
     return name;
   };
 
@@ -220,6 +221,30 @@ export function usePrinter() {
     disconnectBluetooth();
     setBtConnected(false);
     setBtDeviceName(null);
+  };
+
+  const reconnectPrinter = async () => {
+    // Tenta sem gesto via getDevices(); se falhar, devolve false para a UI cair em pairBluetooth().
+    const ok = await ensureBluetoothConnected();
+    if (ok) {
+      setBtConnected(true);
+      setBtDeviceName(getBluetoothDeviceName());
+      return true;
+    }
+    const name = await tryReconnectBluetooth();
+    if (name) {
+      setBtConnected(true);
+      setBtDeviceName(name);
+      return true;
+    }
+    return false;
+  };
+
+  const forgetPrinter = () => {
+    forgetBluetoothDevice();
+    setBtConnected(false);
+    setBtDeviceName(null);
+    setLastPairedName(null);
   };
 
   const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string) => {
