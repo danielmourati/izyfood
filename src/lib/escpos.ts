@@ -448,7 +448,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const orderTypeVal = (orderTypeLabels[rawOrderType] || bill.orderType || 'Mesa').trim();
   const formattedOrderType = orderTypeVal.charAt(0).toUpperCase() + orderTypeVal.slice(1);
   parts.push(row('Tipo:', formattedOrderType, cols));
-  if (bill.tableNumber || bill.orderType === 'mesa') {
+  if (bill.tableNumber || rawOrderType === 'mesa') {
     parts.push(row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
   parts.push(row('Cliente:', bill.customerName?.trim() || 'Consumidor', cols));

@@ -532,12 +532,16 @@ function buildBillHtml(bill: any, ps: any = {}): string {
   }
 
 
+  const htmlRawOrderType = bill.orderType?.toLowerCase().trim() || '';
+  const htmlOrderTypeVal = (orderTypeLabels[htmlRawOrderType] || bill.orderType || 'Mesa').trim();
+  const htmlFormattedOrderType = htmlOrderTypeVal.charAt(0).toUpperCase() + htmlOrderTypeVal.slice(1);
+
   return `
     ${headerHtml}
     <div class="big">RESUMO DA CONTA</div>
     <div class="line"></div>
-    <div class="row"><span>Tipo:</span><span>${orderTypeLabels[bill.orderType] || bill.orderType || 'Mesa'}</span></div>
-    ${(bill.tableNumber || bill.orderType === 'mesa') ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber || 'N/A'}</span></div>` : ''}
+    <div class="row"><span>Tipo:</span><span>${htmlFormattedOrderType}</span></div>
+    ${(bill.tableNumber || htmlRawOrderType === 'mesa') ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber || 'N/A'}</span></div>` : ''}
     <div class="row"><span>Cliente:</span><span>${bill.customerName?.trim() || 'Consumidor'}</span></div>
     <div class="row"><span>Data:</span><span>${fmtDate(createdAt)}</span></div>
     <div class="line"></div>
