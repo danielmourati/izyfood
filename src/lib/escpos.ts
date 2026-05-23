@@ -80,6 +80,48 @@ function row(label: string, value: string, cols: number): Uint8Array {
   return text(label + ' '.repeat(gap) + value + '\n');
 }
 
+/**
+ * Like row(), but if label+value doesn't fit in cols, wraps the label across
+ * multiple lines (word-aware) and places the value right-aligned on the LAST line.
+ * Used for item names that can exceed the paper width.
+ */
+function rowWrap(label: string, value: string, cols: number): Uint8Array {
+  if (label.length + 1 + value.length <= cols) {
+    return row(label, value, cols);
+  }
+  // Reserve space on the last line: value + at least 1 space.
+  const lastLineLabelMax = Math.max(1, cols - value.length - 1);
+  // Word-wrap the label honoring lastLineLabelMax on the final line and cols on prior lines.
+  const words = label.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const w of words) {
+    const candidate = current ? current + ' ' + w : w;
+    // Hard-split words longer than the available width
+    if (w.length > cols) {
+      if (current) { lines.push(current); current = ''; }
+      let rest = w;
+      while (rest.length > cols) { lines.push(rest.slice(0, cols)); rest = rest.slice(cols); }
+      current = rest;
+      continue;
+    }
+    if (candidate.length <= cols) current = candidate;
+    else { lines.push(current); current = w; }
+  }
+  if (current) lines.push(current);
+  // If last line + value doesn't fit, push value to its own line.
+  let last = lines.pop() ?? '';
+  if (last.length + 1 + value.length > cols) {
+    lines.push(last);
+    last = '';
+  }
+  const out: string[] = lines.slice();
+  const gap = Math.max(1, cols - last.length - value.length);
+  out.push(last + ' '.repeat(gap) + value);
+  return text(out.join('\n') + '\n');
+}
+
+
 function center(s: string, cols: number): Uint8Array {
   const pad = Math.max(0, Math.floor((cols - s.length) / 2));
   return text(' '.repeat(pad) + s + '\n');
@@ -393,13 +435,13 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   parts.push(CMD_ALIGN_LEFT, row('Data:', fmtDate(bill.createdAt), cols));
   parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
 
-  // Items with price — each item as a row()
+  // Items with price — each item as a rowWrap() so long names break into multiple lines.
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    parts.push(CMD_ALIGN_LEFT, row(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    parts.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        parts.push(CMD_ALIGN_LEFT, row(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
+        parts.push(rowWrap(`  + ${comp.quantity}x ${comp.name}`, fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity)), cols));
       }
     }
   }
@@ -416,36 +458,42 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const deliveryFeeVal = bill.deliveryFee || 0;
   const totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
 
+  const hasAnyAdjustment = (bill.discount && bill.discount > 0) || serviceFeeVal > 0 || deliveryFeeVal > 0;
+
   if (bill.discount && bill.discount > 0) {
     const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%):` : 'Desconto:';
-    parts.push(CMD_ALIGN_LEFT, row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
+    parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? itemsTotal * bill.discount / 100 : bill.discount)}`, cols));
   }
   if (serviceFeeVal > 0) {
-    parts.push(CMD_ALIGN_LEFT, row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
+    parts.push(row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
   }
   if (deliveryFeeVal > 0) {
-    parts.push(CMD_ALIGN_LEFT, row('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
+    parts.push(row('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
   }
 
-  parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
+  if (hasAnyAdjustment) {
+    parts.push(lineOf('-', cols));
+  }
+
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
   const doubleCols = Math.floor(cols / 2);
   parts.push(leftRightAlign('TOTAL', fmtBRL(totalBilled), doubleCols));
-  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
+  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF, normalTextMode(), CMD_ALIGN_LEFT);
+  parts.push(lineOf('-', cols));
+
 
   // Payment
   if (bill.paymentSplits && bill.paymentSplits.length > 0) {
-    parts.push(lineOf('-', cols));
     parts.push(CMD_BOLD_ON, text('PAGAMENTO:\n'), CMD_BOLD_OFF);
     for (const s of bill.paymentSplits) {
       parts.push(row(paymentLabels[s.method] || s.method, fmtBRL(s.amount), cols));
     }
+    parts.push(lineOf('-', cols));
   } else if (bill.paymentMethod) {
     parts.push(row('Pgto:', paymentLabels[bill.paymentMethod] || bill.paymentMethod, cols));
+    parts.push(lineOf('-', cols));
   }
 
-  // Footer separator — Font B (smaller)
-  parts.push(CMD_FONT_A, lineOf('-', cols));
 
   // Footer — each field evaluated independently.
   // thankMessage uses a fallback so there's always a closing message if the toggle is ON.

@@ -1,47 +1,99 @@
-# Reconexão automática à última impressora Bluetooth pareada
+## Plano: Layout Definitivo do Cupom CONTA (58mm Bluetooth)
 
-## Objetivo
-Garantir que, ao abrir o app (ou voltar a uma aba/visibilidade), o sistema tente reconectar automaticamente à última impressora Bluetooth que foi pareada neste dispositivo, sem exigir nova seleção manual pelo usuário.
+### Contexto e diagnóstico
+A cada alteração o cupom sai desconfigurado porque:
+1. Mini-impressoras Bluetooth genéricas frequentemente **ignoram comandos** como Font B (`ESC M 1`), modo condensado e até double-height fora do alinhamento `CMD_ALIGN_LEFT`.
+2. A função `row()` atual **não trata nomes longos** — quando `label + value` excede 32 colunas, ela cai num fallback com apenas 1 espaço, achatando tudo.
+3. Os separadores `lineOf('-', cols)` foram adicionados/removidos pontualmente em iterações anteriores, sem um padrão claro de seções.
 
-## Comportamento esperado
-- Ao carregar o app no dispositivo, se já existe uma impressora previamente pareada, conectar automaticamente em segundo plano.
-- Se o navegador não devolver o dispositivo automaticamente (limitação do Web Bluetooth em alguns contextos), exibir um botão discreto "Reconectar impressora" na UI da Impressora e no PDV.
-- Continuar tentando enquanto o app estiver aberto (com backoff) e ao voltar de background (`visibilitychange` → visible).
-- Emitir os eventos `bt_connected` / `bt_status` existentes para que o hook `usePrinter` atualize o indicador.
+A solução é congelar um layout **setorizado** com regras determinísticas e uma função `rowWrap()` que quebra nomes longos em 2 linhas, mantendo o preço alinhado à direita na primeira linha.
 
-## Mudanças
+---
 
-### 1. `src/lib/printer.ts`
-- Persistir referência do último device pareado em `localStorage` (`bt_last_device_name`, `bt_last_device_id` quando disponível) dentro de `_connectToDevice`.
-- Expandir `tryReconnectBluetooth()`:
-  - Iterar `navigator.bluetooth.getDevices()` e priorizar o device cujo `name`/`id` bate com o salvo, em vez de pegar sempre o `[0]`.
-  - Tentar `device.gatt.connect()` direto; se falhar, registrar `watchAdvertisements` + listener `advertisementreceived` para reconectar assim que a impressora voltar a anunciar.
-  - Retornar status estruturado (`{ connected, name, needsUserGesture }`) para a UI saber se precisa de clique.
-- Novo helper `startBluetoothAutoReconnect()`:
-  - Chama `tryReconnectBluetooth()` no load.
-  - Reagenda tentativas a cada 30s enquanto não estiver conectado e houver `lastDeviceName` salvo.
-  - Listener `document.visibilitychange` → quando volta a `visible`, dispara nova tentativa imediata.
-  - Listener `online` (window) → tentativa imediata.
-- `connectBluetooth()` continua sendo o caminho de pareamento manual (gesto do usuário); ao conectar com sucesso, salva também os identificadores.
-- `disconnectBluetooth()` mantém o `localStorage` (não remover, para permitir reconexão futura). Adicionar `forgetBluetoothDevice()` separado caso o usuário queira limpar.
+### Layout final (32 colunas, 58mm)
 
-### 2. `src/hooks/use-printer.ts`
-- Chamar `startBluetoothAutoReconnect()` uma única vez no mount (guard por flag global do módulo).
-- Continuar consumindo `bt_status` para refletir mudanças.
-- Expor função `reconnectPrinter()` que chama `ensureBluetoothConnected()` (já existe) para o botão da UI usar.
+```text
+        NOME DA LOJA              <- center+bold (se houver)
+       Rua Exemplo, 123           <- center (se showAddress)
+      CNPJ: 00.000.000/0001-00    <- center (se showDocument)
+       WhatsApp: 11999999999      <- center (se showWhatsapp)
+--------------------------------  <- separador (fim do cabeçalho)
+             CONTA                <- center+bold+double
+--------------------------------  <- separador (fim do título)
+Tipo:                       Mesa
+Mesa:                          5
+Cliente:             Consumidor
+Data:           22/05/2026 17:13
+--------------------------------  <- separador (fim dos dados)
+1x Açaí 500ml com complemen
+tos especiais             R$48,00
+  + 2x Granola            R$ 4,00
+2x Refrigerante 350ml     R$ 9,00
+--------------------------------  <- separador (fim dos itens)
+Desconto (10%):           -R$5,28
+Taxa de Serviço:          R$ 4,80
+Taxa de entrega:          R$ 5,00
+--------------------------------  <- separador (fim dos ajustes)
+TOTAL              R$ 52,80       <- bold + double (16 cols)
+--------------------------------  <- separador (fim do total)
+PAGAMENTO:                        <- bold
+Dinheiro                  R$30,00
+PIX                       R$22,80
+--------------------------------  <- separador (fim do pagamento)
+        PIX: chave@exemplo        <- center (se showPixKey)
+      Instagram: @minhaloja       <- center (se showInstagram)
+    Obrigado pela preferência!    <- center+bold (se showThankMessage)
+```
 
-### 3. `src/components/ImpressoraTab.tsx`
-- Mostrar status "Última impressora: <nome salvo>" e botão "Reconectar agora" quando houver `lastDeviceName` mas `btConnected` for false.
-- Adicionar botão "Esquecer impressora" que chama `forgetBluetoothDevice()`.
+**Regra de ouro:** uma linha `lineOf('-', 32)` ao final de cada bloco lógico — cabeçalho, título, dados, itens, ajustes, total, pagamento. Nada de linhas em branco no meio.
 
-### 4. PDV (`src/pages/PDV.tsx`) — mínima
-- Se já existe indicador de impressora, exibir botão "Reconectar" quando desconectado e houver última impressora salva (reaproveita `reconnectPrinter`).
+---
 
-## Notas técnicas
-- Web Bluetooth exige gesto do usuário para `requestDevice()`, mas `getDevices()` + `gatt.connect()` podem rodar sem gesto desde que o device já tenha sido autorizado anteriormente nesse origin/perfil do navegador.
-- `watchAdvertisements()` ainda é experimental em alguns navegadores; o código já tem `try/catch` — manter fallback silencioso.
-- Não tocar em `escpos.ts`, schema do banco, nem RLS. Mudança puramente client-side.
+### Mudanças técnicas em `src/lib/escpos.ts`
 
-## Validação
-- Atualizar/adicionar teste leve em `src/test/` mockando `navigator.bluetooth.getDevices` para garantir que `tryReconnectBluetooth` seleciona o device com o nome salvo.
-- Validar manualmente: parear → recarregar a página → impressora reconecta sozinha em poucos segundos; minimizar e voltar → reconecta.
+**1. Nova função `rowWrap(label, value, cols)`**
+- Se `label.length + 1 + value.length <= cols` → comporta-se como `row()` atual.
+- Senão, quebra `label` em pedaços de `cols` caracteres respeitando palavras (split em espaço); a **última linha** carrega o `value` alinhado à direita.
+- Substitui `row()` apenas nos **itens e complementos** (onde nomes podem ser longos). Os 4 rótulos fixos (`Tipo/Mesa/Cliente/Data`) continuam com `row()` simples.
+
+**2. Compatibilidade Bluetooth (mini-printer genérica)**
+- Remover usos de `CMD_FONT_B` no rodapé (já está em Font A — confirmar e travar).
+- Garantir `normalTextMode()` antes de cada bloco que muda formatação (após `CONTA` double, após `TOTAL` double).
+- Manter apenas `CMD_BOLD_ON/OFF`, `CMD_DOUBLE_ON/OFF`, `CMD_ALIGN_*` — comandos universais.
+- Não usar code page específica em texto que pode falhar; manter `CMD_CODEPAGE_PC860` apenas no `CMD_INIT`.
+
+**3. Separadores fixos em `buildBillReceipt`**
+Ordem definitiva das chamadas `lineOf('-', cols)`:
+1. Depois do cabeçalho dinâmico (se houver qualquer campo)
+2. Depois de `text('CONTA\n')`
+3. Depois de `Data:` (fim dos dados)
+4. Depois do último item (fim dos itens)
+5. Depois do último ajuste (Desconto/Taxa Serviço/Taxa Entrega) — só se houver ao menos um
+6. Depois de `TOTAL`
+7. Depois do último split de pagamento — só se houver pagamento
+
+**4. Remover ruído**
+- Eliminar `parts.push(text('\n'))` órfãos remanescentes.
+- Remover `CMD_ALIGN_LEFT` repetidos antes de cada `row()` (já está em LEFT desde o título).
+
+---
+
+### Arquivos afetados
+- **`src/lib/escpos.ts`** — adicionar `rowWrap()`, refatorar `buildBillReceipt()` para o layout setorizado acima.
+- **`src/test/escpos.test.ts`** — adicionar 2 testes: (a) item longo quebrado em 2 linhas com preço na 1ª, (b) presença de todos os 7 separadores na ordem correta.
+
+---
+
+### Fora de escopo (não vou tocar agora)
+- `buildOrderReceipt` (comanda da cozinha) — layout diferente, já estável.
+- `buildCashCloseReceipt` (fechamento de caixa) — separado, sem reclamação.
+- Configurações do componente `ImpressoraTab` — apenas o renderer ESC/POS.
+
+---
+
+### Validação após implementar
+1. Rodar `vitest src/test/escpos.test.ts` — todos os testes passam.
+2. Imprimir cupom de teste real na mini-printer Bluetooth com: 1 item curto, 1 item longo (>20 chars), 1 complemento, desconto + taxa de serviço, pagamento dividido em 2.
+3. Conferir visualmente que cada um dos 7 separadores aparece exatamente uma vez, full-width.
+
+Se algum ajuste ainda for necessário após esse layout-base, será **incremental sobre uma base estável** — sem refatorar tudo de novo.
