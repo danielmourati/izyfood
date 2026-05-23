@@ -16,7 +16,7 @@ describe('ESC/POS bill receipt', () => {
       customerName: 'Consumidor',
     }, 58));
 
-    expect(receipt).toContain('Tipo:                     Mesa\n');
+    expect(receipt).toContain('Tipo: Mesa\n');
     expect(receipt).not.toContain('Tipo:                     sa\n');
     expect(receipt).toContain('Taxa de Serviço:       R$ 4,80\n');
   });
