@@ -422,16 +422,15 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     lineOf('=', cols),
   );
 
-  // Force LEFT alignment before each detail row — some bluetooth thermal
-  // printers retain a previous CENTER alignment if it isn't re-asserted at
-  // the start of each new line, causing labels like "Tipo:" to be pushed
-  // to the right edge of the separator instead of staying left-aligned.
-  parts.push(CMD_ALIGN_LEFT, leftRightAlign('Tipo:', orderTypeLabels[bill.orderType] || bill.orderType, detailCols));
+  // Each detail field on its own left-aligned line, followed by a line break.
+  // Re-assert LEFT alignment per line: some bluetooth thermal printers retain
+  // the previous CENTER alignment otherwise.
+  parts.push(CMD_ALIGN_LEFT, text(`Tipo: ${orderTypeLabels[bill.orderType] || bill.orderType}\n`));
   if (bill.tableNumber || bill.orderType === 'mesa') {
-    parts.push(CMD_ALIGN_LEFT, leftRightAlign('Mesa:', String(bill.tableNumber || 'N/A'), detailCols));
+    parts.push(CMD_ALIGN_LEFT, text(`Mesa: ${bill.tableNumber || 'N/A'}\n`));
   }
-  parts.push(CMD_ALIGN_LEFT, leftRightAlign('Cliente:', bill.customerName || '', detailCols));
-  parts.push(CMD_ALIGN_LEFT, leftRightAlign('Data:', fmtDate(bill.createdAt), detailCols));
+  parts.push(CMD_ALIGN_LEFT, text(`Cliente: ${bill.customerName || ''}\n`));
+  parts.push(CMD_ALIGN_LEFT, text(`Data: ${fmtDate(bill.createdAt)}\n`));
   parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
 
   // Items with price
