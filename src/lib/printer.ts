@@ -23,6 +23,71 @@ const PRINTER_CHAR_UUIDS = [
 
 let _device: any = null;
 let _characteristic: any = null;
+let _keepAliveTimer: any = null;
+let _reconnecting = false;
+let _disconnectHandlerAttached = false;
+
+const KEEPALIVE_INTERVAL_MS = 15000; // verifica a cada 15s
+const RECONNECT_BACKOFF_MS = 2000;
+
+function _emitStatus(connected: boolean, name?: string | null) {
+  try {
+    window.dispatchEvent(new CustomEvent('bt_status', { detail: { connected, name: name || null } }));
+  } catch { /* ignore */ }
+}
+
+async function _reconnectCurrentDevice(): Promise<boolean> {
+  if (!_device || _reconnecting) return false;
+  _reconnecting = true;
+  try {
+    const name = await _connectToDevice(_device);
+    console.info('[bt] reconectado:', name);
+    return true;
+  } catch (err) {
+    console.warn('[bt] falha ao reconectar:', err);
+    return false;
+  } finally {
+    _reconnecting = false;
+  }
+}
+
+function _attachDisconnectHandler(device: any) {
+  if (_disconnectHandlerAttached) return;
+  _disconnectHandlerAttached = true;
+  device.addEventListener('gattserverdisconnected', async () => {
+    console.warn('[bt] gattserverdisconnected — tentando reconectar...');
+    _characteristic = null;
+    _emitStatus(false, device?.name);
+    // Backoff antes de tentar
+    setTimeout(() => { _reconnectCurrentDevice(); }, RECONNECT_BACKOFF_MS);
+  });
+}
+
+function _startKeepAlive() {
+  if (_keepAliveTimer) return;
+  _keepAliveTimer = setInterval(async () => {
+    if (!_device) return;
+    const connected = !!_device.gatt?.connected && !!_characteristic;
+    if (!connected && !_reconnecting) {
+      console.info('[bt] keepalive detectou desconexão, reconectando...');
+      await _reconnectCurrentDevice();
+    }
+  }, KEEPALIVE_INTERVAL_MS);
+}
+
+export function stopBluetoothKeepAlive() {
+  if (_keepAliveTimer) {
+    clearInterval(_keepAliveTimer);
+    _keepAliveTimer = null;
+  }
+}
+
+/** Garante conexão antes de imprimir; tenta reconectar se necessário. */
+export async function ensureBluetoothConnected(): Promise<boolean> {
+  if (isBluetoothConnected()) return true;
+  if (!_device) return false;
+  return await _reconnectCurrentDevice();
+}
 
 /**
  * Check if Web Bluetooth API is available.
