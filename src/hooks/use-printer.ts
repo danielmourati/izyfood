@@ -14,6 +14,10 @@ import {
   isQzConnected,
   printViaQzTray,
   getBluetoothDeviceName,
+  startBluetoothAutoReconnect,
+  getLastPairedDeviceName,
+  forgetBluetoothDevice,
+  ensureBluetoothConnected,
 } from '@/lib/printer';
 import {
   buildOrderReceipt,
