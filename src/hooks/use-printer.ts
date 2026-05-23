@@ -210,7 +210,7 @@ export function usePrinter() {
   const paperWidth = defaultPrinter?.paper_width || 58; // Default para 58mm (mini impressoras térmicas)
 
   const pairBluetooth = async () => {
-    const name = await connectBluetooth();
+    const name = await connectBluetooth({ forcePairing: true });
     setBtConnected(true);
     setBtDeviceName(name);
     setLastPairedName(getLastPairedDeviceName());
