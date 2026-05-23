@@ -22,6 +22,15 @@ import {
   fetchPrintSettings,
   getCachedPrintSettings,
 } from '@/lib/escpos';
+import type { PrintSettings } from '@/lib/escpos';
+
+/** True when ps has at least one non-default text or any toggle on. */
+function isPrintSettingsUsable(ps: PrintSettings | null | undefined): boolean {
+  if (!ps) return false;
+  const hasText = !!(ps.storeName || ps.address || ps.document || ps.whatsapp || ps.pixKey || ps.instagram || (ps.thankMessage && ps.thankMessage !== 'Obrigado pela preferência!'));
+  const hasToggle = !!(ps.showAddress || ps.showDocument || ps.showWhatsapp || ps.showPixKey || ps.showInstagram || ps.showThankMessage);
+  return hasText || hasToggle;
+}
 
 export interface PrinterConfig {
   id: string;
