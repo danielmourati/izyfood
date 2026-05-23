@@ -423,14 +423,16 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';
     parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
   }
-  if (bill.serviceFee && bill.serviceFee > 0) {
-    parts.push(CMD_ALIGN_LEFT, leftRightAlign('Taxa de Serviço:', fmtBRL(bill.serviceFee), cols));
+  if (serviceFeeVal > 0) {
+    parts.push(CMD_ALIGN_LEFT, text('Taxa de Serviço: '), text(`${fmtBRL(serviceFeeVal)}\n`));
+    parts.push(text('\n'));
   }
-  if (bill.deliveryFee && bill.deliveryFee > 0) {
-    parts.push(row('Taxa de entrega', fmtBRL(bill.deliveryFee), cols));
+  if (deliveryFeeVal > 0) {
+    parts.push(CMD_ALIGN_LEFT, text('Taxa de entrega: '), text(`${fmtBRL(deliveryFeeVal)}\n`));
+    parts.push(text('\n'));
   }
 
-  parts.push(lineOf('=', cols));
+  parts.push(CMD_ALIGN_LEFT, lineOf('=', cols));
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
   const doubleCols = Math.floor(cols / 2);
   parts.push(leftRightAlign('TOTAL', fmtBRL(totalBilled), doubleCols));
