@@ -149,69 +149,57 @@ export function usePrinter() {
     printViaHtmlFallback(htmlFallback, title, paperWidth);
   };
 
-  const getLatestPrintSettings = async (tenantId: string | undefined): Promise<any> => {
-    if (!tenantId) return getCachedPrintSettings();
+  /**
+   * Returns a fully-populated PrintSettings object, guaranteed not to be a "barebones"
+   * default. Order of precedence:
+   *   1. Context printSettings (already loaded by StoreContext, kept fresh by Realtime).
+   *   2. Fresh DB fetch via fetchPrintSettings() — no race timeout.
+   *   3. localStorage fallback (offline scenario).
+   *   4. Last-resort: at minimum the tenant name as storeName, so the receipt isn't blank.
+   */
+  const resolvePrintSettings = async (tenantId: string | undefined): Promise<any> => {
+    // 1) Context baseline
+    let ps: any = { ...printSettings };
 
-    try {
-      const fetchPromise = Promise.all([
-        supabase.from('store_settings').select('print_settings').eq('tenant_id', tenantId).limit(1).maybeSingle(),
-        supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
-      ]);
+    // If the context already has real data, that's our truth.
+    if (isPrintSettingsUsable(ps)) {
+      return ps;
+    }
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout')), 2500)
-      );
+    // 2) Fresh DB fetch (no timeout race — mobile networks may be slow).
+    if (tenantId) {
+      try {
+        const dbPs = await fetchPrintSettings(tenantId);
+        if (isPrintSettingsUsable(dbPs)) {
+          // Persist for next prints on this device
+          try {
+            localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(dbPs));
+            (window as any).__printSettingsCache = dbPs;
+          } catch { /* storage unavailable */ }
+          return dbPs;
+        }
+      } catch (err) {
+        console.warn('[print] fetchPrintSettings falhou, tentando localStorage', err);
+      }
 
-      const results = await Promise.race([fetchPromise, timeoutPromise]) as any[];
-      const settingsRes = results[0];
-      const tenantRes = results[1];
-
-      const dbPs = settingsRes?.data?.print_settings;
-      const tenantName = tenantRes?.data?.name;
-
-      if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
-        const updatedPs = { ...dbPs, storeName: tenantName };
-        localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(updatedPs));
-        (window as any).__printSettingsCache = updatedPs;
-        return updatedPs;
-      } else {
+      // 3) localStorage on this device
+      try {
         const saved = localStorage.getItem(`print_settings_${tenantId}`);
         if (saved) {
-          try {
-            const localPs = JSON.parse(saved);
-            return { ...localPs, storeName: tenantName };
-          } catch {
-            return { storeName: tenantName };
+          const localPs = JSON.parse(saved);
+          if (isPrintSettingsUsable(localPs)) {
+            return localPs;
           }
-        } else {
-          return { storeName: tenantName };
         }
-      }
-    } catch (err) {
-      const saved = localStorage.getItem(`print_settings_${tenantId}`);
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          return getCachedPrintSettings();
-        }
-      }
-      return getCachedPrintSettings();
+      } catch { /* parse failed */ }
     }
+
+    // 4) Whatever we have (even if empty) — at least keep storeName if context has it
+    return ps;
   };
 
   const printOrder = async (order: any) => {
-    // Use Context printSettings as the guaranteed baseline (always in memory, loaded on boot,
-    // kept in sync via Supabase Realtime). Then optionally enrich with a fresh DB fetch.
-    let ps: any = { ...printSettings };
-    try {
-      const fresh = await getLatestPrintSettings(user?.tenantId);
-      if (fresh && Object.keys(fresh).length > 0) {
-        ps = { ...ps, ...fresh };
-      }
-    } catch {
-      // Network failed — Context baseline is sufficient
-    }
+    const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printOrder] printSettings usados:', JSON.stringify(ps));
     const escpos = buildOrderReceipt(order, paperWidth, ps);
     const html = buildOrderHtml(order, ps);
@@ -219,17 +207,7 @@ export function usePrinter() {
   };
 
   const printBill = async (bill: any) => {
-    // Use Context printSettings as the guaranteed baseline (always in memory, loaded on boot,
-    // kept in sync via Supabase Realtime). Then optionally enrich with a fresh DB fetch.
-    let ps: any = { ...printSettings };
-    try {
-      const fresh = await getLatestPrintSettings(user?.tenantId);
-      if (fresh && Object.keys(fresh).length > 0) {
-        ps = { ...ps, ...fresh };
-      }
-    } catch {
-      // Network failed — Context baseline is sufficient
-    }
+    const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printBill] printSettings usados:', JSON.stringify(ps));
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
