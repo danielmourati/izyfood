@@ -326,24 +326,8 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   parts.push(text('Atendente do Pedido:\n'));
   parts.push(text(`${order.operatorName || 'Não informado'}\n`));
   
-  // Footer — each field evaluated independently.
-  // thankMessage fallback so something always prints in the footer if showThankMessage is ON.
-  const footerPixKey    = !!(ps.showPixKey && ps.pixKey);
-  const footerInstagram = !!(ps.showInstagram && ps.instagram);
-  const footerThankMsg  = ps.showThankMessage
-    ? (ps.thankMessage || 'Obrigado pela preferência!')
-    : null;
-  const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
+  // Comanda da cozinha: sem rodapé promocional (PIX, Instagram, mensagem de agradecimento).
 
-  if (hasFooter) {
-    parts.push(CMD_FONT_A, lineOf('-', cols), CMD_ALIGN_CENTER);
-    if (footerPixKey)    parts.push(text(`PIX: ${ps.pixKey}\n`));
-    if (footerInstagram) parts.push(text(`Instagram: ${ps.instagram}\n`));
-    if (footerThankMsg) {
-      parts.push(CMD_BOLD_ON, text(`${footerThankMsg}\n`), CMD_BOLD_OFF);
-    }
-    parts.push(CMD_FONT_A, CMD_ALIGN_LEFT);
-  }
 
   parts.push(feedAndCut());
 
