@@ -116,6 +116,7 @@ export function usePrinter() {
   const [loading, setLoading] = useState(true);
   const [btConnected, setBtConnected] = useState(false);
   const [btDeviceName, setBtDeviceName] = useState<string | null>(null);
+  const [lastPairedName, setLastPairedName] = useState<string | null>(() => getLastPairedDeviceName());
   const [qzConnected, setQzConnected] = useState(false);
 
   const fetchPrinters = useCallback(async () => {
