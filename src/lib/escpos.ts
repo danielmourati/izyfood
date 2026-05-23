@@ -424,7 +424,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     parts.push(row(discLabel, `-${fmtBRL(bill.discountType === 'percentage' ? totalBilled * bill.discount / 100 : bill.discount)}`, cols));
   }
   if (serviceFeeVal > 0) {
-    parts.push(CMD_ALIGN_LEFT, text('Taxa de Serviço: '), text(`${fmtBRL(serviceFeeVal)}\n`));
+    parts.push(row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
     parts.push(text('\n'));
   }
   if (deliveryFeeVal > 0) {
