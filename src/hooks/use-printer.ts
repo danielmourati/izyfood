@@ -147,6 +147,9 @@ export function usePrinter() {
       const qzReady = await initQzTray();
       setQzConnected(qzReady);
 
+      // Inicia loop de auto-reconexão (idempotente)
+      startBluetoothAutoReconnect();
+
       // Try BT Auto-reconnect
       if (!isBluetoothConnected()) {
         const name = await tryReconnectBluetooth();
