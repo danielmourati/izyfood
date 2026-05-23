@@ -14,6 +14,10 @@ import {
   isQzConnected,
   printViaQzTray,
   getBluetoothDeviceName,
+  startBluetoothAutoReconnect,
+  getLastPairedDeviceName,
+  forgetBluetoothDevice,
+  ensureBluetoothConnected,
 } from '@/lib/printer';
 import {
   buildOrderReceipt,
@@ -112,6 +116,7 @@ export function usePrinter() {
   const [loading, setLoading] = useState(true);
   const [btConnected, setBtConnected] = useState(false);
   const [btDeviceName, setBtDeviceName] = useState<string | null>(null);
+  const [lastPairedName, setLastPairedName] = useState<string | null>(() => getLastPairedDeviceName());
   const [qzConnected, setQzConnected] = useState(false);
 
   const fetchPrinters = useCallback(async () => {
@@ -141,6 +146,9 @@ export function usePrinter() {
       // Try QZ
       const qzReady = await initQzTray();
       setQzConnected(qzReady);
+
+      // Inicia loop de auto-reconexão (idempotente)
+      startBluetoothAutoReconnect();
 
       // Try BT Auto-reconnect
       if (!isBluetoothConnected()) {
@@ -205,6 +213,7 @@ export function usePrinter() {
     const name = await connectBluetooth();
     setBtConnected(true);
     setBtDeviceName(name);
+    setLastPairedName(getLastPairedDeviceName());
     return name;
   };
 
@@ -212,6 +221,30 @@ export function usePrinter() {
     disconnectBluetooth();
     setBtConnected(false);
     setBtDeviceName(null);
+  };
+
+  const reconnectPrinter = async () => {
+    // Tenta sem gesto via getDevices(); se falhar, devolve false para a UI cair em pairBluetooth().
+    const ok = await ensureBluetoothConnected();
+    if (ok) {
+      setBtConnected(true);
+      setBtDeviceName(getBluetoothDeviceName());
+      return true;
+    }
+    const name = await tryReconnectBluetooth();
+    if (name) {
+      setBtConnected(true);
+      setBtDeviceName(name);
+      return true;
+    }
+    return false;
+  };
+
+  const forgetPrinter = () => {
+    forgetBluetoothDevice();
+    setBtConnected(false);
+    setBtDeviceName(null);
+    setLastPairedName(null);
   };
 
   const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string) => {
@@ -334,12 +367,15 @@ export function usePrinter() {
     defaultPrinter,
     btConnected,
     btDeviceName,
+    lastPairedName,
     btAvailable: isBluetoothAvailable(),
     qzConnected,
     retryQzConnection,
     fetchPrinters,
     pairBluetooth,
     unpairBluetooth,
+    reconnectPrinter,
+    forgetPrinter,
     printOrder,
     printBill,
     printCashClose,

@@ -1,61 +1,47 @@
-## Diagnóstico
+# Reconexão automática à última impressora Bluetooth pareada
 
-No desktop, ao abrir Configurações, o app salva `print_settings` no banco e também em `localStorage` daquele navegador, e a tela de preview/impressão lê desse cache local com toggles preenchidos. Por isso o cabeçalho/rodapé aparece corretamente no desktop.
+## Objetivo
+Garantir que, ao abrir o app (ou voltar a uma aba/visibilidade), o sistema tente reconectar automaticamente à última impressora Bluetooth que foi pareada neste dispositivo, sem exigir nova seleção manual pelo usuário.
 
-No mobile, o cenário muda:
+## Comportamento esperado
+- Ao carregar o app no dispositivo, se já existe uma impressora previamente pareada, conectar automaticamente em segundo plano.
+- Se o navegador não devolver o dispositivo automaticamente (limitação do Web Bluetooth em alguns contextos), exibir um botão discreto "Reconectar impressora" na UI da Impressora e no PDV.
+- Continuar tentando enquanto o app estiver aberto (com backoff) e ao voltar de background (`visibilitychange` → visible).
+- Emitir os eventos `bt_connected` / `bt_status` existentes para que o hook `usePrinter` atualize o indicador.
 
-- O `localStorage` daquele celular começa vazio para `print_settings_<tenant>`, então o cache em memória (`__printSettingsCache`) também está vazio quando o usuário aciona imprimir.
-- O `printBill` em `src/hooks/use-printer.ts` tenta buscar do banco antes de imprimir, mas a busca pode falhar silenciosamente em situações reais de mobile:
-  - sessão sem `user.tenantId` ainda hidratado (recarregou no PDV antes do `AuthContext` resolver) → o bloco `if (tenantId)` é pulado e `ps` fica `{}` (sem nenhum toggle).
-  - resposta vem com `print_settings` `null` (linha do tenant nunca atualizada com a coluna nova) → cai no `else if (tenantName)` e descarta tudo, mantendo `ps` vazio.
-  - Realtime de `store_settings` no `StoreContext` não propaga `print_settings`, então um celular aberto há horas continua com o cache antigo mesmo após salvar no desktop.
-- Como `ps` chega praticamente vazio no `buildBillReceipt`, todos os blocos `if (ps.showAddress && ps.address)`, `if (ps.showWhatsapp && ps.whatsapp)`, etc. são falsos e a comanda/conta sai sem cabeçalho e rodapé.
-- Existe duplicidade entre `fetchPrintSettings` (em `escpos.ts`) e a refetch dentro de `printBill` (em `use-printer.ts`), com regras de merge diferentes, o que aumenta a chance de divergência entre dispositivos.
+## Mudanças
 
-## Plano de correção
+### 1. `src/lib/printer.ts`
+- Persistir referência do último device pareado em `localStorage` (`bt_last_device_name`, `bt_last_device_id` quando disponível) dentro de `_connectToDevice`.
+- Expandir `tryReconnectBluetooth()`:
+  - Iterar `navigator.bluetooth.getDevices()` e priorizar o device cujo `name`/`id` bate com o salvo, em vez de pegar sempre o `[0]`.
+  - Tentar `device.gatt.connect()` direto; se falhar, registrar `watchAdvertisements` + listener `advertisementreceived` para reconectar assim que a impressora voltar a anunciar.
+  - Retornar status estruturado (`{ connected, name, needsUserGesture }`) para a UI saber se precisa de clique.
+- Novo helper `startBluetoothAutoReconnect()`:
+  - Chama `tryReconnectBluetooth()` no load.
+  - Reagenda tentativas a cada 30s enquanto não estiver conectado e houver `lastDeviceName` salvo.
+  - Listener `document.visibilitychange` → quando volta a `visible`, dispara nova tentativa imediata.
+  - Listener `online` (window) → tentativa imediata.
+- `connectBluetooth()` continua sendo o caminho de pareamento manual (gesto do usuário); ao conectar com sucesso, salva também os identificadores.
+- `disconnectBluetooth()` mantém o `localStorage` (não remover, para permitir reconexão futura). Adicionar `forgetBluetoothDevice()` separado caso o usuário queira limpar.
 
-### 1. Centralizar `print_settings` no estado global do app
+### 2. `src/hooks/use-printer.ts`
+- Chamar `startBluetoothAutoReconnect()` uma única vez no mount (guard por flag global do módulo).
+- Continuar consumindo `bt_status` para refletir mudanças.
+- Expor função `reconnectPrinter()` que chama `ensureBluetoothConnected()` (já existe) para o botão da UI usar.
 
-Em `src/contexts/StoreContext.tsx`:
+### 3. `src/components/ImpressoraTab.tsx`
+- Mostrar status "Última impressora: <nome salvo>" e botão "Reconectar agora" quando houver `lastDeviceName` mas `btConnected` for false.
+- Adicionar botão "Esquecer impressora" que chama `forgetBluetoothDevice()`.
 
-- Carregar `print_settings` junto com `store_settings` no primeiro fetch por `tenantId`.
-- Expor `printSettings` no contexto (`useStore()`), com merge de `storeName` vindo de `tenants.name`.
-- Assinar Realtime de `store_settings` para o tenant e atualizar `printSettings` quando outro dispositivo salvar — sem descartar campos.
-- Gravar a versão consolidada em `localStorage` (`print_settings_<tenant>`) e em `(window as any).__printSettingsCache` para retrocompatibilidade.
+### 4. PDV (`src/pages/PDV.tsx`) — mínima
+- Se já existe indicador de impressora, exibir botão "Reconectar" quando desconectado e houver última impressora salva (reaproveita `reconnectPrinter`).
 
-Resultado: qualquer dispositivo passa a ter, em memória, a configuração atual sem depender de cache local prévio.
+## Notas técnicas
+- Web Bluetooth exige gesto do usuário para `requestDevice()`, mas `getDevices()` + `gatt.connect()` podem rodar sem gesto desde que o device já tenha sido autorizado anteriormente nesse origin/perfil do navegador.
+- `watchAdvertisements()` ainda é experimental em alguns navegadores; o código já tem `try/catch` — manter fallback silencioso.
+- Não tocar em `escpos.ts`, schema do banco, nem RLS. Mudança puramente client-side.
 
-### 2. Tornar `printBill` determinístico e à prova de tenant não pronto
-
-Em `src/hooks/use-printer.ts`:
-
-- Remover o refetch inline de `print_settings` e ler diretamente de `useStore().printSettings`.
-- Se `printSettings` estiver vazio no momento do clique, executar um `await fetchPrintSettings(tenantId)` síncrono antes de montar o buffer ESC/POS e abortar o envio com mensagem clara se o tenant ainda não estiver disponível (em vez de imprimir um recibo "pelado").
-- Garantir que o `ps` enviado ao `buildBillReceipt` contenha sempre os campos `show*` (default `false` apenas se realmente ausentes no banco).
-
-### 3. Endurecer `fetchPrintSettings` em `src/lib/escpos.ts`
-
-- Sempre retornar um objeto com todos os toggles definidos (default `false`) e os campos textuais (default `''`), evitando que o consumidor precise checar `undefined`.
-- Quando o banco vier com `print_settings = null`, recuperar do `localStorage` daquele dispositivo somente como último recurso, e logar (sem toast) qual fonte foi usada para facilitar diagnóstico.
-- Manter o cache em memória sincronizado com o `localStorage` em toda atualização.
-
-### 4. Garantir que o salvamento em Configurações nunca grave parcial
-
-Em `src/pages/Configuracoes.tsx`:
-
-- No `upsert` de `store_settings`, montar `print_settings` a partir de um objeto completo (todos os toggles e textos, com fallback para os valores atuais) antes de enviar, para impedir que um save antigo derrube campos novos.
-- Após o upsert, atualizar imediatamente `useStore().printSettings` e o `localStorage` local, em vez de depender só do Realtime para refletir na própria tela.
-
-### 5. Adicionar verificação no Diagnóstico Sync
-
-Em `src/pages/DiagnosticoSync.tsx`:
-
-- Mostrar, por tenant, se `print_settings` está presente no banco e quais toggles estão ativos.
-- Mostrar também o que o dispositivo atual tem em `localStorage` / `__printSettingsCache`, lado a lado, para que o usuário consiga ver no celular se ele já recebeu as configurações antes de tentar imprimir.
-
-### 6. Validação após implementar
-
-- No desktop: salvar cabeçalho/rodapé com toggles ativos. Conferir Diagnóstico Sync no celular: deve mostrar os mesmos toggles ativos sem F5.
-- No celular: abrir uma mesa, fechar conta e imprimir via Bluetooth. Conferir que o recibo sai com nome da loja, endereço, documento, WhatsApp (conforme toggles) e com PIX, Instagram e mensagem de agradecimento no rodapé.
-- No celular sem nunca ter aberto Configurações: confirmar que a primeira impressão já sai com cabeçalho/rodapé corretos (validando o caminho via DB + StoreContext).
-- No celular offline momentâneo (DB falha): confirmar que cai no cache local e ainda imprime cabeçalho/rodapé se houver dados em `localStorage`; caso contrário, mostrar aviso claro em vez de imprimir sem cabeçalho.
+## Validação
+- Atualizar/adicionar teste leve em `src/test/` mockando `navigator.bluetooth.getDevices` para garantir que `tryReconnectBluetooth` seleciona o device com o nome salvo.
+- Validar manualmente: parear → recarregar a página → impressora reconecta sozinha em poucos segundos; minimizar e voltar → reconecta.
