@@ -20,7 +20,6 @@ import {
   buildBillReceipt,
   buildCashCloseReceipt,
   fetchPrintSettings,
-  getCachedPrintSettings,
 } from '@/lib/escpos';
 import type { PrintSettings } from '@/lib/escpos';
 
