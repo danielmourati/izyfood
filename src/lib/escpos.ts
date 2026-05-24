@@ -441,9 +441,10 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     text('CONTA\n'),
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
   );
-  // Volta firme para LEFT + modo normal ANTES do separador para evitar que
-  // mini-printers Bluetooth deixem cursor/alinhamento residual do bloco CONTA.
-  parts.push(CMD_ALIGN_LEFT, normalTextMode(), CMD_ALIGN_LEFT, lineOf('-', cols));
+  // Separador logo abaixo do título CONTA foi removido a pedido do usuário.
+  // Mantemos o reset de alinhamento/modo normal para evitar resíduo de formatação
+  // em mini-printers Bluetooth antes do rótulo "Tipo:".
+  parts.push(CMD_ALIGN_LEFT, normalTextMode(), CMD_ALIGN_LEFT);
 
   // Each detail field as a row(): label left, value right.
   const rawOrderType = bill.orderType?.toLowerCase().trim() || '';
