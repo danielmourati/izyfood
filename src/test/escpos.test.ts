@@ -110,19 +110,18 @@ describe('ESC/POS bill receipt', () => {
 
     const sep = '-'.repeat(32);
     const parts = receipt.split(sep);
-    
-    // We expect exactly 7 separators when all sections are present.
-    // Splitting by 7 separators results in 8 parts.
-    expect(parts.length).toBe(8);
 
-    // Verify correct content order
+    // Separador logo abaixo de CONTA foi removido — agora são 6 separadores (7 partes).
+    expect(parts.length).toBe(7);
+
+    // Verify correct content order (CONTA e Tipo: agora no mesmo bloco)
     expect(parts[0]).toContain('NOME DA LOJA');
     expect(parts[1]).toContain('CONTA');
-    expect(parts[2]).toContain('Tipo:');
-    expect(parts[3]).toContain('1x Açaí 500ml');
-    expect(parts[4]).toContain('Taxa de Serviço:');
-    expect(parts[5]).toContain('TOTAL');
-    expect(parts[6]).toContain('PAGAMENTO:');
+    expect(parts[1]).toContain('Tipo:');
+    expect(parts[2]).toContain('1x Açaí 500ml');
+    expect(parts[3]).toContain('Taxa de Serviço:');
+    expect(parts[4]).toContain('TOTAL');
+    expect(parts[5]).toContain('PAGAMENTO:');
   });
 });
 
