@@ -441,13 +441,18 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     text('CONTA\n'),
     CMD_DOUBLE_OFF, CMD_BOLD_OFF,
   );
-  parts.push(normalTextMode(), CMD_ALIGN_LEFT, lineOf('-', cols));
+  // Volta firme para LEFT + modo normal ANTES do separador para evitar que
+  // mini-printers Bluetooth deixem cursor/alinhamento residual do bloco CONTA.
+  parts.push(CMD_ALIGN_LEFT, normalTextMode(), CMD_ALIGN_LEFT, lineOf('-', cols));
 
   // Each detail field as a row(): label left, value right.
   const rawOrderType = bill.orderType?.toLowerCase().trim() || '';
   const orderTypeVal = (orderTypeLabels[rawOrderType] || bill.orderType || 'Mesa').trim();
   const formattedOrderType = orderTypeVal.charAt(0).toUpperCase() + orderTypeVal.slice(1);
-  parts.push(row('Tipo:', formattedOrderType, cols));
+  // Reforça LEFT imediatamente antes do primeiro rótulo (Tipo:) — sem isso,
+  // algumas mini-printers Bluetooth herdam estado do bloco anterior e empurram
+  // o rótulo para a direita do separador.
+  parts.push(CMD_ALIGN_LEFT, row('Tipo:', formattedOrderType, cols));
   if (bill.tableNumber || rawOrderType === 'mesa') {
     parts.push(row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
@@ -475,25 +480,25 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     return acc + (itemSubtotal || 0);
   }, 0);
   const discountVal = bill.discount ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount) : 0;
-  const serviceFeeVal = bill.serviceFee || 0;
+  // Regra: rótulo "Taxa de Serviço" SEMPRE aparece no cupom da conta, mas
+  // apenas o tipo "mesa" carrega o valor configurado da comissão; demais tipos
+  // (balcão/delivery/retirada) ficam zerados R$ 0,00 por padrão.
+  const isMesa = rawOrderType === 'mesa';
+  const serviceFeeVal = isMesa ? (bill.serviceFee || 0) : 0;
   const deliveryFeeVal = bill.deliveryFee || 0;
   const totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
 
-  const hasAnyAdjustment = discountVal > 0 || serviceFeeVal > 0 || deliveryFeeVal > 0;
-  if (hasAnyAdjustment) {
-    if (bill.discount && bill.discount > 0) {
-      const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%):` : 'Desconto:';
-      parts.push(row(discLabel, `-${fmtBRL(discountVal)}`, cols));
-    }
-    if (serviceFeeVal > 0) {
-      parts.push(row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
-    }
-    if (deliveryFeeVal > 0) {
-      parts.push(row('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
-    }
-    parts.push(lineOf('-', cols));
-
+  // Sempre há ao menos a linha de Taxa de Serviço, então o bloco de ajustes
+  // e seu separador sempre serão impressos.
+  if (bill.discount && bill.discount > 0) {
+    const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%):` : 'Desconto:';
+    parts.push(row(discLabel, `-${fmtBRL(discountVal)}`, cols));
   }
+  parts.push(row('Taxa de Serviço:', fmtBRL(serviceFeeVal), cols));
+  if (deliveryFeeVal > 0) {
+    parts.push(row('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
+  }
+  parts.push(lineOf('-', cols));
 
   // TOTAL
   parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
