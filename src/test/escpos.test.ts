@@ -197,7 +197,14 @@ describe('ESC/POS bill receipt', () => {
       customerName: 'João',
     }, 58, { storeName: 'Loja' }));
 
-    const lines = receipt.split('\n');
+    // Remove bytes de controle ESC/POS (ESC, GS, etc.) e seus parâmetros típicos para inspeção textual
+    const stripCtrl = (s: string) =>
+      s
+        .replace(/\x1B[@!aMEGdR][\x00-\xFF]?/g, '') // ESC + cmd + param
+        .replace(/\x1D[Bb!][\x00-\xFF]?/g, '')      // GS + cmd + param
+        .replace(/[\x00-\x1F\x7F]+/g, '');          // qualquer outro byte de controle
+
+    const lines = receipt.split('\n').map(stripCtrl);
     const tipoLine = lines.find(l => /^Tipo:/.test(l));
     const mesaLine = lines.find(l => /^Mesa:/.test(l));
     const clienteLine = lines.find(l => /^Cliente:/.test(l));
