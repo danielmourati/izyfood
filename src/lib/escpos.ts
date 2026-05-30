@@ -437,22 +437,31 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   // Print "CONTA"
   parts.push(
     CMD_ALIGN_CENTER,
-    CMD_BOLD_ON, CMD_DOUBLE_ON,
+    CMD_BOLD_ON,
+    CMD_DOUBLE_ON,
     text('CONTA\n'),
-    CMD_DOUBLE_OFF, CMD_BOLD_OFF,
+    CMD_DOUBLE_OFF,
+    CMD_BOLD_OFF,
   );
-  // Separador logo abaixo do título CONTA foi removido a pedido do usuário.
-  // Mantemos o reset de alinhamento/modo normal para evitar resíduo de formatação
-  // em mini-printers Bluetooth antes do rótulo "Tipo:".
-  parts.push(CMD_ALIGN_LEFT, normalTextMode(), CMD_ALIGN_LEFT);
+
+  // Separador abaixo do título CONTA em fonte normal
+  parts.push(
+    normalTextMode(),
+    CMD_ALIGN_LEFT,
+    lineOf('-', cols),
+    CMD_LF
+  );
+
+  // Garante que o próximo bloco volte para fonte normal e alinhamento à esquerda
+  parts.push(
+    normalTextMode(),
+    CMD_ALIGN_LEFT
+  );
 
   // Each detail field as a row(): label left, value right.
   const rawOrderType = bill.orderType?.toLowerCase().trim() || '';
   const orderTypeVal = (orderTypeLabels[rawOrderType] || bill.orderType || 'Mesa').trim();
   const formattedOrderType = orderTypeVal.charAt(0).toUpperCase() + orderTypeVal.slice(1);
-  // Reforça LEFT imediatamente antes do primeiro rótulo (Tipo:) — sem isso,
-  // algumas mini-printers Bluetooth herdam estado do bloco anterior e empurram
-  // o rótulo para a direita do separador.
   parts.push(CMD_ALIGN_LEFT, row('Tipo:', formattedOrderType, cols));
   if (bill.tableNumber || rawOrderType === 'mesa') {
     parts.push(row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
