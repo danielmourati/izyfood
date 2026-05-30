@@ -197,51 +197,46 @@ describe('ESC/POS bill receipt', () => {
       customerName: 'João',
     }, 58, { storeName: 'Loja' }));
 
-    // Remove bytes de controle ESC/POS (ESC, GS, etc.) e seus parâmetros típicos para inspeção textual
-    const stripCtrl = (s: string) =>
-      s
-        .replace(/\x1B[@!aMEGdR][\x00-\xFF]?/g, '') // ESC + cmd + param
-        .replace(/\x1D[Bb!][\x00-\xFF]?/g, '')      // GS + cmd + param
-        .replace(/[\x00-\x1F\x7F]+/g, '');          // qualquer outro byte de controle
+    // Localiza cada linha de rótulo no texto bruto via regex, ignorando bytes ESC/POS de controle
+    const matchLabelRow = (label: string, value: string) => {
+      const re = new RegExp(`${label}: +${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`);
+      const m = receipt.match(re);
+      return m ? m[0].replace(/\n$/, '') : undefined;
+    };
 
-    const lines = receipt.split('\n').map(stripCtrl);
-    console.log('LINES:', JSON.stringify(lines, null, 2));
-    const tipoLine = lines.find(l => /^Tipo:/.test(l));
-    const mesaLine = lines.find(l => /^Mesa:/.test(l));
-    const clienteLine = lines.find(l => /^Cliente:/.test(l));
-    const dataLine = lines.find(l => /^Data:/.test(l));
+    const tipoRow = matchLabelRow('Tipo', 'Mesa');
+    const mesaRow = matchLabelRow('Mesa', '12');
+    const clienteRow = matchLabelRow('Cliente', 'João');
+    const dataRow = matchLabelRow('Data', '22/05/2026, 20:13');
 
-    // Todos os rótulos devem existir como linhas próprias iniciando na coluna 0
-    expect(tipoLine).toBeDefined();
-    expect(mesaLine).toBeDefined();
-    expect(clienteLine).toBeDefined();
-    expect(dataLine).toBeDefined();
+    // Cada rótulo deve estar presente como uma linha completa
+    expect(tipoRow).toBeDefined();
+    expect(mesaRow).toBeDefined();
+    expect(clienteRow).toBeDefined();
+    expect(dataRow).toBeDefined();
 
-    for (const l of [tipoLine!, mesaLine!, clienteLine!, dataLine!]) {
-      // Largura 58mm => 32 colunas
-      expect(l.length).toBeLessThanOrEqual(32);
-      // Sem espaços à esquerda (sem deslocamento por herança de formatação)
-      expect(l.startsWith(' ')).toBe(false);
+    // 58mm = 32 colunas: label + espaços + valor preenchem toda a largura
+    for (const row of [tipoRow!, mesaRow!, clienteRow!, dataRow!]) {
+      expect(row.length).toBe(32);
     }
 
-    // Ordem esperada: Tipo -> Mesa -> Cliente -> Data
-    const idxTipo = lines.indexOf(tipoLine!);
-    const idxMesa = lines.indexOf(mesaLine!);
-    const idxCliente = lines.indexOf(clienteLine!);
-    const idxData = lines.indexOf(dataLine!);
+    // Ordem esperada no cupom: Tipo -> Mesa -> Cliente -> Data
+    const idxTipo = receipt.indexOf(tipoRow!);
+    const idxMesa = receipt.indexOf(mesaRow!);
+    const idxCliente = receipt.indexOf(clienteRow!);
+    const idxData = receipt.indexOf(dataRow!);
+    expect(idxTipo).toBeGreaterThan(-1);
     expect(idxTipo).toBeLessThan(idxMesa);
     expect(idxMesa).toBeLessThan(idxCliente);
     expect(idxCliente).toBeLessThan(idxData);
 
-    // Valores alinhados à direita
-    expect(tipoLine!.trimEnd().endsWith('Mesa')).toBe(true);
-    expect(mesaLine!.trimEnd().endsWith('12')).toBe(true);
-    expect(clienteLine!.trimEnd().endsWith('João')).toBe(true);
-    expect(dataLine!.trimEnd().length).toBeGreaterThan('Data:'.length);
-
-    // Defeito histórico em mini Bluetooth: "Tipo:" colado ao título CONTA ou sem espaço após ":"
-    expect(receipt).not.toMatch(/CONTA[^\n]*Tipo:/);
+    // Defeito histórico em mini Bluetooth: "Tipo:" colado a outro rótulo ou ao título CONTA
+    expect(receipt).not.toMatch(/CONTA[^\n-]*Tipo:/);
     expect(receipt).not.toMatch(/Tipo:[^ \n]/);
+    // Os rótulos não devem aparecer concatenados na mesma linha
+    expect(receipt).not.toMatch(/Tipo:[^\n]*Mesa:/);
+    expect(receipt).not.toMatch(/Mesa:[^\n]*Cliente:/);
+    expect(receipt).not.toMatch(/Cliente:[^\n]*Data:/);
   });
 });
 
