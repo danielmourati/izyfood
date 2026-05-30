@@ -184,5 +184,59 @@ describe('ESC/POS bill receipt', () => {
     expect(receipt).toContain('Obrigado pela preferência!');
 
   });
+
+  it('regressão: rótulos Tipo, Mesa, Cliente e Data alinhados na mesma coluna (58mm Bluetooth)', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'order-align',
+      orderType: 'mesa',
+      tableNumber: 12,
+      items: [{ name: 'Açaí 300ml', quantity: 1, price: 30, subtotal: 30 }],
+      total: 33,
+      serviceFee: 3,
+      createdAt: '2026-05-22T20:13:00.000Z',
+      customerName: 'João',
+    }, 58, { storeName: 'Loja' }));
+
+    // Localiza cada linha de rótulo no texto bruto via regex, ignorando bytes ESC/POS de controle
+    const matchLabelRow = (label: string, value: string) => {
+      const re = new RegExp(`${label}: +${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`);
+      const m = receipt.match(re);
+      return m ? m[0].replace(/\n$/, '') : undefined;
+    };
+
+    const tipoRow = matchLabelRow('Tipo', 'Mesa');
+    const mesaRow = matchLabelRow('Mesa', '12');
+    const clienteRow = matchLabelRow('Cliente', 'João');
+    const dataRow = matchLabelRow('Data', '22/05/2026, 20:13');
+
+    // Cada rótulo deve estar presente como uma linha completa
+    expect(tipoRow).toBeDefined();
+    expect(mesaRow).toBeDefined();
+    expect(clienteRow).toBeDefined();
+    expect(dataRow).toBeDefined();
+
+    // 58mm = 32 colunas: label + espaços + valor preenchem toda a largura
+    for (const row of [tipoRow!, mesaRow!, clienteRow!, dataRow!]) {
+      expect(row.length).toBe(32);
+    }
+
+    // Ordem esperada no cupom: Tipo -> Mesa -> Cliente -> Data
+    const idxTipo = receipt.indexOf(tipoRow!);
+    const idxMesa = receipt.indexOf(mesaRow!);
+    const idxCliente = receipt.indexOf(clienteRow!);
+    const idxData = receipt.indexOf(dataRow!);
+    expect(idxTipo).toBeGreaterThan(-1);
+    expect(idxTipo).toBeLessThan(idxMesa);
+    expect(idxMesa).toBeLessThan(idxCliente);
+    expect(idxCliente).toBeLessThan(idxData);
+
+    // Defeito histórico em mini Bluetooth: "Tipo:" colado a outro rótulo ou ao título CONTA
+    expect(receipt).not.toMatch(/CONTA[^\n-]*Tipo:/);
+    expect(receipt).not.toMatch(/Tipo:[^ \n]/);
+    // Os rótulos não devem aparecer concatenados na mesma linha
+    expect(receipt).not.toMatch(/Tipo:[^\n]*Mesa:/);
+    expect(receipt).not.toMatch(/Mesa:[^\n]*Cliente:/);
+    expect(receipt).not.toMatch(/Cliente:[^\n]*Data:/);
+  });
 });
 
