@@ -205,6 +205,7 @@ describe('ESC/POS bill receipt', () => {
         .replace(/[\x00-\x1F\x7F]+/g, '');          // qualquer outro byte de controle
 
     const lines = receipt.split('\n').map(stripCtrl);
+    console.log('LINES:', JSON.stringify(lines, null, 2));
     const tipoLine = lines.find(l => /^Tipo:/.test(l));
     const mesaLine = lines.find(l => /^Mesa:/.test(l));
     const clienteLine = lines.find(l => /^Cliente:/.test(l));
