@@ -184,5 +184,56 @@ describe('ESC/POS bill receipt', () => {
     expect(receipt).toContain('Obrigado pela preferência!');
 
   });
+
+  it('regressão: rótulos Tipo, Mesa, Cliente e Data alinhados na mesma coluna (58mm Bluetooth)', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'order-align',
+      orderType: 'mesa',
+      tableNumber: 12,
+      items: [{ name: 'Açaí 300ml', quantity: 1, price: 30, subtotal: 30 }],
+      total: 33,
+      serviceFee: 3,
+      createdAt: '2026-05-22T20:13:00.000Z',
+      customerName: 'João',
+    }, 58, { storeName: 'Loja' }));
+
+    const lines = receipt.split('\n');
+    const tipoLine = lines.find(l => /^Tipo:/.test(l));
+    const mesaLine = lines.find(l => /^Mesa:/.test(l));
+    const clienteLine = lines.find(l => /^Cliente:/.test(l));
+    const dataLine = lines.find(l => /^Data:/.test(l));
+
+    // Todos os rótulos devem existir como linhas próprias iniciando na coluna 0
+    expect(tipoLine).toBeDefined();
+    expect(mesaLine).toBeDefined();
+    expect(clienteLine).toBeDefined();
+    expect(dataLine).toBeDefined();
+
+    for (const l of [tipoLine!, mesaLine!, clienteLine!, dataLine!]) {
+      // Largura 58mm => 32 colunas
+      expect(l.length).toBeLessThanOrEqual(32);
+      // Sem espaços à esquerda (sem deslocamento por herança de formatação)
+      expect(l.startsWith(' ')).toBe(false);
+    }
+
+    // Ordem esperada: Tipo -> Mesa -> Cliente -> Data
+    const idxTipo = lines.indexOf(tipoLine!);
+    const idxMesa = lines.indexOf(mesaLine!);
+    const idxCliente = lines.indexOf(clienteLine!);
+    const idxData = lines.indexOf(dataLine!);
+    expect(idxTipo).toBeLessThan(idxMesa);
+    expect(idxMesa).toBeLessThan(idxCliente);
+    expect(idxCliente).toBeLessThan(idxData);
+
+    // Valores alinhados à direita
+    expect(tipoLine!.trimEnd().endsWith('Mesa')).toBe(true);
+    expect(mesaLine!.trimEnd().endsWith('12')).toBe(true);
+    expect(clienteLine!.trimEnd().endsWith('João')).toBe(true);
+    expect(dataLine!.trimEnd().length).toBeGreaterThan('Data:'.length);
+
+    // Defeito histórico em mini Bluetooth: "Tipo:" colado ao título CONTA ou sem espaço após ":"
+    expect(receipt).not.toMatch(/CONTA[^\n]*Tipo:/);
+    expect(receipt).not.toMatch(/Tipo:[^ \n]/);
+  });
 });
 
