@@ -183,9 +183,10 @@ describe('ESC/POS bill receipt', () => {
     expect(receipt).toContain('Instagram: @profdanielmoura');
     expect(receipt).toContain('Obrigado pela preferência!');
 
-    // Nenhuma linha deve exceder 32 colunas (largura 58mm)
+    // Largura 58mm = 32 colunas: nenhuma linha textual (ignorando bytes ESC/POS) deve exceder
+    const stripCtrl = (s: string) => s.replace(/[\x00-\x1F]/g, '');
     for (const line of receipt.split('\n')) {
-      expect(line.length).toBeLessThanOrEqual(32);
+      expect(stripCtrl(line).length).toBeLessThanOrEqual(32);
     }
   });
 });
