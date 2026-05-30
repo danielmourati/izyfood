@@ -123,5 +123,66 @@ describe('ESC/POS bill receipt', () => {
     expect(parts[4]).toContain('TOTAL');
     expect(parts[5]).toContain('PAGAMENTO:');
   });
+
+  it('renderiza cupom 58mm completo com PrintSettings padrão (Bluetooth)', () => {
+    const bill = {
+      id: 'order-ref',
+      orderType: 'mesa',
+      tableNumber: 5,
+      items: [
+        { name: 'Açaí 500ml', quantity: 1, price: 48, subtotal: 48 },
+        { name: 'Refrigerante 350ml', quantity: 2, price: 4.5, subtotal: 9 },
+      ],
+      total: 66.8,
+      serviceFee: 4.8,
+      paymentSplits: [
+        { method: 'dinheiro', amount: 40 },
+        { method: 'pix', amount: 26.8 },
+      ],
+      createdAt: '2026-05-22T20:13:00.000Z',
+      customerName: 'Consumidor',
+    };
+
+    const receipt = decodeReceipt(buildBillReceipt(bill, 58, {
+      storeName: 'Lanchonete Exemplo',
+      address: 'Rua Principal, 123',
+      documentType: 'cnpj',
+      document: '00.000.000/0001-00',
+      whatsapp: '(86) 99999-9999',
+      pixKey: '86999999999',
+      instagram: '@profdanielmoura',
+      thankMessage: 'Obrigado pela preferência!',
+      showAddress: true,
+      showDocument: true,
+      showWhatsapp: true,
+      showPixKey: true,
+      showInstagram: true,
+      showThankMessage: true,
+    }));
+
+    // Cabeçalho
+    expect(receipt).toContain('LANCHONETE EXEMPLO');
+    expect(receipt).toContain('Rua Principal, 123');
+    expect(receipt).toContain('CNPJ: 00.000.000/0001-00');
+    expect(receipt).toContain('WhatsApp: (86) 99999-9999');
+    // Título e dados
+    expect(receipt).toContain('CONTA');
+    expect(receipt).toMatch(/Tipo: +Mesa\n/);
+    expect(receipt).toMatch(/Mesa: +5\n/);
+    expect(receipt).toMatch(/Cliente: +Consumidor\n/);
+    // Itens, ajustes e total
+    expect(receipt).toMatch(/1x Açaí 500ml +R\$48,00\n/);
+    expect(receipt).toMatch(/Taxa de Serviço: +R\$ 4,80\n/);
+    expect(receipt).toContain('TOTAL');
+    // Pagamento
+    expect(receipt).toContain('PAGAMENTO:');
+    expect(receipt).toMatch(/Dinheiro +R\$40,00\n/);
+    expect(receipt).toMatch(/PIX +R\$26,80\n/);
+    // Rodapé
+    expect(receipt).toContain('PIX: 86999999999');
+    expect(receipt).toContain('Instagram: @profdanielmoura');
+    expect(receipt).toContain('Obrigado pela preferência!');
+
+  });
 });
 
