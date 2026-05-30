@@ -111,17 +111,17 @@ describe('ESC/POS bill receipt', () => {
     const sep = '-'.repeat(32);
     const parts = receipt.split(sep);
 
-    // Separador logo abaixo de CONTA foi removido — agora são 6 separadores (7 partes).
-    expect(parts.length).toBe(7);
+    // Separador reintroduzido abaixo de CONTA — agora são 7 separadores (8 partes).
+    expect(parts.length).toBe(8);
 
-    // Verify correct content order (CONTA e Tipo: agora no mesmo bloco)
+    // Verify correct content order (CONTA e Tipo: em blocos separados)
     expect(parts[0]).toContain('NOME DA LOJA');
     expect(parts[1]).toContain('CONTA');
-    expect(parts[1]).toContain('Tipo:');
-    expect(parts[2]).toContain('1x Açaí 500ml');
-    expect(parts[3]).toContain('Taxa de Serviço:');
-    expect(parts[4]).toContain('TOTAL');
-    expect(parts[5]).toContain('PAGAMENTO:');
+    expect(parts[2]).toContain('Tipo:');
+    expect(parts[3]).toContain('1x Açaí 500ml');
+    expect(parts[4]).toContain('Taxa de Serviço:');
+    expect(parts[5]).toContain('TOTAL');
+    expect(parts[6]).toContain('PAGAMENTO:');
   });
 
   it('renderiza cupom 58mm completo com PrintSettings padrão (Bluetooth)', () => {
