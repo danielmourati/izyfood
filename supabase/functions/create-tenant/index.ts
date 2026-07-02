@@ -51,25 +51,40 @@ serve(async (req) => {
       });
     }
 
-    const { name, slug, admin_email, admin_password, admin_name } = await req.json();
+    const { name, slug: requestedSlug, admin_email, admin_password, admin_name } = await req.json();
 
-    if (!name || !slug || !admin_email || !admin_password || !admin_name) {
+    if (!name || !requestedSlug || !admin_email || !admin_password || !admin_name) {
       return new Response(JSON.stringify({ error: "Campos obrigatórios: name, slug, admin_email, admin_password, admin_name" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Check slug uniqueness
-    const { data: existingTenant } = await supabase
-      .from("tenants")
-      .select("id")
-      .eq("slug", slug)
-      .single();
+    const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+    const RESERVED = new Set(["login", "superadmin", "admin", "api", "auth", "loja-padrao", "pdv", "home"]);
+    let slug: string = String(requestedSlug).trim().toLowerCase();
 
-    if (existingTenant) {
-      return new Response(JSON.stringify({ error: "Este slug já está em uso" }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (slug.length < 3 || slug.length > 40 || !SLUG_RE.test(slug)) {
+      return new Response(JSON.stringify({ error: "Slug inválido. Use 3–40 caracteres, apenas letras minúsculas, números e hífens." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    if (RESERVED.has(slug)) {
+      return new Response(JSON.stringify({ error: `Slug reservado: "${slug}". Escolha outro.` }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Auto-suffix on collision (base, base-2, base-3, …)
+    const base = slug;
+    for (let i = 1; i <= 50; i++) {
+      const candidate = i === 1 ? base : `${base}-${i}`;
+      const { data: exists } = await supabase.from("tenants").select("id").eq("slug", candidate).maybeSingle();
+      if (!exists) { slug = candidate; break; }
+      if (i === 50) {
+        return new Response(JSON.stringify({ error: "Não foi possível gerar um slug único" }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // 1. Create tenant
