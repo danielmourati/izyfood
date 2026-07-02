@@ -55,14 +55,21 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
 
   const tenant = memberData?.tenants as any;
 
+  // Non-superadmin users MUST be linked to a tenant; otherwise fail auth
+  if (bestRole !== 'superadmin' && !tenant?.slug) {
+    console.warn('[Auth] Usuário sem tenant vinculado, forçando signOut', supaUser.email);
+    await supabase.auth.signOut();
+    return null;
+  }
+
   return {
     id: supaUser.id,
     name: profile.name,
     email: profile.email,
     role: bestRole,
     tenantId: tenant?.id || '',
-    tenantSlug: tenant?.slug || 'loja-padrao',
-    tenantName: tenant?.name || 'Loja',
+    tenantSlug: tenant?.slug || '',
+    tenantName: tenant?.name || (bestRole === 'superadmin' ? 'Super Admin' : ''),
   };
 }
 
