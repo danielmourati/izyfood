@@ -204,7 +204,8 @@ const Login = () => {
           </form>
         </div>
 
-        <footer className="mt-auto pt-8 text-center text-xs text-muted-foreground">
+        <footer className="mt-auto pt-8 text-center text-xs text-muted-foreground space-y-1">
+          <p className="font-semibold text-foreground/80">Powered by Degust</p>
           <p>© 2026 Desenvolvido por Daniel Moura</p>
         </footer>
       </div>
