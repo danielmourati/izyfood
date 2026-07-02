@@ -1,14 +1,14 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { maskPhone } from '@/lib/utils';
-import { toast } from 'sonner';
-import { User, Save, Loader2, Store, Shield } from 'lucide-react';
+import { User, Save, Loader2, Store, Shield, CheckCircle2, AlertCircle, KeyRound } from 'lucide-react';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrador',
@@ -17,6 +17,8 @@ const roleLabels: Record<string, string> = {
   superadmin: 'Super Admin',
 };
 
+type Feedback = { type: 'success' | 'error'; message: string } | null;
+
 export function MeuPerfilTab() {
   const { user } = useAuth();
   const [name, setName] = useState(user?.name || '');
@@ -24,6 +26,9 @@ export function MeuPerfilTab() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [profileFeedback, setProfileFeedback] = useState<Feedback>(null);
+  const [passwordFeedback, setPasswordFeedback] = useState<Feedback>(null);
   const [loadedPhone, setLoadedPhone] = useState(false);
 
   React.useEffect(() => {
@@ -39,42 +44,66 @@ export function MeuPerfilTab() {
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : '?';
 
-  const handleSave = async () => {
+  const handleSaveProfile = async () => {
+    setProfileFeedback(null);
     if (!name.trim()) {
-      toast.error('Nome não pode ser vazio');
-      return;
-    }
-    if (password && password !== confirmPassword) {
-      toast.error('As senhas não conferem');
-      return;
-    }
-    if (password && password.length < 6) {
-      toast.error('Senha deve ter pelo menos 6 caracteres');
+      setProfileFeedback({ type: 'error', message: 'Nome não pode ser vazio.' });
       return;
     }
 
     setSaving(true);
     try {
-      const { error: profileError } = await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ name: name.trim(), phone: phone.trim() })
         .eq('id', user!.id);
-
-      if (profileError) throw profileError;
-
-      if (password) {
-        const { error: passError } = await supabase.auth.updateUser({ password });
-        if (passError) throw passError;
-      }
-
-      toast.success('Perfil atualizado com sucesso!');
-      setPassword('');
-      setConfirmPassword('');
+      if (error) throw error;
+      setProfileFeedback({ type: 'success', message: 'Dados pessoais atualizados com sucesso.' });
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao atualizar perfil');
+      setProfileFeedback({ type: 'error', message: err.message || 'Erro ao atualizar perfil.' });
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordFeedback(null);
+    if (!password || password.length < 6) {
+      setPasswordFeedback({ type: 'error', message: 'A senha deve ter pelo menos 6 caracteres.' });
+      return;
+    }
+    if (password !== confirmPassword) {
+      setPasswordFeedback({ type: 'error', message: 'As senhas não conferem.' });
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setPassword('');
+      setConfirmPassword('');
+      setPasswordFeedback({ type: 'success', message: 'Senha alterada com sucesso! Use a nova senha no próximo acesso.' });
+    } catch (err: any) {
+      setPasswordFeedback({ type: 'error', message: err.message || 'Erro ao alterar a senha.' });
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  const renderFeedback = (fb: Feedback) => {
+    if (!fb) return null;
+    const isSuccess = fb.type === 'success';
+    return (
+      <Alert
+        variant={isSuccess ? 'default' : 'destructive'}
+        className={isSuccess ? 'border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400 [&>svg]:text-green-600' : ''}
+      >
+        {isSuccess ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+        <AlertTitle>{isSuccess ? 'Sucesso' : 'Erro'}</AlertTitle>
+        <AlertDescription>{fb.message}</AlertDescription>
+      </Alert>
+    );
   };
 
   return (
@@ -104,7 +133,7 @@ export function MeuPerfilTab() {
         </CardContent>
       </Card>
 
-      {/* Edit form */}
+      {/* Personal data */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -114,7 +143,7 @@ export function MeuPerfilTab() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Nome</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Seu nome completo" />
+            <Input value={name} onChange={e => { setName(e.target.value); setProfileFeedback(null); }} placeholder="Seu nome completo" />
           </div>
 
           <div className="space-y-2">
@@ -125,26 +154,61 @@ export function MeuPerfilTab() {
 
           <div className="space-y-2">
             <Label>Telefone / WhatsApp</Label>
-            <Input value={phone} onChange={e => setPhone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" maxLength={15} />
+            <Input value={phone} onChange={e => { setPhone(maskPhone(e.target.value)); setProfileFeedback(null); }} placeholder="(00) 00000-0000" maxLength={15} />
           </div>
 
-          <div className="pt-3 border-t space-y-3">
-            <p className="text-sm font-semibold text-foreground">Alterar Senha</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Nova Senha</Label>
-                <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mín. 6 caracteres" />
-              </div>
-              <div className="space-y-2">
-                <Label>Confirmar Senha</Label>
-                <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repita a senha" />
-              </div>
+          {renderFeedback(profileFeedback)}
+
+          <Button onClick={handleSaveProfile} disabled={saving} className="w-full">
+            {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvando...</> : <><Save className="h-4 w-4 mr-2" /> Salvar Dados</>}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Password change - separated */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <KeyRound className="h-5 w-5" /> Alterar Senha
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Nova Senha</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={e => { setPassword(e.target.value); setPasswordFeedback(null); }}
+                placeholder="Mín. 6 caracteres"
+                autoComplete="new-password"
+              />
             </div>
-            <p className="text-xs text-muted-foreground">Deixe os campos vazios para manter a senha atual.</p>
+            <div className="space-y-2">
+              <Label>Confirmar Senha</Label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={e => { setConfirmPassword(e.target.value); setPasswordFeedback(null); }}
+                placeholder="Repita a senha"
+                autoComplete="new-password"
+              />
+            </div>
           </div>
 
-          <Button onClick={handleSave} disabled={saving} className="w-full">
-            {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvando...</> : <><Save className="h-4 w-4 mr-2" /> Salvar Alterações</>}
+          {renderFeedback(passwordFeedback)}
+
+          <Button
+            onClick={handleChangePassword}
+            disabled={changingPassword || !password || !confirmPassword}
+            className="w-full"
+            variant="secondary"
+          >
+            {changingPassword ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Alterando senha...</>
+            ) : (
+              <><KeyRound className="h-4 w-4 mr-2" /> Alterar Senha</>
+            )}
           </Button>
         </CardContent>
       </Card>
