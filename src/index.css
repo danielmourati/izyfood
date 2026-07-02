@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* IzyFood — Paleta Food (Fire Red / Vanilla Cream / Retro Green / Saffron / Russet) */
+/* Degust — Paleta Food (Fire Red / Vanilla Cream / Retro Green / Saffron / Russet) */
 @layer base {
   :root {
     --background: 45 60% 98%;
