@@ -1,6 +1,7 @@
 import {
-  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon
+  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield
 } from 'lucide-react';
+
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
@@ -160,6 +161,14 @@ export function AppSidebar() {
           <DropdownMenuContent align="end" className="w-56 mb-2">
             <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><UserIcon className="h-4 w-4 mr-2" /> Meu Perfil</DropdownMenuItem>
             <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><Settings className="h-4 w-4 mr-2" /> Configurações</DropdownMenuItem>
+            {user?.role === 'superadmin' && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { window.location.href = '/superadmin'; }}>
+                  <Shield className="h-4 w-4 mr-2" /> Área Super Admin
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="text-destructive"><LogOut className="h-4 w-4 mr-2" /> Sair</DropdownMenuItem>
           </DropdownMenuContent>

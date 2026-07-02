@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { BackButton } from '@/components/BackButton';
+import { TrialBanner } from '@/components/TrialBanner';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -19,6 +20,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="h-[100dvh] flex w-full overflow-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col h-full overflow-hidden">
+          <TrialBanner />
           {/* Mobile Header */}
           <header className="md:hidden flex items-center gap-2 h-16 border-b bg-card px-4 shrink-0">
             <SidebarTrigger />
@@ -39,4 +41,5 @@ export function Layout({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
+
 

@@ -913,6 +913,53 @@ export type Database = {
           },
         ]
       }
+      tenant_plans: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          id: string
+          last_payment_at: string | null
+          mp_customer_id: string | null
+          plan: Database["public"]["Enums"]["plan_type"]
+          status: Database["public"]["Enums"]["plan_status"]
+          tenant_id: string
+          trial_ends_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          last_payment_at?: string | null
+          mp_customer_id?: string | null
+          plan?: Database["public"]["Enums"]["plan_type"]
+          status?: Database["public"]["Enums"]["plan_status"]
+          tenant_id: string
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          last_payment_at?: string | null
+          mp_customer_id?: string | null
+          plan?: Database["public"]["Enums"]["plan_type"]
+          status?: Database["public"]["Enums"]["plan_status"]
+          tenant_id?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_plans_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           active: boolean
@@ -989,6 +1036,7 @@ export type Database = {
         Returns: boolean
       }
       is_tenant_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_tenant_pro: { Args: { _tenant_id: string }; Returns: boolean }
       log_audit_event: {
         Args: {
           p_action: string
@@ -1020,6 +1068,8 @@ export type Database = {
         | "pronto"
       order_type: "balcao" | "mesa" | "delivery" | "retirada"
       payment_method: "pix" | "cartao" | "fiado" | "dinheiro"
+      plan_status: "active" | "expired" | "canceled" | "pending_payment"
+      plan_type: "trial" | "pro_monthly" | "pro_yearly"
       product_type: "unit" | "weight"
       table_status: "available" | "occupied"
     }
@@ -1165,6 +1215,8 @@ export const Constants = {
       order_status: ["aberto", "segurado", "finalizado", "cancelado", "pronto"],
       order_type: ["balcao", "mesa", "delivery", "retirada"],
       payment_method: ["pix", "cartao", "fiado", "dinheiro"],
+      plan_status: ["active", "expired", "canceled", "pending_payment"],
+      plan_type: ["trial", "pro_monthly", "pro_yearly"],
       product_type: ["unit", "weight"],
       table_status: ["available", "occupied"],
     },

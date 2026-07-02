@@ -1,73 +1,96 @@
+
 ## Objetivo
 
-1. Garantir aderência total da nova paleta food (Fire Red / Vanilla Cream / Retro Green / Saffron / Russet) em todas as páginas — com foco especial no `/pdv` — seguindo padrões modernos de UX/UI para food apps.
-2. Remover do sidebar: item "Diagnóstico Sync" e botão "Modo Escuro" (ThemeToggle).
-3. Mover "Super Admin" do sidebar para dentro da página de Configurações (como aba/seção acessível apenas a `superadmin`).
+Separar completamente o Super Admin da área operacional dos tenants e preparar o terreno para o controle de planos (Trial / PRO) via Mercado Pago.
+
+A entrega será feita em **duas execuções**:
+
+- **Execução 1 (agora):** área exclusiva do Super Admin com gestão total de tenants, usuários e licenças (sem cobrança real ainda).
+- **Execução 2 (próxima):** integração Mercado Pago, checkout PIX (QR / copia-e-cola), webhook de confirmação, ativação automática do plano PRO e avisos de vencimento.
 
 ---
 
-## 1. Sidebar — Limpeza (`src/components/AppSidebar.tsx`, `src/components/Layout.tsx`)
+## Execução 1 — Área exclusiva do Super Admin
 
-- Remover o `<ThemeToggle />` do `SidebarFooter`.
-- Remover o `SidebarMenuItem` do "Diagnóstico Sync".
-- Remover o `SidebarMenuItem` do "Super Admin" (ele passa a viver dentro de `/configuracoes`).
-- Remover imports agora não usados (`Shield`, `Activity`, `ThemeToggle`).
-- Como o modo escuro deixa de ser alternável pelo usuário, forçar tema claro no boot (`src/hooks/use-theme.tsx` ou `main.tsx`): remover a classe `dark` e ignorar `localStorage.theme`. As definições `.dark` do `index.css` permanecem no arquivo (não removeremos CSS), mas nunca serão ativadas.
+### 1. Remover Super Admin de `Configuracoes`
 
-## 2. Super Admin dentro de Configurações (`src/pages/Configuracoes.tsx`, `src/pages/SuperAdmin.tsx`)
+- `src/pages/Configuracoes.tsx`: remover a aba "Super Admin" e o import de `SuperAdminContent`. A tela de configurações passa a ser somente do tenant.
+- `src/pages/SuperAdmin.tsx`: continua sendo o único ponto de entrada do painel.
 
-- Adicionar em `Configuracoes.tsx` uma nova aba "Super Admin" visível **apenas** quando `user?.role === 'superadmin'`.
-- Reaproveitar o conteúdo de `SuperAdmin.tsx` extraindo-o como componente (`SuperAdminTab`) para ser renderizado dentro da aba. A rota `/:slug/admin` continua funcional (usa o mesmo componente), garantindo compatibilidade.
-- Nenhuma mudança em roles, RLS ou edge functions.
+### 2. Rota dedicada e isolada (`/superadmin`)
 
-## 3. Paleta consistente em toda a plataforma
+- `src/App.tsx`: registrar `/superadmin/*` **fora** do layout de tenant (`/:slug/...`), sem `AppSidebar` do tenant.
+- Guard de rota: só permite acesso se `has_role(auth.uid(), 'superadmin')`. Qualquer outro usuário é redirecionado para `/`.
+- Criar `src/components/SuperAdminLayout.tsx` com sidebar/topbar próprios (mesma paleta food), separando visualmente do PDV.
+- Manter compatibilidade: `/:slug/admin` deixa de existir (ou redireciona para `/superadmin`).
 
-Objetivo: eliminar cores hardcoded (`bg-white`, `bg-black`, `text-white`, `bg-green-*`, `bg-blue-*`, `bg-yellow-*`, `bg-red-*`, `#hex`) em todo `src/**` e trocar por tokens semânticos (`bg-background`, `bg-card`, `bg-primary`, `text-primary-foreground`, `bg-success`, `bg-warning`, `bg-destructive`, `bg-accent`, `bg-muted`, `text-muted-foreground`, `border-border`, `bg-section-vendas`, etc.).
+### 3. Estrutura de páginas do Super Admin
 
-Componentes/páginas a auditar e refatorar (varredura por `rg` de classes hardcoded):
+Sidebar do Super Admin com as seções:
 
-- `src/pages/PDV.tsx` — foco principal. Aplicar padrões food-app:
-  - Header do PDV: fundo `bg-card` com borda `border-border`, título `font-heading`.
-  - Grid de produtos: cartões com `bg-card`, sombra `shadow-warm` no hover, preço em `text-primary` e `text-price`.
-  - Botão principal (Adicionar/Finalizar): `bg-primary text-primary-foreground`, hover `hover:bg-primary/90`, radius `rounded-xl`.
-  - Painel de carrinho (drawer/aside): `bg-card`, divisores `border-border`, total em destaque com `bg-gradient-warm` ou `bg-primary/10 text-primary`.
-  - Estados: itens ativos com `ring-2 ring-primary`; badges de quantidade com `bg-accent text-accent-foreground`.
-- `src/components/ProductCard.tsx`, `CategoryBar.tsx`, `TableBar.tsx`, `CheckoutModal.tsx`, `OrderTypeSelector.tsx`, `ItemNotesModal.tsx`, `WeightModal.tsx`, `CashRegisterReceipt.tsx`.
-- Páginas: `Home.tsx`, `Mesas.tsx`, `Pedidos.tsx` (já parcialmente feito), `Entregas.tsx`, `Caixa.tsx`, `Clientes.tsx`, `Produtos.tsx`, `Estoque.tsx`, `Relatorios.tsx`, `Configuracoes.tsx`, `SuperAdmin.tsx`, `NotFound.tsx`.
-- Componentes de aba: `AuditLogsTab.tsx`, `ImpressoraTab.tsx`, `MeuPerfilTab.tsx`, `SuperAdminUsersTab.tsx`.
+- **Dashboard** — métricas globais (tenants ativos, usuários, vendas, receita) — já existe em `SuperAdminContent`.
+- **Tenants** — listar, criar, editar (nome, slug, logo), ativar/desativar, excluir (soft delete via `active=false`), acessar como (impersonar via link `/{slug}/pdv`).
+- **Usuários** — listar todos os usuários de todos os tenants, filtrar por tenant/role, criar, resetar senha (edge function existente `reset-user-password`), remover, alterar role.
+- **Planos & Licenças** — visão geral: qual tenant está em Trial / PRO, data de expiração, ação manual de alterar plano (para uso administrativo antes da integração MP).
+- **Auditoria** — reaproveitar `AuditLogsTab` em escopo global (Super Admin vê logs de todos os tenants).
+- **Configurações do sistema** — chaves globais (placeholder para credenciais MP na Execução 2).
 
-Mapeamento padrão a aplicar:
+Componentes a criar/refatorar:
+- `src/pages/superadmin/Dashboard.tsx`
+- `src/pages/superadmin/Tenants.tsx` (reaproveita `TenantsTab` + `CreateTab` já existentes)
+- `src/pages/superadmin/Usuarios.tsx` (reaproveita `SuperAdminUsersTab`)
+- `src/pages/superadmin/Planos.tsx` (novo)
+- `src/pages/superadmin/Auditoria.tsx` (novo, reaproveita `AuditLogsTab` sem filtro por tenant)
+- `src/pages/superadmin/Sistema.tsx` (novo, placeholder)
 
-```text
-bg-white              -> bg-card  (ou bg-background em superfícies principais)
-text-black            -> text-foreground
-text-white (em CTA)   -> text-primary-foreground
-bg-green-500/600      -> bg-success  |  bg-primary (se for CTA)
-text-green-*          -> text-success  |  text-primary
-bg-blue-*             -> bg-accent  |  bg-primary
-bg-yellow-*           -> bg-warning
-text-yellow-*         -> text-warning
-bg-red-*              -> bg-destructive  |  bg-primary
-border-gray-*         -> border-border
-text-gray-*           -> text-muted-foreground
-#2D6A4F / #40916C     -> hsl(var(--accent)) via bg-accent / text-accent
-```
+### 4. Schema — base para planos
 
-Padrões UX food-app a reforçar globalmente:
-- Radius: `rounded-xl` em cards e botões grandes, `rounded-lg` em inputs.
-- Sombras quentes: usar `shadow-warm` em CTAs e cards de destaque.
-- Tipografia: títulos com `font-heading` (Bricolage Grotesque), preços com `.text-price`.
-- Badges de status (pedidos, mesas, caixa): usar `success`, `warning`, `destructive`, `accent` com opacidade `/15` no fundo e `/30` na borda (mesmo padrão já aplicado em `Pedidos.tsx`).
-- Estados vazios: ilustração/ícone em `text-muted-foreground`, headline `font-heading`.
+Migração (aprovação necessária):
 
-## 4. Verificação
+- Novo enum `plan_type` = `'trial' | 'pro_monthly' | 'pro_yearly'`.
+- Novo enum `plan_status` = `'active' | 'expired' | 'canceled' | 'pending_payment'`.
+- Nova tabela `public.tenant_plans`:
+  - `tenant_id` (FK único), `plan` (`plan_type`), `status` (`plan_status`), `trial_ends_at`, `current_period_end`, `last_payment_at`, `mp_customer_id` (nullable, para Execução 2), `created_at`, `updated_at`.
+- GRANTs: `authenticated` (SELECT do próprio tenant via RLS), `service_role` ALL.
+- RLS: admin do tenant lê apenas o próprio; superadmin (via `has_role`) lê/edita todos.
+- Trigger: ao criar tenant novo (`create-tenant`), inserir `tenant_plans` com `plan='trial'`, `trial_ends_at = now() + 14 days`, `status='active'`.
+- Função `public.is_tenant_pro(_tenant_id uuid) returns boolean` (SECURITY DEFINER) para uso em RLS/checks futuros.
 
-- `bun run build` para checar tipos após remoções e refactor.
-- `rg -n "bg-(white|black|green-|blue-|yellow-|red-|gray-)|text-white|text-black|#[0-9a-fA-F]{6}" src` para confirmar que não há mais hardcodes fora de exceções justificadas (ex.: recibo térmico impresso, que precisa de preto puro).
-- Inspeção visual do `/pdv`, `/pedidos`, `/mesas`, `/caixa`, `/configuracoes` (aba Super Admin visível só para superadmin).
+### 5. Sinalização de plano no app do tenant (leve, sem cobrança)
 
-## Fora de escopo
+- `StoreContext`: expor `plan` e `trialDaysLeft`.
+- Banner discreto no topo do layout do tenant quando `plan='trial'`: "Você está no Trial — X dias restantes. Ver detalhes". CTA leva a `/{slug}/configuracoes?tab=plano` (nova aba "Plano" só visível ao admin).
+- Página do plano no tenant (Execução 1): mostra plano atual, data de expiração, comparativo Trial x PRO (R$ 157/mês, R$ 1.570/ano), botão **"Quero assinar"** desabilitado com tooltip "Disponível em breve" (será ativado na Execução 2).
 
-- Nenhuma alteração em schema, RLS, edge functions, rotas, lógica de negócio, testes ESC/POS ou tokens do `index.css` (paleta já definida na iteração anterior).
-- Não remover o CSS `.dark` — apenas deixar de ativá-lo.
-- Não alterar a página `/login` (já refatorada).
+### 6. Verificação
+
+- Build TS.
+- Login como superadmin → só vê `/superadmin`; não vê sidebar de tenant.
+- Login como admin de tenant → não consegue acessar `/superadmin` (redirect).
+- Configurações do tenant não mostra mais aba Super Admin.
+- Novo tenant criado nasce em Trial de 14 dias.
+
+---
+
+## Execução 2 — Mercado Pago (próxima iteração, apenas planejado)
+
+Escopo previsto (não será implementado agora):
+
+1. **Credenciais** — `add_secret` para `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`. Cadastro feito pelo Super Admin em "Sistema".
+2. **Edge functions**:
+   - `mp-create-payment`: recebe `{ tenant_id, plan: 'pro_monthly'|'pro_yearly' }`, cria pagamento PIX na API MP (`POST /v1/payments`), retorna `qr_code_base64`, `qr_code` (copia-e-cola), `payment_id`. Grava em nova tabela `payment_intents`.
+   - `mp-webhook`: endpoint público (verify_jwt=false) que valida assinatura, consulta `GET /v1/payments/{id}`, e se `status='approved'` atualiza `tenant_plans` para `pro_monthly`/`pro_yearly` com `current_period_end = now() + 30d/365d`.
+3. **UI tenant** — botão "Quero assinar" abre modal com QR Code + copia-e-cola + polling do status a cada 3s até `active`. Ao aprovar, tenant vira PRO na hora.
+4. **Avisos de vencimento** — cron (`pg_cron` + `pg_net`) roda diariamente: para planos `pro_monthly` com `current_period_end` entre `now()+4d` e `now()+5d`, envia notificação in-app (e email opcional) ao admin. Ao vencer sem renovação, `status='expired'` e volta a exibir CTA de reassinatura.
+5. **Painel Super Admin** — página "Planos" ganha filtros por status, exportação, e ação de estender manualmente vencimento.
+
+Toda a estrutura de schema (`tenant_plans`, enums, função `is_tenant_pro`) já fica pronta na Execução 1 para que a Execução 2 seja focada apenas em pagamento + webhook + UI.
+
+---
+
+## Fora de escopo (ambas as execuções)
+
+- Cobrança recorrente automática (assinatura recorrente MP) — usaremos PIX one-shot com renovação manual/lembrete.
+- Faturamento com nota fiscal.
+- Múltiplos planos além de Trial / PRO mensal / PRO anual.
+- Alterações no PDV, Caixa, Pedidos, Mesas ou impressão térmica.
