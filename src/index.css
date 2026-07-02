@@ -2,108 +2,119 @@
 @tailwind components;
 @tailwind utilities;
 
+/* IzyFood — Paleta Food (Fire Red / Vanilla Cream / Retro Green / Saffron / Russet) */
 @layer base {
   :root {
-    --background: 0 0% 97%;
-    --foreground: 200 15% 15%;
+    --background: 45 60% 98%;
+    --foreground: 7 30% 18%;
 
     --card: 0 0% 100%;
-    --card-foreground: 200 15% 15%;
+    --card-foreground: 7 30% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 200 15% 15%;
+    --popover-foreground: 7 30% 18%;
 
-    --primary: 152 55% 32%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 4 66% 50%;
+    --primary-foreground: 48 78% 94%;
 
-    --secondary: 150 20% 92%;
-    --secondary-foreground: 200 15% 20%;
+    --secondary: 48 78% 92%;
+    --secondary-foreground: 7 30% 24%;
 
-    --muted: 150 10% 94%;
-    --muted-foreground: 200 8% 50%;
+    --muted: 48 40% 94%;
+    --muted-foreground: 7 15% 42%;
 
-    --accent: 152 45% 45%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 140 33% 28%;
+    --accent-foreground: 48 78% 94%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 78% 42%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 200 10% 88%;
-    --input: 200 10% 88%;
-    --ring: 152 55% 32%;
+    --border: 30 25% 88%;
+    --input: 30 25% 88%;
+    --ring: 4 66% 50%;
 
     --radius: 0.75rem;
 
-    --login-bg: 152 55% 28%;
-    --login-accent: 152 65% 42%;
-    --login-green: 152 55% 42%;
+    --login-bg: 140 33% 22%;
+    --login-accent: 39 88% 62%;
+    --login-green: 140 33% 32%;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 200 15% 15%;
-    --sidebar-primary: 152 55% 32%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 150 20% 95%;
-    --sidebar-accent-foreground: 200 15% 15%;
-    --sidebar-border: 200 10% 90%;
-    --sidebar-ring: 152 55% 32%;
+    --sidebar-background: 48 78% 96%;
+    --sidebar-foreground: 7 30% 22%;
+    --sidebar-primary: 4 66% 50%;
+    --sidebar-primary-foreground: 48 78% 94%;
+    --sidebar-accent: 48 78% 90%;
+    --sidebar-accent-foreground: 7 30% 22%;
+    --sidebar-border: 30 25% 86%;
+    --sidebar-ring: 4 66% 50%;
 
-    --success: 152 55% 42%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --success: 140 33% 32%;
+    --success-foreground: 48 78% 94%;
+    --warning: 39 88% 55%;
+    --warning-foreground: 7 30% 18%;
 
-    --section-vendas: 152 55% 32%;
-    --section-vendas-soft: 152 45% 92%;
-    --section-cadastros: 217 91% 55%;
-    --section-cadastros-soft: 217 90% 95%;
-    --section-gestao: 32 95% 44%;
-    --section-gestao-soft: 38 95% 92%;
+    --section-vendas: 4 66% 50%;
+    --section-vendas-soft: 4 70% 94%;
+    --section-cadastros: 140 33% 32%;
+    --section-cadastros-soft: 140 30% 92%;
+    --section-gestao: 39 88% 55%;
+    --section-gestao-soft: 39 90% 94%;
+
+    --gradient-warm: linear-gradient(135deg, hsl(4 66% 50%), hsl(39 88% 62%));
+    --gradient-hero: linear-gradient(160deg, hsl(140 33% 22%) 0%, hsl(7 30% 22%) 100%);
+    --shadow-warm: 0 10px 30px -10px hsl(4 66% 50% / 0.35);
+    --shadow-elegant: 0 12px 40px -12px hsl(7 30% 18% / 0.25);
   }
 
   .dark {
-    --background: 200 15% 7%;
-    --foreground: 150 10% 92%;
+    --background: 7 30% 8%;
+    --foreground: 48 60% 92%;
 
-    --card: 200 15% 10%;
-    --card-foreground: 150 10% 92%;
+    --card: 7 25% 12%;
+    --card-foreground: 48 60% 92%;
 
-    --popover: 200 15% 10%;
-    --popover-foreground: 150 10% 92%;
+    --popover: 7 25% 12%;
+    --popover-foreground: 48 60% 92%;
 
-    --primary: 152 55% 42%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 4 72% 58%;
+    --primary-foreground: 48 78% 94%;
 
-    --secondary: 200 12% 16%;
-    --secondary-foreground: 150 10% 92%;
+    --secondary: 7 22% 18%;
+    --secondary-foreground: 48 60% 92%;
 
-    --muted: 200 10% 16%;
-    --muted-foreground: 200 8% 55%;
+    --muted: 7 20% 16%;
+    --muted-foreground: 39 30% 70%;
 
-    --accent: 152 50% 38%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 140 40% 45%;
+    --accent-foreground: 48 78% 94%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 68% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 200 10% 18%;
-    --input: 200 10% 18%;
-    --ring: 152 55% 42%;
+    --border: 7 22% 20%;
+    --input: 7 22% 20%;
+    --ring: 4 72% 58%;
 
-    --sidebar-background: 200 15% 10%;
-    --sidebar-foreground: 150 10% 92%;
-    --sidebar-primary: 152 55% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 200 12% 16%;
-    --sidebar-accent-foreground: 150 10% 95%;
-    --sidebar-border: 200 10% 18%;
-    --sidebar-ring: 152 55% 42%;
+    --sidebar-background: 7 25% 10%;
+    --sidebar-foreground: 48 60% 92%;
+    --sidebar-primary: 4 72% 58%;
+    --sidebar-primary-foreground: 48 78% 94%;
+    --sidebar-accent: 7 22% 16%;
+    --sidebar-accent-foreground: 48 60% 95%;
+    --sidebar-border: 7 22% 20%;
+    --sidebar-ring: 4 72% 58%;
 
-    --section-vendas: 152 55% 50%;
-    --section-vendas-soft: 152 30% 18%;
-    --section-cadastros: 217 91% 65%;
-    --section-cadastros-soft: 217 35% 20%;
-    --section-gestao: 38 95% 55%;
-    --section-gestao-soft: 32 35% 20%;
+    --success: 140 40% 45%;
+    --success-foreground: 48 78% 94%;
+    --warning: 39 88% 62%;
+    --warning-foreground: 7 30% 12%;
+
+    --section-vendas: 4 72% 58%;
+    --section-vendas-soft: 4 40% 20%;
+    --section-cadastros: 140 40% 45%;
+    --section-cadastros-soft: 140 30% 18%;
+    --section-gestao: 39 88% 62%;
+    --section-gestao-soft: 39 40% 20%;
   }
 }
 
@@ -123,16 +134,16 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
-    letter-spacing: -0.015em;
+    font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.02em;
     @apply font-bold text-foreground;
   }
 }
 
 @layer utilities {
   .font-heading {
-    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
-    letter-spacing: -0.015em;
+    font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.02em;
   }
   .text-display {
     @apply font-heading font-extrabold text-3xl md:text-4xl leading-tight;

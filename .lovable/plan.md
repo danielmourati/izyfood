@@ -1,99 +1,85 @@
-## Plano: Layout Definitivo do Cupom CONTA (58mm Bluetooth)
+# Refatoração de Design — Paleta Food & Login IzyFood
 
-### Contexto e diagnóstico
-A cada alteração o cupom sai desconfigurado porque:
-1. Mini-impressoras Bluetooth genéricas frequentemente **ignoram comandos** como Font B (`ESC M 1`), modo condensado e até double-height fora do alinhamento `CMD_ALIGN_LEFT`.
-2. A função `row()` atual **não trata nomes longos** — quando `label + value` excede 32 colunas, ela cai num fallback com apenas 1 espaço, achatando tudo.
-3. Os separadores `lineOf('-', cols)` foram adicionados/removidos pontualmente em iterações anteriores, sem um padrão claro de seções.
+## Objetivo
+1. Substituir toda a paleta atual (verde #2D6A4F) pela nova paleta food (Fire Red, Vanilla Cream, Retro Green, Saffron, Russet) com aderência aos padrões UX/UI de aplicativos de food service (iFood, Rappi, Uber Eats).
+2. Substituir o carrossel de imagens no lado esquerdo da página `/login` por um bloco de conteúdo com textos criativos e persuasivos sobre os benefícios da plataforma IzyFood.
 
-A solução é congelar um layout **setorizado** com regras determinísticas e uma função `rowWrap()` que quebra nomes longos em 2 linhas, mantendo o preço alinhado à direita na primeira linha.
+## Nova paleta (semantic tokens em HSL)
 
----
+| Token | Cor | Hex | HSL |
+|---|---|---|---|
+| Primary (CTA, marca) | Fire Red | #D23D2D | `4 66% 50%` |
+| Background base | Vanilla Cream | #F8EECB | `48 78% 88%` |
+| Accent / Success | Retro Green | #31603D | `140 33% 28%` |
+| Warning / Highlight | Saffron | #F5C065 | `39 88% 68%` |
+| Secondary / Foreground escuro | Russet | #6E433D | `7 30% 34%` |
 
-### Layout final (32 colunas, 58mm)
+Aplicação semântica (padrão food app):
+- `--primary`: Fire Red — botões principais, CTAs "Adicionar", "Finalizar", badges de destaque, preço em promoção.
+- `--background` (app): branco quente `#FFFCF5` derivado de Vanilla Cream para não cansar em uso prolongado; Vanilla Cream puro apenas em superfícies decorativas (login, cards de destaque, hero).
+- `--accent` / `--success`: Retro Green — status "pago", "finalizado", confirmações, badge de disponível.
+- `--warning`: Saffron — pedidos pendentes, "segurado", alertas suaves, badge novo.
+- `--secondary` / textos: Russet como tom escuro quente para foreground em modo claro (substituindo cinza-azulado atual).
+- `--destructive`: mantém vermelho puro (`0 72% 51%`) — distinto do Fire Red primário para não confundir cancelar/CTA.
 
-```text
-        NOME DA LOJA              <- center+bold (se houver)
-       Rua Exemplo, 123           <- center (se showAddress)
-      CNPJ: 00.000.000/0001-00    <- center (se showDocument)
-       WhatsApp: 11999999999      <- center (se showWhatsapp)
---------------------------------  <- separador (fim do cabeçalho)
-             CONTA                <- center+bold+double
---------------------------------  <- separador (fim do título)
-Tipo:                       Mesa
-Mesa:                          5
-Cliente:             Consumidor
-Data:           22/05/2026 17:13
---------------------------------  <- separador (fim dos dados)
-1x Açaí 500ml com complemen
-tos especiais             R$48,00
-  + 2x Granola            R$ 4,00
-2x Refrigerante 350ml     R$ 9,00
---------------------------------  <- separador (fim dos itens)
-Desconto (10%):           -R$5,28
-Taxa de Serviço:          R$ 4,80
-Taxa de entrega:          R$ 5,00
---------------------------------  <- separador (fim dos ajustes)
-TOTAL              R$ 52,80       <- bold + double (16 cols)
---------------------------------  <- separador (fim do total)
-PAGAMENTO:                        <- bold
-Dinheiro                  R$30,00
-PIX                       R$22,80
---------------------------------  <- separador (fim do pagamento)
-        PIX: chave@exemplo        <- center (se showPixKey)
-      Instagram: @minhaloja       <- center (se showInstagram)
-    Obrigado pela preferência!    <- center+bold (se showThankMessage)
-```
+Dark mode: fundo `#1A0F0D` (russet quase preto), primary Fire Red mantido, accent verde levemente saturado, cream vira dourado suave para texto.
 
-**Regra de ouro:** uma linha `lineOf('-', 32)` ao final de cada bloco lógico — cabeçalho, título, dados, itens, ajustes, total, pagamento. Nada de linhas em branco no meio.
+## Escopo — Passo 1: Design System
 
----
+### `src/index.css`
+Reescrever `:root` e `.dark` com os novos tokens HSL:
+- `--background`, `--foreground`, `--card`, `--popover`
+- `--primary` (Fire Red), `--primary-foreground` (Vanilla Cream)
+- `--secondary` (creme suave), `--accent` (Retro Green), `--muted`
+- `--destructive` (vermelho distinto), `--warning` (Saffron), `--success` (Retro Green)
+- `--border`, `--input`, `--ring` (Fire Red)
+- `--sidebar-*` alinhado à nova paleta
+- `--login-bg` (Retro Green profundo), `--login-accent` (Saffron)
+- Grupos `--section-vendas` (Fire Red), `--section-cadastros` (Retro Green), `--section-gestao` (Saffron)
+- Adicionar gradientes utilitários: `--gradient-warm` (Fire Red → Saffron), `--gradient-hero` (Retro Green → Russet)
+- Sombras quentes: `--shadow-warm`, `--shadow-elegant`
 
-### Mudanças técnicas em `src/lib/escpos.ts`
+### `tailwind.config.ts`
+- Adicionar tokens `warning`, `success` no `colors`
+- Trocar fontes: `heading` passa a usar **Bricolage Grotesk** ou **Familjen Grotesk** (apelo food/orgânico), `sans` mantém Inter. Alternativa: **Fraunces** (display serifado com pegada gastronômica) + **Inter**. Vou usar **Bricolage Grotesk** (heading) + **Inter** (body) — mais moderno e legível, típico de food apps 2025.
 
-**1. Nova função `rowWrap(label, value, cols)`**
-- Se `label.length + 1 + value.length <= cols` → comporta-se como `row()` atual.
-- Senão, quebra `label` em pedaços de `cols` caracteres respeitando palavras (split em espaço); a **última linha** carrega o `value` alinhado à direita.
-- Substitui `row()` apenas nos **itens e complementos** (onde nomes podem ser longos). Os 4 rótulos fixos (`Tipo/Mesa/Cliente/Data`) continuam com `row()` simples.
+### `index.html`
+- Atualizar `<link>` do Google Fonts para carregar Bricolage Grotesk + Inter.
 
-**2. Compatibilidade Bluetooth (mini-printer genérica)**
-- Remover usos de `CMD_FONT_B` no rodapé (já está em Font A — confirmar e travar).
-- Garantir `normalTextMode()` antes de cada bloco que muda formatação (após `CONTA` double, após `TOTAL` double).
-- Manter apenas `CMD_BOLD_ON/OFF`, `CMD_DOUBLE_ON/OFF`, `CMD_ALIGN_*` — comandos universais.
-- Não usar code page específica em texto que pode falhar; manter `CMD_CODEPAGE_PC860` apenas no `CMD_INIT`.
+### Verificação de regressão visual
+- Buscar hardcodes `text-white`, `bg-black`, `bg-[#...]`, classes com verde/roxo fixo nos componentes principais (`AppSidebar`, `NavLink`, `ProductCard`, `CategoryBar`, `TableBar`, `CheckoutModal`, `OrderTypeSelector`, páginas PDV/Caixa/Pedidos/Home) e substituir por tokens semânticos. Não alterar lógica de negócio.
+- Cores de status (badges em `Pedidos.tsx`: `bg-blue-100`, `bg-yellow-100`, `bg-emerald-100`, `bg-red-100`) migradas para tokens semânticos (`bg-primary/10 text-primary`, `bg-warning/10 text-warning`, etc.).
 
-**3. Separadores fixos em `buildBillReceipt`**
-Ordem definitiva das chamadas `lineOf('-', cols)`:
-1. Depois do cabeçalho dinâmico (se houver qualquer campo)
-2. Depois de `text('CONTA\n')`
-3. Depois de `Data:` (fim dos dados)
-4. Depois do último item (fim dos itens)
-5. Depois do último ajuste (Desconto/Taxa Serviço/Taxa Entrega) — só se houver ao menos um
-6. Depois de `TOTAL`
-7. Depois do último split de pagamento — só se houver pagamento
+## Escopo — Passo 2: Página `/login`
 
-**4. Remover ruído**
-- Eliminar `parts.push(text('\n'))` órfãos remanescentes.
-- Remover `CMD_ALIGN_LEFT` repetidos antes de cada `row()` (já está em LEFT desde o título).
+Substituir o `<div className="hidden lg:flex lg:w-1/2 ...">` (carrossel + controles + dots + botões prev/next) por um painel estático persuasivo:
 
----
+### Estrutura do novo painel esquerdo
+- Fundo: `bg-[hsl(var(--login-bg))]` (Retro Green profundo) com sutil textura/gradient warm no rodapé e um pattern SVG orgânico (círculos/blobs) em opacidade baixa em Saffron/Fire Red.
+- Conteúdo em coluna:
+  1. **Logo IzyFood** no topo (usa `tenantLogo` quando disponível, senão wordmark "IzyFood" em Bricolage Grotesk).
+  2. **Headline principal** grande (Bricolage Grotesk, 4xl-5xl, cream): "Gestão fácil. Resultado rápido." (mantém tagline oficial).
+  3. **Sub-headline**: "O sistema completo que transforma seu restaurante, lanchonete ou hamburgueria em uma máquina de vendas."
+  4. **Lista de 4 benefícios** com micro-ícones (lucide) e uma linha cada — Saffron para o ícone, cream para o texto:
+     - Pedidos em segundos, do balcão à mesa
+     - Delivery e retirada com controle total
+     - Caixa e comissões calculadas automaticamente
+     - Impressão térmica direto do celular
+  5. **Prova social curta**: "Feito para quem vive a rotina real de um food service."
+  6. **Rodapé do painel**: badge pequeno "Multi-loja • Multi-atendente • Offline-ready".
 
-### Arquivos afetados
-- **`src/lib/escpos.ts`** — adicionar `rowWrap()`, refatorar `buildBillReceipt()` para o layout setorizado acima.
-- **`src/test/escpos.test.ts`** — adicionar 2 testes: (a) item longo quebrado em 2 linhas com preço na 1ª, (b) presença de todos os 7 separadores na ordem correta.
+- Remover completamente: `carouselImages`, `defaultCarouselImages`, `currentSlide`, `useEffect` do intervalo, botões prev/next, dots, o fetch de `login_carousel_images` da branding.
+- Manter: fetch de `tenant_logo`, `tenant_name`, `login_icon` para uso no painel (logo) e no lado direito (ícone).
 
----
+O lado direito (formulário de login) permanece inalterado funcionalmente; apenas herda os novos tokens semânticos (cores/fontes) automaticamente.
 
-### Fora de escopo (não vou tocar agora)
-- `buildOrderReceipt` (comanda da cozinha) — layout diferente, já estável.
-- `buildCashCloseReceipt` (fechamento de caixa) — separado, sem reclamação.
-- Configurações do componente `ImpressoraTab` — apenas o renderer ESC/POS.
+## Fora de escopo
+- Nenhuma alteração de lógica de negócio, rotas, schema Supabase, RLS ou features.
+- Não mexer em impressão térmica, testes ESC/POS, roles ou fluxos de pedido.
+- Não remover o campo `login_carousel_images` da tabela `tenants` (apenas parar de usá-lo na UI) — sem migração.
 
----
-
-### Validação após implementar
-1. Rodar `vitest src/test/escpos.test.ts` — todos os testes passam.
-2. Imprimir cupom de teste real na mini-printer Bluetooth com: 1 item curto, 1 item longo (>20 chars), 1 complemento, desconto + taxa de serviço, pagamento dividido em 2.
-3. Conferir visualmente que cada um dos 7 separadores aparece exatamente uma vez, full-width.
-
-Se algum ajuste ainda for necessário após esse layout-base, será **incremental sobre uma base estável** — sem refatorar tudo de novo.
+## Ordem de execução
+1. Atualizar `index.css` (tokens) + `tailwind.config.ts` (fontes/cores) + `index.html` (Google Fonts).
+2. Refatorar `Login.tsx` (remover carrossel, adicionar painel persuasivo).
+3. Varrer componentes e páginas por classes de cor hardcoded e trocar por tokens semânticos.
+4. Rodar build e validar visualmente rota `/login` + PDV + Sidebar.

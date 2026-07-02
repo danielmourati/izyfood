@@ -15,7 +15,7 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        heading: ['Poppins', 'Inter', 'system-ui', 'sans-serif'],
+        heading: ['Bricolage Grotesque', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -65,6 +65,14 @@ export default {
           bg: "hsl(var(--login-bg))",
           accent: "hsl(var(--login-accent))",
           green: "hsl(var(--login-green))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
         },
         section: {
           vendas: "hsl(var(--section-vendas))",
