@@ -1,96 +1,53 @@
-
 ## Objetivo
+Cada tenant deve ter um slug próprio, único, validado e editável — sem cair no fallback genérico `loja-padrao`.
 
-Separar completamente o Super Admin da área operacional dos tenants e preparar o terreno para o controle de planos (Trial / PRO) via Mercado Pago.
+## 1. Validação forte na criação (`create-tenant` edge function + UI)
 
-A entrega será feita em **duas execuções**:
+Regra do slug (client e server):
+- Regex: `^[a-z0-9]+(-[a-z0-9]+)*$`
+- Tamanho: 3–40 caracteres
+- Reservados bloqueados: `login`, `superadmin`, `admin`, `api`, `auth`, `loja-padrao`, `pdv`, `home`
 
-- **Execução 1 (agora):** área exclusiva do Super Admin com gestão total de tenants, usuários e licenças (sem cobrança real ainda).
-- **Execução 2 (próxima):** integração Mercado Pago, checkout PIX (QR / copia-e-cola), webhook de confirmação, ativação automática do plano PRO e avisos de vencimento.
+Onde aplicar:
+- **UI (`src/pages/SuperAdmin.tsx` → CreateTab)**: validar formato ao digitar, mostrar erro inline, desabilitar botão se inválido. Checar disponibilidade em tempo real via `select id from tenants where slug = ?` (debounce 400ms).
+- **Edge function `supabase/functions/create-tenant/index.ts`**: repetir validação de formato, reservados e unicidade antes do `INSERT`, retornando 409/400 com mensagem clara.
 
----
+## 2. Auto-geração de slug único
 
-## Execução 1 — Área exclusiva do Super Admin
+Nova função utilitária no client (`slugify` já existe) + no edge:
+- Gerar base a partir do nome.
+- Se colidir, tentar `base-2`, `base-3`, … até 50 tentativas.
+- Campo Slug no formulário permanece editável (auto-preenche mas usuário pode sobrescrever).
 
-### 1. Remover Super Admin de `Configuracoes`
+## 3. Edição de slug do tenant existente (Super Admin)
 
-- `src/pages/Configuracoes.tsx`: remover a aba "Super Admin" e o import de `SuperAdminContent`. A tela de configurações passa a ser somente do tenant.
-- `src/pages/SuperAdmin.tsx`: continua sendo o único ponto de entrada do painel.
+- Na `TenantsTab` (`src/pages/SuperAdmin.tsx`), adicionar botão "Editar slug" por linha → modal com input + validação + botão Salvar.
+- Ao salvar: mesma validação (formato, reservados, unicidade excluindo o próprio id) e `UPDATE tenants SET slug = ? WHERE id = ?`.
+- Registrar em `audit_logs` (ação `tenant.slug_updated`, detalhes com slug antigo/novo).
+- Modal exibe aviso: "URLs antigas com o slug anterior deixarão de funcionar".
 
-### 2. Rota dedicada e isolada (`/superadmin`)
+RLS: a política atual de `tenants` para superadmin já cobre UPDATE — apenas confirmar que existe policy `FOR UPDATE` para superadmin; se faltar, adicionar via migration.
 
-- `src/App.tsx`: registrar `/superadmin/*` **fora** do layout de tenant (`/:slug/...`), sem `AppSidebar` do tenant.
-- Guard de rota: só permite acesso se `has_role(auth.uid(), 'superadmin')`. Qualquer outro usuário é redirecionado para `/`.
-- Criar `src/components/SuperAdminLayout.tsx` com sidebar/topbar próprios (mesma paleta food), separando visualmente do PDV.
-- Manter compatibilidade: `/:slug/admin` deixa de existir (ou redireciona para `/superadmin`).
+## 4. Remover fallback silencioso `loja-padrao`
 
-### 3. Estrutura de páginas do Super Admin
+Hoje, quando o usuário logado não tem tenant vinculado, ele é jogado em `/loja-padrao/...`. Isso mistura dados entre tenants.
 
-Sidebar do Super Admin com as seções:
+Mudanças:
+- **`src/contexts/AuthContext.tsx`**: se `memberData` não existir e `role !== 'superadmin'`, não montar `AppUser` — em vez disso, forçar `signOut()` e exibir estado de erro ("Sua conta não está vinculada a nenhum estabelecimento. Contate o suporte.") no `Login`.
+- **`src/hooks/use-tenant-navigate.ts`**: remover default `'loja-padrao'`; se slug estiver vazio, lançar warning e navegar para `/login`.
+- **`supabase/functions/create-tenant/index.ts`**: já cria o vínculo em `tenant_members` via trigger `handle_new_user` (usa `tenant_id` do `user_metadata`) — nenhum ajuste necessário, apenas confirmar via teste.
+- **Trigger `handle_new_user`**: hoje usa fallback `00000000-...-000001` quando `tenant_id` não vem no metadata. Alterar via migration para: se metadata não trouxer tenant_id **e** o email não for de superadmin, ainda criar profile mas **não** criar `tenant_members` — evita vínculo cruzado silencioso. Superadmins continuam sem vínculo a tenant, como já é.
 
-- **Dashboard** — métricas globais (tenants ativos, usuários, vendas, receita) — já existe em `SuperAdminContent`.
-- **Tenants** — listar, criar, editar (nome, slug, logo), ativar/desativar, excluir (soft delete via `active=false`), acessar como (impersonar via link `/{slug}/pdv`).
-- **Usuários** — listar todos os usuários de todos os tenants, filtrar por tenant/role, criar, resetar senha (edge function existente `reset-user-password`), remover, alterar role.
-- **Planos & Licenças** — visão geral: qual tenant está em Trial / PRO, data de expiração, ação manual de alterar plano (para uso administrativo antes da integração MP).
-- **Auditoria** — reaproveitar `AuditLogsTab` em escopo global (Super Admin vê logs de todos os tenants).
-- **Configurações do sistema** — chaves globais (placeholder para credenciais MP na Execução 2).
+## 5. Detalhes técnicos
 
-Componentes a criar/refatorar:
-- `src/pages/superadmin/Dashboard.tsx`
-- `src/pages/superadmin/Tenants.tsx` (reaproveita `TenantsTab` + `CreateTab` já existentes)
-- `src/pages/superadmin/Usuarios.tsx` (reaproveita `SuperAdminUsersTab`)
-- `src/pages/superadmin/Planos.tsx` (novo)
-- `src/pages/superadmin/Auditoria.tsx` (novo, reaproveita `AuditLogsTab` sem filtro por tenant)
-- `src/pages/superadmin/Sistema.tsx` (novo, placeholder)
+Arquivos alterados:
+- `src/pages/SuperAdmin.tsx` — validação inline, checagem de disponibilidade, modal "Editar slug".
+- `src/contexts/AuthContext.tsx` — remoção de fallback, signOut para usuário sem tenant.
+- `src/hooks/use-tenant-navigate.ts` — remoção de default.
+- `supabase/functions/create-tenant/index.ts` — validação + auto-sufixo + resposta 409 em colisão.
+- Nova migration: ajustar `handle_new_user` para não usar tenant default; garantir policy UPDATE para superadmin em `tenants` (se não existir).
 
-### 4. Schema — base para planos
+Sem alteração de esquema em `tenants` (coluna slug já é `UNIQUE NOT NULL`).
 
-Migração (aprovação necessária):
-
-- Novo enum `plan_type` = `'trial' | 'pro_monthly' | 'pro_yearly'`.
-- Novo enum `plan_status` = `'active' | 'expired' | 'canceled' | 'pending_payment'`.
-- Nova tabela `public.tenant_plans`:
-  - `tenant_id` (FK único), `plan` (`plan_type`), `status` (`plan_status`), `trial_ends_at`, `current_period_end`, `last_payment_at`, `mp_customer_id` (nullable, para Execução 2), `created_at`, `updated_at`.
-- GRANTs: `authenticated` (SELECT do próprio tenant via RLS), `service_role` ALL.
-- RLS: admin do tenant lê apenas o próprio; superadmin (via `has_role`) lê/edita todos.
-- Trigger: ao criar tenant novo (`create-tenant`), inserir `tenant_plans` com `plan='trial'`, `trial_ends_at = now() + 14 days`, `status='active'`.
-- Função `public.is_tenant_pro(_tenant_id uuid) returns boolean` (SECURITY DEFINER) para uso em RLS/checks futuros.
-
-### 5. Sinalização de plano no app do tenant (leve, sem cobrança)
-
-- `StoreContext`: expor `plan` e `trialDaysLeft`.
-- Banner discreto no topo do layout do tenant quando `plan='trial'`: "Você está no Trial — X dias restantes. Ver detalhes". CTA leva a `/{slug}/configuracoes?tab=plano` (nova aba "Plano" só visível ao admin).
-- Página do plano no tenant (Execução 1): mostra plano atual, data de expiração, comparativo Trial x PRO (R$ 157/mês, R$ 1.570/ano), botão **"Quero assinar"** desabilitado com tooltip "Disponível em breve" (será ativado na Execução 2).
-
-### 6. Verificação
-
-- Build TS.
-- Login como superadmin → só vê `/superadmin`; não vê sidebar de tenant.
-- Login como admin de tenant → não consegue acessar `/superadmin` (redirect).
-- Configurações do tenant não mostra mais aba Super Admin.
-- Novo tenant criado nasce em Trial de 14 dias.
-
----
-
-## Execução 2 — Mercado Pago (próxima iteração, apenas planejado)
-
-Escopo previsto (não será implementado agora):
-
-1. **Credenciais** — `add_secret` para `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`. Cadastro feito pelo Super Admin em "Sistema".
-2. **Edge functions**:
-   - `mp-create-payment`: recebe `{ tenant_id, plan: 'pro_monthly'|'pro_yearly' }`, cria pagamento PIX na API MP (`POST /v1/payments`), retorna `qr_code_base64`, `qr_code` (copia-e-cola), `payment_id`. Grava em nova tabela `payment_intents`.
-   - `mp-webhook`: endpoint público (verify_jwt=false) que valida assinatura, consulta `GET /v1/payments/{id}`, e se `status='approved'` atualiza `tenant_plans` para `pro_monthly`/`pro_yearly` com `current_period_end = now() + 30d/365d`.
-3. **UI tenant** — botão "Quero assinar" abre modal com QR Code + copia-e-cola + polling do status a cada 3s até `active`. Ao aprovar, tenant vira PRO na hora.
-4. **Avisos de vencimento** — cron (`pg_cron` + `pg_net`) roda diariamente: para planos `pro_monthly` com `current_period_end` entre `now()+4d` e `now()+5d`, envia notificação in-app (e email opcional) ao admin. Ao vencer sem renovação, `status='expired'` e volta a exibir CTA de reassinatura.
-5. **Painel Super Admin** — página "Planos" ganha filtros por status, exportação, e ação de estender manualmente vencimento.
-
-Toda a estrutura de schema (`tenant_plans`, enums, função `is_tenant_pro`) já fica pronta na Execução 1 para que a Execução 2 seja focada apenas em pagamento + webhook + UI.
-
----
-
-## Fora de escopo (ambas as execuções)
-
-- Cobrança recorrente automática (assinatura recorrente MP) — usaremos PIX one-shot com renovação manual/lembrete.
-- Faturamento com nota fiscal.
-- Múltiplos planos além de Trial / PRO mensal / PRO anual.
-- Alterações no PDV, Caixa, Pedidos, Mesas ou impressão térmica.
+## Fora do escopo
+- Redirect automático de slug antigo → novo (URLs antigas simplesmente quebram, conforme aviso no modal).
