@@ -209,8 +209,8 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
 }
 
 /* ─────────── Reusable Super Admin content ─────────── */
-export function SuperAdminContent({ withHeader = true }: { withHeader?: boolean }) {
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+export function SuperAdminContent({ withHeader = true, initialTab = 'dashboard', hideTabs = false }: { withHeader?: boolean; initialTab?: Tab; hideTabs?: boolean }) {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [metrics, setMetrics] = useState<Metrics>({ totalTenants: 0, totalUsers: 0, totalSales: 0, totalRevenue: 0 });
   const [loading, setLoading] = useState(true);
