@@ -1,7 +1,7 @@
 import {
   ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
