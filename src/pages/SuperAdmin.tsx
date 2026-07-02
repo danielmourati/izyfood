@@ -84,53 +84,148 @@ function DashboardTab({ metrics, loading }: { metrics: Metrics; loading: boolean
 }
 
 /* ─────────── Tenants Tab ─────────── */
-function TenantsTab({ tenants, onToggle }: { tenants: Tenant[]; onToggle: (id: string, active: boolean) => void }) {
+function TenantsTab({ tenants, onToggle, onSlugUpdated }: { tenants: Tenant[]; onToggle: (id: string, active: boolean) => void; onSlugUpdated: () => void }) {
+  const [editing, setEditing] = useState<Tenant | null>(null);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Todos os Tenants</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {tenants.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nenhum tenant encontrado.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="py-2 pr-4">Nome</th>
-                  <th className="py-2 pr-4">Slug</th>
-                  <th className="py-2 pr-4">Status</th>
-                  <th className="py-2 pr-4">Criado em</th>
-                  <th className="py-2">Ativo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tenants.map(t => (
-                  <tr key={t.id} className="border-b last:border-0">
-                    <td className="py-3 pr-4 font-medium text-foreground">{t.name}</td>
-                    <td className="py-3 pr-4">
-                      <Badge variant="secondary" className="font-mono text-xs">{t.slug}</Badge>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <Badge variant={t.active ? 'default' : 'destructive'}>
-                        {t.active ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                    </td>
-                    <td className="py-3 pr-4 text-muted-foreground">
-                      {new Date(t.created_at).toLocaleDateString('pt-BR')}
-                    </td>
-                    <td className="py-3">
-                      <Switch checked={t.active} onCheckedChange={(v) => onToggle(t.id, v)} />
-                    </td>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Todos os Tenants</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {tenants.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Nenhum tenant encontrado.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="py-2 pr-4">Nome</th>
+                    <th className="py-2 pr-4">Slug</th>
+                    <th className="py-2 pr-4">Status</th>
+                    <th className="py-2 pr-4">Criado em</th>
+                    <th className="py-2">Ativo</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {tenants.map(t => (
+                    <tr key={t.id} className="border-b last:border-0">
+                      <td className="py-3 pr-4 font-medium text-foreground">{t.name}</td>
+                      <td className="py-3 pr-4">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="font-mono text-xs">{t.slug}</Badge>
+                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing(t)} aria-label="Editar slug">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <Badge variant={t.active ? 'default' : 'destructive'}>
+                          {t.active ? 'Ativo' : 'Inativo'}
+                        </Badge>
+                      </td>
+                      <td className="py-3 pr-4 text-muted-foreground">
+                        {new Date(t.created_at).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="py-3">
+                        <Switch checked={t.active} onCheckedChange={(v) => onToggle(t.id, v)} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <EditSlugDialog tenant={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onSlugUpdated(); }} />
+    </>
+  );
+}
+
+/* ─────────── Edit Slug Dialog ─────────── */
+function EditSlugDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null; onClose: () => void; onSaved: () => void }) {
+  const [slug, setSlug] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tenant) { setSlug(tenant.slug); setAvailable(null); setServerError(null); }
+  }, [tenant]);
+
+  const formatError = validateSlugFormat(slug);
+
+  useEffect(() => {
+    if (!tenant) return;
+    if (slug === tenant.slug) { setAvailable(null); return; }
+    if (formatError) { setAvailable(null); return; }
+    setChecking(true);
+    const handle = setTimeout(async () => {
+      const { data } = await supabase.from('tenants').select('id').eq('slug', slug).neq('id', tenant.id).maybeSingle();
+      setAvailable(!data);
+      setChecking(false);
+    }, 400);
+    return () => { clearTimeout(handle); setChecking(false); };
+  }, [slug, tenant, formatError]);
+
+  const canSave = !!tenant && !formatError && slug !== tenant.slug && available === true && !saving;
+
+  const handleSave = async () => {
+    if (!tenant || !canSave) return;
+    setSaving(true);
+    setServerError(null);
+    const oldSlug = tenant.slug;
+    const { error } = await supabase.from('tenants').update({ slug }).eq('id', tenant.id);
+    if (error) {
+      setServerError(error.message);
+      setSaving(false);
+      return;
+    }
+    await supabase.rpc('log_audit_event' as any, {
+      p_action: 'tenant.slug_updated',
+      p_entity_type: 'tenant',
+      p_entity_id: tenant.id,
+      p_details: { old_slug: oldSlug, new_slug: slug } as any,
+    });
+    setSaving(false);
+    onSaved();
+  };
+
+  return (
+    <Dialog open={!!tenant} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar slug do tenant</DialogTitle>
+          <DialogDescription>
+            URLs antigas com o slug anterior <b>deixarão de funcionar</b>. Usuários logados podem precisar entrar novamente.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label>Novo slug</Label>
+          <Input value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} className="font-mono" autoFocus />
+          <div className="min-h-[1.25rem] text-xs">
+            {formatError && <span className="text-destructive">{formatError}</span>}
+            {!formatError && tenant && slug !== tenant.slug && (
+              checking ? <span className="text-muted-foreground inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> verificando…</span>
+              : available === true ? <span className="text-success inline-flex items-center gap-1"><Check className="h-3 w-3" /> disponível</span>
+              : available === false ? <span className="text-destructive inline-flex items-center gap-1"><X className="h-3 w-3" /> já em uso</span>
+              : null
+            )}
+            {serverError && <span className="text-destructive">{serverError}</span>}
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <p className="text-xs text-muted-foreground">Nova URL: /{slug || '…'}/pdv</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={!canSave}>
+            {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvando…</> : 'Salvar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
