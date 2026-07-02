@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
-import { Sparkles, X } from 'lucide-react';
+import { CreditCard, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function TrialBanner() {
