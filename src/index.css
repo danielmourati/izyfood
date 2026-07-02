@@ -134,16 +134,16 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
-    letter-spacing: -0.015em;
+    font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.02em;
     @apply font-bold text-foreground;
   }
 }
 
 @layer utilities {
   .font-heading {
-    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
-    letter-spacing: -0.015em;
+    font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.02em;
   }
   .text-display {
     @apply font-heading font-extrabold text-3xl md:text-4xl leading-tight;
