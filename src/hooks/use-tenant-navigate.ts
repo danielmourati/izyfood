@@ -14,8 +14,12 @@ export function useTenantNavigate() {
 
   return useCallback(
     (to: string, options?: { replace?: boolean }) => {
-      // If `to` starts with '/', prefix with slug
       if (to.startsWith('/')) {
+        if (!slug) {
+          console.warn('[useTenantNavigate] slug ausente, redirecionando para /login');
+          nav('/login', options);
+          return;
+        }
         nav(`/${slug}${to}`, options);
       } else {
         nav(to, options);
