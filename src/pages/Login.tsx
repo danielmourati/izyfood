@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Eye, EyeOff, Zap, Truck, Wallet, Printer, Sparkles } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Zap, Truck, Wallet, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 
 const benefits = [
