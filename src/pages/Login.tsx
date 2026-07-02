@@ -6,15 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Zap, Truck, Wallet, Printer, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
-const defaultCarouselImages = [
-  '/carousel-1.jpg',
-  '/carousel-2.jpg',
-  '/carousel-3.jpg',
-  '/carousel-4.jpg',
-  '/carousel-5.jpg',
+const benefits = [
+  { icon: Zap, title: 'Pedidos em segundos', desc: 'Do balcão à mesa, sem fricção.' },
+  { icon: Truck, title: 'Delivery e retirada', desc: 'Controle total do fluxo até a entrega.' },
+  { icon: Wallet, title: 'Caixa e comissões', desc: 'Fechamento automático, zero planilha.' },
+  { icon: Printer, title: 'Impressão térmica', desc: 'Comanda no bluetooth, direto do celular.' },
 ];
 
 const Login = () => {
@@ -25,10 +24,8 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [currentSlide, setCurrentSlide] = useState(0);
   const [tenantLogo, setTenantLogo] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string>('');
-  const [carouselImages, setCarouselImages] = useState<string[]>(defaultCarouselImages);
   const [loginIcon, setLoginIcon] = useState<string | null>(null);
   const { slug } = useParams<{ slug: string }>();
   const { login } = useAuth();
@@ -41,20 +38,9 @@ const Login = () => {
         setTenantLogo(row.logo);
         setTenantName(row.name);
         if (row.login_icon) setLoginIcon(row.login_icon);
-        const imgs = row.login_carousel_images as string[] | null;
-        if (imgs && Array.isArray(imgs) && imgs.length > 0) {
-          setCarouselImages(imgs);
-        }
       }
     });
   }, [slug]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % carouselImages.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [carouselImages.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,55 +72,87 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* Left side - Carousel */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-[hsl(var(--login-bg))]">
-        {carouselImages.map((img, i) => (
-          <div
-            key={i}
-            className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
-            style={{ opacity: currentSlide === i ? 1 : 0 }}
-          >
-            <img src={img} alt={`Slide ${i + 1}`} className="h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[hsl(152,55%,14%,0.8)] via-transparent to-[hsl(152,55%,14%,0.3)]" />
-          </div>
-        ))}
+      {/* Left side - Persuasive brand panel */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-login-bg">
+        {/* Decorative organic blobs */}
+        <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-primary/25 blur-3xl" />
+        <div className="absolute -bottom-32 -right-16 h-[28rem] w-[28rem] rounded-full bg-login-accent/20 blur-3xl" />
+        <div className="absolute top-1/3 right-10 h-40 w-40 rounded-full bg-login-accent/10 blur-2xl" />
 
-        <div className="relative z-10 flex flex-col justify-between h-full p-8">
-          <div />
-          <div className="space-y-4">
-            <h2 className="text-3xl font-bold text-white drop-shadow-lg">
-              Gestão inteligente,<br />resultados reais.
-            </h2>
-            <p className="text-white/80 text-sm max-w-xs">
-              Sistema completo de PDV para seu estabelecimento.
-            </p>
-            <div className="flex gap-2 pt-2">
-              {carouselImages.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentSlide(i)}
-                  className={`h-2 rounded-full transition-all duration-300 ${currentSlide === i
-                      ? 'w-8 bg-[hsl(var(--login-accent))]'
-                      : 'w-2 bg-white/50 hover:bg-white/70'
-                    }`}
-                />
-              ))}
+        {/* Subtle noise/pattern overlay */}
+        <div
+          className="absolute inset-0 opacity-[0.06] mix-blend-overlay"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, hsl(var(--login-accent)) 1px, transparent 0)',
+            backgroundSize: '24px 24px',
+          }}
+        />
+
+        <div className="relative z-10 flex flex-col justify-between h-full p-10 xl:p-14 text-primary-foreground">
+          {/* Brand */}
+          <div className="flex items-center gap-3">
+            {tenantLogo ? (
+              <img src={tenantLogo} alt={tenantName} className="h-11 object-contain" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="h-11 w-11 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
+                  <Sparkles className="h-6 w-6 text-primary-foreground" />
+                </div>
+                <span className="font-heading font-extrabold text-2xl tracking-tight text-secondary">
+                  IzyFood
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Headline block */}
+          <div className="space-y-6 max-w-lg">
+            <div className="inline-flex items-center gap-2 rounded-full border border-secondary/25 bg-secondary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-secondary backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-login-accent animate-pulse" />
+              Plataforma para food service
             </div>
+
+            <h1 className="font-heading font-extrabold text-4xl xl:text-5xl leading-[1.05] tracking-tight text-secondary">
+              Gestão fácil.
+              <br />
+              <span className="text-login-accent">Resultado rápido.</span>
+            </h1>
+
+            <p className="text-base xl:text-lg text-secondary/85 leading-relaxed">
+              O sistema completo que transforma seu restaurante, lanchonete ou
+              hamburgueria numa <span className="font-semibold text-secondary">máquina de vendas</span> —
+              simples de usar, feito para a rotina real da cozinha.
+            </p>
+
+            {/* Benefits */}
+            <ul className="grid gap-3 pt-2">
+              {benefits.map(({ icon: Icon, title, desc }) => (
+                <li key={title} className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-login-accent/20 text-login-accent ring-1 ring-login-accent/30">
+                    <Icon className="h-4.5 w-4.5" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-secondary leading-tight">{title}</p>
+                    <p className="text-sm text-secondary/70 leading-snug">{desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Footer badges */}
+          <div className="flex flex-wrap items-center gap-2">
+            {['Multi-loja', 'Multi-atendente', 'Impressão bluetooth', 'Offline-ready'].map((tag) => (
+              <span
+                key={tag}
+                className="text-[11px] font-semibold uppercase tracking-wider text-secondary/80 border border-secondary/20 rounded-full px-2.5 py-1"
+              >
+                {tag}
+              </span>
+            ))}
           </div>
         </div>
-
-        <button
-          onClick={() => setCurrentSlide((prev) => (prev - 1 + carouselImages.length) % carouselImages.length)}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm transition-colors"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-        <button
-          onClick={() => setCurrentSlide((prev) => (prev + 1) % carouselImages.length)}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm transition-colors"
-        >
-          <ChevronRight className="h-5 w-5" />
-        </button>
       </div>
 
       {/* Right side - Login form */}
@@ -145,7 +163,7 @@ const Login = () => {
               <img src={displayIcon} alt={tenantName} className="h-20 mx-auto mb-2 object-contain" />
             ) : (
               <div className="h-20 w-20 mx-auto mb-2 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <span className="text-3xl font-bold text-primary">{tenantName?.charAt(0)?.toUpperCase() || '🏪'}</span>
+                <span className="text-3xl font-bold text-primary">{tenantName?.charAt(0)?.toUpperCase() || '🍔'}</span>
               </div>
             )}
             {tenantName && <p className="text-sm font-medium text-muted-foreground">{tenantName}</p>}
