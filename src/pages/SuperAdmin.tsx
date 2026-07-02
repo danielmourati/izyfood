@@ -258,20 +258,22 @@ export function SuperAdminContent({ withHeader = true, initialTab = 'dashboard',
     <div className="space-y-4">
       {withHeader && <h1 className="text-2xl font-bold text-foreground">Painel Super Admin</h1>}
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {tabs.map(t => (
-          <Button
-            key={t.key}
-            variant={activeTab === t.key ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setActiveTab(t.key)}
-            className="shrink-0"
-          >
-            <t.icon className="h-4 w-4 mr-1.5" />
-            {t.label}
-          </Button>
-        ))}
-      </div>
+      {!hideTabs && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {tabs.map(t => (
+            <Button
+              key={t.key}
+              variant={activeTab === t.key ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActiveTab(t.key)}
+              className="shrink-0"
+            >
+              <t.icon className="h-4 w-4 mr-1.5" />
+              {t.label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {activeTab === 'dashboard' && <DashboardTab metrics={metrics} loading={loading} />}
       {activeTab === 'tenants' && <TenantsTab tenants={tenants} onToggle={handleToggleTenant} />}
