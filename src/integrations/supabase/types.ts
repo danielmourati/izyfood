@@ -487,6 +487,68 @@ export type Database = {
           },
         ]
       }
+      payment_intents: {
+        Row: {
+          amount: number
+          created_at: string
+          expires_at: string | null
+          id: string
+          mp_payment_id: string | null
+          paid_at: string | null
+          plan: Database["public"]["Enums"]["plan_type"]
+          qr_code: string | null
+          qr_code_base64: string | null
+          raw: Json | null
+          status: string
+          tenant_id: string
+          ticket_url: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          mp_payment_id?: string | null
+          paid_at?: string | null
+          plan: Database["public"]["Enums"]["plan_type"]
+          qr_code?: string | null
+          qr_code_base64?: string | null
+          raw?: Json | null
+          status?: string
+          tenant_id: string
+          ticket_url?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          mp_payment_id?: string | null
+          paid_at?: string | null
+          plan?: Database["public"]["Enums"]["plan_type"]
+          qr_code?: string | null
+          qr_code_base64?: string | null
+          raw?: Json | null
+          status?: string
+          tenant_id?: string
+          ticket_url?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       printer_configs: {
         Row: {
           address: string
