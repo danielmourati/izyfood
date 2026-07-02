@@ -134,7 +134,7 @@ export function ImpressoraTab() {
           ) : (
             <>
               {isDesktop && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-600 dark:text-amber-400 space-y-1.5 mb-2">
+                <div className="bg-warning/10 border border-warning/40/30 rounded-lg p-3 text-xs text-warning-foreground dark:text-warning-foreground space-y-1.5 mb-2">
                   <p className="font-bold flex items-center gap-1.5 text-sm">
                     ⚠️ Conexão via Computador / Desktop Detectada
                   </p>

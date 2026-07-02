@@ -1,10 +1,9 @@
 import {
-  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, Shield, LogOut, User as UserIcon, Home as HomeIcon, Activity
+  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu,
   SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar, SidebarTrigger
@@ -142,33 +141,6 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="bg-card border-t border-border p-2 space-y-0.5">
-        <ThemeToggle collapsed={collapsed} />
-
-        <SidebarMenu>
-          {user?.role === 'superadmin' && (
-            <>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink to={`/${slug}/admin`} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" activeClassName="bg-primary text-primary-foreground font-semibold shadow-sm" onClick={handleItemClick}>
-                    <Shield className="h-[18px] w-[18px] shrink-0" />
-                    {!collapsed && <span className="text-sm">Super Admin</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <NavLink to={`/${slug}/diagnostico-sync`} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" activeClassName="bg-primary text-primary-foreground font-semibold shadow-sm" onClick={handleItemClick}>
-                    <Activity className="h-[18px] w-[18px] shrink-0" />
-                    {!collapsed && <span className="text-sm">Diagnóstico Sync</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </>
-          )}
-        </SidebarMenu>
-
-        <Separator className="my-1 mx-2 w-auto opacity-50" />
-
         {/* User Profile */}
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center justify-between w-full p-2 outline-none hover:bg-muted rounded-lg transition-colors overflow-hidden">

@@ -586,7 +586,7 @@ const PDV = () => {
                 return (
                   <Button key={cat.id}
                     variant="default"
-                    className="h-28 flex flex-col items-center justify-center gap-2 rounded-2xl text-lg relative font-bold shadow-md active:scale-95 transition-all text-white border-none"
+                    className="h-28 flex flex-col items-center justify-center gap-2 rounded-2xl text-lg relative font-bold shadow-md active:scale-95 transition-all text-primary-foreground border-none"
                     style={{ backgroundColor: bgColor }}
                     onClick={() => {
                       setActiveCategoryId(cat.id);
@@ -604,7 +604,7 @@ const PDV = () => {
                 <Button variant="outline" className="flex-1 h-full flex flex-col items-center justify-center font-bold text-xs bg-background border-muted-foreground/20 text-foreground shadow-sm" onClick={() => navigate('/')}>
                   <ArrowLeft className="h-6 w-6 mb-0.5" /> VOLTAR
                 </Button>
-                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-[#4CAF50] hover:bg-[#388E3C] text-white relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
+                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-[#4CAF50] hover:bg-[#388E3C] text-primary-foreground relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
                   <ShoppingCart className="h-5 w-5 mb-0.5 opacity-90" />
                   <span className="flex items-center">
                     REVISAR
@@ -646,26 +646,26 @@ const PDV = () => {
                 const lastItem = cart.find(i => i.id === mobileLastAddedId);
                 if (lastItem) return (
                   <div className="bg-[#4CAF50] p-3 flex flex-col gap-3 shadow-[0_-8px_20px_-3px_rgba(0,0,0,0.3)]">
-                    <div className="flex justify-between items-center text-white px-1">
+                    <div className="flex justify-between items-center text-primary-foreground px-1">
                       <div className="flex items-center gap-1.5 font-bold text-[17px] drop-shadow-sm leading-none">
                         <Check className="h-5 w-5" /> {lastItem.name} 
                         <span className="opacity-90 font-medium ml-1">R$ {fmt(lastItem.price)}</span>
                       </div>
-                      <div className="bg-blue-500/90 border border-blue-400 rounded-sm text-sm px-2 py-0.5 font-black shadow-sm tracking-widest text-white leading-none">
+                      <div className="bg-accent/90 border border-accent/40 rounded-sm text-sm px-2 py-0.5 font-black shadow-sm tracking-widest text-primary-foreground leading-none">
                         x{lastItem.quantity}
                       </div>
                     </div>
                     <div className="flex gap-2 h-12">
-                      <Button variant="outline" className="flex-1 bg-white text-emerald-700 hover:bg-gray-100 font-black text-xl rounded shadow-sm border border-black/10 active:scale-95" onClick={() => updateQty(lastItem.id, 1)}>
+                      <Button variant="outline" className="flex-1 bg-card text-success hover:bg-muted font-black text-xl rounded shadow-sm border border-black/10 active:scale-95" onClick={() => updateQty(lastItem.id, 1)}>
                         <Plus className="h-5 w-5 mr-1 stroke-[3]" /> 1
                       </Button>
-                      <Button variant="outline" className="flex-1 bg-white text-destructive hover:bg-gray-100 font-black text-xl rounded shadow-sm border border-black/10 active:scale-95" onClick={() => updateQty(lastItem.id, -1)} disabled={lastItem.quantity <= 1}>
+                      <Button variant="outline" className="flex-1 bg-card text-destructive hover:bg-muted font-black text-xl rounded shadow-sm border border-black/10 active:scale-95" onClick={() => updateQty(lastItem.id, -1)} disabled={lastItem.quantity <= 1}>
                         <Minus className="h-5 w-5 mr-1 stroke-[3]" /> 1
                       </Button>
-                      <Button variant="outline" className="w-[60px] bg-white text-primary hover:bg-gray-100 rounded shadow-sm border border-black/10 active:scale-95 px-0" onClick={() => setEditingItemNotesId(lastItem.id)}>
+                      <Button variant="outline" className="w-[60px] bg-card text-primary hover:bg-muted rounded shadow-sm border border-black/10 active:scale-95 px-0" onClick={() => setEditingItemNotesId(lastItem.id)}>
                         <ListChecks className="h-5 w-5 stroke-[2.5]" />
                       </Button>
-                      <Button variant="outline" className="w-[60px] bg-white text-destructive hover:bg-gray-100 rounded shadow-sm border border-black/10 active:scale-95 px-0" onClick={() => removeItem(lastItem.id)}>
+                      <Button variant="outline" className="w-[60px] bg-card text-destructive hover:bg-muted rounded shadow-sm border border-black/10 active:scale-95 px-0" onClick={() => removeItem(lastItem.id)}>
                         <Trash2 className="h-5 w-5 stroke-[2.5]" />
                       </Button>
                     </div>
@@ -678,7 +678,7 @@ const PDV = () => {
                 <Button variant="outline" className="flex-1 h-full flex flex-col items-center justify-center font-bold text-[10px] bg-muted/30 border-muted-foreground/20 text-foreground" onClick={() => setMobileView('categories')}>
                   <ArrowLeft className="h-6 w-6 mb-0.5" /> VOLTAR
                 </Button>
-                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-[#4CAF50] hover:bg-[#388E3C] text-white relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
+                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-[#4CAF50] hover:bg-[#388E3C] text-primary-foreground relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
                   <ShoppingCart className="h-5 w-5 mb-0.5 opacity-90" />
                   <span className="flex items-center">
                     REVISAR
@@ -994,7 +994,7 @@ function CartContent({
 
       {/* Customer Info / Table Header on Mobile Cart */}
       {isMobile && tableNumber && (
-        <div className="px-3 py-3 bg-white border-b shrink-0 flex flex-col gap-1.5 shadow-sm">
+        <div className="px-3 py-3 bg-card border-b shrink-0 flex flex-col gap-1.5 shadow-sm">
           {customerObj && (
             <p className="text-[16px] font-medium text-muted-foreground leading-tight">
               Cliente: {customerObj.name} {customerObj.phone ? `(${customerObj.phone})` : ''}
@@ -1105,13 +1105,13 @@ function CartContent({
           <div className="grid grid-cols-3 gap-2">
             <Button 
               variant="default" 
-              className="h-11 text-[11px] px-1 font-bold bg-[#7C3AED] hover:bg-[#6D28D9] text-white shadow-md border-none" 
+              className="h-11 text-[11px] px-1 font-bold bg-[#7C3AED] hover:bg-[#6D28D9] text-primary-foreground shadow-md border-none" 
               onClick={() => onAddNewItem?.()}
             >
               VOLTAR
             </Button>
             <Button 
-              className="h-11 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-white" 
+              className="h-11 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-primary-foreground" 
               onClick={onPrintOrder} 
               disabled={cart.length === 0 || cart.every(i => i.printed)}
             >

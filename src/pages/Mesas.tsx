@@ -149,7 +149,7 @@ const Mesas = () => {
                   <button
                     key={table.number}
                     onClick={() => handleTableClick(table.number)}
-                    className={`relative w-full aspect-square flex flex-col justify-between p-1.5 sm:p-2 rounded-sm text-white shadow-sm hover:brightness-110 active:scale-95 transition-all text-left overflow-hidden ${bgColor}`}
+                    className={`relative w-full aspect-square flex flex-col justify-between p-1.5 sm:p-2 rounded-sm text-primary-foreground shadow-sm hover:brightness-110 active:scale-95 transition-all text-left overflow-hidden ${bgColor}`}
                   >
                     <div className="flex justify-between items-start w-full">
                       <Lock className="h-4 w-4 shrink-0 opacity-80" />
@@ -192,7 +192,7 @@ const Mesas = () => {
                 <button
                   key={table.number}
                   onClick={() => handleTableClick(table.number)}
-                  className="w-full aspect-square bg-[#666666] hover:bg-[#555555] active:scale-95 transition-all flex flex-col items-center justify-center rounded-sm text-white shadow-sm"
+                  className="w-full aspect-square bg-[#666666] hover:bg-[#555555] active:scale-95 transition-all flex flex-col items-center justify-center rounded-sm text-primary-foreground shadow-sm"
                 >
                   <span className="text-[9px] sm:text-[10px] font-bold mb-0.5 tracking-wider">ABRIR</span>
                   <p className="text-2xl sm:text-3xl font-extrabold tracking-tighter shadow-black drop-shadow-md">
@@ -250,7 +250,7 @@ const Mesas = () => {
                   <Button
                     key={t.number}
                     variant="outline"
-                    className="h-14 text-base font-semibold hover:bg-purple-500 hover:text-white"
+                    className="h-14 text-base font-semibold hover:bg-primary hover:text-primary-foreground"
                     onClick={() => handleMerge(t.number)}
                   >
                     {t.number}

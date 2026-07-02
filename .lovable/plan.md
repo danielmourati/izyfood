@@ -1,85 +1,73 @@
-# Refatoração de Design — Paleta Food & Login IzyFood
-
 ## Objetivo
-1. Substituir toda a paleta atual (verde #2D6A4F) pela nova paleta food (Fire Red, Vanilla Cream, Retro Green, Saffron, Russet) com aderência aos padrões UX/UI de aplicativos de food service (iFood, Rappi, Uber Eats).
-2. Substituir o carrossel de imagens no lado esquerdo da página `/login` por um bloco de conteúdo com textos criativos e persuasivos sobre os benefícios da plataforma IzyFood.
 
-## Nova paleta (semantic tokens em HSL)
+1. Garantir aderência total da nova paleta food (Fire Red / Vanilla Cream / Retro Green / Saffron / Russet) em todas as páginas — com foco especial no `/pdv` — seguindo padrões modernos de UX/UI para food apps.
+2. Remover do sidebar: item "Diagnóstico Sync" e botão "Modo Escuro" (ThemeToggle).
+3. Mover "Super Admin" do sidebar para dentro da página de Configurações (como aba/seção acessível apenas a `superadmin`).
 
-| Token | Cor | Hex | HSL |
-|---|---|---|---|
-| Primary (CTA, marca) | Fire Red | #D23D2D | `4 66% 50%` |
-| Background base | Vanilla Cream | #F8EECB | `48 78% 88%` |
-| Accent / Success | Retro Green | #31603D | `140 33% 28%` |
-| Warning / Highlight | Saffron | #F5C065 | `39 88% 68%` |
-| Secondary / Foreground escuro | Russet | #6E433D | `7 30% 34%` |
+---
 
-Aplicação semântica (padrão food app):
-- `--primary`: Fire Red — botões principais, CTAs "Adicionar", "Finalizar", badges de destaque, preço em promoção.
-- `--background` (app): branco quente `#FFFCF5` derivado de Vanilla Cream para não cansar em uso prolongado; Vanilla Cream puro apenas em superfícies decorativas (login, cards de destaque, hero).
-- `--accent` / `--success`: Retro Green — status "pago", "finalizado", confirmações, badge de disponível.
-- `--warning`: Saffron — pedidos pendentes, "segurado", alertas suaves, badge novo.
-- `--secondary` / textos: Russet como tom escuro quente para foreground em modo claro (substituindo cinza-azulado atual).
-- `--destructive`: mantém vermelho puro (`0 72% 51%`) — distinto do Fire Red primário para não confundir cancelar/CTA.
+## 1. Sidebar — Limpeza (`src/components/AppSidebar.tsx`, `src/components/Layout.tsx`)
 
-Dark mode: fundo `#1A0F0D` (russet quase preto), primary Fire Red mantido, accent verde levemente saturado, cream vira dourado suave para texto.
+- Remover o `<ThemeToggle />` do `SidebarFooter`.
+- Remover o `SidebarMenuItem` do "Diagnóstico Sync".
+- Remover o `SidebarMenuItem` do "Super Admin" (ele passa a viver dentro de `/configuracoes`).
+- Remover imports agora não usados (`Shield`, `Activity`, `ThemeToggle`).
+- Como o modo escuro deixa de ser alternável pelo usuário, forçar tema claro no boot (`src/hooks/use-theme.tsx` ou `main.tsx`): remover a classe `dark` e ignorar `localStorage.theme`. As definições `.dark` do `index.css` permanecem no arquivo (não removeremos CSS), mas nunca serão ativadas.
 
-## Escopo — Passo 1: Design System
+## 2. Super Admin dentro de Configurações (`src/pages/Configuracoes.tsx`, `src/pages/SuperAdmin.tsx`)
 
-### `src/index.css`
-Reescrever `:root` e `.dark` com os novos tokens HSL:
-- `--background`, `--foreground`, `--card`, `--popover`
-- `--primary` (Fire Red), `--primary-foreground` (Vanilla Cream)
-- `--secondary` (creme suave), `--accent` (Retro Green), `--muted`
-- `--destructive` (vermelho distinto), `--warning` (Saffron), `--success` (Retro Green)
-- `--border`, `--input`, `--ring` (Fire Red)
-- `--sidebar-*` alinhado à nova paleta
-- `--login-bg` (Retro Green profundo), `--login-accent` (Saffron)
-- Grupos `--section-vendas` (Fire Red), `--section-cadastros` (Retro Green), `--section-gestao` (Saffron)
-- Adicionar gradientes utilitários: `--gradient-warm` (Fire Red → Saffron), `--gradient-hero` (Retro Green → Russet)
-- Sombras quentes: `--shadow-warm`, `--shadow-elegant`
+- Adicionar em `Configuracoes.tsx` uma nova aba "Super Admin" visível **apenas** quando `user?.role === 'superadmin'`.
+- Reaproveitar o conteúdo de `SuperAdmin.tsx` extraindo-o como componente (`SuperAdminTab`) para ser renderizado dentro da aba. A rota `/:slug/admin` continua funcional (usa o mesmo componente), garantindo compatibilidade.
+- Nenhuma mudança em roles, RLS ou edge functions.
 
-### `tailwind.config.ts`
-- Adicionar tokens `warning`, `success` no `colors`
-- Trocar fontes: `heading` passa a usar **Bricolage Grotesk** ou **Familjen Grotesk** (apelo food/orgânico), `sans` mantém Inter. Alternativa: **Fraunces** (display serifado com pegada gastronômica) + **Inter**. Vou usar **Bricolage Grotesk** (heading) + **Inter** (body) — mais moderno e legível, típico de food apps 2025.
+## 3. Paleta consistente em toda a plataforma
 
-### `index.html`
-- Atualizar `<link>` do Google Fonts para carregar Bricolage Grotesk + Inter.
+Objetivo: eliminar cores hardcoded (`bg-white`, `bg-black`, `text-white`, `bg-green-*`, `bg-blue-*`, `bg-yellow-*`, `bg-red-*`, `#hex`) em todo `src/**` e trocar por tokens semânticos (`bg-background`, `bg-card`, `bg-primary`, `text-primary-foreground`, `bg-success`, `bg-warning`, `bg-destructive`, `bg-accent`, `bg-muted`, `text-muted-foreground`, `border-border`, `bg-section-vendas`, etc.).
 
-### Verificação de regressão visual
-- Buscar hardcodes `text-white`, `bg-black`, `bg-[#...]`, classes com verde/roxo fixo nos componentes principais (`AppSidebar`, `NavLink`, `ProductCard`, `CategoryBar`, `TableBar`, `CheckoutModal`, `OrderTypeSelector`, páginas PDV/Caixa/Pedidos/Home) e substituir por tokens semânticos. Não alterar lógica de negócio.
-- Cores de status (badges em `Pedidos.tsx`: `bg-blue-100`, `bg-yellow-100`, `bg-emerald-100`, `bg-red-100`) migradas para tokens semânticos (`bg-primary/10 text-primary`, `bg-warning/10 text-warning`, etc.).
+Componentes/páginas a auditar e refatorar (varredura por `rg` de classes hardcoded):
 
-## Escopo — Passo 2: Página `/login`
+- `src/pages/PDV.tsx` — foco principal. Aplicar padrões food-app:
+  - Header do PDV: fundo `bg-card` com borda `border-border`, título `font-heading`.
+  - Grid de produtos: cartões com `bg-card`, sombra `shadow-warm` no hover, preço em `text-primary` e `text-price`.
+  - Botão principal (Adicionar/Finalizar): `bg-primary text-primary-foreground`, hover `hover:bg-primary/90`, radius `rounded-xl`.
+  - Painel de carrinho (drawer/aside): `bg-card`, divisores `border-border`, total em destaque com `bg-gradient-warm` ou `bg-primary/10 text-primary`.
+  - Estados: itens ativos com `ring-2 ring-primary`; badges de quantidade com `bg-accent text-accent-foreground`.
+- `src/components/ProductCard.tsx`, `CategoryBar.tsx`, `TableBar.tsx`, `CheckoutModal.tsx`, `OrderTypeSelector.tsx`, `ItemNotesModal.tsx`, `WeightModal.tsx`, `CashRegisterReceipt.tsx`.
+- Páginas: `Home.tsx`, `Mesas.tsx`, `Pedidos.tsx` (já parcialmente feito), `Entregas.tsx`, `Caixa.tsx`, `Clientes.tsx`, `Produtos.tsx`, `Estoque.tsx`, `Relatorios.tsx`, `Configuracoes.tsx`, `SuperAdmin.tsx`, `NotFound.tsx`.
+- Componentes de aba: `AuditLogsTab.tsx`, `ImpressoraTab.tsx`, `MeuPerfilTab.tsx`, `SuperAdminUsersTab.tsx`.
 
-Substituir o `<div className="hidden lg:flex lg:w-1/2 ...">` (carrossel + controles + dots + botões prev/next) por um painel estático persuasivo:
+Mapeamento padrão a aplicar:
 
-### Estrutura do novo painel esquerdo
-- Fundo: `bg-[hsl(var(--login-bg))]` (Retro Green profundo) com sutil textura/gradient warm no rodapé e um pattern SVG orgânico (círculos/blobs) em opacidade baixa em Saffron/Fire Red.
-- Conteúdo em coluna:
-  1. **Logo IzyFood** no topo (usa `tenantLogo` quando disponível, senão wordmark "IzyFood" em Bricolage Grotesk).
-  2. **Headline principal** grande (Bricolage Grotesk, 4xl-5xl, cream): "Gestão fácil. Resultado rápido." (mantém tagline oficial).
-  3. **Sub-headline**: "O sistema completo que transforma seu restaurante, lanchonete ou hamburgueria em uma máquina de vendas."
-  4. **Lista de 4 benefícios** com micro-ícones (lucide) e uma linha cada — Saffron para o ícone, cream para o texto:
-     - Pedidos em segundos, do balcão à mesa
-     - Delivery e retirada com controle total
-     - Caixa e comissões calculadas automaticamente
-     - Impressão térmica direto do celular
-  5. **Prova social curta**: "Feito para quem vive a rotina real de um food service."
-  6. **Rodapé do painel**: badge pequeno "Multi-loja • Multi-atendente • Offline-ready".
+```text
+bg-white              -> bg-card  (ou bg-background em superfícies principais)
+text-black            -> text-foreground
+text-white (em CTA)   -> text-primary-foreground
+bg-green-500/600      -> bg-success  |  bg-primary (se for CTA)
+text-green-*          -> text-success  |  text-primary
+bg-blue-*             -> bg-accent  |  bg-primary
+bg-yellow-*           -> bg-warning
+text-yellow-*         -> text-warning
+bg-red-*              -> bg-destructive  |  bg-primary
+border-gray-*         -> border-border
+text-gray-*           -> text-muted-foreground
+#2D6A4F / #40916C     -> hsl(var(--accent)) via bg-accent / text-accent
+```
 
-- Remover completamente: `carouselImages`, `defaultCarouselImages`, `currentSlide`, `useEffect` do intervalo, botões prev/next, dots, o fetch de `login_carousel_images` da branding.
-- Manter: fetch de `tenant_logo`, `tenant_name`, `login_icon` para uso no painel (logo) e no lado direito (ícone).
+Padrões UX food-app a reforçar globalmente:
+- Radius: `rounded-xl` em cards e botões grandes, `rounded-lg` em inputs.
+- Sombras quentes: usar `shadow-warm` em CTAs e cards de destaque.
+- Tipografia: títulos com `font-heading` (Bricolage Grotesque), preços com `.text-price`.
+- Badges de status (pedidos, mesas, caixa): usar `success`, `warning`, `destructive`, `accent` com opacidade `/15` no fundo e `/30` na borda (mesmo padrão já aplicado em `Pedidos.tsx`).
+- Estados vazios: ilustração/ícone em `text-muted-foreground`, headline `font-heading`.
 
-O lado direito (formulário de login) permanece inalterado funcionalmente; apenas herda os novos tokens semânticos (cores/fontes) automaticamente.
+## 4. Verificação
+
+- `bun run build` para checar tipos após remoções e refactor.
+- `rg -n "bg-(white|black|green-|blue-|yellow-|red-|gray-)|text-white|text-black|#[0-9a-fA-F]{6}" src` para confirmar que não há mais hardcodes fora de exceções justificadas (ex.: recibo térmico impresso, que precisa de preto puro).
+- Inspeção visual do `/pdv`, `/pedidos`, `/mesas`, `/caixa`, `/configuracoes` (aba Super Admin visível só para superadmin).
 
 ## Fora de escopo
-- Nenhuma alteração de lógica de negócio, rotas, schema Supabase, RLS ou features.
-- Não mexer em impressão térmica, testes ESC/POS, roles ou fluxos de pedido.
-- Não remover o campo `login_carousel_images` da tabela `tenants` (apenas parar de usá-lo na UI) — sem migração.
 
-## Ordem de execução
-1. Atualizar `index.css` (tokens) + `tailwind.config.ts` (fontes/cores) + `index.html` (Google Fonts).
-2. Refatorar `Login.tsx` (remover carrossel, adicionar painel persuasivo).
-3. Varrer componentes e páginas por classes de cor hardcoded e trocar por tokens semânticos.
-4. Rodar build e validar visualmente rota `/login` + PDV + Sidebar.
+- Nenhuma alteração em schema, RLS, edge functions, rotas, lógica de negócio, testes ESC/POS ou tokens do `index.css` (paleta já definida na iteração anterior).
+- Não remover o CSS `.dark` — apenas deixar de ativá-lo.
+- Não alterar a página `/login` (já refatorada).

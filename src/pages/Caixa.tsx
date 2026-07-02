@@ -504,13 +504,13 @@ export default function Caixa() {
               <div className="space-y-2">
                 <p className="text-sm font-medium text-foreground">Movimentações:</p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="flex justify-between bg-green-500/10 rounded px-3 py-2">
-                    <span className="text-green-700 dark:text-green-400">Entradas</span>
-                    <span className="font-medium text-green-700 dark:text-green-400">{fmt(totalEntradas)}</span>
+                  <div className="flex justify-between bg-success/10 rounded px-3 py-2">
+                    <span className="text-success dark:text-success">Entradas</span>
+                    <span className="font-medium text-success dark:text-success">{fmt(totalEntradas)}</span>
                   </div>
-                  <div className="flex justify-between bg-red-500/10 rounded px-3 py-2">
-                    <span className="text-red-700 dark:text-red-400">Saídas</span>
-                    <span className="font-medium text-red-700 dark:text-red-400">{fmt(totalSaidas)}</span>
+                  <div className="flex justify-between bg-destructive/10 rounded px-3 py-2">
+                    <span className="text-destructive dark:text-destructive">Saídas</span>
+                    <span className="font-medium text-destructive dark:text-destructive">{fmt(totalSaidas)}</span>
                   </div>
                 </div>
               </div>
@@ -528,14 +528,14 @@ export default function Caixa() {
                 className="gap-2"
                 onClick={() => handleMovementClick('entrada')}
               >
-                <ArrowDownCircle className="h-4 w-4 text-green-600" /> Entrada
+                <ArrowDownCircle className="h-4 w-4 text-success" /> Entrada
               </Button>
               <Button
                 variant="outline"
                 className="gap-2"
                 onClick={() => handleMovementClick('saida')}
               >
-                <ArrowUpCircle className="h-4 w-4 text-red-600" /> Saída / Sangria
+                <ArrowUpCircle className="h-4 w-4 text-destructive" /> Saída / Sangria
               </Button>
             </div>
 
@@ -548,13 +548,13 @@ export default function Caixa() {
                     <div key={m.id} className="flex items-center justify-between text-sm bg-muted/50 rounded px-3 py-2">
                       <div className="flex items-center gap-2">
                         {m.type === 'entrada' ? (
-                          <Plus className="h-3.5 w-3.5 text-green-600" />
+                          <Plus className="h-3.5 w-3.5 text-success" />
                         ) : (
-                          <Minus className="h-3.5 w-3.5 text-red-600" />
+                          <Minus className="h-3.5 w-3.5 text-destructive" />
                         )}
                         <span className="text-foreground">{m.description}</span>
                       </div>
-                      <span className={`font-medium ${m.type === 'entrada' ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className={`font-medium ${m.type === 'entrada' ? 'text-success' : 'text-destructive'}`}>
                         {m.type === 'entrada' ? '+' : '-'}{fmt(m.amount)}
                       </span>
                     </div>
@@ -792,12 +792,12 @@ export default function Caixa() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-amber-500" /> Autorização necessária
+              <ShieldAlert className="h-5 w-5 text-warning-foreground" /> Autorização necessária
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Alert className="border-amber-500/50 bg-amber-500/10">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <Alert className="border-warning/40/50 bg-warning/10">
+              <AlertTriangle className="h-4 w-4 text-warning-foreground" />
               <AlertDescription className="text-sm">
                 Você não tem permissão para realizar movimentações no caixa. Solicite a autorização de um administrador.
               </AlertDescription>
@@ -995,12 +995,12 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
         </div>
       </div>
 
-      <div className="rounded-lg bg-amber-500/10 p-3">
+      <div className="rounded-lg bg-warning/10 p-3">
         <p className="text-xs text-muted-foreground">
           Total Taxa de Serviço (Mesa)
           {periodLabel && <span className="ml-1 text-primary font-medium">· {periodLabel}</span>}
         </p>
-        <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{fmt(totalServiceFee)}</p>
+        <p className="text-xl font-bold text-warning-foreground dark:text-warning-foreground">{fmt(totalServiceFee)}</p>
       </div>
 
       {displayedAttendants.length > 0 && (

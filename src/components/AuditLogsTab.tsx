@@ -26,16 +26,16 @@ const entityLabels: Record<string, string> = {
 };
 
 const actionLabels: Record<string, { label: string; color: string }> = {
-  open: { label: 'Abertura', color: 'bg-green-500/10 text-green-700 dark:text-green-400' },
-  close: { label: 'Fechamento', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
-  create: { label: 'Criação', color: 'bg-green-500/10 text-green-700 dark:text-green-400' },
-  update: { label: 'Alteração', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
-  delete: { label: 'Exclusão', color: 'bg-red-500/10 text-red-700 dark:text-red-400' },
-  cancel: { label: 'Cancelamento', color: 'bg-red-500/10 text-red-700 dark:text-red-400' },
-  entrada: { label: 'Entrada', color: 'bg-green-500/10 text-green-700 dark:text-green-400' },
-  saida: { label: 'Saída', color: 'bg-red-500/10 text-red-700 dark:text-red-400' },
-  admin_auth: { label: 'Autorização Admin', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-400' },
-  finalize: { label: 'Finalização', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
+  open: { label: 'Abertura', color: 'bg-success/10 text-success dark:text-success' },
+  close: { label: 'Fechamento', color: 'bg-accent/10 text-accent dark:text-accent' },
+  create: { label: 'Criação', color: 'bg-success/10 text-success dark:text-success' },
+  update: { label: 'Alteração', color: 'bg-warning/10 text-warning-foreground dark:text-warning-foreground' },
+  delete: { label: 'Exclusão', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  cancel: { label: 'Cancelamento', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  entrada: { label: 'Entrada', color: 'bg-success/10 text-success dark:text-success' },
+  saida: { label: 'Saída', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  admin_auth: { label: 'Autorização Admin', color: 'bg-primary/10 text-primary dark:text-primary' },
+  finalize: { label: 'Finalização', color: 'bg-accent/10 text-accent dark:text-accent' },
 };
 
 export function AuditLogsTab() {

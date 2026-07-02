@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 import { fmt } from '@/lib/utils';
 import {
-  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, Image, Upload
+  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, Image, Upload, Shield
 } from 'lucide-react';
 import {
   Select,
@@ -26,10 +26,11 @@ import { Switch } from '@/components/ui/switch';
 import { MeuPerfilTab } from '@/components/MeuPerfilTab';
 import { AuditLogsTab } from '@/components/AuditLogsTab';
 import { ImpressoraTab } from '@/components/ImpressoraTab';
+import { SuperAdminContent } from '@/pages/SuperAdmin';
 
-type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora' | 'logs';
+type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora' | 'logs' | 'superadmin';
 
-const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean }[] = [
+const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean; superadminOnly?: boolean }[] = [
   { key: 'perfil', label: 'Meu Perfil', icon: User, adminOnly: false },
   { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true },
   { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true },
@@ -37,6 +38,7 @@ const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: bo
   { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
   { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true },
   { key: 'logs', label: 'Auditoria', icon: FileText, adminOnly: true },
+  { key: 'superadmin', label: 'Super Admin', icon: Shield, adminOnly: true, superadminOnly: true },
 ];
 
 const roleLabels: Record<AppRole, string> = {
@@ -48,8 +50,12 @@ const roleLabels: Record<AppRole, string> = {
 
 const Configuracoes = () => {
   const [activeTab, setActiveTab] = useState<Tab>('perfil');
-  const { isAdmin } = useAuth();
-  const tabs = allTabs.filter(t => !t.adminOnly || isAdmin);
+  const { isAdmin, user } = useAuth();
+  const isSuperadmin = user?.role === 'superadmin';
+  const tabs = allTabs.filter(t => {
+    if (t.superadminOnly) return isSuperadmin;
+    return !t.adminOnly || isAdmin;
+  });
 
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
@@ -76,6 +82,7 @@ const Configuracoes = () => {
       {activeTab === 'cupons' && <CuponsTab />}
       {activeTab === 'impressora' && <ImpressoraTab />}
       {activeTab === 'logs' && <AuditLogsTab />}
+      {activeTab === 'superadmin' && isSuperadmin && <SuperAdminContent withHeader={false} />}
     </div>
   );
 };
@@ -404,7 +411,7 @@ function GeralTab() {
   return (
     <div className="space-y-4">
       {/* Aviso de Sincronização */}
-      <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4 flex gap-3 text-amber-800 dark:text-amber-300">
+      <div className="bg-warning/10 border border-warning/40 rounded-xl p-4 flex gap-3 text-warning-foreground">
         <Printer className="h-5 w-5 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <h4 className="font-semibold text-sm">Sincronização Automática em Nuvem</h4>

@@ -231,11 +231,11 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
         {/* Loyalty redemption */}
         {customerObj && redeemableCount > 0 && (
-          <div className="border border-green-500/30 bg-green-500/5 rounded-lg p-3 space-y-2">
+          <div className="border border-success/40/30 bg-success/5 rounded-lg p-3 space-y-2">
             <div className="flex items-center gap-2">
-              <Star className="h-4 w-4 text-green-600" />
+              <Star className="h-4 w-4 text-success" />
               <div className="flex-1">
-                <p className="text-sm font-semibold text-green-700 dark:text-green-400">Programa Fidelidade</p>
+                <p className="text-sm font-semibold text-success dark:text-success">Programa Fidelidade</p>
                 <p className="text-xs text-muted-foreground">
                   {customerObj.loyaltyPoints} pontos • {redeemableCount} resgate{redeemableCount > 1 ? 's' : ''} disponível
                 </p>
@@ -263,7 +263,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               )}
             </div>
             {acaiRedemptionDiscount > 0 && (
-              <p className="text-xs text-green-700 dark:text-green-400 font-medium">
+              <p className="text-xs text-success dark:text-success font-medium">
                 Desconto fidelidade: -R$ {fmt(acaiRedemptionDiscount)}
               </p>
             )}
@@ -322,9 +322,9 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
             </>
           )}
           {serviceFeeAmount > 0 && (
-            <div className="flex justify-between text-sm bg-amber-500/10 rounded px-3 py-2">
-              <span className="text-amber-700 dark:text-amber-400">Taxa de serviço ({serviceFeePercentage}%)</span>
-              <span className="font-medium text-amber-700 dark:text-amber-400">+R$ {fmt(serviceFeeAmount)}</span>
+            <div className="flex justify-between text-sm bg-warning/10 rounded px-3 py-2">
+              <span className="text-warning-foreground dark:text-warning-foreground">Taxa de serviço ({serviceFeePercentage}%)</span>
+              <span className="font-medium text-warning-foreground dark:text-warning-foreground">+R$ {fmt(serviceFeeAmount)}</span>
             </div>
           )}
           {(discountAmount + acaiRedemptionDiscount + serviceFeeAmount) > 0 && (

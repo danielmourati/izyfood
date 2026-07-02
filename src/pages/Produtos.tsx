@@ -296,9 +296,9 @@ const Produtos = () => {
         {filtered.map(product => {
           const cat = getCat(product.categoryId);
           return (
-            <div key={product.id} className="bg-white rounded-[16px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all flex flex-col p-2.5 border border-slate-100 h-full w-full group relative">
+            <div key={product.id} className="bg-card rounded-[16px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all flex flex-col p-2.5 border border-border h-full w-full group relative">
               {/* Image area */}
-              <div className="relative aspect-[4/3] w-full rounded-[10px] overflow-hidden bg-slate-50 mb-2 shrink-0">
+              <div className="relative aspect-[4/3] w-full rounded-[10px] overflow-hidden bg-muted mb-2 shrink-0">
                 {product.image ? (
                   <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
@@ -321,12 +321,12 @@ const Produtos = () => {
               {/* Info */}
               <div className="flex flex-col flex-1 justify-between">
                 <div>
-                  <h3 className="font-semibold text-[13px] leading-tight text-slate-800 line-clamp-2 mb-1" title={product.name}>
+                  <h3 className="font-semibold text-[13px] leading-tight text-muted-foreground line-clamp-2 mb-1" title={product.name}>
                     {product.name}
                   </h3>
                   <p className="text-[#4CAF50] font-bold text-[14px]">
                     R$ {fmt(product.price)}
-                    {product.type === 'weight' && <span className="text-[10px] font-medium text-slate-500 ml-1">/kg</span>}
+                    {product.type === 'weight' && <span className="text-[10px] font-medium text-muted-foreground ml-1">/kg</span>}
                   </p>
                 </div>
 
@@ -335,7 +335,7 @@ const Produtos = () => {
                     {cat ? cat.name : 'Sem categoria'}
                   </Badge>
                   {product.loyaltyEligible && (
-                    <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                    <Badge variant="secondary" className="text-[10px] bg-success/10 text-success dark:bg-success/30 dark:text-success">
                       ⭐ Fidelidade
                     </Badge>
                   )}

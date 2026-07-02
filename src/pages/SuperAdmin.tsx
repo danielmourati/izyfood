@@ -39,14 +39,14 @@ interface Metrics {
 /* ─────────── Dashboard Tab ─────────── */
 function DashboardTab({ metrics, loading }: { metrics: Metrics; loading: boolean }) {
   const cards = [
-    { label: 'Tenants Ativos', value: metrics.totalTenants, icon: Store, color: 'text-blue-500' },
-    { label: 'Usuários', value: metrics.totalUsers, icon: Users, color: 'text-green-500' },
-    { label: 'Vendas Totais', value: metrics.totalSales, icon: TrendingUp, color: 'text-orange-500' },
+    { label: 'Tenants Ativos', value: metrics.totalTenants, icon: Store, color: 'text-accent' },
+    { label: 'Usuários', value: metrics.totalUsers, icon: Users, color: 'text-success' },
+    { label: 'Vendas Totais', value: metrics.totalSales, icon: TrendingUp, color: 'text-warning-foreground' },
     {
       label: 'Receita Total',
       value: `R$ ${metrics.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       icon: DollarSign,
-      color: 'text-emerald-500',
+      color: 'text-success',
     },
   ];
 
@@ -208,8 +208,8 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-/* ─────────── Main Page ─────────── */
-const SuperAdmin = () => {
+/* ─────────── Reusable Super Admin content ─────────── */
+export function SuperAdminContent({ withHeader = true }: { withHeader?: boolean }) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [metrics, setMetrics] = useState<Metrics>({ totalTenants: 0, totalUsers: 0, totalSales: 0, totalRevenue: 0 });
@@ -255,8 +255,8 @@ const SuperAdmin = () => {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <h1 className="text-2xl font-bold text-foreground">Painel Super Admin</h1>
+    <div className="space-y-4">
+      {withHeader && <h1 className="text-2xl font-bold text-foreground">Painel Super Admin</h1>}
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {tabs.map(t => (
@@ -279,6 +279,13 @@ const SuperAdmin = () => {
       {activeTab === 'criar' && <CreateTab onCreated={() => { setActiveTab('tenants'); fetchData(); }} />}
     </div>
   );
-};
+}
+
+/* ─────────── Main Page ─────────── */
+const SuperAdmin = () => (
+  <div className="p-4 md:p-6">
+    <SuperAdminContent />
+  </div>
+);
 
 export default SuperAdmin;
