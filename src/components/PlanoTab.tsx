@@ -61,7 +61,7 @@ export function PlanoTab() {
       <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <CreditCard className="h-5 w-5 text-primary" />
             Seu plano atual
           </CardTitle>
         </CardHeader>
