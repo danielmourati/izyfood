@@ -38,7 +38,7 @@ const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: bo
   { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
   { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true },
   { key: 'logs', label: 'Auditoria', icon: FileText, adminOnly: true },
-  { key: 'plano', label: 'Plano', icon: Sparkles, adminOnly: true },
+  { key: 'plano', label: 'Plano', icon: CreditCard, adminOnly: true },
 ];
 
 const roleLabels: Record<AppRole, string> = {
