@@ -17,7 +17,7 @@ import Relatorios from "./pages/Relatorios";
 import Entregas from "./pages/Entregas";
 import Caixa from "./pages/Caixa";
 import Configuracoes from "./pages/Configuracoes";
-import SuperAdmin from "./pages/SuperAdmin";
+import { SuperAdminRoutes } from "./pages/superadmin/SuperAdminRoutes";
 import DiagnosticoSync from "./pages/DiagnosticoSync";
 import NotFound from "./pages/NotFound";
 
@@ -67,7 +67,6 @@ function TenantRoutes() {
         <Route path="/estoque" element={<ProtectedRoute adminOnly permissionKey="manage_stock"><Estoque /></ProtectedRoute>} />
         <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute superadminOnly><SuperAdmin /></ProtectedRoute>} />
         <Route path="/diagnostico-sync" element={<ProtectedRoute superadminOnly><DiagnosticoSync /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -102,10 +101,11 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to={`/${user.tenantSlug}`} replace />} />
+      <Route path="/login" element={<Navigate to={user.role === 'superadmin' ? '/superadmin' : `/${user.tenantSlug}`} replace />} />
+      <Route path="/superadmin/*" element={<SuperAdminRoutes />} />
       <Route path="/:slug/*" element={<TenantRoutes />} />
-      <Route path="/" element={<Navigate to={`/${user.tenantSlug}`} replace />} />
-      <Route path="*" element={<Navigate to={`/${user.tenantSlug}`} replace />} />
+      <Route path="/" element={<Navigate to={user.role === 'superadmin' ? '/superadmin' : `/${user.tenantSlug}`} replace />} />
+      <Route path="*" element={<Navigate to={user.role === 'superadmin' ? '/superadmin' : `/${user.tenantSlug}`} replace />} />
     </Routes>
   );
 }
