@@ -155,9 +155,11 @@ const Login = () => {
             {displayIcon ? (
               <img src={displayIcon} alt={tenantName} className="h-20 mx-auto mb-2 object-contain" />
             ) : (
-              <div className="h-20 w-20 mx-auto mb-2 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <span className="text-3xl font-bold text-primary">{tenantName?.charAt(0)?.toUpperCase() || '🍔'}</span>
-              </div>
+              <img
+                src={degustLogoHorizontal.url}
+                alt="Degust"
+                className="h-16 mx-auto mb-2 object-contain"
+              />
             )}
             {tenantName && <p className="text-sm font-medium text-muted-foreground">{tenantName}</p>}
           </div>
