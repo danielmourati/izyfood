@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Check, Loader2, Lock } from 'lucide-react';
+import { CreditCard, Check, Loader2, Lock } from 'lucide-react';
 
 type PlanType = 'trial' | 'pro_monthly' | 'pro_yearly';
 type PlanStatus = 'active' | 'expired' | 'canceled' | 'pending_payment';
@@ -61,7 +61,7 @@ export function PlanoTab() {
       <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <CreditCard className="h-5 w-5 text-primary" />
             Seu plano atual
           </CardTitle>
         </CardHeader>
