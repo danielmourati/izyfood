@@ -235,6 +235,8 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
     name: '', slug: '', admin_name: '', admin_email: '', admin_password: '',
   });
   const [creating, setCreating] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [available, setAvailable] = useState<boolean | null>(null);
 
   const slugify = (s: string) =>
     s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -243,6 +245,19 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
   const handleNameChange = (name: string) => {
     setForm(f => ({ ...f, name, slug: slugify(name) }));
   };
+
+  const slugError = form.slug ? validateSlugFormat(form.slug) : null;
+
+  useEffect(() => {
+    if (!form.slug || slugError) { setAvailable(null); return; }
+    setChecking(true);
+    const handle = setTimeout(async () => {
+      const { data } = await supabase.from('tenants').select('id').eq('slug', form.slug).maybeSingle();
+      setAvailable(!data);
+      setChecking(false);
+    }, 400);
+    return () => { clearTimeout(handle); setChecking(false); };
+  }, [form.slug, slugError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
