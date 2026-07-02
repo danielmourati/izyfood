@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
       notification_url: notifyUrl,
       date_of_expiration: expiresAt.toISOString().replace('Z', '-00:00'),
       payer: {
-        email: profile?.email || 'cliente@izyfood.app',
+        email: profile?.email || 'cliente@degust.app',
         first_name: profile?.name?.split(' ')[0] || 'Cliente',
       },
       metadata: {

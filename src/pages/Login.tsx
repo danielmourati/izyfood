@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, Eye, EyeOff, Zap, Truck, Wallet, Printer } from 'lucide-react';
 import { toast } from 'sonner';
+import degustLogoHorizontal from '@/assets/degust-logo-horizontal.png.asset.json';
 
 const benefits = [
   { icon: Zap, title: 'Pedidos em segundos', desc: 'Do balcão à mesa, sem fricção.' },
@@ -95,9 +96,11 @@ const Login = () => {
             {tenantLogo ? (
               <img src={tenantLogo} alt={tenantName} className="h-11 object-contain" />
             ) : (
-              <span className="font-heading font-extrabold text-2xl tracking-tight text-secondary">
-                IzyFood
-              </span>
+              <img
+                src={degustLogoHorizontal.url}
+                alt="Degust"
+                className="h-11 object-contain bg-secondary/95 rounded-lg px-3 py-1.5"
+              />
             )}
           </div>
 
@@ -152,9 +155,11 @@ const Login = () => {
             {displayIcon ? (
               <img src={displayIcon} alt={tenantName} className="h-20 mx-auto mb-2 object-contain" />
             ) : (
-              <div className="h-20 w-20 mx-auto mb-2 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <span className="text-3xl font-bold text-primary">{tenantName?.charAt(0)?.toUpperCase() || '🍔'}</span>
-              </div>
+              <img
+                src={degustLogoHorizontal.url}
+                alt="Degust"
+                className="h-16 mx-auto mb-2 object-contain"
+              />
             )}
             {tenantName && <p className="text-sm font-medium text-muted-foreground">{tenantName}</p>}
           </div>
@@ -199,7 +204,8 @@ const Login = () => {
           </form>
         </div>
 
-        <footer className="mt-auto pt-8 text-center text-xs text-muted-foreground">
+        <footer className="mt-auto pt-8 text-center text-xs text-muted-foreground space-y-1">
+          <p className="font-semibold text-foreground/80">Powered by Degust</p>
           <p>© 2026 Desenvolvido por Daniel Moura</p>
         </footer>
       </div>
