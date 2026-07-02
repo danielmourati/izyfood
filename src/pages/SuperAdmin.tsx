@@ -383,7 +383,7 @@ export function SuperAdminContent({ withHeader = true, initialTab = 'dashboard',
       )}
 
       {activeTab === 'dashboard' && <DashboardTab metrics={metrics} loading={loading} />}
-      {activeTab === 'tenants' && <TenantsTab tenants={tenants} onToggle={handleToggleTenant} />}
+      {activeTab === 'tenants' && <TenantsTab tenants={tenants} onToggle={handleToggleTenant} onSlugUpdated={fetchData} />}
       {activeTab === 'usuarios' && <SuperAdminUsersTab />}
       {activeTab === 'criar' && <CreateTab onCreated={() => { setActiveTab('tenants'); fetchData(); }} />}
     </div>
