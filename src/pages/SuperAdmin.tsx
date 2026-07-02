@@ -265,6 +265,8 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
       toast.error('Preencha todos os campos');
       return;
     }
+    if (slugError) { toast.error(slugError); return; }
+    if (available === false) { toast.error('Este slug já está em uso'); return; }
     if (form.admin_password.length < 6) {
       toast.error('Senha deve ter pelo menos 6 caracteres');
       return;
@@ -276,7 +278,7 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success(`Tenant "${data.tenant.name}" criado com sucesso!`);
+      toast.success(`Tenant "${data.tenant.name}" criado com slug "${data.tenant.slug}"!`);
       setForm({ name: '', slug: '', admin_name: '', admin_email: '', admin_password: '' });
       onCreated();
     } catch (err: any) {
@@ -285,6 +287,8 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
       setCreating(false);
     }
   };
+
+  const canSubmit = !creating && !slugError && available !== false && !checking;
 
   return (
     <Card className="max-w-xl">
@@ -299,7 +303,16 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
           </div>
           <div className="space-y-2">
             <Label>Slug (URL)</Label>
-            <Input value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} placeholder="acaiteria-do-centro" className="font-mono" />
+            <Input value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value.toLowerCase() }))} placeholder="acaiteria-do-centro" className="font-mono" />
+            <div className="min-h-[1.25rem] text-xs">
+              {slugError && <span className="text-destructive">{slugError}</span>}
+              {!slugError && form.slug && (
+                checking ? <span className="text-muted-foreground inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> verificando…</span>
+                : available === true ? <span className="text-success inline-flex items-center gap-1"><Check className="h-3 w-3" /> disponível</span>
+                : available === false ? <span className="text-destructive inline-flex items-center gap-1"><X className="h-3 w-3" /> já em uso</span>
+                : null
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">Será usado na URL: /{form.slug || 'slug'}/pdv</p>
           </div>
 
@@ -321,7 +334,7 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={creating}>
+          <Button type="submit" className="w-full" disabled={!canSubmit}>
             {creating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Criando...</> : <><Plus className="h-4 w-4 mr-2" /> Criar Estabelecimento</>}
           </Button>
         </form>
