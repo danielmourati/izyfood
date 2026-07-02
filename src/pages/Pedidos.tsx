@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const statusColors: Record<string, string> = {
-  aberto: 'bg-blue-100 text-blue-800',
-  segurado: 'bg-yellow-100 text-yellow-800',
-  finalizado: 'bg-emerald-100 text-emerald-800',
-  cancelado: 'bg-red-100 text-red-800',
+  aberto: 'bg-primary/10 text-primary border border-primary/20',
+  segurado: 'bg-warning/15 text-warning-foreground border border-warning/30',
+  finalizado: 'bg-success/15 text-success border border-success/30',
+  cancelado: 'bg-destructive/10 text-destructive border border-destructive/20',
 };
 
 const Pedidos = () => {
