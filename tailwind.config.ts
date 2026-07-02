@@ -66,6 +66,14 @@ export default {
           accent: "hsl(var(--login-accent))",
           green: "hsl(var(--login-green))",
         },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
         section: {
           vendas: "hsl(var(--section-vendas))",
           "vendas-soft": "hsl(var(--section-vendas-soft))",
