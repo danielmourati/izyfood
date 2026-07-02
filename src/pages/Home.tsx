@@ -26,20 +26,20 @@ const sectionStyles: Record<SectionColor, { dot: string; title: string; card: st
   vendas: {
     dot: 'bg-section-vendas',
     title: 'text-section-vendas',
-    card: 'border-section-vendas/30 bg-section-vendas-soft/40 hover:border-section-vendas hover:bg-section-vendas hover:text-white',
-    icon: 'text-section-vendas group-hover:text-white',
+    card: 'border-section-vendas/30 bg-section-vendas-soft/40 hover:border-section-vendas hover:bg-section-vendas hover:text-primary-foreground',
+    icon: 'text-section-vendas group-hover:text-primary-foreground',
   },
   cadastros: {
     dot: 'bg-section-cadastros',
     title: 'text-section-cadastros',
-    card: 'border-section-cadastros/30 bg-section-cadastros-soft/40 hover:border-section-cadastros hover:bg-section-cadastros hover:text-white',
-    icon: 'text-section-cadastros group-hover:text-white',
+    card: 'border-section-cadastros/30 bg-section-cadastros-soft/40 hover:border-section-cadastros hover:bg-section-cadastros hover:text-primary-foreground',
+    icon: 'text-section-cadastros group-hover:text-primary-foreground',
   },
   gestao: {
     dot: 'bg-section-gestao',
     title: 'text-section-gestao',
-    card: 'border-section-gestao/30 bg-section-gestao-soft/40 hover:border-section-gestao hover:bg-section-gestao hover:text-white',
-    icon: 'text-section-gestao group-hover:text-white',
+    card: 'border-section-gestao/30 bg-section-gestao-soft/40 hover:border-section-gestao hover:bg-section-gestao hover:text-primary-foreground',
+    icon: 'text-section-gestao group-hover:text-primary-foreground',
   },
 };
 
@@ -185,7 +185,7 @@ const Home: React.FC = () => {
         {!cashStatus.loading && !cashStatus.open && (
           <button
             onClick={() => navigate('/caixa')}
-            className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-section-gestao text-white text-xs sm:text-sm font-bold px-3 py-2 shadow-sm hover:brightness-110 active:scale-95 transition-all"
+            className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-section-gestao text-primary-foreground text-xs sm:text-sm font-bold px-3 py-2 shadow-sm hover:brightness-110 active:scale-95 transition-all"
           >
             <Unlock className="h-4 w-4" /> Abrir caixa
           </button>

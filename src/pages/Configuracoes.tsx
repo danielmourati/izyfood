@@ -411,7 +411,7 @@ function GeralTab() {
   return (
     <div className="space-y-4">
       {/* Aviso de Sincronização */}
-      <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4 flex gap-3 text-amber-800 dark:text-amber-300">
+      <div className="bg-warning/10 dark:bg-amber-950/20 border border-warning/40 dark:border-warning/40/30 rounded-xl p-4 flex gap-3 text-warning-foreground dark:text-warning-foreground">
         <Printer className="h-5 w-5 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <h4 className="font-semibold text-sm">Sincronização Automática em Nuvem</h4>

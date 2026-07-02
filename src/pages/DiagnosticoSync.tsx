@@ -37,10 +37,10 @@ const MONITORED_TABLES = [
 
 const statusColor = (s: ChannelStatus) => {
   switch (s) {
-    case 'ok': return 'bg-green-500';
-    case 'connecting': return 'bg-yellow-500 animate-pulse';
-    case 'error': return 'bg-red-500';
-    case 'timeout': return 'bg-orange-500';
+    case 'ok': return 'bg-success';
+    case 'connecting': return 'bg-warning animate-pulse';
+    case 'error': return 'bg-destructive';
+    case 'timeout': return 'bg-warning';
   }
 };
 
@@ -265,9 +265,9 @@ export default function DiagnosticoSync() {
         <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {allOk ? (
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
+              <CheckCircle2 className="h-8 w-8 text-success" />
             ) : (
-              <AlertCircle className="h-8 w-8 text-yellow-500" />
+              <AlertCircle className="h-8 w-8 text-warning-foreground" />
             )}
             <div>
               <div className="text-lg font-semibold">
@@ -302,11 +302,11 @@ export default function DiagnosticoSync() {
                 <span className="font-mono">{new Date(lastPing.sentAt).toLocaleTimeString('pt-BR')}</span>
               </div>
               {lastPing.latencyMs !== null ? (
-                <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30">
+                <Badge className="bg-success/15 text-success dark:text-success border-success/40/30">
                   Round-trip: {lastPing.latencyMs} ms
                 </Badge>
               ) : (
-                <Badge variant="outline" className="border-yellow-500/30 text-yellow-700 dark:text-yellow-400">
+                <Badge variant="outline" className="border-warning/40/30 text-warning-foreground dark:text-warning-foreground">
                   Aguardando eco…
                 </Badge>
               )}
@@ -334,11 +334,11 @@ export default function DiagnosticoSync() {
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Linhas para este tenant</span>
                 {consistency.rowCount === 1 ? (
-                  <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30">
+                  <Badge className="bg-success/15 text-success dark:text-success border-success/40/30">
                     1 (correto)
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="border-red-500/40 text-red-700 dark:text-red-400">
+                  <Badge variant="outline" className="border-destructive/40/40 text-destructive dark:text-destructive">
                     {consistency.rowCount} — divergência!
                   </Badge>
                 )}
@@ -373,7 +373,7 @@ export default function DiagnosticoSync() {
                       const devOn = consistency.deviceToggles[k];
                       const diverge = dbOn !== devOn;
                       return (
-                        <tr key={k} className={diverge ? 'bg-amber-500/10' : ''}>
+                        <tr key={k} className={diverge ? 'bg-warning/10' : ''}>
                           <td className="py-1 font-mono">{k}</td>
                           <td className="py-1 text-center">{dbOn ? '✓' : '—'}</td>
                           <td className="py-1 text-center">{devOn ? '✓' : '—'}</td>
@@ -390,7 +390,7 @@ export default function DiagnosticoSync() {
                       const devV = consistency.deviceTexts[k];
                       const diverge = dbV !== devV;
                       return (
-                        <tr key={k} className={diverge ? 'bg-amber-500/10' : ''}>
+                        <tr key={k} className={diverge ? 'bg-warning/10' : ''}>
                           <td className="py-1 font-mono w-32">{k}</td>
                           <td className="py-1 truncate max-w-[120px]" title={dbV}>{dbV || '—'}</td>
                           <td className="py-1 truncate max-w-[120px]" title={devV}>{devV || '—'}</td>

@@ -107,10 +107,10 @@ const Clientes = () => {
                   <TableCell>
                     <div className="flex flex-col gap-1 items-start">
                       <div className="flex items-center gap-1.5">
-                        <Star className="h-3.5 w-3.5 text-amber-500" />
-                        <span className="font-semibold text-amber-600 text-xs">{c.loyaltyPoints || 0} pontos</span>
+                        <Star className="h-3.5 w-3.5 text-warning-foreground" />
+                        <span className="font-semibold text-warning-foreground text-xs">{c.loyaltyPoints || 0} pontos</span>
                         {(c.loyaltyPoints || 0) >= 10 && (
-                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] px-1 py-0 h-4">
+                          <Badge className="bg-success/10 text-success hover:bg-success/10 text-[10px] px-1 py-0 h-4">
                             {Math.floor((c.loyaltyPoints || 0) / 10)} resgate(s)
                           </Badge>
                         )}
@@ -156,11 +156,11 @@ const Clientes = () => {
             <div><Label>Observações</Label><Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
             {editing && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
-                <Star className="h-4 w-4 text-amber-500" />
+                <Star className="h-4 w-4 text-warning-foreground" />
                 <span className="text-sm font-medium">Pontos de Fidelidade:</span>
-                <span className="text-sm font-bold text-amber-600">{editing.loyaltyPoints || 0}</span>
+                <span className="text-sm font-bold text-warning-foreground">{editing.loyaltyPoints || 0}</span>
                 {(editing.loyaltyPoints || 0) >= 10 && (
-                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium ml-auto">
+                  <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full font-medium ml-auto">
                     {Math.floor((editing.loyaltyPoints || 0) / 10)} resgate(s) disponível(is)
                   </span>
                 )}

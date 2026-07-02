@@ -39,14 +39,14 @@ interface Metrics {
 /* ─────────── Dashboard Tab ─────────── */
 function DashboardTab({ metrics, loading }: { metrics: Metrics; loading: boolean }) {
   const cards = [
-    { label: 'Tenants Ativos', value: metrics.totalTenants, icon: Store, color: 'text-blue-500' },
-    { label: 'Usuários', value: metrics.totalUsers, icon: Users, color: 'text-green-500' },
-    { label: 'Vendas Totais', value: metrics.totalSales, icon: TrendingUp, color: 'text-orange-500' },
+    { label: 'Tenants Ativos', value: metrics.totalTenants, icon: Store, color: 'text-accent' },
+    { label: 'Usuários', value: metrics.totalUsers, icon: Users, color: 'text-success' },
+    { label: 'Vendas Totais', value: metrics.totalSales, icon: TrendingUp, color: 'text-warning-foreground' },
     {
       label: 'Receita Total',
       value: `R$ ${metrics.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       icon: DollarSign,
-      color: 'text-emerald-500',
+      color: 'text-success',
     },
   ];
 

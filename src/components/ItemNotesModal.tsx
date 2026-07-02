@@ -169,7 +169,7 @@ export function ItemNotesModal({
                 <Button variant="ghost" size="icon" className="h-14 w-14 shrink-0 rounded-full" onClick={onClose}>
                     <ArrowLeft className="h-6 w-6" />
                 </Button>
-                <Button className="flex-1 h-14 rounded-2xl text-lg font-bold bg-[#1e1e1e] hover:bg-black text-white" onClick={handleConfirm}>
+                <Button className="flex-1 h-14 rounded-2xl text-lg font-bold bg-[#1e1e1e] hover:bg-foreground text-primary-foreground" onClick={handleConfirm}>
                     CONFIRMAR
                 </Button>
             </div>

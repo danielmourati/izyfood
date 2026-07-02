@@ -10,7 +10,7 @@ interface CategoryBarProps {
 
 export function CategoryBar({ categories, activeCategoryId, onSelect }: CategoryBarProps) {
   const baseClass =
-    'shrink-0 px-4 py-2.5 rounded-xl text-sm font-heading font-semibold tracking-wide transition-all whitespace-nowrap text-white';
+    'shrink-0 px-4 py-2.5 rounded-xl text-sm font-heading font-semibold tracking-wide transition-all whitespace-nowrap text-primary-foreground';
 
   const getColor = (index: number) => {
     const colors = [
