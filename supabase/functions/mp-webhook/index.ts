@@ -34,29 +34,66 @@ async function verifySignature(req: Request, dataId: string, secret: string): Pr
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  );
+
+  // GET is used for health checks / ping tests from MP dashboard
+  if (req.method === 'GET') {
+    await admin.from('webhook_events').insert({
+      source: 'mercadopago',
+      event_type: 'ping',
+      processed: true,
+      headers: Object.fromEntries(req.headers.entries()),
+    });
+    return new Response(JSON.stringify({ ok: true, service: 'mp-webhook' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const url = new URL(req.url);
+  const bodyText = await req.text();
+  let body: any = {};
+  try { body = bodyText ? JSON.parse(bodyText) : {}; } catch { /* ignore */ }
+
+  const dataId = body?.data?.id || url.searchParams.get('data.id') || url.searchParams.get('id');
+  const type = body?.type || url.searchParams.get('type') || url.searchParams.get('topic');
+
+  console.log('MP webhook', { type, dataId });
+
+  let signatureValid: boolean | null = null;
+  const webhookSecret = Deno.env.get('MP_WEBHOOK_SECRET');
+  if (webhookSecret && dataId) {
+    signatureValid = await verifySignature(req, String(dataId), webhookSecret);
+    if (!signatureValid) console.warn('MP webhook signature invalid (continuing)');
+  }
+
+  // Log event immediately so Super Admin sees connectivity
+  const { data: logRow } = await admin.from('webhook_events').insert({
+    source: 'mercadopago',
+    event_type: type || 'unknown',
+    event_id: dataId ? String(dataId) : null,
+    signature_valid: signatureValid,
+    processed: false,
+    headers: Object.fromEntries(req.headers.entries()),
+    payload: body,
+  }).select().single();
+
+  const markProcessed = async (error?: string) => {
+    if (!logRow) return;
+    await admin.from('webhook_events').update({
+      processed: !error,
+      error: error || null,
+    }).eq('id', logRow.id);
+  };
+
   try {
-    const url = new URL(req.url);
-    const bodyText = await req.text();
-    let body: any = {};
-    try { body = bodyText ? JSON.parse(bodyText) : {}; } catch { /* ignore */ }
-
-    const dataId = body?.data?.id || url.searchParams.get('data.id') || url.searchParams.get('id');
-    const type = body?.type || url.searchParams.get('type') || url.searchParams.get('topic');
-
-    console.log('MP webhook', { type, dataId });
-
-    if (!dataId) return new Response('ok', { headers: corsHeaders });
-
-    const webhookSecret = Deno.env.get('MP_WEBHOOK_SECRET');
-    if (webhookSecret) {
-      const ok = await verifySignature(req, String(dataId), webhookSecret);
-      if (!ok) console.warn('MP webhook signature invalid (continuing)');
-    }
-
-    if (type && type !== 'payment') return new Response('ok', { headers: corsHeaders });
+    if (!dataId) { await markProcessed(); return new Response('ok', { headers: corsHeaders }); }
+    if (type && type !== 'payment') { await markProcessed(); return new Response('ok', { headers: corsHeaders }); }
 
     const mpToken = Deno.env.get('MP_ACCESS_TOKEN');
-    if (!mpToken) return new Response('missing token', { status: 500, headers: corsHeaders });
+    if (!mpToken) { await markProcessed('missing token'); return new Response('missing token', { status: 500, headers: corsHeaders }); }
 
     const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${dataId}`, {
       headers: { 'Authorization': `Bearer ${mpToken}` },
@@ -64,13 +101,9 @@ Deno.serve(async (req) => {
     const payment = await mpRes.json();
     if (!mpRes.ok) {
       console.error('MP fetch failed', payment);
+      await markProcessed('mp fetch failed');
       return new Response('mp fetch failed', { status: 502, headers: corsHeaders });
     }
-
-    const admin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
 
     const { data: intent } = await admin
       .from('payment_intents')
@@ -80,6 +113,7 @@ Deno.serve(async (req) => {
 
     if (!intent) {
       console.warn('No intent found for payment', payment.id);
+      await markProcessed('intent not found');
       return new Response('ok', { headers: corsHeaders });
     }
 
@@ -112,9 +146,11 @@ Deno.serve(async (req) => {
       });
     }
 
+    await markProcessed();
     return new Response('ok', { headers: corsHeaders });
   } catch (e) {
     console.error(e);
+    await markProcessed(String(e));
     return new Response('error', { status: 500, headers: corsHeaders });
   }
 });
