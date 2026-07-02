@@ -5,12 +5,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
-  LayoutDashboard, Building2, Plus, Store, Users, DollarSign, TrendingUp, Loader2
+  LayoutDashboard, Building2, Plus, Store, Users, DollarSign, TrendingUp, Loader2, Pencil, Check, X
 } from 'lucide-react';
 import { SuperAdminUsersTab } from '@/components/SuperAdminUsersTab';
+
+const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const RESERVED_SLUGS = new Set(['login', 'superadmin', 'admin', 'api', 'auth', 'loja-padrao', 'pdv', 'home']);
+
+function validateSlugFormat(slug: string): string | null {
+  if (!slug) return 'Informe um slug';
+  if (slug.length < 3 || slug.length > 40) return 'Slug deve ter entre 3 e 40 caracteres';
+  if (!SLUG_RE.test(slug)) return 'Use apenas letras minúsculas, números e hífens (sem hífens no início/fim)';
+  if (RESERVED_SLUGS.has(slug)) return `"${slug}" é reservado. Escolha outro.`;
+  return null;
+}
 
 type Tab = 'dashboard' | 'tenants' | 'usuarios' | 'criar';
 
