@@ -95,24 +95,14 @@ const Login = () => {
             {tenantLogo ? (
               <img src={tenantLogo} alt={tenantName} className="h-11 object-contain" />
             ) : (
-              <div className="flex items-center gap-2">
-                <div className="h-11 w-11 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-                  <Sparkles className="h-6 w-6 text-primary-foreground" />
-                </div>
-                <span className="font-heading font-extrabold text-2xl tracking-tight text-secondary">
-                  IzyFood
-                </span>
-              </div>
+              <span className="font-heading font-extrabold text-2xl tracking-tight text-secondary">
+                IzyFood
+              </span>
             )}
           </div>
 
           {/* Headline block */}
           <div className="space-y-6 max-w-lg">
-            <div className="inline-flex items-center gap-2 rounded-full border border-secondary/25 bg-secondary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-secondary backdrop-blur-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-login-accent animate-pulse" />
-              Plataforma para food service
-            </div>
-
             <h1 className="font-heading font-extrabold text-4xl xl:text-5xl leading-[1.05] tracking-tight text-secondary">
               Gestão fácil.
               <br />
