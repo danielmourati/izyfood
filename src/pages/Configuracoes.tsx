@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 import { fmt } from '@/lib/utils';
 import {
-  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, Image, Upload, Sparkles
+  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, Image, Upload, CreditCard
 } from 'lucide-react';
 import {
   Select,
@@ -38,7 +38,7 @@ const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: bo
   { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
   { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true },
   { key: 'logs', label: 'Auditoria', icon: FileText, adminOnly: true },
-  { key: 'plano', label: 'Plano', icon: Sparkles, adminOnly: true },
+  { key: 'plano', label: 'Plano', icon: CreditCard, adminOnly: true },
 ];
 
 const roleLabels: Record<AppRole, string> = {
