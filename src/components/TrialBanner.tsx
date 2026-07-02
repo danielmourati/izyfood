@@ -30,7 +30,7 @@ export function TrialBanner() {
 
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border-b border-primary/20 text-xs text-foreground">
-      <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+      <CreditCard className="h-3.5 w-3.5 text-primary shrink-0" />
       <span className="truncate">
         Você está no <strong>Trial</strong> — {daysLeft} {daysLeft === 1 ? 'dia restante' : 'dias restantes'}.
       </span>
