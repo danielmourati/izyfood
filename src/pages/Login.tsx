@@ -96,9 +96,11 @@ const Login = () => {
             {tenantLogo ? (
               <img src={tenantLogo} alt={tenantName} className="h-11 object-contain" />
             ) : (
-              <span className="font-heading font-extrabold text-2xl tracking-tight text-secondary">
-                IzyFood
-              </span>
+              <img
+                src={degustLogoHorizontal.url}
+                alt="Degust"
+                className="h-11 object-contain bg-secondary/95 rounded-lg px-3 py-1.5"
+              />
             )}
           </div>
 
