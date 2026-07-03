@@ -873,7 +873,9 @@ export default function Caixa() {
             <AlertDialogDescription>
               {isAdmin && hasPendingItems ? (
                 <span className="text-destructive font-medium block mb-2">
-                  AVISO: Existem pedidos não finalizados ou mesas abertas!
+                  AVISO: {pendingOrdersCount > 0 && `${pendingOrdersCount} pedido${pendingOrdersCount > 1 ? 's' : ''} em aberto`}
+                  {pendingOrdersCount > 0 && pendingTablesCount > 0 && ' e '}
+                  {pendingTablesCount > 0 && `${pendingTablesCount} mesa${pendingTablesCount > 1 ? 's' : ''} ocupada${pendingTablesCount > 1 ? 's' : ''}`}.
                 </span>
               ) : null}
               Tem certeza que deseja fechar o caixa? Esta ação não pode ser desfeita.
