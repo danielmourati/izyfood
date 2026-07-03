@@ -1,77 +1,102 @@
-## Anexo 1 — Fechar Caixa: aviso apenas quando há pendências reais
+# Plano de implementação
 
-**Problema:** o AVISO ("Existem pedidos não finalizados ou mesas abertas") aparece mesmo quando o caixa está limpo, porque `checkPendingBeforeClose` considera qualquer registro em `orders` com status `aberto`/`segurado` — incluindo carrinhos-fantasma criados no PDV que nunca foram finalizados (Balcão zerado, delivery abortado) e mesas com `status='occupied'` desatualizado.
+Quatro entregas relacionadas ao fluxo de impressão em `/configuracoes → Impressora`.
 
-**Ajustes em `src/pages/Caixa.tsx`:**
+## 1. Modal "Como instalar QZ Tray em 3 passos"
 
-1. Filtrar explicitamente por `tenant_id` do usuário nas duas consultas (defense in depth além do RLS).
-2. Ignorar pedidos vazios: adicionar `.gt('total', 0)` **ou** somente contar pedidos com itens registrados no período do caixa atual (`created_at >= currentRegister.openedAt`). Isso descarta carrinhos zumbis e evita falso positivo do PDV Balcão.
-3. Para `store_tables`, manter `status='occupied'` mas cruzar com a existência de pelo menos um pedido `mesa` em aberto no mesmo tenant — se a mesa está "occupied" sem pedido correspondente, é lixo residual e não deve disparar o aviso (fica um log de warning para diagnóstico).
-4. Enriquecer o texto do AlertDialog para mostrar a contagem real: "AVISO: 2 pedido(s) em aberto e 1 mesa ocupada." — deixa claro para o operador. Sem contagem = sem aviso.
-5. Garantir `setHasPendingItems(false)` no início do check (reseta estado antes de decidir), evitando resquício de um clique anterior.
+Substituir o link externo do botão **Como instalar** (hoje aponta para `qz.io/download`) por um `Dialog` que replica o mockup enviado.
 
-Resultado: quando não houver pedido válido nem mesa realmente ocupada com pedido, o modal abre limpo, apenas com "Tem certeza que deseja fechar o caixa?".
+Arquivo: `src/components/ImpressoraTab.tsx`
 
----
+- Novo estado `showInstallModal`.
+- Botão "Como instalar" abre o modal em vez de navegar.
+- Conteúdo do modal:
+  1. **Instale o QZ Tray** — botão externo `qz.io/download` (link oficial).
+  2. **Baixe e rode o configurador Menuzin (Windows)** — botão laranja `menuzin-qz-setup.bat` que dispara download do `.bat` gerado (item 2 abaixo). Texto de apoio explicando "Executar como administrador" e o aviso do SmartScreen.
+  3. **Volte aqui e clique em Testar de novo** — texto informativo.
+- Bloco recolhível "Não estou no Windows ou preciso do cert.pem" com botão para baixar o `cert.pem` (item 3 abaixo).
+- Rodapé: botão **Fechar** + botão primário **Testar de novo** que chama `handleTestQzConnection()` e mantém o modal aberto mostrando o feedback (`qzFeedback`).
+- Manter o card de "Configurar confiança permanente (Windows)" atual mas apontar o botão de instalador para o mesmo modal (fonte única de verdade).
 
-## Anexo 2 — Nova UI de Impressora de Cupom
+## 2. Gerador do `menuzin-qz-setup.bat`
 
-Substitui a `ImpressoraTab` atual pelo layout do mockup, mantendo integração com QZ Tray / Bluetooth já existentes em `src/lib/printer.ts`.
+O `.bat` precisa: (a) copiar o `cert.pem` do tenant para a pasta do QZ Tray, (b) registrar como override, (c) reiniciar o serviço, para que o QZ Tray confie automaticamente nas requisições assinadas por Degust — sem popup por máquina.
 
-### Estrutura visual
+Estratégia: gerar o arquivo **no cliente** (sem função edge) a partir de um template embutido, para incluir o nome do tenant e o `cert.pem` correspondente inline.
 
-**Card 1 — Status do QZ Tray** (destaque)
-- Badge de status ("Cert: <nome-do-tenant>" quando conectado, "Não detectado" caso contrário).
-- Botão **Como instalar** (abre `https://qz.io/download/` em nova aba).
-- Botão **Detectar** (chama `retryQzConnection`).
-- Botão **Teste de conexão** (imprime um recibo curto via QZ).
-- Accordion **Ajuda & solução de problemas** com passos comuns (porta 8181 bloqueada, firewall, reiniciar o QZ).
-- Bloco **Configurar confiança permanente (Windows)** — badge "Cert próprio: <tenant>", passos 1-2-3 e botão **Baixar instalador** apontando para o download oficial do QZ Tray (`https://qz.io/download/`).
-- Link colapsável **Instalação manual (avançado / macOS / Linux)** com botão **Baixar cert.pem** apontando para a página oficial de certificados do QZ.
+Arquivos novos:
+- `src/lib/qz-installer.ts`
+  - `buildMenuzinBat({ tenantName, certPem }): string` — devolve o conteúdo do `.bat`.
+  - `downloadMenuzinBat(tenantName, certPem)` — cria `Blob` `application/bat`, dispara download com nome `menuzin-qz-setup.bat`.
+  - `downloadCertPem(tenantName, certPem)` — idem para `cert.pem`.
 
-**Card 2 — Impressora** (formulário inline, não mais em Dialog)
-- Nome da impressora (`name`)
-- **Modelo** (novo campo texto, default "ESC/POS compatível") — coluna `model`
-- **Tipo de conexão** (select): `QZ Tray — Impressão local (recomendado)`, `Bluetooth`, `Rede (IP)`
-- **Perfil ESC/POS** (novo select) — coluna `escpos_profile`: `Genérico ESC/POS`, `Epson TM`, `Bematech MP`, `Elgin i9`, `Custom`
-- Endereço / seletor de impressora do sistema (mantém lógica atual)
-- Largura do papel (58/80)
-- Impressora padrão (switch)
-- **Conectar automaticamente ao QZ Tray ao logar** (novo switch) — coluna `auto_connect_qz`
+Conteúdo do `.bat` (resumo do template):
 
-**Card 3 — Bluetooth** (colapsado por padrão, para casos móveis)
-- Mantém o card atual de pareamento BT como fallback avançado.
+```text
+@echo off
+REM Menuzin/Degust — configurador QZ Tray para {TENANT}
+net session >nul 2>&1 || (echo Execute como administrador & pause & exit /b 1)
+set QZDIR=%ProgramFiles%\QZ Tray
+if not exist "%QZDIR%" set QZDIR=%ProgramFiles(x86)%\QZ Tray
+> "%TEMP%\degust-cert.pem" (
+{CERT_LINES_ESCAPED}
+)
+copy /Y "%TEMP%\degust-cert.pem" "%QZDIR%\auth\override.crt" >nul
+net stop "QZ Tray" >nul 2>&1
+net start "QZ Tray" >nul 2>&1
+echo Pronto! Volte ao Degust e clique em Testar de novo.
+pause
+```
 
-**Card 4 — Impressoras configuradas** (lista atual, sem mudança funcional).
+Placeholders substituídos em runtime; `{CERT_LINES_ESCAPED}` = cada linha do PEM emitida como `echo <linha>>>"%TEMP%\degust-cert.pem"` (evita here-doc, seguro para caracteres normais do base64).
 
-**Card 5 — Imprimir teste** (mantido).
+## 3. `cert.pem` do tenant
 
-### Migração de banco (`printer_configs`)
+Para o QZ Tray reconhecer as mensagens sem popup, precisamos de um certificado auto-assinado por tenant. Não é gerado no cliente (precisa de chave privada persistida).
 
-Adicionar colunas opcionais:
-- `model text` default `'ESC/POS compatível'`
-- `escpos_profile text` default `'generic'`
-- `auto_connect_qz boolean` default `false`
+Opção adotada: **gerar via Edge Function** e persistir em uma nova tabela, retornando apenas o `cert.pem` público para o front.
 
-RLS existente permanece; grants já cobrem `authenticated` + `service_role`.
+Backend (migration + edge function):
+- Nova tabela `public.qz_tray_certs`
+  - Colunas: `tenant_id uuid unique`, `cert_pem text`, `private_key_pem text`, `created_at`, `updated_at`.
+  - GRANT: só `service_role` (nada para `authenticated`/`anon`). O front lê o PEM via edge function.
+  - RLS: enabled, sem policies (bloqueio total via PostgREST).
+- Edge Function `qz-cert`:
+  - `GET` (ou action `get`): retorna `cert_pem` do tenant do JWT; se não existir, gera par RSA 2048 + certificado X.509 auto-assinado (CN = nome do tenant, validade 10 anos) usando `node-forge` via esm.sh, salva e retorna.
+  - Somente usuários autenticados; tenant vem do `user_metadata`/`get_user_tenant_id` chamado com service role.
 
-### Auto-connect ao logar
+Frontend:
+- `src/lib/qz-installer.ts` expõe `fetchTenantCertPem()` que chama a função.
+- No modal: ao clicar em `menuzin-qz-setup.bat` ou `Baixar cert.pem`, busca o PEM (com cache em memória), depois dispara o download correspondente.
+- Estado `certLoading`/`certError` no modal com feedback via `Alert` (sem toast).
 
-Novo efeito no `AuthContext` (ou hook `useAutoPrinter`): ao autenticar, buscar a impressora padrão do tenant; se `auto_connect_qz=true`, chamar `initQzTray()` silenciosamente.
+## 4. Impressoras adicionais (cozinha, balcão, bar)
 
----
+Habilitar múltiplas impressoras já configuráveis; gate por plano conforme mockup.
+
+Arquivos:
+- `src/components/ImpressoraTab.tsx`
+  - Novo card **Impressoras adicionais (cozinha, balcão, bar)** abaixo do card de impressoras configuradas.
+  - Se o tenant estiver no plano Start (checar `storeSettings.plan`/`user.plan`), renderizar o bloco de upsell do mockup (ícone, título com cadeado, descrição, botão "Conhecer o Plano Pro" que navega para `/{slug}/configuracoes?tab=plano`).
+  - Se estiver em Pro, renderizar lista das impressoras adicionais com botão "Adicionar impressora de setor" reaproveitando o formulário existente com um campo extra **Setor** (`recibo | cozinha | bar | balcao`).
+- `src/hooks/use-printer.ts`
+  - Adicionar campo `sector` em `PrinterConfig` e helpers `getPrinterForSector(sector)` (fallback para default).
+- Migration: adicionar coluna `sector text not null default 'recibo'` em `printer_configs` (`check` para os 4 valores).
+- Consumidores existentes (impressão de comanda/cozinha) permanecem inalterados nesta entrega — apenas o CRUD e o gate. A roteirização por setor será plugada em uma próxima iteração para não sair do escopo de UI/configuração.
 
 ## Detalhes técnicos
 
-- **Arquivos alterados:**
-  - `src/pages/Caixa.tsx` — nova lógica de `checkPendingBeforeClose` + contagens no AlertDialog.
-  - `src/components/ImpressoraTab.tsx` — rewrite com nova estrutura de cards.
-  - `src/hooks/use-printer.ts` — expor `printers` com os novos campos + helper `printTestConnection()`.
-  - `src/contexts/AuthContext.tsx` — auto-connect QZ no login se configurado.
-  - Nova migração para `printer_configs` (3 colunas).
-- **Sem toasts novos** (respeita regra do projeto): feedback via badges, Alerts inline e estado nos botões.
-- **Sem alteração** em `src/lib/printer.ts` — API já suficiente.
+- Sem novos toasts — feedback via `Alert`/`Badge` (regra do projeto).
+- Downloads usam `URL.createObjectURL` + `<a download>`; nada é persistido no repo.
+- `node-forge` na edge function via `import forge from "npm:node-forge@1"`.
+- Nenhuma edição em `src/integrations/supabase/client.ts`/`types.ts` manual — o codegen roda após a migration.
+- Regenerar tipos depende de migrations aprovadas; `printer_configs.sector` é opcional em toda leitura com fallback `'recibo'`.
 
-## Fora de escopo
-- Não altera o fluxo de emissão de comandas/contas nem `escpos.ts`.
-- Não muda a lógica de fechamento em si (`doClose`), apenas a pré-checagem e o texto do aviso.
+## Arquivos afetados
+
+- edit `src/components/ImpressoraTab.tsx`
+- edit `src/hooks/use-printer.ts`
+- new  `src/lib/qz-installer.ts`
+- new  `supabase/functions/qz-cert/index.ts`
+- edit `supabase/config.toml` (registrar função `qz-cert`, verify_jwt = true)
+- new migration: cria `qz_tray_certs`, adiciona `printer_configs.sector`.
