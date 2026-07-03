@@ -294,10 +294,8 @@ export function ImpressoraTab() {
               </Badge>
             </CardTitle>
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5" asChild>
-            <a href={QZ_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-              <HelpCircle className="h-4 w-4" /> Como instalar
-            </a>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
+            <HelpCircle className="h-4 w-4" /> Como instalar
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
