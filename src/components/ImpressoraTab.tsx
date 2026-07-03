@@ -346,10 +346,8 @@ export function ImpressoraTab() {
                     <li>Volte aqui e clique em <strong>Detectar</strong>. O prompt não deve mais aparecer.</li>
                   </ol>
                 </div>
-                <Button size="sm" className="gap-1.5" asChild>
-                  <a href={QZ_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-                    <Download className="h-4 w-4" /> Baixar instalador
-                  </a>
+                <Button size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
+                  <Download className="h-4 w-4" /> Ver passo a passo
                 </Button>
               </div>
             </div>
