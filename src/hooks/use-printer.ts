@@ -107,6 +107,9 @@ export interface PrinterConfig {
   address: string;
   paper_width: number;
   is_default: boolean;
+  model?: string;
+  escpos_profile?: string;
+  auto_connect_qz?: boolean;
 }
 
 export function usePrinter() {
@@ -143,9 +146,12 @@ export function usePrinter() {
 
   useEffect(() => {
     const initConnections = async () => {
-      // Try QZ
-      const qzReady = await initQzTray();
-      setQzConnected(qzReady);
+      // QZ auto-connect only if a default printer opted in (or no printers configured yet)
+      const shouldAutoQz = printers.length === 0 || printers.some(p => p.is_default && p.auto_connect_qz);
+      if (shouldAutoQz) {
+        const qzReady = await initQzTray();
+        setQzConnected(qzReady);
+      }
 
       // Inicia loop de auto-reconexão (idempotente)
       startBluetoothAutoReconnect();
@@ -172,7 +178,7 @@ export function usePrinter() {
     if (Object.keys(printSettings).length > 0 && (printSettings as any).storeName !== undefined) {
       (window as any).__printSettingsCache = printSettings;
     }
-  }, [user?.tenantId, printSettings]);
+  }, [user?.tenantId, printSettings, printers]);
 
   useEffect(() => {
     const handleBtConnected = (e: any) => {
