@@ -65,7 +65,7 @@ export function buildDegustBat(opts: { tenantName: string; certPem: string }): s
     ')',
     '',
     'if not exist "%QZDIR%\\auth" mkdir "%QZDIR%\\auth"',
-    'set "CERTFILE=%QZDIR%\\auth\\override.crt"',
+    'set "CERTFILE=%QZDIR%\\override.crt"',
     'if exist "%CERTFILE%" del /F /Q "%CERTFILE%"',
     '',
     ...lines,
