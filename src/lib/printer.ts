@@ -353,14 +353,47 @@ export async function printViaBluetooth(data: Uint8Array): Promise<void> {
 // ---- QZ Tray Integration ----
 
 let _qzConnected = false;
+let _qzSecurityConfigured = false;
+
+async function configureQzSecurity() {
+  if (_qzSecurityConfigured) return;
+  _qzSecurityConfigured = true;
+  try {
+    const { fetchTenantCertPem } = await import('./qz-installer');
+    const { supabase } = await import('@/integrations/supabase/client');
+
+    qz.security.setCertificatePromise((resolve: any, reject: any) => {
+      fetchTenantCertPem()
+        .then(({ pem }) => resolve(pem))
+        .catch(reject);
+    });
+
+    qz.security.setSignatureAlgorithm('SHA512');
+    qz.security.setSignaturePromise((toSign: string) => (resolve: any, reject: any) => {
+      supabase.functions
+        .invoke('qz-sign', { body: { request: toSign } })
+        .then(({ data, error }) => {
+          if (error) return reject(error);
+          const sig = (data as any)?.signature;
+          if (!sig) return reject(new Error('Assinatura ausente na resposta.'));
+          resolve(sig);
+        })
+        .catch(reject);
+    });
+  } catch (e) {
+    console.warn('Falha ao configurar assinatura QZ:', e);
+    _qzSecurityConfigured = false;
+  }
+}
 
 /**
  * Check if QZ Tray is available and connect.
  */
 export async function initQzTray(): Promise<boolean> {
   if (_qzConnected && qz.websocket.isActive()) return true;
-  
+
   try {
+    await configureQzSecurity();
     if (!qz.websocket.isActive()) {
       await qz.websocket.connect({ host: 'localhost', retries: 2, delay: 1 });
     }
