@@ -552,30 +552,39 @@ export type Database = {
       printer_configs: {
         Row: {
           address: string
+          auto_connect_qz: boolean
           connection_type: string
           created_at: string
+          escpos_profile: string
           id: string
           is_default: boolean
+          model: string
           name: string
           paper_width: number
           tenant_id: string
         }
         Insert: {
           address?: string
+          auto_connect_qz?: boolean
           connection_type: string
           created_at?: string
+          escpos_profile?: string
           id?: string
           is_default?: boolean
+          model?: string
           name: string
           paper_width?: number
           tenant_id?: string
         }
         Update: {
           address?: string
+          auto_connect_qz?: boolean
           connection_type?: string
           created_at?: string
+          escpos_profile?: string
           id?: string
           is_default?: boolean
+          model?: string
           name?: string
           paper_width?: number
           tenant_id?: string
