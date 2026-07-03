@@ -1,23 +1,26 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   Printer, Plus, Trash2, Bluetooth, Wifi, TestTube, Loader2, Monitor,
   Download, HelpCircle, PlugZap, CheckCircle2, ShieldCheck, FileDown,
+  ExternalLink, Lock, Sparkles, ChefHat,
 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { usePrinter, type PrinterConfig } from '@/hooks/use-printer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getQzPrinters } from '@/lib/printer';
+import { fetchTenantCertPem, downloadMenuzinBat, downloadCertPem } from '@/lib/qz-installer';
 
 const QZ_DOWNLOAD_URL = 'https://qz.io/download/';
 const QZ_CERT_URL = 'https://qz.io/wiki/2.0-signing-messages';
@@ -28,6 +31,13 @@ const ESCPOS_PROFILES: { value: string; label: string }[] = [
   { value: 'bematech_mp', label: 'Bematech MP Series' },
   { value: 'elgin_i9', label: 'Elgin i9' },
   { value: 'custom', label: 'Personalizado' },
+];
+
+const SECTORS: { value: 'recibo' | 'cozinha' | 'bar' | 'balcao'; label: string }[] = [
+  { value: 'recibo', label: 'Recibo (padrão)' },
+  { value: 'cozinha', label: 'Cozinha' },
+  { value: 'bar', label: 'Bar' },
+  { value: 'balcao', label: 'Balcão' },
 ];
 
 type Feedback = { type: 'success' | 'error' | 'info'; message: string } | null;
@@ -53,6 +63,7 @@ export function ImpressoraTab() {
     paper_width: 80,
     is_default: false,
     auto_connect_qz: true,
+    sector: 'recibo' as 'recibo' | 'cozinha' | 'bar' | 'balcao',
   });
   const [saving, setSaving] = useState(false);
   const [pairing, setPairing] = useState(false);
@@ -64,6 +75,45 @@ export function ImpressoraTab() {
   const [formFeedback, setFormFeedback] = useState<Feedback>(null);
   const [testFeedback, setTestFeedback] = useState<Feedback>(null);
   const [qzPrintersList, setQzPrintersList] = useState<string[]>([]);
+
+  // Install modal
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const [certLoading, setCertLoading] = useState(false);
+  const [certError, setCertError] = useState<string | null>(null);
+
+  // Tenant plan (for Pro-gated additional printers)
+  const [isPro, setIsPro] = useState(false);
+  const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user?.tenantId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('tenant_plans' as any)
+        .select('plan, status')
+        .eq('tenant_id', user.tenantId)
+        .maybeSingle();
+      const row = data as any;
+      setIsPro(!!row && row.plan !== 'trial' && row.status === 'active');
+    })();
+  }, [user?.tenantId]);
+
+  const withCert = async (fn: (pem: string, tenantName: string) => void) => {
+    setCertError(null);
+    setCertLoading(true);
+    try {
+      const { pem, tenantName } = await fetchTenantCertPem(user?.tenantId);
+      fn(pem, tenantName);
+    } catch (e: any) {
+      setCertError(e?.message || 'Falha ao obter certificado.');
+    } finally {
+      setCertLoading(false);
+    }
+  };
+
+  const handleDownloadBat = () => withCert((pem, name) => downloadMenuzinBat(name, pem));
+  const handleDownloadCert = () => withCert((pem) => downloadCertPem(pem));
 
   const isDesktop = React.useMemo(
     () => !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
@@ -79,10 +129,15 @@ export function ImpressoraTab() {
   const resetForm = () => {
     setForm({
       name: '', model: 'ESC/POS compatível', connection_type: 'system', escpos_profile: 'generic',
-      address: '', paper_width: 80, is_default: false, auto_connect_qz: true,
+      address: '', paper_width: 80, is_default: false, auto_connect_qz: true, sector: 'recibo',
     });
     setFormFeedback(null);
     setShowForm(false);
+  };
+
+  const openAddForm = (sector: 'recibo' | 'cozinha' | 'bar' | 'balcao' = 'recibo') => {
+    setForm(f => ({ ...f, sector }));
+    setShowForm(true);
   };
 
   const handleSave = async () => {
@@ -107,6 +162,7 @@ export function ImpressoraTab() {
         address: form.connection_type === 'system' ? `SYSTEM:${form.address.trim() || 'BROWSER'}` : (form.address.trim() || ''),
         paper_width: form.paper_width,
         is_default: form.is_default,
+        sector: form.sector,
         tenant_id: user.tenantId,
       };
 
@@ -238,10 +294,8 @@ export function ImpressoraTab() {
               </Badge>
             </CardTitle>
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5" asChild>
-            <a href={QZ_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-              <HelpCircle className="h-4 w-4" /> Como instalar
-            </a>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
+            <HelpCircle className="h-4 w-4" /> Como instalar
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -292,10 +346,8 @@ export function ImpressoraTab() {
                     <li>Volte aqui e clique em <strong>Detectar</strong>. O prompt não deve mais aparecer.</li>
                   </ol>
                 </div>
-                <Button size="sm" className="gap-1.5" asChild>
-                  <a href={QZ_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-                    <Download className="h-4 w-4" /> Baixar instalador
-                  </a>
+                <Button size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
+                  <Download className="h-4 w-4" /> Ver passo a passo
                 </Button>
               </div>
             </div>
@@ -307,12 +359,18 @@ export function ImpressoraTab() {
                 Instalação manual (avançado / macOS / Linux)
               </AccordionTrigger>
               <AccordionContent className="pt-2 space-y-2 text-sm text-muted-foreground">
-                <p>Para plataformas não-Windows ou instalação manual do certificado, baixe o cert.pem e siga a documentação oficial.</p>
-                <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                  <a href={QZ_CERT_URL} target="_blank" rel="noreferrer">
-                    <FileDown className="h-4 w-4" /> Baixar cert.pem
-                  </a>
-                </Button>
+                <p>Para plataformas não-Windows ou instalação manual do certificado, baixe o cert.pem e siga a documentação oficial do QZ Tray.</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadCert} disabled={certLoading}>
+                    {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Baixar cert.pem
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-1.5" asChild>
+                    <a href={QZ_CERT_URL} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4" /> Documentação oficial
+                    </a>
+                  </Button>
+                </div>
+                {certError && <p className="text-xs text-destructive">{certError}</p>}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
@@ -430,6 +488,66 @@ export function ImpressoraTab() {
         </CardContent>
       </Card>
 
+      {/* Card 5 — Impressoras adicionais (cozinha, balcão, bar) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ChefHat className="h-5 w-5" /> Impressoras adicionais (cozinha, balcão, bar)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!isPro ? (
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 flex items-start gap-3 flex-wrap">
+              <div className="rounded-full bg-warning/20 p-2 flex-shrink-0">
+                <Sparkles className="h-5 w-5 text-warning" />
+              </div>
+              <div className="flex-1 min-w-[220px] space-y-2">
+                <p className="font-semibold text-sm flex items-center gap-1.5">
+                  <Lock className="h-4 w-4" /> Múltiplas impressoras no Plano Pro
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Configure impressoras dedicadas para cozinha, bar e balcão no Plano Pro. No Plano Start a impressora principal de recibo continua disponível normalmente.
+                </p>
+                <Button size="sm" onClick={() => navigate(`/${slug}/configuracoes?tab=plano`)}>
+                  Conhecer o Plano Pro
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {SECTORS.filter(s => s.value !== 'recibo').map(s => {
+                const sectorPrinters = printers.filter((p: any) => (p.sector || 'recibo') === s.value);
+                return (
+                  <div key={s.value} className="border rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold">{s.label}</p>
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => openAddForm(s.value)}>
+                        <Plus className="h-3.5 w-3.5" /> Adicionar
+                      </Button>
+                    </div>
+                    {sectorPrinters.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Nenhuma impressora configurada para este setor.</p>
+                    ) : (
+                      <ul className="text-sm space-y-1">
+                        {sectorPrinters.map((p: any) => (
+                          <li key={p.id} className="flex items-center justify-between">
+                            <span>{p.name} <span className="text-xs text-muted-foreground">· {p.model || 'ESC/POS'}</span></span>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(p.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
       {/* Add printer dialog */}
       <Dialog open={showForm} onOpenChange={v => !v && resetForm()}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -505,15 +623,34 @@ export function ImpressoraTab() {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label>Largura do Papel</Label>
-              <Select value={String(form.paper_width)} onValueChange={v => setForm(f => ({ ...f, paper_width: parseInt(v) }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="58">58mm</SelectItem>
-                  <SelectItem value="80">80mm</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Largura do Papel</Label>
+                <Select value={String(form.paper_width)} onValueChange={v => setForm(f => ({ ...f, paper_width: parseInt(v) }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="58">58mm</SelectItem>
+                    <SelectItem value="80">80mm</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Setor</Label>
+                <Select
+                  value={form.sector}
+                  onValueChange={v => setForm(f => ({ ...f, sector: v as any }))}
+                  disabled={!isPro && form.sector === 'recibo'}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SECTORS.map(s => (
+                      <SelectItem key={s.value} value={s.value} disabled={!isPro && s.value !== 'recibo'}>
+                        {s.label}{!isPro && s.value !== 'recibo' ? ' (Pro)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="flex items-center justify-between border rounded-lg p-3">
@@ -539,6 +676,93 @@ export function ImpressoraTab() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Install QZ Tray modal */}
+      <Dialog open={showInstallModal} onOpenChange={setShowInstallModal}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Configurar QZ Tray em 3 passos</DialogTitle>
+            <DialogDescription>
+              Faça uma vez por máquina. Depois disso, a impressão acontece direto, sem pop-up de autorização.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ol className="space-y-4 mt-2">
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">1</span>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium">Instale o QZ Tray</p>
+                <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                  <a href={QZ_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4" /> qz.io/download
+                  </a>
+                </Button>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">2</span>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium">Baixe e rode o configurador Menuzin (Windows)</p>
+                <Button size="sm" className="gap-1.5" onClick={handleDownloadBat} disabled={certLoading}>
+                  {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  menuzin-qz-setup.bat
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Clique direito → <strong>Executar como administrador</strong>. Ele já instala e confia no certificado para você.
+                  Se aparecer o SmartScreen azul, clique em <em>Mais informações</em> → <em>Executar assim mesmo</em>.
+                </p>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">3</span>
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-medium">Volte aqui e clique em <em>Testar de novo</em></p>
+                <p className="text-xs text-muted-foreground">Se ficar verde sem pop-up, está pronto para imprimir cupons direto.</p>
+              </div>
+            </li>
+          </ol>
+
+          <Accordion type="single" collapsible className="mt-2">
+            <AccordionItem value="other" className="border-0">
+              <AccordionTrigger className="text-sm py-2 hover:no-underline">
+                Não estou no Windows ou preciso do cert.pem
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Baixe o certificado da sua loja e siga a documentação oficial do QZ Tray para instalação manual em macOS/Linux.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadCert} disabled={certLoading}>
+                    {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Baixar cert.pem
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-1.5" asChild>
+                    <a href={QZ_CERT_URL} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4" /> Documentação
+                    </a>
+                  </Button>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
+          {certError && (
+            <Alert className="border-destructive/40 bg-destructive/10">
+              <AlertDescription className="text-sm text-destructive">{certError}</AlertDescription>
+            </Alert>
+          )}
+          {qzFeedback && renderFeedback(qzFeedback)}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowInstallModal(false)}>Fechar</Button>
+            <Button className="gap-1.5" onClick={handleTestQzConnection} disabled={testingQz}>
+              {testingQz ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Testar de novo
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

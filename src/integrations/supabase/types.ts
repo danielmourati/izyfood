@@ -561,6 +561,7 @@ export type Database = {
           model: string
           name: string
           paper_width: number
+          sector: string
           tenant_id: string
         }
         Insert: {
@@ -574,6 +575,7 @@ export type Database = {
           model?: string
           name: string
           paper_width?: number
+          sector?: string
           tenant_id?: string
         }
         Update: {
@@ -587,6 +589,7 @@ export type Database = {
           model?: string
           name?: string
           paper_width?: number
+          sector?: string
           tenant_id?: string
         }
         Relationships: [
@@ -732,6 +735,33 @@ export type Database = {
           id?: string
           name?: string
           phone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      qz_tray_certs: {
+        Row: {
+          cert_pem: string
+          created_at: string
+          id: string
+          private_key_pem: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          cert_pem: string
+          created_at?: string
+          id?: string
+          private_key_pem: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          cert_pem?: string
+          created_at?: string
+          id?: string
+          private_key_pem?: string
+          tenant_id?: string
           updated_at?: string
         }
         Relationships: []
