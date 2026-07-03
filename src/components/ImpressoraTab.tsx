@@ -1,23 +1,26 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   Printer, Plus, Trash2, Bluetooth, Wifi, TestTube, Loader2, Monitor,
   Download, HelpCircle, PlugZap, CheckCircle2, ShieldCheck, FileDown,
+  ExternalLink, Lock, Sparkles, ChefHat,
 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { usePrinter, type PrinterConfig } from '@/hooks/use-printer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getQzPrinters } from '@/lib/printer';
+import { fetchTenantCertPem, downloadMenuzinBat, downloadCertPem } from '@/lib/qz-installer';
 
 const QZ_DOWNLOAD_URL = 'https://qz.io/download/';
 const QZ_CERT_URL = 'https://qz.io/wiki/2.0-signing-messages';
@@ -28,6 +31,13 @@ const ESCPOS_PROFILES: { value: string; label: string }[] = [
   { value: 'bematech_mp', label: 'Bematech MP Series' },
   { value: 'elgin_i9', label: 'Elgin i9' },
   { value: 'custom', label: 'Personalizado' },
+];
+
+const SECTORS: { value: 'recibo' | 'cozinha' | 'bar' | 'balcao'; label: string }[] = [
+  { value: 'recibo', label: 'Recibo (padrão)' },
+  { value: 'cozinha', label: 'Cozinha' },
+  { value: 'bar', label: 'Bar' },
+  { value: 'balcao', label: 'Balcão' },
 ];
 
 type Feedback = { type: 'success' | 'error' | 'info'; message: string } | null;
