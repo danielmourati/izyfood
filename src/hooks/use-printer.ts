@@ -107,6 +107,9 @@ export interface PrinterConfig {
   address: string;
   paper_width: number;
   is_default: boolean;
+  model?: string;
+  escpos_profile?: string;
+  auto_connect_qz?: boolean;
 }
 
 export function usePrinter() {
