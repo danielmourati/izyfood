@@ -678,6 +678,93 @@ export function ImpressoraTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Install QZ Tray modal */}
+      <Dialog open={showInstallModal} onOpenChange={setShowInstallModal}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Configurar QZ Tray em 3 passos</DialogTitle>
+            <DialogDescription>
+              Faça uma vez por máquina. Depois disso, a impressão acontece direto, sem pop-up de autorização.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ol className="space-y-4 mt-2">
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">1</span>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium">Instale o QZ Tray</p>
+                <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                  <a href={QZ_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4" /> qz.io/download
+                  </a>
+                </Button>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">2</span>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium">Baixe e rode o configurador Menuzin (Windows)</p>
+                <Button size="sm" className="gap-1.5" onClick={handleDownloadBat} disabled={certLoading}>
+                  {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  menuzin-qz-setup.bat
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Clique direito → <strong>Executar como administrador</strong>. Ele já instala e confia no certificado para você.
+                  Se aparecer o SmartScreen azul, clique em <em>Mais informações</em> → <em>Executar assim mesmo</em>.
+                </p>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">3</span>
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-medium">Volte aqui e clique em <em>Testar de novo</em></p>
+                <p className="text-xs text-muted-foreground">Se ficar verde sem pop-up, está pronto para imprimir cupons direto.</p>
+              </div>
+            </li>
+          </ol>
+
+          <Accordion type="single" collapsible className="mt-2">
+            <AccordionItem value="other" className="border-0">
+              <AccordionTrigger className="text-sm py-2 hover:no-underline">
+                Não estou no Windows ou preciso do cert.pem
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Baixe o certificado da sua loja e siga a documentação oficial do QZ Tray para instalação manual em macOS/Linux.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadCert} disabled={certLoading}>
+                    {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Baixar cert.pem
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-1.5" asChild>
+                    <a href={QZ_CERT_URL} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4" /> Documentação
+                    </a>
+                  </Button>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
+          {certError && (
+            <Alert className="border-destructive/40 bg-destructive/10">
+              <AlertDescription className="text-sm text-destructive">{certError}</AlertDescription>
+            </Alert>
+          )}
+          {qzFeedback && renderFeedback(qzFeedback)}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowInstallModal(false)}>Fechar</Button>
+            <Button className="gap-1.5" onClick={handleTestQzConnection} disabled={testingQz}>
+              {testingQz ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Testar de novo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
