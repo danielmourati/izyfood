@@ -488,6 +488,66 @@ export function ImpressoraTab() {
         </CardContent>
       </Card>
 
+      {/* Card 5 — Impressoras adicionais (cozinha, balcão, bar) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ChefHat className="h-5 w-5" /> Impressoras adicionais (cozinha, balcão, bar)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!isPro ? (
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 flex items-start gap-3 flex-wrap">
+              <div className="rounded-full bg-warning/20 p-2 flex-shrink-0">
+                <Sparkles className="h-5 w-5 text-warning" />
+              </div>
+              <div className="flex-1 min-w-[220px] space-y-2">
+                <p className="font-semibold text-sm flex items-center gap-1.5">
+                  <Lock className="h-4 w-4" /> Múltiplas impressoras no Plano Pro
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Configure impressoras dedicadas para cozinha, bar e balcão no Plano Pro. No Plano Start a impressora principal de recibo continua disponível normalmente.
+                </p>
+                <Button size="sm" onClick={() => navigate(`/${slug}/configuracoes?tab=plano`)}>
+                  Conhecer o Plano Pro
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {SECTORS.filter(s => s.value !== 'recibo').map(s => {
+                const sectorPrinters = printers.filter((p: any) => (p.sector || 'recibo') === s.value);
+                return (
+                  <div key={s.value} className="border rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold">{s.label}</p>
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => openAddForm(s.value)}>
+                        <Plus className="h-3.5 w-3.5" /> Adicionar
+                      </Button>
+                    </div>
+                    {sectorPrinters.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Nenhuma impressora configurada para este setor.</p>
+                    ) : (
+                      <ul className="text-sm space-y-1">
+                        {sectorPrinters.map((p: any) => (
+                          <li key={p.id} className="flex items-center justify-between">
+                            <span>{p.name} <span className="text-xs text-muted-foreground">· {p.model || 'ESC/POS'}</span></span>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(p.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
       {/* Add printer dialog */}
       <Dialog open={showForm} onOpenChange={v => !v && resetForm()}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
