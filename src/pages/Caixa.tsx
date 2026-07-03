@@ -184,7 +184,7 @@ export default function Caixa() {
     // Só considera pedidos com valor > 0 (ignora carrinhos-fantasma do PDV Balcão)
     let ordersQuery = supabase
       .from('orders')
-      .select('id, order_type, status, total', { count: 'exact', head: false })
+      .select('id, order_type, status, total, table_number', { count: 'exact', head: false })
       .in('status', ['aberto', 'segurado'])
       .gt('total', 0);
     if (tenantId) ordersQuery = ordersQuery.eq('tenant_id', tenantId);
