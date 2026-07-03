@@ -110,6 +110,7 @@ export interface PrinterConfig {
   model?: string;
   escpos_profile?: string;
   auto_connect_qz?: boolean;
+  sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao';
 }
 
 export function usePrinter() {
