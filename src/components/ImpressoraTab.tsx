@@ -90,10 +90,15 @@ export function ImpressoraTab() {
   const resetForm = () => {
     setForm({
       name: '', model: 'ESC/POS compatível', connection_type: 'system', escpos_profile: 'generic',
-      address: '', paper_width: 80, is_default: false, auto_connect_qz: true,
+      address: '', paper_width: 80, is_default: false, auto_connect_qz: true, sector: 'recibo',
     });
     setFormFeedback(null);
     setShowForm(false);
+  };
+
+  const openAddForm = (sector: 'recibo' | 'cozinha' | 'bar' | 'balcao' = 'recibo') => {
+    setForm(f => ({ ...f, sector }));
+    setShowForm(true);
   };
 
   const handleSave = async () => {
