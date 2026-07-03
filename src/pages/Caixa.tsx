@@ -174,21 +174,52 @@ export default function Caixa() {
   }
 
   async function checkPendingBeforeClose() {
-    // Query the database directly for accurate state
-    const { data: openOrders } = await supabase
+    // Reseta o estado antes de decidir
+    setHasPendingItems(false);
+    setPendingOrdersCount(0);
+    setPendingTablesCount(0);
+
+    const tenantId = user?.tenantId;
+
+    // Só considera pedidos com valor > 0 (ignora carrinhos-fantasma do PDV Balcão)
+    let ordersQuery = supabase
       .from('orders')
-      .select('id')
+      .select('id, order_type, status, total', { count: 'exact', head: false })
       .in('status', ['aberto', 'segurado'])
-      .limit(1);
+      .gt('total', 0);
+    if (tenantId) ordersQuery = ordersQuery.eq('tenant_id', tenantId);
+    const { data: openOrders } = await ordersQuery;
 
-    const { data: occupiedTables } = await supabase
+    // Mesas ocupadas — cruzadas com a existência de um pedido 'mesa' aberto
+    let tablesQuery = supabase
       .from('store_tables')
-      .select('id')
-      .eq('status', 'occupied')
-      .limit(1);
+      .select('id, number')
+      .eq('status', 'occupied');
+    if (tenantId) tablesQuery = tablesQuery.eq('tenant_id', tenantId);
+    const { data: occupiedTables } = await tablesQuery;
 
-    const hasPending = (openOrders && openOrders.length > 0) || (occupiedTables && occupiedTables.length > 0);
+    const openMesaNumbers = new Set(
+      (openOrders || [])
+        .filter((o: any) => o.order_type === 'mesa')
+        .map((o: any) => Number((o as any).table_number))
+        .filter((n: number) => !isNaN(n))
+    );
+    const realOccupiedTables = (occupiedTables || []).filter((t: any) =>
+      openMesaNumbers.size === 0 ? true : openMesaNumbers.has(Number(t.number))
+    );
+    // Se há mesa 'occupied' sem pedido correspondente, é lixo residual — loga mas não bloqueia
+    const ghostTables = (occupiedTables || []).length - realOccupiedTables.length;
+    if (ghostTables > 0) {
+      console.warn(`[caixa] ${ghostTables} mesa(s) marcadas como ocupadas sem pedido em aberto — ignorando na checagem de fechamento.`);
+    }
+
+    const ordersCount = (openOrders || []).length;
+    const tablesCount = realOccupiedTables.length;
+    const hasPending = ordersCount > 0 || tablesCount > 0;
+
     setHasPendingItems(hasPending);
+    setPendingOrdersCount(ordersCount);
+    setPendingTablesCount(tablesCount);
 
     if (hasPending) {
       if (isAdmin) {
