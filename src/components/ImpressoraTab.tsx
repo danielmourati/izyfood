@@ -563,15 +563,34 @@ export function ImpressoraTab() {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label>Largura do Papel</Label>
-              <Select value={String(form.paper_width)} onValueChange={v => setForm(f => ({ ...f, paper_width: parseInt(v) }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="58">58mm</SelectItem>
-                  <SelectItem value="80">80mm</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Largura do Papel</Label>
+                <Select value={String(form.paper_width)} onValueChange={v => setForm(f => ({ ...f, paper_width: parseInt(v) }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="58">58mm</SelectItem>
+                    <SelectItem value="80">80mm</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Setor</Label>
+                <Select
+                  value={form.sector}
+                  onValueChange={v => setForm(f => ({ ...f, sector: v as any }))}
+                  disabled={!isPro && form.sector === 'recibo'}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SECTORS.map(s => (
+                      <SelectItem key={s.value} value={s.value} disabled={!isPro && s.value !== 'recibo'}>
+                        {s.label}{!isPro && s.value !== 'recibo' ? ' (Pro)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="flex items-center justify-between border rounded-lg p-3">
