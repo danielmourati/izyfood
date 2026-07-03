@@ -69,6 +69,8 @@ export default function Caixa() {
   const [movementAuthChecking, setMovementAuthChecking] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [hasPendingItems, setHasPendingItems] = useState(false);
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const [pendingTablesCount, setPendingTablesCount] = useState(0);
   
   // History filters
   const [historyUsers, setHistoryUsers] = useState<{id: string, name: string}[]>([]);
