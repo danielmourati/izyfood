@@ -63,6 +63,7 @@ export function ImpressoraTab() {
     paper_width: 80,
     is_default: false,
     auto_connect_qz: true,
+    sector: 'recibo' as 'recibo' | 'cozinha' | 'bar' | 'balcao',
   });
   const [saving, setSaving] = useState(false);
   const [pairing, setPairing] = useState(false);
