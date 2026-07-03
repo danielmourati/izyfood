@@ -76,6 +76,45 @@ export function ImpressoraTab() {
   const [testFeedback, setTestFeedback] = useState<Feedback>(null);
   const [qzPrintersList, setQzPrintersList] = useState<string[]>([]);
 
+  // Install modal
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const [certLoading, setCertLoading] = useState(false);
+  const [certError, setCertError] = useState<string | null>(null);
+
+  // Tenant plan (for Pro-gated additional printers)
+  const [isPro, setIsPro] = useState(false);
+  const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user?.tenantId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('tenant_plans' as any)
+        .select('plan, status')
+        .eq('tenant_id', user.tenantId)
+        .maybeSingle();
+      const row = data as any;
+      setIsPro(!!row && row.plan !== 'trial' && row.status === 'active');
+    })();
+  }, [user?.tenantId]);
+
+  const withCert = async (fn: (pem: string, tenantName: string) => void) => {
+    setCertError(null);
+    setCertLoading(true);
+    try {
+      const { pem, tenantName } = await fetchTenantCertPem(user?.tenantId);
+      fn(pem, tenantName);
+    } catch (e: any) {
+      setCertError(e?.message || 'Falha ao obter certificado.');
+    } finally {
+      setCertLoading(false);
+    }
+  };
+
+  const handleDownloadBat = () => withCert((pem, name) => downloadMenuzinBat(name, pem));
+  const handleDownloadCert = () => withCert((pem) => downloadCertPem(pem));
+
   const isDesktop = React.useMemo(
     () => !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
     []
