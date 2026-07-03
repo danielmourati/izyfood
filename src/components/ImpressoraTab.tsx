@@ -20,7 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getQzPrinters } from '@/lib/printer';
-import { fetchTenantCertPem, downloadMenuzinBat, downloadCertPem } from '@/lib/qz-installer';
+import { fetchTenantCertPem, downloadDegustBat, downloadCertPem } from '@/lib/qz-installer';
 
 const QZ_DOWNLOAD_URL = 'https://qz.io/download/';
 const QZ_CERT_URL = 'https://qz.io/wiki/2.0-signing-messages';
@@ -112,7 +112,7 @@ export function ImpressoraTab() {
     }
   };
 
-  const handleDownloadBat = () => withCert((pem, name) => downloadMenuzinBat(name, pem));
+  const handleDownloadBat = () => withCert((pem, name) => downloadDegustBat(name, pem));
   const handleDownloadCert = () => withCert((pem) => downloadCertPem(pem));
 
   const isDesktop = React.useMemo(
@@ -705,10 +705,10 @@ export function ImpressoraTab() {
             <li className="flex gap-3">
               <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">2</span>
               <div className="flex-1 space-y-2">
-                <p className="text-sm font-medium">Baixe e rode o configurador Menuzin (Windows)</p>
+                <p className="text-sm font-medium">Baixe e rode o configurador Degust (Windows)</p>
                 <Button size="sm" className="gap-1.5" onClick={handleDownloadBat} disabled={certLoading}>
                   {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  menuzin-qz-setup.bat
+                  degust-qz-setup.bat
                 </Button>
                 <p className="text-xs text-muted-foreground">
                   Clique direito → <strong>Executar como administrador</strong>. Ele já instala e confia no certificado para você.

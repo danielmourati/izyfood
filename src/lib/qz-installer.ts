@@ -33,7 +33,7 @@ function escapeBatLine(line: string): string {
     .replace(/%/g, '%%');
 }
 
-export function buildMenuzinBat(opts: { tenantName: string; certPem: string }): string {
+export function buildDegustBat(opts: { tenantName: string; certPem: string }): string {
   const { tenantName, certPem } = opts;
   const lines = certPem
     .replace(/\r/g, '')
@@ -44,8 +44,8 @@ export function buildMenuzinBat(opts: { tenantName: string; certPem: string }): 
   return [
     '@echo off',
     'setlocal',
-    `REM Menuzin/Degust - configurador QZ Tray para ${tenantName}`,
-    'title Menuzin QZ Setup',
+    `REM Degust - configurador QZ Tray para ${tenantName}`,
+    'title Degust QZ Setup',
     '',
     'net session >nul 2>&1',
     'if %errorlevel% neq 0 (',
@@ -100,9 +100,9 @@ function triggerDownload(filename: string, content: string, mime: string) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function downloadMenuzinBat(tenantName: string, certPem: string) {
-  const bat = buildMenuzinBat({ tenantName, certPem });
-  triggerDownload('menuzin-qz-setup.bat', bat, 'application/bat');
+export function downloadDegustBat(tenantName: string, certPem: string) {
+  const bat = buildDegustBat({ tenantName, certPem });
+  triggerDownload('degust-qz-setup.bat', bat, 'application/bat');
 }
 
 export function downloadCertPem(certPem: string) {
