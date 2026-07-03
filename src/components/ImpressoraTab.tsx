@@ -359,12 +359,18 @@ export function ImpressoraTab() {
                 Instalação manual (avançado / macOS / Linux)
               </AccordionTrigger>
               <AccordionContent className="pt-2 space-y-2 text-sm text-muted-foreground">
-                <p>Para plataformas não-Windows ou instalação manual do certificado, baixe o cert.pem e siga a documentação oficial.</p>
-                <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                  <a href={QZ_CERT_URL} target="_blank" rel="noreferrer">
-                    <FileDown className="h-4 w-4" /> Baixar cert.pem
-                  </a>
-                </Button>
+                <p>Para plataformas não-Windows ou instalação manual do certificado, baixe o cert.pem e siga a documentação oficial do QZ Tray.</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadCert} disabled={certLoading}>
+                    {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Baixar cert.pem
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-1.5" asChild>
+                    <a href={QZ_CERT_URL} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4" /> Documentação oficial
+                    </a>
+                  </Button>
+                </div>
+                {certError && <p className="text-xs text-destructive">{certError}</p>}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
