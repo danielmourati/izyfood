@@ -123,6 +123,7 @@ export function ImpressoraTab() {
         address: form.connection_type === 'system' ? `SYSTEM:${form.address.trim() || 'BROWSER'}` : (form.address.trim() || ''),
         paper_width: form.paper_width,
         is_default: form.is_default,
+        sector: form.sector,
         tenant_id: user.tenantId,
       };
 
