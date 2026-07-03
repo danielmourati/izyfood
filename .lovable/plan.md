@@ -1,102 +1,80 @@
-# Plano de implementação
+# Fechar o fluxo de instalação do QZ Tray por tenant
 
-Quatro entregas relacionadas ao fluxo de impressão em `/configuracoes → Impressora`.
+## Problema
 
-## 1. Modal "Como instalar QZ Tray em 3 passos"
+Hoje geramos `cert.pem` + `private_key_pem` no banco (tabela `qz_tray_certs`) e o `.bat` copia o cert para o QZ Tray. Mas:
 
-Substituir o link externo do botão **Como instalar** (hoje aponta para `qz.io/download`) por um `Dialog` que replica o mockup enviado.
+1. **O cliente nunca assina as mensagens** — `src/lib/printer.ts` chama `qz.websocket.connect` sem `setCertificatePromise` nem `setSignaturePromise`. Sem assinatura, o QZ Tray trata a página como "Untrusted website" e mostra o pop-up de autorização (exatamente o mockup do anexo), mesmo com o cert instalado.
+2. **O `.bat` grava no caminho errado.** Ele escreve em `%QZDIR%\auth\override.crt`. O QZ Tray 2.1+ lê `%ProgramFiles%\QZ Tray\override.crt` (raiz do install dir), não a subpasta `auth`.
+3. **Não há endpoint de assinatura.** A chave privada precisa ficar no servidor — o front envia o nonce, o servidor devolve a assinatura SHA-512.
 
-Arquivo: `src/components/ImpressoraTab.tsx`
+Sem 1+2+3, o admin baixa os arquivos mas o pop-up continua aparecendo — o fluxo prometido no modal ("sem pop-up de autorização") não se cumpre.
 
-- Novo estado `showInstallModal`.
-- Botão "Como instalar" abre o modal em vez de navegar.
-- Conteúdo do modal:
-  1. **Instale o QZ Tray** — botão externo `qz.io/download` (link oficial).
-  2. **Baixe e rode o configurador Menuzin (Windows)** — botão laranja `menuzin-qz-setup.bat` que dispara download do `.bat` gerado (item 2 abaixo). Texto de apoio explicando "Executar como administrador" e o aviso do SmartScreen.
-  3. **Volte aqui e clique em Testar de novo** — texto informativo.
-- Bloco recolhível "Não estou no Windows ou preciso do cert.pem" com botão para baixar o `cert.pem` (item 3 abaixo).
-- Rodapé: botão **Fechar** + botão primário **Testar de novo** que chama `handleTestQzConnection()` e mantém o modal aberto mostrando o feedback (`qzFeedback`).
-- Manter o card de "Configurar confiança permanente (Windows)" atual mas apontar o botão de instalador para o mesmo modal (fonte única de verdade).
+## Escopo
 
-## 2. Gerador do `menuzin-qz-setup.bat`
+Nada muda em UI/UX visível fora do modal. Apenas fecha o loop técnico.
 
-O `.bat` precisa: (a) copiar o `cert.pem` do tenant para a pasta do QZ Tray, (b) registrar como override, (c) reiniciar o serviço, para que o QZ Tray confie automaticamente nas requisições assinadas por Degust — sem popup por máquina.
+## 1. Edge Function `qz-sign` (nova)
 
-Estratégia: gerar o arquivo **no cliente** (sem função edge) a partir de um template embutido, para incluir o nome do tenant e o `cert.pem` correspondente inline.
+`supabase/functions/qz-sign/index.ts`
 
-Arquivos novos:
-- `src/lib/qz-installer.ts`
-  - `buildMenuzinBat({ tenantName, certPem }): string` — devolve o conteúdo do `.bat`.
-  - `downloadMenuzinBat(tenantName, certPem)` — cria `Blob` `application/bat`, dispara download com nome `menuzin-qz-setup.bat`.
-  - `downloadCertPem(tenantName, certPem)` — idem para `cert.pem`.
+- `POST { request: string }` autenticado (JWT do tenant).
+- Busca `private_key_pem` de `qz_tray_certs` pelo tenant do usuário (mesma resolução usada em `qz-cert`).
+- Assina `request` com RSA-SHA512 usando `node-forge` e devolve `{ signature: base64 }`.
+- Retorna 404 se ainda não houver cert (força o front a chamar `qz-cert` antes).
+- `verify_jwt = true` (default). Sem CORS extra além do padrão já usado em `qz-cert`.
 
-Conteúdo do `.bat` (resumo do template):
+## 2. Wiring de segurança no cliente
 
-```text
-@echo off
-REM Menuzin/Degust — configurador QZ Tray para {TENANT}
-net session >nul 2>&1 || (echo Execute como administrador & pause & exit /b 1)
-set QZDIR=%ProgramFiles%\QZ Tray
-if not exist "%QZDIR%" set QZDIR=%ProgramFiles(x86)%\QZ Tray
-> "%TEMP%\degust-cert.pem" (
-{CERT_LINES_ESCAPED}
-)
-copy /Y "%TEMP%\degust-cert.pem" "%QZDIR%\auth\override.crt" >nul
-net stop "QZ Tray" >nul 2>&1
-net start "QZ Tray" >nul 2>&1
-echo Pronto! Volte ao Degust e clique em Testar de novo.
-pause
-```
+`src/lib/printer.ts`
 
-Placeholders substituídos em runtime; `{CERT_LINES_ESCAPED}` = cada linha do PEM emitida como `echo <linha>>>"%TEMP%\degust-cert.pem"` (evita here-doc, seguro para caracteres normais do base64).
+- Antes de `qz.websocket.connect`, uma única vez por sessão:
+  - `qz.security.setCertificatePromise((resolve, reject) => fetchTenantCertPem().then(({pem}) => resolve(pem)).catch(reject))`
+  - `qz.api.setSha256Type(...)` não é necessário; usar default SHA-512.
+  - `qz.security.setSignatureAlgorithm('SHA512')`
+  - `qz.security.setSignaturePromise(toSign => (resolve, reject) => supabase.functions.invoke('qz-sign', { body: { request: toSign }}).then(r => resolve(r.data.signature)).catch(reject))`
+- Novo helper `configureQzSecurity()` chamado do `ensureQzConnected()` antes do `connect`. Idempotente via flag de módulo.
+- Import dinâmico do `fetchTenantCertPem` (já existe em `src/lib/qz-installer.ts`) para evitar ciclo.
 
-## 3. `cert.pem` do tenant
+## 3. Corrigir o caminho do `.bat`
 
-Para o QZ Tray reconhecer as mensagens sem popup, precisamos de um certificado auto-assinado por tenant. Não é gerado no cliente (precisa de chave privada persistida).
+`src/lib/qz-installer.ts` — função `buildDegustBat`:
 
-Opção adotada: **gerar via Edge Function** e persistir em uma nova tabela, retornando apenas o `cert.pem` público para o front.
+- Trocar `set "CERTFILE=%QZDIR%\auth\override.crt"` por `set "CERTFILE=%QZDIR%\override.crt"`.
+- Remover o `mkdir "%QZDIR%\auth"`.
+- Adicionar comentário no cabeçalho do `.bat` explicando qual arquivo é gerado.
+- Manter o restante (elevação, stop/start do serviço, mensagem final).
 
-Backend (migration + edge function):
-- Nova tabela `public.qz_tray_certs`
-  - Colunas: `tenant_id uuid unique`, `cert_pem text`, `private_key_pem text`, `created_at`, `updated_at`.
-  - GRANT: só `service_role` (nada para `authenticated`/`anon`). O front lê o PEM via edge function.
-  - RLS: enabled, sem policies (bloqueio total via PostgREST).
-- Edge Function `qz-cert`:
-  - `GET` (ou action `get`): retorna `cert_pem` do tenant do JWT; se não existir, gera par RSA 2048 + certificado X.509 auto-assinado (CN = nome do tenant, validade 10 anos) usando `node-forge` via esm.sh, salva e retorna.
-  - Somente usuários autenticados; tenant vem do `user_metadata`/`get_user_tenant_id` chamado com service role.
+Efeito: o QZ Tray passa a reconhecer o cert como override permanente e, combinado com a assinatura do passo 2, deixa de mostrar o pop-up.
 
-Frontend:
-- `src/lib/qz-installer.ts` expõe `fetchTenantCertPem()` que chama a função.
-- No modal: ao clicar em `menuzin-qz-setup.bat` ou `Baixar cert.pem`, busca o PEM (com cache em memória), depois dispara o download correspondente.
-- Estado `certLoading`/`certError` no modal com feedback via `Alert` (sem toast).
+## 4. Persistência — sem novos arquivos no banco
 
-## 4. Impressoras adicionais (cozinha, balcão, bar)
+A tabela `qz_tray_certs(tenant_id, cert_pem, private_key_pem)` já cobre o que precisamos:
 
-Habilitar múltiplas impressoras já configuráveis; gate por plano conforme mockup.
+- `cert_pem` é servido pela função `qz-cert` (existente) para o `.bat` e para `setCertificatePromise`.
+- `private_key_pem` fica confinado ao servidor e é usado apenas pela nova `qz-sign`.
+- Sem migração nova.
 
-Arquivos:
-- `src/components/ImpressoraTab.tsx`
-  - Novo card **Impressoras adicionais (cozinha, balcão, bar)** abaixo do card de impressoras configuradas.
-  - Se o tenant estiver no plano Start (checar `storeSettings.plan`/`user.plan`), renderizar o bloco de upsell do mockup (ícone, título com cadeado, descrição, botão "Conhecer o Plano Pro" que navega para `/{slug}/configuracoes?tab=plano`).
-  - Se estiver em Pro, renderizar lista das impressoras adicionais com botão "Adicionar impressora de setor" reaproveitando o formulário existente com um campo extra **Setor** (`recibo | cozinha | bar | balcao`).
-- `src/hooks/use-printer.ts`
-  - Adicionar campo `sector` em `PrinterConfig` e helpers `getPrinterForSector(sector)` (fallback para default).
-- Migration: adicionar coluna `sector text not null default 'recibo'` em `printer_configs` (`check` para os 4 valores).
-- Consumidores existentes (impressão de comanda/cozinha) permanecem inalterados nesta entrega — apenas o CRUD e o gate. A roteirização por setor será plugada em uma próxima iteração para não sair do escopo de UI/configuração.
+## 5. Verificação
 
-## Detalhes técnicos
+Após o merge, no ambiente do admin:
 
-- Sem novos toasts — feedback via `Alert`/`Badge` (regra do projeto).
-- Downloads usam `URL.createObjectURL` + `<a download>`; nada é persistido no repo.
-- `node-forge` na edge function via `import forge from "npm:node-forge@1"`.
-- Nenhuma edição em `src/integrations/supabase/client.ts`/`types.ts` manual — o codegen roda após a migration.
-- Regenerar tipos depende de migrations aprovadas; `printer_configs.sector` é opcional em toda leitura com fallback `'recibo'`.
+1. Abrir `/configuracoes → Impressora → Como instalar`.
+2. Baixar `.bat`, rodar como admin no Windows com QZ Tray instalado.
+3. Voltar e clicar em "Testar de novo" → deve ficar verde **sem** o pop-up "Action Required".
+4. `Imprimir Teste` envia direto para a impressora selecionada.
 
 ## Arquivos afetados
 
-- edit `src/components/ImpressoraTab.tsx`
-- edit `src/hooks/use-printer.ts`
-- new  `src/lib/qz-installer.ts`
-- new  `supabase/functions/qz-cert/index.ts`
-- edit `supabase/config.toml` (registrar função `qz-cert`, verify_jwt = true)
-- new migration: cria `qz_tray_certs`, adiciona `printer_configs.sector`.
+- new  `supabase/functions/qz-sign/index.ts`
+- edit `supabase/config.toml` (registrar `qz-sign`)
+- edit `src/lib/printer.ts` (wiring de assinatura)
+- edit `src/lib/qz-installer.ts` (corrigir path do override.crt)
+
+## Detalhes técnicos
+
+- QZ Tray usa `override.crt` na raiz do install dir para pular a etapa de confiança; assinatura RSA-SHA512 é o default do `qz-tray` JS a partir de 2.1.
+- `node-forge`: `forge.pki.privateKeyFromPem(pem).sign(md)` com `forge.md.sha512.create()`, resultado em `forge.util.encode64`.
+- `supabase.functions.invoke` já envia JWT do usuário — a função reutiliza a resolução de `tenant_id` de `qz-cert`.
+- Nenhuma dependência nova no front (`qz-tray` já instalado).
+- Sem alteração em `client.ts`/`types.ts`.
