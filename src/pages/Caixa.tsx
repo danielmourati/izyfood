@@ -201,7 +201,7 @@ export default function Caixa() {
     const openMesaNumbers = new Set(
       (openOrders || [])
         .filter((o: any) => o.order_type === 'mesa')
-        .map((o: any) => Number((o as any).table_number))
+        .map((o: any) => Number(o.table_number))
         .filter((n: number) => !isNaN(n))
     );
     const realOccupiedTables = (occupiedTables || []).filter((t: any) =>
