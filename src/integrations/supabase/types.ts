@@ -1208,7 +1208,12 @@ export type Database = {
         | "pronto"
       order_type: "balcao" | "mesa" | "delivery" | "retirada"
       payment_method: "pix" | "cartao" | "fiado" | "dinheiro"
-      plan_status: "active" | "expired" | "canceled" | "pending_payment"
+      plan_status:
+        | "active"
+        | "expired"
+        | "canceled"
+        | "pending_payment"
+        | "suspended"
       plan_type: "trial" | "pro_monthly" | "pro_yearly"
       product_type: "unit" | "weight"
       table_status: "available" | "occupied"
@@ -1355,7 +1360,13 @@ export const Constants = {
       order_status: ["aberto", "segurado", "finalizado", "cancelado", "pronto"],
       order_type: ["balcao", "mesa", "delivery", "retirada"],
       payment_method: ["pix", "cartao", "fiado", "dinheiro"],
-      plan_status: ["active", "expired", "canceled", "pending_payment"],
+      plan_status: [
+        "active",
+        "expired",
+        "canceled",
+        "pending_payment",
+        "suspended",
+      ],
       plan_type: ["trial", "pro_monthly", "pro_yearly"],
       product_type: ["unit", "weight"],
       table_status: ["available", "occupied"],
