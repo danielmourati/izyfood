@@ -18,6 +18,8 @@ import {
   getLastPairedDeviceName,
   forgetBluetoothDevice,
   ensureBluetoothConnected,
+  getBluetoothPriorityDefault,
+  setBluetoothPriorityDefault,
 } from '@/lib/printer';
 import {
   buildOrderReceipt,
