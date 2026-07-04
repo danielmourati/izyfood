@@ -479,19 +479,20 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasAnyHeader = hasStoreName || hasAddress || hasDocument || hasWhatsapp;
 
   if (hasAnyHeader) {
+    parts.push(CMD_ALIGN_LEFT);
     if (hasStoreName) {
-      parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName!.trim().toUpperCase()}\n`), CMD_BOLD_OFF);
+      parts.push(CMD_BOLD_ON, center(ps.storeName!.trim().toUpperCase(), cols), CMD_BOLD_OFF);
     }
     if (hasAddress) {
-      parts.push(CMD_ALIGN_CENTER, text(`${ps.address}\n`));
+      parts.push(center(ps.address!, cols));
     }
     if (hasDocument) {
-      parts.push(CMD_ALIGN_CENTER, text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
+      parts.push(center(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}`, cols));
     }
     if (hasWhatsapp) {
-      parts.push(CMD_ALIGN_CENTER, text(`WhatsApp: ${ps.whatsapp}\n`));
+      parts.push(center(`WhatsApp: ${ps.whatsapp}`, cols));
     }
-    parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
+    parts.push(lineOf('-', cols));
   }
 
   // Print "CONTA"
