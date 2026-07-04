@@ -1164,52 +1164,73 @@ function PermissoesTab() {
           {users.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">Nenhum atendente cadastrado.</p>
           )}
-          {users.map(u => (
-            <div key={u.id} className="border rounded-lg p-4 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="font-medium text-foreground">{u.name}</p>
-                  <p className="text-xs text-muted-foreground">{u.email}</p>
-                </div>
-                <div className="flex gap-1 flex-wrap">
-                  <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => toggleAll(u.id, true)}>
-                    Marcar todos
-                  </Button>
-                  <Button size="sm" variant="ghost" className="text-xs h-8" onClick={() => toggleAll(u.id, false)}>
-                    Desmarcar
-                  </Button>
-                  {users.length > 1 && (
-                    <Button size="sm" variant="outline" className="text-xs h-8 gap-1" onClick={() => openCopyModal(u.id)}>
-                      <Users className="h-3.5 w-3.5" /> Copiar para outros…
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {permissionGroups.map(group => (
-                  <div key={group.key} className="border rounded-md p-3 bg-muted/30 space-y-2">
-                    <div className="flex items-center gap-2 pb-1 border-b border-border/50">
-                      <group.icon className="h-4 w-4 text-primary" />
-                      <span className="text-xs font-semibold text-foreground uppercase tracking-wide">{group.label}</span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {group.items.map(key => (
-                        <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <Switch
-                            checked={permissions[u.id]?.[key] ?? false}
-                            onCheckedChange={() => togglePermission(u.id, key)}
-                            disabled={saving === u.id}
-                          />
-                          <span className="text-foreground text-xs sm:text-sm">{permissionLabels[key]}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {users.length > 0 && (
+            <div className="space-y-2 max-w-md">
+              <Label className="text-sm">Atendente</Label>
+              <Select value={selectedUserId ?? undefined} onValueChange={(v) => setSelectedUserId(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um atendente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map(u => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name} — <span className="text-muted-foreground">{u.email}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ))}
+          )}
+          {selectedUserId && (() => {
+            const u = users.find(x => x.id === selectedUserId);
+            if (!u) return null;
+            return (
+              <div className="border rounded-lg p-4 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-foreground">{u.name}</p>
+                    <p className="text-xs text-muted-foreground">{u.email}</p>
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => toggleAll(u.id, true)}>
+                      Marcar todos
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-xs h-8" onClick={() => toggleAll(u.id, false)}>
+                      Desmarcar
+                    </Button>
+                    {users.length > 1 && (
+                      <Button size="sm" variant="outline" className="text-xs h-8 gap-1" onClick={() => openCopyModal(u.id)}>
+                        <Users className="h-3.5 w-3.5" /> Copiar para outros…
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {permissionGroups.map(group => (
+                    <div key={group.key} className="border rounded-md p-3 bg-muted/30 space-y-2">
+                      <div className="flex items-center gap-2 pb-1 border-b border-border/50">
+                        <group.icon className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-semibold text-foreground uppercase tracking-wide">{group.label}</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {group.items.map(key => (
+                          <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
+                            <Switch
+                              checked={permissions[u.id]?.[key] ?? false}
+                              onCheckedChange={() => togglePermission(u.id, key)}
+                              disabled={saving === u.id}
+                            />
+                            <span className="text-foreground text-xs sm:text-sm">{permissionLabels[key]}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 
