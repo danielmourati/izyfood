@@ -38,8 +38,8 @@ const orderTypeLabels: Record<string, string> = {
 };
 
 function colsForWidth(paperWidth: number): number {
-  // 58mm safe useful width = 30 cols (32 total − ~1 char margin each side)
-  return paperWidth <= 58 ? 30 : 48;
+  // Safe useful width: 58mm=30 (32-margin), 80mm=44 (48-margin)
+  return paperWidth <= 58 ? 30 : 44;
 }
 
 function priceZone(cols: number): number {
