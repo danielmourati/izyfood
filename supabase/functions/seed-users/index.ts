@@ -7,61 +7,58 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
 
-    const users = [
-      { email: "admin@carnauba.com", password: "123456", name: "Proprietário", role: "admin" },
-      { email: "atendente@carnauba.com", password: "123456", name: "Atendente", role: "atendente" },
+    const seeds = [
+      { email: "admin@carnauba.com", password: "123456", name: "Proprietário", role: "admin", tenant_slug: null },
+      { email: "atendente@carnauba.com", password: "123456", name: "Atendente", role: "atendente", tenant_slug: null },
+      { email: "fabiano@gmail.com", password: "xofome@123", name: "Fabiano", role: "admin", tenant_slug: "xofome" },
     ];
 
-    const results = [];
+    const results: any[] = [];
+    const { data: existingUsers } = await supabase.auth.admin.listUsers();
 
-    for (const u of users) {
-      // Check if user already exists
-      const { data: existingUsers } = await supabase.auth.admin.listUsers();
+    for (const u of seeds) {
       const existing = existingUsers?.users?.find((eu: any) => eu.email === u.email);
-      
+      let userId: string | null = null;
+
       if (existing) {
-        // Ensure role exists
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("id")
-          .eq("user_id", existing.id)
-          .single();
-        
-        if (!roleData) {
-          await supabase.from("user_roles").insert({ user_id: existing.id, role: u.role });
+        userId = existing.id;
+        // Always update password to keep seed idempotent
+        await supabase.auth.admin.updateUser(userId, { password: u.password });
+        results.push({ email: u.email, status: "updated_password", id: userId });
+      } else {
+        const { data, error } = await supabase.auth.admin.createUser({
+          email: u.email, password: u.password, email_confirm: true,
+          user_metadata: { name: u.name },
+        });
+        if (error) { results.push({ email: u.email, status: "error", error: error.message }); continue; }
+        userId = data.user!.id;
+        results.push({ email: u.email, status: "created", id: userId });
+      }
+
+      // Ensure role
+      await supabase.from("user_roles").upsert({ user_id: userId, role: u.role }, { onConflict: "user_id,role" });
+
+      // Ensure profile
+      await supabase.from("profiles").upsert({ id: userId, name: u.name, email: u.email }, { onConflict: "id" });
+
+      // Ensure tenant membership when slug provided
+      if (u.tenant_slug) {
+        const { data: t } = await supabase.from("tenants").select("id").eq("slug", u.tenant_slug).maybeSingle();
+        if (t?.id) {
+          await supabase.from("tenant_members").upsert(
+            { user_id: userId, tenant_id: t.id, role: u.role },
+            { onConflict: "user_id,tenant_id" }
+          );
         }
-        results.push({ email: u.email, status: "already exists", id: existing.id });
-        continue;
-      }
-
-      // Create user
-      const { data, error } = await supabase.auth.admin.createUser({
-        email: u.email,
-        password: u.password,
-        email_confirm: true,
-        user_metadata: { name: u.name },
-      });
-
-      if (error) {
-        results.push({ email: u.email, status: "error", error: error.message });
-        continue;
-      }
-
-      // Assign role
-      if (data.user) {
-        await supabase.from("user_roles").insert({ user_id: data.user.id, role: u.role });
-        results.push({ email: u.email, status: "created", id: data.user.id });
       }
     }
 
@@ -70,8 +67,7 @@ serve(async (req) => {
     });
   } catch (error) {
     return new Response(JSON.stringify({ success: false, error: String(error) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
