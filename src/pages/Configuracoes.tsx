@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -49,9 +50,25 @@ const roleLabels: Record<AppRole, string> = {
 };
 
 const Configuracoes = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('perfil');
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isAdmin } = useAuth();
   const tabs = allTabs.filter(t => !t.adminOnly || isAdmin);
+  const validKeys = allTabs.map(t => t.key);
+  const paramTab = searchParams.get('tab') as Tab | null;
+  const initialTab: Tab = paramTab && validKeys.includes(paramTab) ? paramTab : 'perfil';
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+
+  useEffect(() => {
+    if (paramTab && validKeys.includes(paramTab) && paramTab !== activeTab) {
+      setActiveTab(paramTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramTab]);
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab }, { replace: true });
+  };
 
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
@@ -63,7 +80,7 @@ const Configuracoes = () => {
             key={t.key}
             variant={activeTab === t.key ? 'default' : 'outline'}
             className="gap-2 shrink-0"
-            onClick={() => setActiveTab(t.key)}
+            onClick={() => handleTabChange(t.key)}
           >
             <t.icon className="h-4 w-4" />
             {t.label}
