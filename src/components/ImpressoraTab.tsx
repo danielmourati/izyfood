@@ -426,6 +426,20 @@ export function ImpressoraTab() {
                   )}
                 </div>
                 {renderFeedback(pairFeedback)}
+
+                <div className="flex items-start justify-between gap-3 border rounded-lg p-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground">Usar esta impressora como padrão neste aparelho</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Envia todas as impressões para esta impressora Bluetooth, ignorando outras impressoras configuradas.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={btPriorityDefault}
+                    onCheckedChange={toggleBluetoothPriorityDefault}
+                    disabled={!lastPairedName && !btConnected}
+                  />
+                </div>
               </>
             )}
           </AccordionContent>
