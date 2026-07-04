@@ -94,9 +94,9 @@ const Login = () => {
           {/* Brand */}
           <div className="flex items-center gap-3">
             <img
-              src={degustLogoHorizontal.url}
+              src={degustLogoWhite.url}
               alt="Degust - Sistema de Gestão para Restaurantes"
-              className="h-11 object-contain bg-secondary/95 rounded-lg px-3 py-1.5"
+              className="h-12 object-contain"
             />
           </div>
 
