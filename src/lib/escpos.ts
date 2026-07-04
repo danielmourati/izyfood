@@ -603,16 +603,15 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
 
   if (hasFooter) {
-    parts.push(CMD_ALIGN_CENTER);
-    if (footerPixKey) parts.push(text(`PIX: ${ps.pixKey}\n`));
+    parts.push(CMD_ALIGN_LEFT);
+    if (footerPixKey) parts.push(center(`PIX: ${ps.pixKey}`, cols));
     if (footerInstagram) {
       const cleanInsta = ps.instagram!.startsWith('@') ? ps.instagram! : `@${ps.instagram!}`;
-      parts.push(text(`Instagram: ${cleanInsta}\n`));
+      parts.push(center(`Instagram: ${cleanInsta}`, cols));
     }
     if (footerThankMsg) {
-      parts.push(CMD_BOLD_ON, text(`${footerThankMsg}\n`), CMD_BOLD_OFF);
+      parts.push(CMD_BOLD_ON, center(footerThankMsg, cols), CMD_BOLD_OFF);
     }
-    parts.push(CMD_ALIGN_LEFT);
   }
 
   // Minimal feed then cut (2 lines instead of 4 to save paper)
