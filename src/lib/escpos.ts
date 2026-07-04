@@ -157,8 +157,39 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
 }
 
 function center(s: string, cols: number): Uint8Array {
-  const pad = Math.max(0, Math.floor((cols - s.length) / 2));
-  return text(' '.repeat(pad) + s + '\n');
+  if (s.length <= cols) {
+    const pad = Math.max(0, Math.floor((cols - s.length) / 2));
+    return text(' '.repeat(pad) + s + '\n');
+  }
+  return centerWrap(s, cols);
+}
+
+/** Center a string with word-wrap so no line exceeds `cols`. */
+function centerWrap(s: string, cols: number): Uint8Array {
+  const words = s.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const w of words) {
+    const candidate = current ? current + ' ' + w : w;
+    if (candidate.length <= cols) {
+      current = candidate;
+    } else {
+      if (current) lines.push(current);
+      // Word alone too long — hard-split
+      let piece = w;
+      while (piece.length > cols) {
+        lines.push(piece.slice(0, cols));
+        piece = piece.slice(cols);
+      }
+      current = piece;
+    }
+  }
+  if (current) lines.push(current);
+  return text(
+    lines
+      .map(l => ' '.repeat(Math.max(0, Math.floor((cols - l.length) / 2))) + l)
+      .join('\n') + '\n',
+  );
 }
 
 function fmtBRL(v: number): string {
