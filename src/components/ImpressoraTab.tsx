@@ -519,18 +519,14 @@ export function ImpressoraTab() {
           <p className="text-xs text-muted-foreground">
             Envia uma impressão de teste para a impressora padrão. Se não houver Bluetooth ou QZ Tray, será usado o modo do navegador.
           </p>
-          {renderFeedback(testFeedback)}
+      {renderFeedback(testFeedback)}
         </CardContent>
       </Card>
-
-      {/* Card 4b — Preview */}
-      <ReceiptPreview
-        defaultPaperWidth={((printers.find(p => p.is_default)?.paper_width ?? 58) <= 58 ? 58 : 80) as 58 | 80}
-      />
 
 
 
       {/* Card 5 — Impressoras adicionais (cozinha, balcão, bar) */}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
