@@ -35,6 +35,18 @@ const AUTO_RECONNECT_INTERVAL_MS = 30000; // tenta a cada 30s enquanto desconect
 
 const LS_LAST_NAME = 'bt_last_device_name';
 const LS_LAST_ID = 'bt_last_device_id';
+const LS_BT_PRIORITY = 'bt_priority_default';
+
+export function getBluetoothPriorityDefault(): boolean {
+  try { return localStorage.getItem(LS_BT_PRIORITY) === '1'; } catch { return false; }
+}
+
+export function setBluetoothPriorityDefault(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(LS_BT_PRIORITY, '1');
+    else localStorage.removeItem(LS_BT_PRIORITY);
+  } catch { /* ignore */ }
+}
 
 function _saveLastDevice(device: any) {
   try {
@@ -51,6 +63,7 @@ export function forgetBluetoothDevice() {
   try {
     localStorage.removeItem(LS_LAST_NAME);
     localStorage.removeItem(LS_LAST_ID);
+    localStorage.removeItem(LS_BT_PRIORITY);
   } catch { /* ignore */ }
   disconnectBluetooth();
 }
