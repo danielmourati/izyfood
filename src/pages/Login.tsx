@@ -92,15 +92,11 @@ const Login = () => {
         <div className="relative z-10 flex flex-col justify-between h-full p-10 xl:p-14 text-primary-foreground">
           {/* Brand */}
           <div className="flex items-center gap-3">
-            {tenantLogo ? (
-              <img src={tenantLogo} alt={`Logo ${tenantName}`} className="h-11 object-contain" />
-            ) : (
-              <img
-                src={degustLogoHorizontal.url}
-                alt="Degust - Sistema de Gestão para Restaurantes"
-                className="h-11 object-contain bg-secondary/95 rounded-lg px-3 py-1.5"
-              />
-            )}
+            <img
+              src={degustLogoHorizontal.url}
+              alt="Degust - Sistema de Gestão para Restaurantes"
+              className="h-11 object-contain bg-secondary/95 rounded-lg px-3 py-1.5"
+            />
           </div>
 
           {/* Headline block */}
