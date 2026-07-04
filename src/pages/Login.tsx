@@ -147,16 +147,11 @@ const Login = () => {
       <div className="flex-1 flex flex-col items-center justify-center bg-background p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
-            {displayIcon ? (
-              <img src={displayIcon} alt={`Logo ${tenantName}`} className="h-20 mx-auto mb-2 object-contain" />
-            ) : (
-              <img
-                src={degustLogoHorizontal.url}
-                alt="Degust - Sistema de Gestão para Restaurantes"
-                className="h-16 mx-auto mb-2 object-contain"
-              />
-            )}
-            {tenantName && <p className="text-sm font-medium text-muted-foreground">{tenantName}</p>}
+            <img
+              src={degustLogoHorizontal.url}
+              alt="Degust - Sistema de Gestão para Restaurantes"
+              className="h-16 mx-auto mb-2 object-contain"
+            />
           </div>
 
           <div className="space-y-2">
