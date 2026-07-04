@@ -80,7 +80,7 @@ const Configuracoes = () => {
             key={t.key}
             variant={activeTab === t.key ? 'default' : 'outline'}
             className="gap-2 shrink-0"
-            onClick={() => setActiveTab(t.key)}
+            onClick={() => handleTabChange(t.key)}
           >
             <t.icon className="h-4 w-4" />
             {t.label}
