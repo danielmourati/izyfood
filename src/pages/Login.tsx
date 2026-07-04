@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'react-router-dom';
@@ -26,23 +26,8 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [tenantLogo, setTenantLogo] = useState<string | null>(null);
-  const [tenantName, setTenantName] = useState<string>('');
-  const [loginIcon, setLoginIcon] = useState<string | null>(null);
   const { slug } = useParams<{ slug: string }>();
   const { login } = useAuth();
-
-  useEffect(() => {
-    if (!slug) return;
-    (supabase.rpc as any)('get_tenant_branding', { _slug: slug }).then(({ data }: any) => {
-      const row = Array.isArray(data) ? data[0] : data;
-      if (row) {
-        setTenantLogo(row.logo);
-        setTenantName(row.name);
-        if (row.login_icon) setLoginIcon(row.login_icon);
-      }
-    });
-  }, [slug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,14 +55,8 @@ const Login = () => {
     }
   };
 
-  const displayIcon = loginIcon || tenantLogo;
-
-  const pageTitle = tenantName
-    ? `Entrar em ${tenantName} — Degust`
-    : 'Entrar — Degust | Sistema de Gestão para Restaurantes';
-  const pageDescription = tenantName
-    ? `Acesse a conta ${tenantName} no Degust para gerenciar pedidos, mesas, delivery e caixa.`
-    : 'Acesse sua conta Degust para gerenciar pedidos, mesas, delivery, caixa e comissões do seu restaurante.';
+  const pageTitle = 'Entrar — Degust | Sistema de Gestão para Restaurantes';
+  const pageDescription = 'Acesse sua conta Degust para gerenciar pedidos, mesas, delivery, caixa e comissões do seu restaurante.';
   const canonicalPath = slug ? `/${slug}/login` : '/login';
 
   return (
@@ -113,15 +92,11 @@ const Login = () => {
         <div className="relative z-10 flex flex-col justify-between h-full p-10 xl:p-14 text-primary-foreground">
           {/* Brand */}
           <div className="flex items-center gap-3">
-            {tenantLogo ? (
-              <img src={tenantLogo} alt={`Logo ${tenantName}`} className="h-11 object-contain" />
-            ) : (
-              <img
-                src={degustLogoHorizontal.url}
-                alt="Degust - Sistema de Gestão para Restaurantes"
-                className="h-11 object-contain bg-secondary/95 rounded-lg px-3 py-1.5"
-              />
-            )}
+            <img
+              src={degustLogoHorizontal.url}
+              alt="Degust - Sistema de Gestão para Restaurantes"
+              className="h-11 object-contain bg-secondary/95 rounded-lg px-3 py-1.5"
+            />
           </div>
 
           {/* Headline block */}
@@ -172,16 +147,11 @@ const Login = () => {
       <div className="flex-1 flex flex-col items-center justify-center bg-background p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
-            {displayIcon ? (
-              <img src={displayIcon} alt={`Logo ${tenantName}`} className="h-20 mx-auto mb-2 object-contain" />
-            ) : (
-              <img
-                src={degustLogoHorizontal.url}
-                alt="Degust - Sistema de Gestão para Restaurantes"
-                className="h-16 mx-auto mb-2 object-contain"
-              />
-            )}
-            {tenantName && <p className="text-sm font-medium text-muted-foreground">{tenantName}</p>}
+            <img
+              src={degustLogoHorizontal.url}
+              alt="Degust - Sistema de Gestão para Restaurantes"
+              className="h-16 mx-auto mb-2 object-contain"
+            />
           </div>
 
           <div className="space-y-2">

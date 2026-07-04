@@ -1,27 +1,33 @@
 ## Objetivo
 
-Ao efetuar logout, o usuário deve ser levado à página de login **padrão Degust** (sem branding de tenant). Cada tenant continua com sua própria página de login personalizada acessível via URL direta `/:slug/login` (logotipo do tenant permanece salvo e visível quando alguém acessa o link do próprio tenant).
+A tela de login deve sempre exibir a identidade **Degust**, independente da URL (`/login` ou `/:slug/login`). O logotipo do tenant só aparece após o login, dentro da aplicação (sidebar, header, etc.).
 
 ## Comportamento atual
 
-- Ao clicar em "Sair", `logout()` executa `supabase.auth.signOut()` e limpa o estado.
-- O `RequireAuth` percebe a ausência de usuário e redireciona para `/login`.
-- A rota `/login` (quando há slug na URL atual) é interceptada e redireciona para `/:slug/login`, exibindo o logotipo do tenant.
-
-Resultado: após logout, o usuário vê o logotipo do tenant que acabou de sair — não o padrão Degust.
+`src/pages/Login.tsx` faz uma chamada RPC `get_tenant_branding` quando há `slug` na URL e substitui:
+- O logotipo do painel esquerdo (desktop) pelo logo do tenant.
+- O ícone central do formulário pelo `login_icon`/logo do tenant.
+- Adiciona o nome do tenant abaixo do logo.
 
 ## Mudanças
 
-### `src/contexts/AuthContext.tsx`
-- Após `supabase.auth.signOut()`, executar `window.location.assign('/login')` (navegação hard para forçar rota raiz sem slug, garantindo que o `Login.tsx` renderize sem `slug` e use o logotipo Degust padrão).
-- Limpar `setUser(null)` antes do redirect.
+### `src/pages/Login.tsx`
 
-### Nada a alterar em `Login.tsx`
-- Já exibe logo Degust padrão quando não há `slug` (verificado em `displayIcon` e no painel esquerdo).
-- A rota `/:slug/login` continua funcionando normalmente para acesso direto (mantém branding do tenant salvo).
+Remover toda a lógica de branding por tenant:
+
+1. Remover os states `tenantLogo`, `tenantName`, `loginIcon` e o `useEffect` que chama `get_tenant_branding`.
+2. Remover o uso de `useParams` para `slug` (ou manter apenas se necessário para SEO canonical — ver item 4).
+3. No painel esquerdo (desktop): sempre renderizar `degustLogoHorizontal`.
+4. No formulário (direita): sempre renderizar `degustLogoHorizontal`, remover o `<p>` do `tenantName`.
+5. SEO/Helmet: usar sempre o título/descrição padrão Degust; `canonical` pode continuar refletindo a URL atual (`/login` ou `/:slug/login`) — sem menção ao nome do tenant.
+6. Remover o import não utilizado de `useParams` se não for mais necessário.
+
+### Nenhuma mudança em
+
+- `AuthContext.tsx` — logout já redireciona para `/login`.
+- `App.tsx` — roteamento de `/:slug/login` continua válido (a página apenas não usa mais branding do tenant).
+- Componentes internos pós-login (sidebar, header) — continuam mostrando o logo do tenant normalmente.
 
 ## Validação
 
-- Login em um tenant → clicar em "Sair" no sidebar (desktop expandido, colapsado e mobile) → confirmar redirecionamento para `/login` com logotipo Degust.
-- Acessar diretamente `/:slug/login` de outro tenant → confirmar que o logotipo customizado do tenant continua sendo exibido.
-- Screenshot Playwright das duas situações.
+Playwright: acessar `/login` e `/xofome/login` → ambos devem mostrar o logo Degust (painel esquerdo e formulário). Após login, verificar que o logo do tenant aparece no sidebar.
