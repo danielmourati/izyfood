@@ -400,18 +400,19 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
 
   // Comanda da cozinha: sem cabeçalho de loja (nome, endereço, CNPJ, WhatsApp).
   parts.push(
-    CMD_ALIGN_CENTER,
-    CMD_BOLD_ON,
-    text('Cozinha Principal\n\n'),
-    CMD_BOLD_OFF,
     CMD_ALIGN_LEFT,
+    CMD_BOLD_ON,
+    center('Cozinha Principal', cols),
+    CMD_BOLD_OFF,
+    text('\n'),
   );
 
   const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
-  parts.push(text(`${fmtDate(order.createdAt)} Pedido No: ${orderNo}\n\n`));
+  parts.push(row('Pedido Nº:', orderNo, cols));
+  parts.push(rowWrap('Data:', fmtDate(order.createdAt), cols));
+  parts.push(text('\n'));
 
-  parts.push(CMD_ALIGN_CENTER);
-  parts.push(text(`* Cod. Pers./Senha: ${orderNo} *\n`));
+  parts.push(center(`* Cod. Pers./Senha: ${orderNo} *`, cols));
 
   let tipoPedido = 'BALCÃO';
   if (order.orderType === 'delivery') {
@@ -424,34 +425,33 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
     tipoPedido = orderTypeLabels[order.orderType].toUpperCase();
   }
 
-  parts.push(CMD_BOLD_ON, text(`${tipoPedido}\n\n`), CMD_BOLD_OFF);
+  parts.push(CMD_BOLD_ON, center(tipoPedido, cols), CMD_BOLD_OFF, text('\n'));
 
-  parts.push(CMD_ALIGN_LEFT);
-
-  const customerLine = order.orderType === 'delivery'
-    ? `${order.customerName || 'Sem Nome'}${order.customerAddress ? ' - ' + order.customerAddress : ''}`
-    : order.orderType === 'retirada'
-      ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
-      : (order.customerName || 'Sem Nome');
-
-  parts.push(text('Cliente: '), CMD_BOLD_ON, text(`${customerLine}\n\n`), CMD_BOLD_OFF);
+  const customerName = order.customerName || 'Sem Nome';
+  parts.push(CMD_BOLD_ON, rowWrap('Cliente:', customerName, cols), CMD_BOLD_OFF);
+  if (order.orderType === 'delivery' && order.customerAddress) {
+    parts.push(rowWrap('Endereço:', order.customerAddress, cols));
+  } else if (order.orderType === 'retirada' && order.customerPhone) {
+    parts.push(rowWrap('Telefone:', order.customerPhone, cols));
+  }
+  parts.push(text('\n'));
 
 
   // Items
   for (const item of order.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}`;
-    parts.push(CMD_BOLD_ON, text(`${qty} ${item.name}\n`), CMD_BOLD_OFF);
-    if (item.notes) parts.push(text(`  *${item.notes}\n`));
+    parts.push(CMD_BOLD_ON, rowWrap(`${qty} ${item.name}`, '', cols), CMD_BOLD_OFF);
+    if (item.notes) parts.push(rowWrap(`  *${item.notes}`, '', cols));
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        parts.push(text(`  + ${comp.quantity}x ${comp.name}\n`));
+        parts.push(rowWrap(`  + ${comp.quantity}x ${comp.name}`, '', cols));
       }
     }
   }
 
   parts.push(text('\n'));
-  parts.push(text('Atendente do Pedido:\n'));
-  parts.push(text(`${order.operatorName || 'Não informado'}\n`));
+  parts.push(rowWrap('Atendente:', order.operatorName || 'Não informado', cols));
+
 
   // Comanda da cozinha: sem rodapé promocional (PIX, Instagram, mensagem de agradecimento).
 
