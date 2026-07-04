@@ -23,6 +23,7 @@ import { getQzPrinters } from '@/lib/printer';
 import { fetchTenantCertPem, downloadDegustBat, downloadCertPem } from '@/lib/qz-installer';
 import { DuplicatePrinterModal } from '@/components/DuplicatePrinterModal';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ReceiptPreview } from '@/components/ReceiptPreview';
 
 const QZ_DOWNLOAD_URL = 'https://qz.io/download/';
 const QZ_CERT_URL = 'https://qz.io/wiki/2.0-signing-messages';
