@@ -41,7 +41,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLineIdx = lines.findIndex(l => /R\$ ?48,00\s*$/.test(l));
     expect(priceLineIdx).toBeGreaterThan(0);
     const priceLine = lines[priceLineIdx];
-    expect(priceLine.length).toBeLessThanOrEqual(32);
+    expect(priceLine.length).toBeLessThanOrEqual(30);
     // The line above the price line should be part of the wrapped label (no price on it).
     expect(lines[priceLineIdx - 1]).not.toMatch(/R\$/);
   });
@@ -59,7 +59,7 @@ describe('ESC/POS bill receipt', () => {
       customerName: 'Consumidor',
     }, 58, { storeName: 'Loja' }));
 
-    const sep = '-'.repeat(32);
+    const sep = '-'.repeat(30);
     // Expect at least 6 separators: header, title, data, items, adjustments, total, payment
     const occurrences = receipt.split(sep).length - 1;
     expect(occurrences).toBeGreaterThanOrEqual(6);
@@ -84,7 +84,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLineIdx = lines.findIndex(l => /R\$ ?48,00\s*$/.test(l));
     expect(priceLineIdx).toBeGreaterThan(0);
     const priceLine = lines[priceLineIdx];
-    expect(priceLine.length).toBeLessThanOrEqual(32);
+    expect(priceLine.length).toBeLessThanOrEqual(30);
     // Verifies that the line containing the price is the last line of the wrapped name
     expect(lines[priceLineIdx - 1]).not.toMatch(/R\$/);
   });
@@ -108,7 +108,7 @@ describe('ESC/POS bill receipt', () => {
       showDocument: true,
     }));
 
-    const sep = '-'.repeat(32);
+    const sep = '-'.repeat(30);
     const parts = receipt.split(sep);
 
     // Separador reintroduzido abaixo de CONTA — agora são 7 separadores (8 partes).
@@ -217,7 +217,7 @@ describe('ESC/POS bill receipt', () => {
 
     // 58mm = 32 colunas: label + espaços + valor preenchem toda a largura
     for (const row of [tipoRow!, mesaRow!, clienteRow!, dataRow!]) {
-      expect(row.length).toBe(32);
+      expect(row.length).toBe(30);
     }
 
     // Ordem esperada no cupom: Tipo -> Mesa -> Cliente -> Data
@@ -249,7 +249,7 @@ describe('ESC/POS bill receipt', () => {
     }, 58));
     const line = receipt.split('\n').find(l => /Coca 350ml/.test(l))!;
     expect(line).toBeDefined();
-    expect(line.length).toBe(32);
+    expect(line.length).toBe(30);
     expect(line).toMatch(/^2x Coca 350ml +R\$10,00$/);
   });
 
@@ -270,7 +270,7 @@ describe('ESC/POS bill receipt', () => {
     const priceIdx = lines.findIndex(l => /R\$32,50\s*$/.test(l));
     expect(priceIdx).toBeGreaterThan(0);
     const priceLine = lines[priceIdx];
-    expect(priceLine.length).toBeLessThanOrEqual(32);
+    expect(priceLine.length).toBeLessThanOrEqual(30);
     // Gap mínimo de 1 espaço entre texto e preço (ou linha somente com preço à direita)
     expect(priceLine).toMatch(/(?:^ +R\$32,50$|\S +R\$32,50$)/);
     // Linha anterior é parte do rótulo quebrado, sem preço
@@ -301,7 +301,7 @@ describe('ESC/POS bill receipt', () => {
     const nextLine = lines[firstCompIdx + 1];
     expect(nextLine).toBeDefined();
     expect(nextLine.startsWith('    ')).toBe(true);
-    expect(nextLine.length).toBeLessThanOrEqual(32);
+    expect(nextLine.length).toBeLessThanOrEqual(30);
   });
 });
 
