@@ -38,6 +38,8 @@ export function SuperAdminLayout({ children }: { children: React.ReactNode }) {
               <Shield className="h-3.5 w-3.5" />
               <p className="text-[10px] uppercase tracking-wider font-semibold">Super Admin Console</p>
             </div>
+            <HeaderClock />
+
           </div>
         </div>
 
