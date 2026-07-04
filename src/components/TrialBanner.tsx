@@ -38,7 +38,7 @@ export function TrialBanner() {
         size="sm"
         variant="link"
         className="h-auto p-0 text-xs text-primary font-semibold"
-        onClick={() => navigate('/configuracoes')}
+        onClick={() => navigate('/configuracoes?tab=plano')}
       >
         Fazer upgrade
       </Button>
