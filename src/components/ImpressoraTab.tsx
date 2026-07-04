@@ -51,6 +51,7 @@ export function ImpressoraTab() {
 
   const {
     printers, loading, btAvailable, btConnected, btDeviceName, lastPairedName,
+    btPriorityDefault, toggleBluetoothPriorityDefault,
     qzConnected, retryQzConnection,
     fetchPrinters, pairBluetooth, unpairBluetooth, reconnectPrinter, forgetPrinter, printTest,
   } = usePrinter();
