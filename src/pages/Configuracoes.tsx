@@ -971,21 +971,45 @@ function CuponsTab() {
   );
 }
 
+import { Checkbox } from '@/components/ui/checkbox';
+import { PERMISSION_KEYS } from '@/hooks/use-attendant-permissions';
+import { Wallet, Package as PackageIcon, Truck, BarChart3, Receipt } from 'lucide-react';
+
 const permissionLabels: Record<string, string> = {
   manage_categories: 'Cadastrar/editar categorias',
   manage_products: 'Cadastrar/editar produtos',
   edit_prices: 'Alterar preços e descrições',
   manage_stock: 'Dar entrada no estoque',
+  manage_suppliers: 'Gerenciar fornecedores',
   remove_order_items: 'Remover itens do pedido',
   cancel_orders: 'Cancelar pedidos',
   apply_discounts: 'Aplicar descontos',
+  view_orders_history: 'Ver histórico de pedidos',
   manage_customers: 'Gerenciar clientes',
+  manage_coupons: 'Gerenciar cupons/promoções',
   manage_cash: 'Movimentar caixa (entradas/saídas)',
+  open_cash_register: 'Abrir caixa (iniciar turno)',
+  close_cash_register: 'Fechar caixa (encerrar turno)',
+  view_cash_register: 'Ver caixa',
+  manage_tables: 'Gerenciar mesas',
+  manage_deliveries: 'Gerenciar entregas / motoboys',
+  view_reports: 'Ver relatórios e faturamento',
+  manage_printers: 'Configurar impressoras',
 };
 
-const permissionKeys = Object.keys(permissionLabels);
+const permissionGroups: { key: string; label: string; icon: React.ElementType; items: string[] }[] = [
+  { key: 'caixa', label: 'Caixa', icon: Wallet, items: ['open_cash_register','close_cash_register','view_cash_register','manage_cash'] },
+  { key: 'pedidos', label: 'Pedidos & Vendas', icon: Receipt, items: ['remove_order_items','cancel_orders','apply_discounts','view_orders_history'] },
+  { key: 'catalogo', label: 'Catálogo & Estoque', icon: PackageIcon, items: ['manage_categories','manage_products','edit_prices','manage_stock','manage_suppliers'] },
+  { key: 'salao', label: 'Salão & Entregas', icon: Truck, items: ['manage_tables','manage_deliveries'] },
+  { key: 'clientes', label: 'Clientes & Promoções', icon: Users, items: ['manage_customers','manage_coupons'] },
+  { key: 'relatorios', label: 'Relatórios', icon: BarChart3, items: ['view_reports'] },
+  { key: 'sistema', label: 'Sistema', icon: Settings, items: ['manage_printers'] },
+];
 
-interface AttendantPermissions {
+const permissionKeys: string[] = [...PERMISSION_KEYS];
+
+interface AttendantPermissionsRow {
   id?: string;
   user_id: string;
   [key: string]: any;
@@ -993,13 +1017,14 @@ interface AttendantPermissions {
 
 function PermissoesTab() {
   const [users, setUsers] = useState<{ id: string; name: string; email: string; role: string }[]>([]);
-  const [permissions, setPermissions] = useState<Record<string, AttendantPermissions>>({});
+  const [permissions, setPermissions] = useState<Record<string, AttendantPermissionsRow>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [copySource, setCopySource] = useState('');
+  const [copyModal, setCopyModal] = useState<{ open: boolean; sourceUserId: string | null }>({ open: false, sourceUserId: null });
+  const [copyTargets, setCopyTargets] = useState<Set<string>>(new Set());
+  const [copying, setCopying] = useState(false);
 
   const fetchData = useCallback(async () => {
-    // Filter by tenant via tenant_members (RLS-filtered)
     const { data: members } = await supabase.from('tenant_members').select('user_id');
     if (!members || members.length === 0) { setUsers([]); setLoading(false); return; }
     const memberIds = members.map(m => m.user_id);
@@ -1016,7 +1041,7 @@ function PermissoesTab() {
 
     setUsers(attendants);
 
-    const permMap: Record<string, AttendantPermissions> = {};
+    const permMap: Record<string, AttendantPermissionsRow> = {};
     for (const perm of (perms || [])) {
       permMap[perm.user_id] = perm;
     }
@@ -1075,97 +1100,165 @@ function PermissoesTab() {
     setSaving(null);
   };
 
-  const copyPermissions = async (targetUserId: string) => {
-    if (!copySource) return;
-    const source = permissions[copySource];
-    if (!source) return;
+  const openCopyModal = (sourceUserId: string) => {
+    setCopyModal({ open: true, sourceUserId });
+    setCopyTargets(new Set());
+  };
 
-    setSaving(targetUserId);
+  const runCopy = async () => {
+    if (!copyModal.sourceUserId || copyTargets.size === 0) return;
+    const source = permissions[copyModal.sourceUserId];
+    if (!source) { toast.error('Origem sem permissões salvas'); return; }
+    setCopying(true);
     const updates: any = {};
     permissionKeys.forEach(k => updates[k] = source[k] ?? false);
 
-    const existing = permissions[targetUserId];
-    if (existing?.id) {
-      await supabase.from('attendant_permissions').update(updates).eq('id', existing.id);
-    } else {
-      const { data } = await supabase.from('attendant_permissions').insert({ user_id: targetUserId, ...updates }).select().single();
-      if (data) {
-        setPermissions(prev => ({ ...prev, [targetUserId]: data }));
-        setSaving(null);
-        toast.success('Permissões copiadas!');
-        return;
+    const targets = Array.from(copyTargets);
+    for (const targetUserId of targets) {
+      const existing = permissions[targetUserId];
+      if (existing?.id) {
+        await supabase.from('attendant_permissions').update(updates).eq('id', existing.id);
+        setPermissions(prev => ({
+          ...prev,
+          [targetUserId]: { ...prev[targetUserId], user_id: targetUserId, ...updates },
+        }));
+      } else {
+        const { data } = await supabase.from('attendant_permissions').insert({ user_id: targetUserId, ...updates }).select().single();
+        if (data) {
+          setPermissions(prev => ({ ...prev, [targetUserId]: data }));
+        }
       }
     }
-    setPermissions(prev => ({
-      ...prev,
-      [targetUserId]: { ...prev[targetUserId], user_id: targetUserId, ...updates },
-    }));
-    setSaving(null);
-    toast.success('Permissões copiadas!');
+    setCopying(false);
+    setCopyModal({ open: false, sourceUserId: null });
+    setCopyTargets(new Set());
+    toast.success(`Permissões copiadas para ${targets.length} ${targets.length === 1 ? 'usuário' : 'usuários'}!`);
   };
+
+  const toggleTarget = (userId: string) => {
+    setCopyTargets(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const sourceUser = copyModal.sourceUserId ? users.find(u => u.id === copyModal.sourceUserId) : null;
+  const targetCandidates = users.filter(u => u.id !== copyModal.sourceUserId);
+  const allTargetsSelected = targetCandidates.length > 0 && targetCandidates.every(u => copyTargets.has(u.id));
 
   if (loading) return <p className="text-sm text-muted-foreground text-center py-8">Carregando...</p>;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" /> Permissões de Atendentes</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {users.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">Nenhum atendente cadastrado.</p>
-        )}
-        {users.map(u => (
-          <div key={u.id} className="border rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-foreground">{u.name}</p>
-                <p className="text-xs text-muted-foreground">{u.email}</p>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" /> Permissões de Atendentes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {users.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhum atendente cadastrado.</p>
+          )}
+          {users.map(u => (
+            <div key={u.id} className="border rounded-lg p-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium text-foreground">{u.name}</p>
+                  <p className="text-xs text-muted-foreground">{u.email}</p>
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => toggleAll(u.id, true)}>
+                    Marcar todos
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-xs h-8" onClick={() => toggleAll(u.id, false)}>
+                    Desmarcar
+                  </Button>
+                  {users.length > 1 && (
+                    <Button size="sm" variant="outline" className="text-xs h-8 gap-1" onClick={() => openCopyModal(u.id)}>
+                      <Users className="h-3.5 w-3.5" /> Copiar para outros…
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-1">
-                <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => toggleAll(u.id, true)}>
-                  Marcar todos
-                </Button>
-                <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => toggleAll(u.id, false)}>
-                  Desmarcar
-                </Button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {permissionGroups.map(group => (
+                  <div key={group.key} className="border rounded-md p-3 bg-muted/30 space-y-2">
+                    <div className="flex items-center gap-2 pb-1 border-b border-border/50">
+                      <group.icon className="h-4 w-4 text-primary" />
+                      <span className="text-xs font-semibold text-foreground uppercase tracking-wide">{group.label}</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {group.items.map(key => (
+                        <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Switch
+                            checked={permissions[u.id]?.[key] ?? false}
+                            onCheckedChange={() => togglePermission(u.id, key)}
+                            disabled={saving === u.id}
+                          />
+                          <span className="text-foreground text-xs sm:text-sm">{permissionLabels[key]}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+          ))}
+        </CardContent>
+      </Card>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {permissionKeys.map(key => (
-                <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Switch
-                    checked={permissions[u.id]?.[key] ?? false}
-                    onCheckedChange={() => togglePermission(u.id, key)}
-                    disabled={saving === u.id}
-                  />
-                  <span className="text-foreground">{permissionLabels[key]}</span>
-                </label>
-              ))}
-            </div>
-
-            {/* Copy from another attendant */}
-            {users.length > 1 && (
-              <div className="flex gap-2 items-center pt-1 border-t">
-                <span className="text-xs text-muted-foreground">Copiar de:</span>
-                <Select value={copySource} onValueChange={setCopySource}>
-                  <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                  <SelectContent>
-                    {users.filter(x => x.id !== u.id).map(x => (
-                      <SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => copyPermissions(u.id)} disabled={!copySource}>
-                  Copiar
-                </Button>
+      <Dialog open={copyModal.open} onOpenChange={(v) => !v && setCopyModal({ open: false, sourceUserId: null })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Copiar permissões</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Copiar todas as permissões de <strong>{sourceUser?.name}</strong> para os usuários selecionados:
+          </p>
+          {targetCandidates.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Nenhum outro atendente disponível.</p>
+          ) : (
+            <>
+              <label className="flex items-center gap-2 text-sm cursor-pointer border-b pb-2">
+                <Checkbox
+                  checked={allTargetsSelected}
+                  onCheckedChange={(v) => {
+                    if (v) setCopyTargets(new Set(targetCandidates.map(u => u.id)));
+                    else setCopyTargets(new Set());
+                  }}
+                />
+                <span className="font-medium">Selecionar todos</span>
+              </label>
+              <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+                {targetCandidates.map(u => (
+                  <label key={u.id} className="flex items-center gap-2 text-sm cursor-pointer p-1.5 hover:bg-muted rounded">
+                    <Checkbox
+                      checked={copyTargets.has(u.id)}
+                      onCheckedChange={() => toggleTarget(u.id)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground truncate">{u.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                    </div>
+                  </label>
+                ))}
               </div>
-            )}
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+              <Button
+                onClick={runCopy}
+                disabled={copying || copyTargets.size === 0}
+                className="w-full"
+              >
+                {copying
+                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Copiando…</>
+                  : `Copiar para ${copyTargets.size} ${copyTargets.size === 1 ? 'usuário' : 'usuários'}`}
+              </Button>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

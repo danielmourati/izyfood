@@ -12,51 +12,52 @@ export interface AttendantPermissions {
   apply_discounts: boolean;
   manage_customers: boolean;
   manage_cash: boolean;
+  // Cash register controls
+  open_cash_register: boolean;
+  close_cash_register: boolean;
+  view_cash_register: boolean;
+  // Reports & orders history
+  view_reports: boolean;
+  view_orders_history: boolean;
+  // Salon & delivery ops
+  manage_deliveries: boolean;
+  manage_tables: boolean;
+  // Auxiliary registrations
+  manage_coupons: boolean;
+  manage_suppliers: boolean;
+  manage_printers: boolean;
 }
 
-const allTrue: AttendantPermissions = {
-  manage_categories: true,
-  manage_products: true,
-  edit_prices: true,
-  manage_stock: true,
-  remove_order_items: true,
-  cancel_orders: true,
-  apply_discounts: true,
-  manage_customers: true,
-  manage_cash: true,
-};
+export const PERMISSION_KEYS: (keyof AttendantPermissions)[] = [
+  'manage_categories','manage_products','edit_prices','manage_stock',
+  'remove_order_items','cancel_orders','apply_discounts','manage_customers',
+  'manage_cash','open_cash_register','close_cash_register','view_cash_register',
+  'view_reports','view_orders_history','manage_deliveries','manage_tables',
+  'manage_coupons','manage_suppliers','manage_printers',
+];
 
-const defaultPermissions: AttendantPermissions = {
-  manage_categories: false,
-  manage_products: false,
-  edit_prices: false,
-  manage_stock: false,
-  remove_order_items: false,
-  cancel_orders: false,
-  apply_discounts: false,
-  manage_customers: false,
-  manage_cash: false,
-};
+function buildDefaults(value: boolean): AttendantPermissions {
+  return PERMISSION_KEYS.reduce((acc, k) => {
+    acc[k] = value;
+    return acc;
+  }, {} as AttendantPermissions);
+}
+
+const allTrue: AttendantPermissions = buildDefaults(true);
+const defaultPermissions: AttendantPermissions = buildDefaults(false);
 
 function mapRow(data: any): AttendantPermissions {
-  return {
-    manage_categories: data.manage_categories,
-    manage_products: data.manage_products,
-    edit_prices: data.edit_prices,
-    manage_stock: data.manage_stock,
-    remove_order_items: data.remove_order_items,
-    cancel_orders: data.cancel_orders,
-    apply_discounts: data.apply_discounts,
-    manage_customers: data.manage_customers,
-    manage_cash: data.manage_cash,
-  };
+  const out = { ...defaultPermissions };
+  for (const k of PERMISSION_KEYS) {
+    out[k] = Boolean(data?.[k]);
+  }
+  return out;
 }
 
 export function useAttendantPermissions() {
   const { user, isAdmin } = useAuth();
   const [permissions, setPermissions] = useState<AttendantPermissions>(defaultPermissions);
   const [loading, setLoading] = useState(true);
-  
 
   useEffect(() => {
     if (!user) {
@@ -73,7 +74,6 @@ export function useAttendantPermissions() {
 
     let cancelled = false;
 
-    // Initial fetch
     const fetchPermissions = async () => {
       const { data } = await supabase
         .from('attendant_permissions')
@@ -90,7 +90,6 @@ export function useAttendantPermissions() {
 
     fetchPermissions();
 
-    // Realtime subscription with unique channel name
     const channelName = `perms-${user.id}-${Date.now()}-${Math.random()}`;
     const channel = supabase
       .channel(channelName)

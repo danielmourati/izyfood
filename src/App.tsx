@@ -56,16 +56,16 @@ function TenantRoutes() {
     <Layout>
       <Routes>
         <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-        <Route path="/mesas" element={<ProtectedRoute><Mesas /></ProtectedRoute>} />
+        <Route path="/mesas" element={<ProtectedRoute adminOnly permissionKey="manage_tables"><Mesas /></ProtectedRoute>} />
         <Route path="/login" element={<Navigate to={`/${slug}`} replace />} />
         <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
-        <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
-        <Route path="/entregas" element={<ProtectedRoute><Entregas /></ProtectedRoute>} />
-        <Route path="/caixa" element={<ProtectedRoute><Caixa /></ProtectedRoute>} />
+        <Route path="/pedidos" element={<ProtectedRoute adminOnly permissionKey="view_orders_history"><Pedidos /></ProtectedRoute>} />
+        <Route path="/entregas" element={<ProtectedRoute adminOnly permissionKey="manage_deliveries"><Entregas /></ProtectedRoute>} />
+        <Route path="/caixa" element={<ProtectedRoute adminOnly permissionKey="view_cash_register"><Caixa /></ProtectedRoute>} />
         <Route path="/clientes" element={<ProtectedRoute adminOnly permissionKey="manage_customers"><Clientes /></ProtectedRoute>} />
         <Route path="/produtos" element={<ProtectedRoute adminOnly permissionKey="manage_products"><Produtos /></ProtectedRoute>} />
         <Route path="/estoque" element={<ProtectedRoute adminOnly permissionKey="manage_stock"><Estoque /></ProtectedRoute>} />
-        <Route path="/relatorios" element={<ProtectedRoute adminOnly><Relatorios /></ProtectedRoute>} />
+        <Route path="/relatorios" element={<ProtectedRoute adminOnly permissionKey="view_reports"><Relatorios /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
         <Route path="/diagnostico-sync" element={<ProtectedRoute superadminOnly><DiagnosticoSync /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />

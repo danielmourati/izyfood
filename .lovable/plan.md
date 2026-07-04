@@ -1,33 +1,84 @@
 ## Objetivo
 
-A tela de login deve sempre exibir a identidade **Degust**, independente da URL (`/login` ou `/:slug/login`). O logotipo do tenant só aparece após o login, dentro da aplicação (sidebar, header, etc.).
+Ampliar o sistema de permissões de atendentes com novas capacidades, agrupar visualmente por área e permitir copiar permissões para múltiplos usuários de uma vez. (Anexo 2 já atendido — superadmin já vê/edita/reseta senhas.)
 
-## Comportamento atual
+## Novas permissões (colunas em `attendant_permissions`)
 
-`src/pages/Login.tsx` faz uma chamada RPC `get_tenant_branding` quando há `slug` na URL e substitui:
-- O logotipo do painel esquerdo (desktop) pelo logo do tenant.
-- O ícone central do formulário pelo `login_icon`/logo do tenant.
-- Adiciona o nome do tenant abaixo do logo.
+Adicionar 10 flags booleanas, todas default `false`:
+
+**Caixa**
+- `open_cash_register` — abrir turno
+- `close_cash_register` — fechar turno
+- `view_cash_register` — ver caixa (sem movimentar)
+
+**Relatórios & Pedidos**
+- `view_reports` — acesso a Relatórios
+- `view_orders_history` — acesso à página Pedidos
+
+**Operação de salão**
+- `manage_deliveries` — página Entregas
+- `manage_tables` — abrir/fechar/juntar mesas
+
+**Cadastros auxiliares**
+- `manage_coupons` — cupons/promoções
+- `manage_suppliers` — fornecedores
+- `manage_printers` — configuração de impressoras
 
 ## Mudanças
 
-### `src/pages/Login.tsx`
+### 1. Migration
+`ALTER TABLE public.attendant_permissions ADD COLUMN ... DEFAULT false NOT NULL` para as 10 colunas acima. RLS e grants já existem — nada a alterar.
 
-Remover toda a lógica de branding por tenant:
+### 2. `src/hooks/use-attendant-permissions.ts`
+Adicionar as 10 chaves em `AttendantPermissions`, `allTrue`, `defaultPermissions` e `mapRow`. Todo consumidor continua funcionando; novos gates lêem `permissions.<chave>` normalmente.
 
-1. Remover os states `tenantLogo`, `tenantName`, `loginIcon` e o `useEffect` que chama `get_tenant_branding`.
-2. Remover o uso de `useParams` para `slug` (ou manter apenas se necessário para SEO canonical — ver item 4).
-3. No painel esquerdo (desktop): sempre renderizar `degustLogoHorizontal`.
-4. No formulário (direita): sempre renderizar `degustLogoHorizontal`, remover o `<p>` do `tenantName`.
-5. SEO/Helmet: usar sempre o título/descrição padrão Degust; `canonical` pode continuar refletindo a URL atual (`/login` ou `/:slug/login`) — sem menção ao nome do tenant.
-6. Remover o import não utilizado de `useParams` se não for mais necessário.
+### 3. `src/pages/Configuracoes.tsx` → `PermissoesTab`
+Reestruturar UI:
 
-### Nenhuma mudança em
+- Substituir `permissionLabels` plano por `permissionGroups`:
+  ```ts
+  const permissionGroups = [
+    { key: 'caixa', label: 'Caixa', icon: Wallet, items: [...] },
+    { key: 'pedidos', label: 'Pedidos & Vendas', icon: Receipt, items: [
+      'remove_order_items','cancel_orders','apply_discounts','view_orders_history'
+    ]},
+    { key: 'catalogo', label: 'Catálogo & Estoque', icon: Package, items: [
+      'manage_categories','manage_products','edit_prices','manage_stock','manage_suppliers'
+    ]},
+    { key: 'salao', label: 'Salão & Entregas', icon: Truck, items: ['manage_tables','manage_deliveries'] },
+    { key: 'clientes', label: 'Clientes & Promoções', icon: Users, items: ['manage_customers','manage_coupons'] },
+    { key: 'relatorios', label: 'Relatórios', icon: BarChart3, items: ['view_reports'] },
+    { key: 'sistema', label: 'Sistema', icon: Settings, items: ['manage_printers'] },
+  ];
+  ```
+- Cada grupo renderizado como sub-card com título + ícone + grid 2 col dos switches.
+- Botões "Marcar todos"/"Desmarcar" mantidos no header do usuário.
 
-- `AuthContext.tsx` — logout já redireciona para `/login`.
-- `App.tsx` — roteamento de `/:slug/login` continua válido (a página apenas não usa mais branding do tenant).
-- Componentes internos pós-login (sidebar, header) — continuam mostrando o logo do tenant normalmente.
+**Cópia multi-seleção**: remover UI atual (select + botão "Copiar") e adicionar botão "Copiar para outros..." por usuário que abre `<Dialog>` com:
+- Lista de checkboxes com todos os outros atendentes do tenant.
+- Checkbox "Selecionar todos".
+- Botão "Copiar permissões" → itera destinos, faz upsert das mesmas 19 flags.
+- Feedback via `sonner` (respeitando regra do projeto: sonner allowed, toast UI padrão não).
 
-## Validação
+### 4. Aplicar gates onde ainda não existem
+Adicionar checks `permissions.X || isAdmin` em:
+- `src/components/AppSidebar.tsx` — esconder itens Relatórios (`view_reports`), Entregas (`manage_deliveries`), Mesas (`manage_tables`), Pedidos (`view_orders_history`), Caixa (`view_cash_register || open_cash_register || close_cash_register || manage_cash`).
+- `src/pages/Caixa.tsx` — botões "Abrir caixa" (`open_cash_register`), "Fechar caixa" (`close_cash_register`), demais ações mantêm `manage_cash`.
+- `src/pages/Entregas.tsx`, `src/pages/Mesas.tsx`, `src/pages/Relatorios.tsx`, `src/pages/Pedidos.tsx` — redirect/empty state quando sem permissão.
+- `src/pages/Configuracoes.tsx` — aba Impressora exibida se `manage_printers || isAdmin`; aba Cupons (se existir na Configurações) usa `manage_coupons`.
+- Estoque → aba Fornecedores gated por `manage_suppliers`.
 
-Playwright: acessar `/login` e `/xofome/login` → ambos devem mostrar o logo Degust (painel esquerdo e formulário). Após login, verificar que o logo do tenant aparece no sidebar.
+### 5. Anexo 2 (Superadmin Usuários)
+Sem mudanças — funcionalidade já implementada em `SuperAdminUsersTab` (view/edit/reset/delete). Nenhum novo trabalho.
+
+## Detalhes técnicos
+
+- Novas colunas seguem padrão `NOT NULL DEFAULT false` para não quebrar inserts existentes.
+- Realtime do hook já cobre novas colunas (subscription é `event: '*'`).
+- Tipos Supabase (`src/integrations/supabase/types.ts`) regenerados automaticamente após migration; código do hook usa cast leve para evitar quebra transitória.
+- Nenhuma alteração em `AuthContext`, `client.ts` ou config.
+
+## Fora de escopo
+
+- Reset de senha superadmin (já existe).
+- Permissões por tenant multi-organização (usuário só pertence a 1 tenant hoje).
