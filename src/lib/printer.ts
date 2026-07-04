@@ -63,6 +63,7 @@ export function forgetBluetoothDevice() {
   try {
     localStorage.removeItem(LS_LAST_NAME);
     localStorage.removeItem(LS_LAST_ID);
+    localStorage.removeItem(LS_BT_PRIORITY);
   } catch { /* ignore */ }
   disconnectBluetooth();
 }
