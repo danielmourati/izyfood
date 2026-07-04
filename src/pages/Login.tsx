@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ArrowLeft, Eye, EyeOff, Zap, Truck, Wallet, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import degustLogoHorizontal from '@/assets/degust-logo-horizontal.png.asset.json';
-import degustLogoWhite from '@/assets/degust-logo-white.png.asset.json';
+import degustLogoCream from '@/assets/degust-logo-cream.png';
 
 const benefits = [
   { icon: Zap, title: 'Pedidos em segundos', desc: 'Do balcão à mesa, sem fricção.' },
