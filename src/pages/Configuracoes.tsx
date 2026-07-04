@@ -284,8 +284,16 @@ function GeralTab() {
         return;
       }
 
-      const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path);
-      const logoUrl = urlData.publicUrl;
+      // tenant-assets bucket is private; generate a long-lived signed URL for display.
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('tenant-assets')
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 10); // 10 years
+      if (signedError || !signedData?.signedUrl) {
+        console.error('[logo-upload] signed url error:', signedError);
+        toast.error('Não foi possível gerar URL do logo.');
+        return;
+      }
+      const logoUrl = signedData.signedUrl;
 
       const { error: updateError } = await supabase
         .from('tenants')
