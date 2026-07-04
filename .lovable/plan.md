@@ -1,14 +1,29 @@
-## Remover se\u00e7\u00e3o 'Tela de Login' de Configura\u00e7\u00f5es
+## Problema
 
-Escopo: remover apenas o card 'Tela de Login' (\u00edcone + carrossel) em `src/pages/Configuracoes.tsx`. A tela de login p\u00fablica do tenant continua funcionando com defaults (o banco mant\u00e9m as colunas, mas o admin n\u00e3o poder\u00e1 mais edit\u00e1-las pela UI).
+O upload do logo em `/configuracoes` (aba Geral) não renderiza a imagem nem persiste. O código atual em `src/pages/Configuracoes.tsx` (`handleLogoUpload`, linhas 255-273) tem falhas:
 
-### Altera\u00e7\u00f5es em `src/pages/Configuracoes.tsx`
-- Remover o `<Card>` inteiro (linhas 490\u2013540) contendo \u00edcone do login e imagens do carrossel.
-- Remover states relacionados: `loginIcon`, `carouselImages`, `uploadingIcon`, `uploadingCarousel`.
-- Remover handlers: `handleLoginIconUpload`, `handleCarouselUpload`, `removeCarouselImage`.
-- Remover `login_icon` e `login_carousel_images` do `.select()` inicial (linha 157) e do listener realtime (linhas 253\u2013254).
-- Limpar imports n\u00e3o utilizados (ex.: `Image`, `Upload`, `Plus`, `X` se n\u00e3o forem usados em outros lugares do arquivo).
+1. O `update` na tabela `tenants` **não verifica erro** — se a RLS bloquear (usuário sem admin/tenant_id), a falha é silenciada e o usuário vê "Logo atualizada!" mesmo sem persistir.
+2. O bucket `tenant-assets` é público, mas o objeto pode não estar acessível se o path foi salvo mas o UPDATE do DB falhou → imagem "some" no próximo reload.
+3. Sem log/console para diagnóstico do que retorna cada etapa.
+4. `file.name.split('.').pop()` pode devolver o próprio nome se não houver extensão; melhor usar `file.type` como fallback.
 
-### N\u00e3o alterar
-- Colunas `tenants.login_icon` e `tenants.login_carousel_images` no banco (mantidas para n\u00e3o quebrar a tela de login p\u00fablica que ainda pode l\u00ea-las; se estiverem nulas, cai no default).
-- Bucket de storage e demais telas.
+RLS verificada:
+- Storage `tenant-assets` INSERT/UPDATE OK (path `${tenantId}/...`)
+- `tenants` UPDATE só para `is_tenant_admin` do próprio tenant — se a role não estiver em `admin/superadmin` em `tenant_members`, o update silencia.
+
+## Correção
+
+**Arquivo:** `src/pages/Configuracoes.tsx` — refatorar `handleLogoUpload`:
+
+1. Validar tipo/extensão da imagem antes do upload (fallback via `file.type`).
+2. Fazer upload no bucket `tenant-assets` no path `${tenantId}/logo-<timestamp>.<ext>` (nome único evita cache stale de CDN).
+3. Após upload, obter `getPublicUrl` e **capturar o erro do `update` na tabela `tenants`** com `await ... ; if (error) { toast.error(msg); return; }`.
+4. Só chamar `setTenantLogo(url)` e `toast.success` após confirmação de sucesso do UPDATE.
+5. Adicionar `console.error` detalhado em cada falha (upload, update) para diagnóstico.
+6. Limpar `e.target.value` no final para permitir re-upload do mesmo arquivo.
+
+Sem mudanças em migrations, RLS ou storage buckets — a infraestrutura já está correta; o bug é apenas de tratamento de erro no cliente que mascarava falhas.
+
+## Arquivos alterados
+
+- `src/pages/Configuracoes.tsx`

@@ -253,23 +253,59 @@ function GeralTab() {
   }, [user?.tenantId]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file || !user?.tenantId) return;
-    setUploading(true);
-    const ext = file.name.split('.').pop();
-    const path = `${user.tenantId}/logo.${ext}`;
-    const { error: uploadError } = await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true });
-    if (uploadError) {
-      toast.error('Erro ao enviar logo');
-      setUploading(false);
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um arquivo de imagem válido.');
+      input.value = '';
       return;
     }
-    const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path);
-    const logoUrl = urlData.publicUrl + '?t=' + Date.now();
-    await supabase.from('tenants').update({ logo: logoUrl }).eq('id', user.tenantId);
-    setTenantLogo(logoUrl);
-    toast.success('Logo atualizada!');
-    setUploading(false);
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 5MB.');
+      input.value = '';
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const nameExt = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+      const typeExt = file.type.split('/')[1]?.toLowerCase();
+      const ext = (nameExt && /^[a-z0-9]+$/.test(nameExt) ? nameExt : typeExt) || 'png';
+      const path = `${user.tenantId}/logo-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('tenant-assets')
+        .upload(path, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
+      if (uploadError) {
+        console.error('[logo-upload] storage error:', uploadError);
+        toast.error(`Erro ao enviar logo: ${uploadError.message}`);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path);
+      const logoUrl = urlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('tenants')
+        .update({ logo: logoUrl })
+        .eq('id', user.tenantId);
+      if (updateError) {
+        console.error('[logo-upload] tenants update error:', updateError);
+        toast.error(`Não foi possível salvar o logo: ${updateError.message}`);
+        return;
+      }
+
+      setTenantLogo(logoUrl);
+      toast.success('Logo atualizada!');
+    } catch (err: any) {
+      console.error('[logo-upload] unexpected error:', err);
+      toast.error('Erro inesperado ao enviar logo.');
+    } finally {
+      setUploading(false);
+      input.value = '';
+    }
   };
 
 
