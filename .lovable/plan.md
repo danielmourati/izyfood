@@ -1,84 +1,90 @@
 ## Objetivo
-Adicionar uma prévia visual do cupom [CONTA] em 58mm (32 colunas) na aba Impressora de Configurações, renderizando exatamente como o texto será quebrado e alinhado antes de enviar para a impressora térmica.
 
-## Escopo
-- Somente frontend/apresentação. Sem alterar `escpos.ts`, `printer.ts`, `use-printer.ts` ou banco.
-- Prévia é apenas para o cupom **CONTA** (não comanda nem fechamento de caixa).
-- Suporta 58mm e 80mm (32/48 colunas) — usuário escolhe via toggle na prévia; padrão = largura da impressora default.
+Padronizar a impressão 58mm usando **largura segura de 30 colunas** (2 col de margem: ~1 char de cada lado) para evitar cortes laterais em impressoras térmicas POS comuns e via QZ Tray. Prévia visual no admin deve refletir exatamente o resultado impresso.
 
-## Arquivos
+## Regras da nova largura 58mm
 
-### Novo: `src/lib/receipt-preview.ts`
-Gera uma **string monoespaçada** (linhas separadas por `\n`) representando o cupom que seria impresso, reutilizando a lógica de formatação.
+| Zona | Colunas |
+|---|---|
+| Largura total do papel | 32 col |
+| Largura útil segura (todo o conteúdo) | **30 col** |
+| Área máx. do texto do produto | 22 col |
+| Área do preço (à direita) | 8 col |
 
-- Exporta `buildBillPreviewText(bill: BillData, paperWidth: 58|80, ps: PrintSettings): string`.
-- Reimplementa em texto puro as mesmas regras de `buildBillReceipt` do `escpos.ts`:
-  - Mesmas funções auxiliares `row`, `rowWrap`, `center`, `lineOf`, `fmtBRL`, `fmtDate`, `colsForWidth`.
-  - Cabeçalho dinâmico (storeName / address / document / whatsapp) respeitando toggles `ps.show*`.
-  - Título "CONTA" centralizado.
-  - Linhas de detalhe (Tipo, Mesa, Cliente, Data).
-  - Itens com `rowWrap` + complementos com prefixo `  + `.
-  - Bloco de ajustes (Desconto, Taxa de Serviço, Taxa de entrega).
-  - TOTAL, bloco PAGAMENTO, rodapé (PIX/Instagram/Agradecimento).
-- Não emite bytes ESC/POS — apenas texto. Marcações de negrito/duplo são ignoradas visualmente (opcional: envolver em `**...**` para negrito na renderização).
+Para 80mm nada muda (48 col totais/úteis).
 
-Motivação para arquivo separado: `escpos.ts` mantém strings intercaladas com bytes de comando. Extrair uma versão text-only evita acoplar o encoder ao preview e permite reuso em testes.
+Nenhuma linha do cupom pode exceder 30 caracteres úteis em 58mm: cabeçalho (nome loja, endereço, CNPJ, WhatsApp), separadores, dados do pedido (Tipo/Mesa/Cliente/Data), itens, complementos, notas, ajustes, total, pagamento e rodapé (PIX/Instagram/agradecimento).
 
-### Novo: `src/components/ReceiptPreview.tsx`
-Componente de apresentação da prévia.
+## Alterações
 
-- Props: `paperWidth: 58 | 80`, `printSettings: PrintSettings`, `bill: BillData` (mock).
-- Renderiza um `<pre>` monoespaçado dentro de um "papel" com:
-  - Largura fixa em `ch` proporcional às colunas (32ch ou 48ch), com padding lateral simulando margem física.
-  - `font-family: ui-monospace, Menlo, Consolas, monospace`, `font-size: 12px`, `line-height: 1.25`.
-  - Fundo branco levemente amarelado (`bg-[hsl(48_50%_97%)]`), borda tracejada nas bordas laterais para sugerir bobina, sombra sutil.
-  - Overflow-x se necessário; centralizado no container.
-- Um cabeçalho pequeno: "Prévia · 58mm (32 col)" — muda conforme largura.
+### 1. `src/lib/escpos.ts` — largura segura única
 
-### Editar: `src/components/ImpressoraTab.tsx`
-- Importar `ReceiptPreview` e `buildBillPreviewText`.
-- Adicionar nova seção **"Prévia do cupom"** dentro da aba Impressora, abaixo do form de impressora e acima da lista, dentro de um `Card` com título e descrição curta.
-- Controles no topo do card:
-  - Toggle largura: botões `58mm` / `80mm` (grupo). Padrão = `paper_width` da impressora default (ou 58 se não houver).
-  - Toggle "Usar itens de exemplo" (default on). Quando off, mostra dica: "Realize uma venda para testar cupom real" — v1 não pluga carrinho real, apenas mock.
-- Body: `<ReceiptPreview />` com um `bill` mock realista para stress-test das quebras:
-  - 1 item curto: `2x Coca 350ml` — R$ 15,00
-  - 1 item longo: `1x Açaí 500g com granola crocante e leite condensado` — R$ 32,50
-  - Item longo com 2 complementos: `+ 1x Cobertura de chocolate belga premium` e `+ 2x Morango`.
-  - Desconto 10%, Taxa de Serviço R$ 3,00, sem taxa de entrega.
-  - Pagamento split: PIX + Dinheiro.
-- Sem toasts. Feedback puramente visual.
-- `printSettings` já disponível via `getCachedPrintSettings()` (mesmo padrão usado pelo hook).
+- Substituir `colsForWidth()` e `detailColsForWidth()` por uma única fonte de verdade:
 
-## Layout esperado
+  ```ts
+  function colsForWidth(paperWidth: number): number {
+    return paperWidth <= 58 ? 30 : 48;
+  }
+  ```
+- Remover `detailColsForWidth` (não usar mais margem extra: já embutida no 30). Ajustar chamadas remanescentes.
+- Em `buildBillReceipt`, garantir que **todas** as chamadas (`row`, `rowWrap`, `lineOf`, `center`) usem esse `cols=30` para 58mm — inclui:
+  - Nome da loja (`toUpperCase`) — se ultrapassar 30, aplicar quebra centrada linha-a-linha via um novo helper `centerWrap(s, cols)`.
+  - Endereço, `CNPJ/CPF: ...`, `WhatsApp: ...` → também via `centerWrap` para não estourar 30.
+  - Rodapé `PIX: ...`, `Instagram: ...`, `thankMessage` → idem.
+  - Separadores `lineOf('-', cols)` → agora com 30 traços em 58mm.
+- Enforce hard-cap: adicionar util `clampLine(s, cols)` usado em pontos onde não faz sentido quebrar (defensivo), garantindo `s.length <= cols`.
 
-```text
-+------------------------- Card: Prévia do cupom -------------------------+
-| [ 58mm ] [ 80mm ]                          Usar itens de exemplo [on]  |
-|                                                                        |
-|              +------- papel 32ch -------+                              |
-|              |        LOJA EXEMPLO      |                              |
-|              | ------------------------ |                              |
-|              |          CONTA           |                              |
-|              | ------------------------ |                              |
-|              | Tipo:               Mesa |                              |
-|              | 1x Açaí 500g com granola |                              |
-|              | crocante         R$32,50 |                              |
-|              |   + 1x Cobertura de      |                              |
-|              |     chocolate    R$ 5,00 |                              |
-|              | ...                      |                              |
-|              +--------------------------+                              |
-+------------------------------------------------------------------------+
+### 2. `rowWrap()` — reservar zona de preço 8 col em 58mm
+
+Hoje `rowWrap` calcula gap sobre `cols`. Passa a receber uma partição fixa em 58mm:
+
+- Novo helper interno `splitCols(paperWidth) => { total: 30, name: 22, price: 8 }` para 58mm e `{ total: 48, name: 36, price: 12 }` para 80mm.
+- `rowWrap(label, value, cols)` continua com mesma assinatura; internamente, se `value.length <= price` e `label` couber em `name`, produz linha única `label + padding + value` com `label` limitado a `name` col (22) e `value` right-align nos `price` col (8), total = 30.
+- Se `label` exceder `name`: quebra por palavras dentro de `name` col (22), última linha recebe `value` à direita completando 30 col. Se última linha ainda + gap + value estourar, joga `value` sozinho numa linha nova right-aligned em 30 col.
+- Complementos (`  + ...`) e notas seguem a mesma lógica com `indent` preservado.
+- Nenhuma palavra é cortada no meio; só quebra em espaço. Só faz `slice` forçado quando **uma palavra isolada** excede `name` col (fallback já existente `pushBreakWord`).
+
+### 3. `center()` → adicionar `centerWrap()`
+
+```ts
+function centerWrap(s: string, cols: number): Uint8Array
 ```
+- Quebra `s` em palavras respeitando `cols`, centra cada linha resultante. Usado no cabeçalho e rodapé para nunca estourar 30 col.
 
-## Considerações técnicas
-- Nenhuma dependência nova.
-- `BillData` e `PrintSettings` continuam definidos em `escpos.ts`; exportar tipos se ainda não estiverem (verificar antes; se privados, tornar `export`).
-- Zero mudança em business logic: mock 100% local no componente, sem hit em Supabase.
-- Acessibilidade: `<pre aria-label="Prévia do cupom em 58mm">`.
-- Mobile: card com `overflow-x-auto` para largura 80mm em telas estreitas.
+### 4. `src/lib/receipt-preview.ts` — espelhar exatamente
+
+- Atualizar `colsForWidth` local para retornar 30 em 58mm.
+- Portar `splitCols`, `rowWrap`, `centerWrap`, `clampLine` idênticos aos de `escpos.ts`.
+- Reaplicar as mesmas mudanças no cabeçalho, dados, itens, ajustes, total, pagamento e rodapé.
+
+### 5. `src/components/ReceiptPreview.tsx` — largura do papel na tela
+
+- Ajustar largura do `<pre>` para acompanhar 30 col em 58mm:
+  ```ts
+  const cols = paperWidth === 58 ? 30 : 48;
+  ```
+- Legenda muda para "Prévia · 58mm (30 col úteis)".
+- Sem padding extra, sem escala; `width: ${cols}ch` exato. Container mantém `overflow-x-auto` só para telas muito estreitas.
+
+### 6. Testes — `src/test/escpos.test.ts`
+
+Os testes atuais assumem 32 col em 58mm (ex.: `expect(row.length).toBe(32)`, `sep = '-'.repeat(32)`, regex `R\$32,50`). Atualizar para a nova largura segura:
+
+- Trocar todas as verificações de comprimento de linha `.toBe(32)` → `.toBe(30)`.
+- Trocar `'-'.repeat(32)` → `'-'.repeat(30)`.
+- Regex e substrings de conteúdo (preços, nomes) permanecem.
+- Adicionar novos testes:
+  - Cabeçalho longo (nome de loja > 30) é centralizado em múltiplas linhas, cada uma `<=30`.
+  - Nenhuma linha do cupom 58mm excede 30 col (varredura genérica: `split('\n').every(l => l.length <= 30)`).
+  - Item com nome ~25 col + preço `R$100,00` (8) quebra corretamente respeitando zona nome=22/preço=8.
+  - Complemento longo quebra alinhado ao "+" e nunca ultrapassa 30 col.
 
 ## Fora de escopo
-- Prévia de COMANDA e FECHAMENTO DE CAIXA.
-- Prévia baseada em cupom real de uma venda concreta.
-- Impressão direta a partir do preview (o botão "Imprimir teste" já existente cobre isso).
+
+- COMANDA (cozinha) e FECHAMENTO DE CAIXA — mantêm layout atual salvo pela mudança global de `colsForWidth` (que já os beneficia). Não adicionar novos testes para eles nesta iteração.
+- Configuração por usuário das larguras 30/22/8 — valores fixos como padrão seguro.
+- Alterações em `printer.ts`, `use-printer.ts`, banco ou RLS.
+
+## Impacto visual
+
+Cupom 58mm passa de 32 para 30 col úteis: separadores mais curtos, texto do produto limitado a 22 col antes de quebrar, preço sempre à direita em 8 col. Elimina cortes laterais em impressoras baratas e no QZ Tray.
