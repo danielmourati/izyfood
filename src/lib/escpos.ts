@@ -73,16 +73,25 @@ function lineOf(char: string, cols: number): Uint8Array {
   return text(char.repeat(cols) + '\n');
 }
 
-/** Two-column row: left-aligned label, right-aligned value */
+/** Reserved price zone (right) inside a wrapped row.
+ *  58mm (30 useful cols): 22 for name + 8 for price.
+ *  80mm (48 useful cols): 36 for name + 12 for price. */
+function priceZone(cols: number): number {
+  return cols <= 30 ? 8 : 12;
+}
+
+/** Two-column row: left-aligned label, right-aligned value.
+ *  If it would exceed cols, delegates to rowWrap so no line exceeds cols. */
 function row(label: string, value: string, cols: number): Uint8Array {
   const gap = cols - label.length - value.length;
-  if (gap < 1) return text(label + ' ' + value + '\n');
+  if (gap < 1) return rowWrap(label, value, cols);
   return text(label + ' '.repeat(gap) + value + '\n');
 }
 
 function rowWrap(label: string, value: string, cols: number): Uint8Array {
   if (label.length + 1 + value.length <= cols) {
-    return row(label, value, cols);
+    const gap = cols - label.length - value.length;
+    return text(label + ' '.repeat(gap) + value + '\n');
   }
 
   // Detect indent prefix. Complement lines start with "  + " — reapply an
@@ -104,14 +113,18 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
   const rest = headMatch ? headMatch[2] : label;
   const words = rest.trim().split(/\s+/).filter(Boolean);
 
+  // Wrap the label within the "name area", reserving the price zone at the right.
+  const price = Math.max(value.length, priceZone(cols));
+  const nameMax = Math.max(8, cols - price - 1); // 1 char min gap
+
   const lines: string[] = [];
   let current = head;
 
   const pushBreakWord = (w: string, prefix: string) => {
     let piece = prefix + w;
-    while (piece.length > cols) {
-      lines.push(piece.slice(0, cols));
-      piece = indent + piece.slice(cols);
+    while (piece.length > nameMax) {
+      lines.push(piece.slice(0, nameMax));
+      piece = indent + piece.slice(nameMax);
     }
     current = piece;
   };
@@ -119,7 +132,7 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
   for (const w of words) {
     const atStart = current === head || current === indent || current === '';
     const candidate = atStart ? current + w : current + ' ' + w;
-    if (candidate.length <= cols) {
+    if (candidate.length <= nameMax) {
       current = candidate;
     } else {
       if (current.trim().length > 0) lines.push(current);
@@ -129,7 +142,7 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
   if (current.trim().length > 0) lines.push(current);
 
   // Fit value on the last line with at least 1 space of gap; otherwise
-  // push the value on a new right-aligned line.
+  // push the value on a new right-aligned line — never exceeding cols.
   const last = lines.pop() ?? indent;
   if (last.length + 1 + value.length > cols) {
     if (last.trim().length > 0) lines.push(last);
@@ -144,8 +157,39 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
 }
 
 function center(s: string, cols: number): Uint8Array {
-  const pad = Math.max(0, Math.floor((cols - s.length) / 2));
-  return text(' '.repeat(pad) + s + '\n');
+  if (s.length <= cols) {
+    const pad = Math.max(0, Math.floor((cols - s.length) / 2));
+    return text(' '.repeat(pad) + s + '\n');
+  }
+  return centerWrap(s, cols);
+}
+
+/** Center a string with word-wrap so no line exceeds `cols`. */
+function centerWrap(s: string, cols: number): Uint8Array {
+  const words = s.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const w of words) {
+    const candidate = current ? current + ' ' + w : w;
+    if (candidate.length <= cols) {
+      current = candidate;
+    } else {
+      if (current) lines.push(current);
+      // Word alone too long — hard-split
+      let piece = w;
+      while (piece.length > cols) {
+        lines.push(piece.slice(0, cols));
+        piece = piece.slice(cols);
+      }
+      current = piece;
+    }
+  }
+  if (current) lines.push(current);
+  return text(
+    lines
+      .map(l => ' '.repeat(Math.max(0, Math.floor((cols - l.length) / 2))) + l)
+      .join('\n') + '\n',
+  );
 }
 
 function fmtBRL(v: number): string {
@@ -227,14 +271,17 @@ interface CashCloseData {
   totalSales: number;
 }
 
+/** Useful/safe column width for the given paper size.
+ *  58mm: 30 useful cols (32 total minus ~1 char margin each side) to
+ *  prevent side-clipping on common POS thermal printers and QZ Tray.
+ *  80mm: 48 cols. */
 function colsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 32 : 48;
+  return paperWidth <= 58 ? 30 : 48;
 }
 
+/** Kept for backward-compat callers; safe margin is already baked into colsForWidth. */
 function detailColsForWidth(paperWidth: number): number {
-  const cols = colsForWidth(paperWidth);
-  // Small safety margin avoids cheap mobile thermal printers clipping the rightmost characters.
-  return Math.max(24, cols - (paperWidth <= 58 ? 2 : 4));
+  return colsForWidth(paperWidth);
 }
 
 function normalTextMode(): Uint8Array {
@@ -432,19 +479,20 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasAnyHeader = hasStoreName || hasAddress || hasDocument || hasWhatsapp;
 
   if (hasAnyHeader) {
+    parts.push(CMD_ALIGN_LEFT);
     if (hasStoreName) {
-      parts.push(CMD_ALIGN_CENTER, CMD_BOLD_ON, text(`${ps.storeName!.trim().toUpperCase()}\n`), CMD_BOLD_OFF);
+      parts.push(CMD_BOLD_ON, center(ps.storeName!.trim().toUpperCase(), cols), CMD_BOLD_OFF);
     }
     if (hasAddress) {
-      parts.push(CMD_ALIGN_CENTER, text(`${ps.address}\n`));
+      parts.push(center(ps.address!, cols));
     }
     if (hasDocument) {
-      parts.push(CMD_ALIGN_CENTER, text(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}\n`));
+      parts.push(center(`${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}`, cols));
     }
     if (hasWhatsapp) {
-      parts.push(CMD_ALIGN_CENTER, text(`WhatsApp: ${ps.whatsapp}\n`));
+      parts.push(center(`WhatsApp: ${ps.whatsapp}`, cols));
     }
-    parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
+    parts.push(lineOf('-', cols));
   }
 
   // Print "CONTA"
@@ -555,16 +603,15 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
 
   if (hasFooter) {
-    parts.push(CMD_ALIGN_CENTER);
-    if (footerPixKey) parts.push(text(`PIX: ${ps.pixKey}\n`));
+    parts.push(CMD_ALIGN_LEFT);
+    if (footerPixKey) parts.push(center(`PIX: ${ps.pixKey}`, cols));
     if (footerInstagram) {
       const cleanInsta = ps.instagram!.startsWith('@') ? ps.instagram! : `@${ps.instagram!}`;
-      parts.push(text(`Instagram: ${cleanInsta}\n`));
+      parts.push(center(`Instagram: ${cleanInsta}`, cols));
     }
     if (footerThankMsg) {
-      parts.push(CMD_BOLD_ON, text(`${footerThankMsg}\n`), CMD_BOLD_OFF);
+      parts.push(CMD_BOLD_ON, center(footerThankMsg, cols), CMD_BOLD_OFF);
     }
-    parts.push(CMD_ALIGN_LEFT);
   }
 
   // Minimal feed then cut (2 lines instead of 4 to save paper)

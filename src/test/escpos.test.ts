@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildBillReceipt } from '@/lib/escpos';
+import { buildBillPreviewText } from '@/lib/receipt-preview';
 
 const decodeReceipt = (data: Uint8Array) => new TextDecoder().decode(data);
 
@@ -41,7 +42,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLineIdx = lines.findIndex(l => /R\$ ?48,00\s*$/.test(l));
     expect(priceLineIdx).toBeGreaterThan(0);
     const priceLine = lines[priceLineIdx];
-    expect(priceLine.length).toBeLessThanOrEqual(32);
+    expect(priceLine.length).toBeLessThanOrEqual(30);
     // The line above the price line should be part of the wrapped label (no price on it).
     expect(lines[priceLineIdx - 1]).not.toMatch(/R\$/);
   });
@@ -59,7 +60,7 @@ describe('ESC/POS bill receipt', () => {
       customerName: 'Consumidor',
     }, 58, { storeName: 'Loja' }));
 
-    const sep = '-'.repeat(32);
+    const sep = '-'.repeat(30);
     // Expect at least 6 separators: header, title, data, items, adjustments, total, payment
     const occurrences = receipt.split(sep).length - 1;
     expect(occurrences).toBeGreaterThanOrEqual(6);
@@ -84,7 +85,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLineIdx = lines.findIndex(l => /R\$ ?48,00\s*$/.test(l));
     expect(priceLineIdx).toBeGreaterThan(0);
     const priceLine = lines[priceLineIdx];
-    expect(priceLine.length).toBeLessThanOrEqual(32);
+    expect(priceLine.length).toBeLessThanOrEqual(30);
     // Verifies that the line containing the price is the last line of the wrapped name
     expect(lines[priceLineIdx - 1]).not.toMatch(/R\$/);
   });
@@ -108,7 +109,7 @@ describe('ESC/POS bill receipt', () => {
       showDocument: true,
     }));
 
-    const sep = '-'.repeat(32);
+    const sep = '-'.repeat(30);
     const parts = receipt.split(sep);
 
     // Separador reintroduzido abaixo de CONTA — agora são 7 separadores (8 partes).
@@ -217,7 +218,7 @@ describe('ESC/POS bill receipt', () => {
 
     // 58mm = 32 colunas: label + espaços + valor preenchem toda a largura
     for (const row of [tipoRow!, mesaRow!, clienteRow!, dataRow!]) {
-      expect(row.length).toBe(32);
+      expect(row.length).toBe(30);
     }
 
     // Ordem esperada no cupom: Tipo -> Mesa -> Cliente -> Data
@@ -249,7 +250,7 @@ describe('ESC/POS bill receipt', () => {
     }, 58));
     const line = receipt.split('\n').find(l => /Coca 350ml/.test(l))!;
     expect(line).toBeDefined();
-    expect(line.length).toBe(32);
+    expect(line.length).toBe(30);
     expect(line).toMatch(/^2x Coca 350ml +R\$10,00$/);
   });
 
@@ -270,7 +271,7 @@ describe('ESC/POS bill receipt', () => {
     const priceIdx = lines.findIndex(l => /R\$32,50\s*$/.test(l));
     expect(priceIdx).toBeGreaterThan(0);
     const priceLine = lines[priceIdx];
-    expect(priceLine.length).toBeLessThanOrEqual(32);
+    expect(priceLine.length).toBeLessThanOrEqual(30);
     // Gap mínimo de 1 espaço entre texto e preço (ou linha somente com preço à direita)
     expect(priceLine).toMatch(/(?:^ +R\$32,50$|\S +R\$32,50$)/);
     // Linha anterior é parte do rótulo quebrado, sem preço
@@ -301,7 +302,74 @@ describe('ESC/POS bill receipt', () => {
     const nextLine = lines[firstCompIdx + 1];
     expect(nextLine).toBeDefined();
     expect(nextLine.startsWith('    ')).toBe(true);
-    expect(nextLine.length).toBeLessThanOrEqual(32);
+    expect(nextLine.length).toBeLessThanOrEqual(30);
+  });
+
+  it('58mm: NENHUMA linha da prévia excede 30 colunas úteis', () => {
+    const text = buildBillPreviewText({
+      id: 'safe-w',
+      orderType: 'mesa',
+      tableNumber: 12,
+      items: [
+        { name: 'Coca 350ml', quantity: 2, price: 5, subtotal: 10 },
+        {
+          name: 'Açaí 500ml com granola morango banana leite condensado premium',
+          quantity: 1, price: 32.5, subtotal: 32.5,
+          selectedComplements: [
+            { name: 'Cobertura chocolate belga cremosa premium extra', price: 3, quantity: 1 },
+          ],
+        },
+      ],
+      serviceFee: 3,
+      paymentSplits: [{ method: 'pix', amount: 45.5 }],
+      createdAt: '2026-05-22T20:13:00.000Z',
+      customerName: 'Consumidor',
+    }, 58, {
+      storeName: 'Lanchonete Muito Grande do Bairro Central',
+      address: 'Avenida Presidente Getúlio Vargas, 1234, Sala 5',
+      documentType: 'cnpj',
+      document: '00.000.000/0001-00',
+      whatsapp: '(86) 99999-9999',
+      pixKey: 'chave-pix-muito-longa-para-testar-quebra@exemplo.com',
+      instagram: '@lanchonetemuitograndedobairro',
+      thankMessage: 'Obrigado pela preferência e volte sempre!',
+      showAddress: true, showDocument: true, showWhatsapp: true,
+      showPixKey: true, showInstagram: true, showThankMessage: true,
+    });
+    for (const l of text.split('\n')) {
+      expect(l.length).toBeLessThanOrEqual(30);
+    }
+  });
+
+  it('58mm: nome de loja longo é quebrado em múltiplas linhas centralizadas <=30 col', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'store-wrap',
+      orderType: 'balcao',
+      items: [{ name: 'Coca', quantity: 1, price: 5, subtotal: 5 }],
+      total: 5,
+      createdAt: '2026-05-22T20:13:00.000Z',
+    }, 58, { storeName: 'Lanchonete Muito Grande do Bairro Central' }));
+    const upperName = 'LANCHONETE MUITO GRANDE DO BAIRRO CENTRAL';
+    // Should NOT appear as a single line
+    expect(receipt.split('\n').some(l => l.includes(upperName))).toBe(false);
+    // Yet some fragment ("LANCHONETE") should be present
+    expect(receipt).toContain('LANCHONETE');
+    expect(receipt).toContain('CENTRAL');
+  });
+
+  it('58mm: item com nome ~22 col + preço 8 col respeita partição nome/preço', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'partition',
+      orderType: 'balcao',
+      // "1x " (3) + name(19) = 22, price "R$100,00" (8) → total 30, gap 0? need gap>=1.
+      items: [{ name: 'Sanduíche Grande XL', quantity: 1, price: 100, subtotal: 100 }],
+      total: 100,
+      createdAt: '2026-05-22T20:13:00.000Z',
+    }, 58));
+    const lines = receipt.split('\n');
+    const priceLine = lines.find(l => /R\$100,00\s*$/.test(l))!;
+    expect(priceLine).toBeDefined();
+    expect(priceLine.length).toBeLessThanOrEqual(30);
   });
 });
 
