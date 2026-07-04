@@ -272,11 +272,11 @@ interface CashCloseData {
 }
 
 /** Useful/safe column width for the given paper size.
- *  58mm: 30 useful cols (32 total minus ~1 char margin each side) to
- *  prevent side-clipping on common POS thermal printers and QZ Tray.
- *  80mm: 48 cols. */
+ *  58mm: 30 useful cols (32 total minus ~1 char margin each side).
+ *  80mm: 44 useful cols (48 total minus ~2 char margin each side).
+ *  Prevents side-clipping on common POS thermal printers and QZ Tray. */
 function colsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 30 : 48;
+  return paperWidth <= 58 ? 30 : 44;
 }
 
 /** Kept for backward-compat callers; safe margin is already baked into colsForWidth. */

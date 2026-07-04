@@ -45,7 +45,7 @@ export function ReceiptPreview({ defaultPaperWidth = 58 }: Props) {
     [paperWidth, ps],
   );
 
-  const cols = paperWidth === 58 ? 30 : 48;
+  const cols = paperWidth === 58 ? 30 : 44;
 
   return (
     <Card>
