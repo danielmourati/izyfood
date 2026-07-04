@@ -1022,6 +1022,7 @@ function PermissoesTab() {
   const [permissions, setPermissions] = useState<Record<string, AttendantPermissionsRow>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [copyModal, setCopyModal] = useState<{ open: boolean; sourceUserId: string | null }>({ open: false, sourceUserId: null });
   const [copyTargets, setCopyTargets] = useState<Set<string>>(new Set());
   const [copying, setCopying] = useState(false);
