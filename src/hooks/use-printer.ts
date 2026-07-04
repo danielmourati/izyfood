@@ -124,6 +124,13 @@ export function usePrinter() {
   const [btDeviceName, setBtDeviceName] = useState<string | null>(null);
   const [lastPairedName, setLastPairedName] = useState<string | null>(() => getLastPairedDeviceName());
   const [qzConnected, setQzConnected] = useState(false);
+  const [btPriorityDefault, setBtPriorityDefaultState] = useState<boolean>(() => getBluetoothPriorityDefault());
+
+  const toggleBluetoothPriorityDefault = useCallback((v: boolean) => {
+    setBluetoothPriorityDefault(v);
+    setBtPriorityDefaultState(v);
+  }, []);
+
 
   const fetchPrinters = useCallback(async () => {
     const { data } = await supabase
