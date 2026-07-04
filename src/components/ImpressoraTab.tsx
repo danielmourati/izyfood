@@ -390,6 +390,9 @@ export function ImpressoraTab() {
               <Badge variant={btConnected ? 'default' : 'secondary'} className="text-xs">
                 {btConnected ? `Conectado: ${btDeviceName}` : 'Desconectado'}
               </Badge>
+              {btPriorityDefault && (
+                <Badge variant="outline" className="text-xs">Padrão neste aparelho</Badge>
+              )}
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-6 pb-4 space-y-3">
