@@ -28,6 +28,7 @@ import { MeuPerfilTab } from '@/components/MeuPerfilTab';
 import { AuditLogsTab } from '@/components/AuditLogsTab';
 import { ImpressoraTab } from '@/components/ImpressoraTab';
 import { PlanoTab } from '@/components/PlanoTab';
+import { useAttendantPermissions, type AttendantPermissions } from '@/hooks/use-attendant-permissions';
 
 type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora' | 'logs' | 'plano';
 
