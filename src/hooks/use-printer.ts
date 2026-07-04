@@ -261,9 +261,23 @@ export function usePrinter() {
     setBtConnected(false);
     setBtDeviceName(null);
     setLastPairedName(null);
+    setBtPriorityDefaultState(false);
   };
 
   const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string) => {
+    // 0. Prioridade Bluetooth deste aparelho (mobile) — sobrepõe qualquer padrão do banco.
+    if (btPriorityDefault && (isBluetoothConnected() || getLastPairedDeviceName())) {
+      try {
+        if (!isBluetoothConnected()) await ensureBluetoothConnected();
+        if (isBluetoothConnected()) {
+          await printViaBluetooth(data);
+          return;
+        }
+      } catch (err) {
+        console.warn('[print] BT prioritário falhou, seguindo pipeline padrão:', err);
+      }
+    }
+
     // 1. Bluetooth (ESC/POS) - Prioridade se estiver conectado e for a impressora padrão (ou se não houver padrão)
     if (isBluetoothConnected() && (!defaultPrinter || defaultPrinter.connection_type === 'bluetooth')) {
       try {
@@ -273,6 +287,7 @@ export function usePrinter() {
         console.error('Erro na impressão Bluetooth, caindo para HTML...', err);
       }
     }
+
 
     // 2. QZ Tray (USB/Rede)
     if ((defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && isQzConnected()) {
