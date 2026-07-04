@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -71,7 +72,26 @@ const Login = () => {
 
   const displayIcon = loginIcon || tenantLogo;
 
+  const pageTitle = tenantName
+    ? `Entrar em ${tenantName} — Degust`
+    : 'Entrar — Degust | Sistema de Gestão para Restaurantes';
+  const pageDescription = tenantName
+    ? `Acesse a conta ${tenantName} no Degust para gerenciar pedidos, mesas, delivery e caixa.`
+    : 'Acesse sua conta Degust para gerenciar pedidos, mesas, delivery, caixa e comissões do seu restaurante.';
+  const canonicalPath = slug ? `/${slug}/login` : '/login';
+
   return (
+    <>
+    <Helmet>
+      <title>{pageTitle}</title>
+      <meta name="description" content={pageDescription} />
+      <link rel="canonical" href={`https://degust.app${canonicalPath}`} />
+      <meta property="og:title" content={pageTitle} />
+      <meta property="og:description" content={pageDescription} />
+      <meta property="og:url" content={`https://degust.app${canonicalPath}`} />
+      <meta name="twitter:title" content={pageTitle} />
+      <meta name="twitter:description" content={pageDescription} />
+    </Helmet>
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left side - Persuasive brand panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-login-bg">
@@ -94,11 +114,11 @@ const Login = () => {
           {/* Brand */}
           <div className="flex items-center gap-3">
             {tenantLogo ? (
-              <img src={tenantLogo} alt={tenantName} className="h-11 object-contain" />
+              <img src={tenantLogo} alt={`Logo ${tenantName}`} className="h-11 object-contain" />
             ) : (
               <img
                 src={degustLogoHorizontal.url}
-                alt="Degust"
+                alt="Degust - Sistema de Gestão para Restaurantes"
                 className="h-11 object-contain bg-secondary/95 rounded-lg px-3 py-1.5"
               />
             )}
