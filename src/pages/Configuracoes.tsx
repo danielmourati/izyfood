@@ -243,8 +243,6 @@ function GeralTab() {
         }, (payload) => {
           if (payload.new.name) setTenantName(payload.new.name);
           if (payload.new.logo !== undefined) setTenantLogo(payload.new.logo);
-          if (payload.new.login_icon !== undefined) setLoginIcon(payload.new.login_icon);
-          if (payload.new.login_carousel_images !== undefined) setCarouselImages(payload.new.login_carousel_images || []);
         })
         .subscribe();
 
