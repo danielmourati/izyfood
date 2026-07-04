@@ -32,13 +32,13 @@ import { useAttendantPermissions, type AttendantPermissions } from '@/hooks/use-
 
 type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora' | 'logs' | 'plano';
 
-const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean }[] = [
+const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean; permissionKey?: keyof AttendantPermissions }[] = [
   { key: 'perfil', label: 'Meu Perfil', icon: User, adminOnly: false },
   { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true },
   { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true },
   { key: 'permissoes', label: 'Permissões', icon: KeyRound, adminOnly: true },
   { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
-  { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true },
+  { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true, permissionKey: 'manage_printers' },
   { key: 'logs', label: 'Auditoria', icon: FileText, adminOnly: true },
   { key: 'plano', label: 'Plano', icon: CreditCard, adminOnly: true },
 ];
@@ -53,7 +53,8 @@ const roleLabels: Record<AppRole, string> = {
 const Configuracoes = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAdmin } = useAuth();
-  const tabs = allTabs.filter(t => !t.adminOnly || isAdmin);
+  const { permissions } = useAttendantPermissions();
+  const tabs = allTabs.filter(t => !t.adminOnly || isAdmin || (t.permissionKey && permissions[t.permissionKey]));
   const validKeys = allTabs.map(t => t.key);
   const paramTab = searchParams.get('tab') as Tab | null;
   const initialTab: Tab = paramTab && validKeys.includes(paramTab) ? paramTab : 'perfil';
