@@ -1,0 +1,8 @@
+# Degust
+
+> Sistema de gestão simples e intuitivo para restaurantes, lanchonetes e hamburguerias — PDV, mesas, delivery, caixa, comissões e impressão térmica.
+
+Degust é um SaaS multi-tenant para operação de restaurantes: pedidos de balcão e mesa, gestão de delivery e retirada, controle de caixa e comissões, cadastro de produtos e clientes, e impressão térmica via Bluetooth.
+
+## Pages
+- [Login](/login): Acesso à conta Degust para donos, gerentes e atendentes.
