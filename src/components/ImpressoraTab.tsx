@@ -781,6 +781,13 @@ export function ImpressoraTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DuplicatePrinterModal
+        open={!!duplicateSource}
+        source={duplicateSource}
+        onClose={() => setDuplicateSource(null)}
+        onSaved={() => fetchPrinters()}
+      />
     </div>
   );
 }
