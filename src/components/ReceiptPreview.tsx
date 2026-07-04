@@ -78,7 +78,7 @@ export function ReceiptPreview({ defaultPaperWidth = 58 }: Props) {
       </CardHeader>
       <CardContent>
         <p className="text-xs text-muted-foreground mb-3">
-          Prévia · {paperWidth}mm ({cols} colunas) — usa itens de exemplo para validar quebras e alinhamento.
+          Prévia · {paperWidth}mm ({cols} col úteis) — reflete exatamente as quebras e alinhamento da impressora.
         </p>
         <div className="w-full overflow-x-auto flex justify-center py-4 bg-muted/30 rounded-md">
           <pre
