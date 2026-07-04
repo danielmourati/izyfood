@@ -1,13 +1,12 @@
-## Problema
-
-Na sidebar mobile (sheet aberto), os rótulos dos itens de menu não aparecem — só os ícones. Isso acontece porque `AppSidebar.tsx` usa `const collapsed = state === 'collapsed'` para decidir se mostra o texto, mas no mobile o `state` do `useSidebar` continua como `'collapsed'` mesmo quando o sheet (openMobile) está aberto. O `collapsible="icon"` só afeta desktop; no mobile o sheet deveria sempre mostrar os labels.
-
 ## Correção
 
-Em `src/components/AppSidebar.tsx`:
+Ao clicar em "Fazer upgrade" no `TrialBanner`, direcionar o admin diretamente para a aba **Plano** de `/configuracoes`.
 
-- Ler `isMobile` do `useSidebar()` (já é lido).
-- Trocar `const collapsed = state === 'collapsed'` por `const collapsed = !isMobile && state === 'collapsed'`.
-- Isso garante que no mobile os rótulos (nome do tenant, "Sistema PDV", labels dos itens, nome/email do usuário, ícone de settings) sempre apareçam quando o sheet estiver aberto, mantendo o comportamento icon-only apenas no desktop colapsado.
+### 1. `src/pages/Configuracoes.tsx`
+- Ler `useSearchParams()` do `react-router-dom` e usar `searchParams.get('tab')` como estado inicial de `activeTab` (validando contra as chaves de `allTabs`, com fallback para `'perfil'`).
+- Ao trocar de aba pelo clique, atualizar o query param via `setSearchParams({ tab }, { replace: true })` para manter URL e estado sincronizados.
 
-Nenhuma outra alteração de layout, estilo ou lógica.
+### 2. `src/components/TrialBanner.tsx`
+- Trocar `navigate('/configuracoes')` por `navigate('/configuracoes?tab=plano')`.
+
+Sem outras mudanças de layout/lógica.
