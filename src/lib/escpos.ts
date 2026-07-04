@@ -113,9 +113,11 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
   const rest = headMatch ? headMatch[2] : label;
   const words = rest.trim().split(/\s+/).filter(Boolean);
 
-  // Wrap the label within the "name area", reserving the price zone at the right.
-  const price = Math.max(value.length, priceZone(cols));
-  const nameMax = Math.max(8, cols - price - 1); // 1 char min gap
+  // Wrap the label within the "name area". When there's no value to place at
+  // the right, use the full column width for the label (kitchen ticket lines).
+  const price = value.length === 0 ? 0 : Math.max(value.length, priceZone(cols));
+  const nameMax = value.length === 0 ? cols : Math.max(8, cols - price - 1); // 1 char min gap
+
 
   const lines: string[] = [];
   let current = head;
