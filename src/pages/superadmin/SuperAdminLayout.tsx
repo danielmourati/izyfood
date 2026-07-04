@@ -9,6 +9,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { HeaderClock } from '@/components/HeaderClock';
 import degustLogoHorizontal from '@/assets/degust-logo-horizontal.png.asset.json';
 
 const items = [
@@ -36,6 +38,8 @@ export function SuperAdminLayout({ children }: { children: React.ReactNode }) {
               <Shield className="h-3.5 w-3.5" />
               <p className="text-[10px] uppercase tracking-wider font-semibold">Super Admin Console</p>
             </div>
+            <HeaderClock />
+
           </div>
         </div>
 
@@ -97,18 +101,19 @@ export function SuperAdminLayout({ children }: { children: React.ReactNode }) {
         <header className="md:hidden flex items-center gap-2 h-14 border-b border-border bg-card px-4 shrink-0">
           <Shield className="h-5 w-5 text-primary" />
           <span className="font-heading font-bold">Super Admin</span>
+          <HeaderClock className="ml-auto" />
           {user?.tenantSlug && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={() => navigate(`/${user.tenantSlug}`)}
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Sair
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={() => navigate(`/${user.tenantSlug}`)}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Voltar ao tenant</TooltipContent>
+            </Tooltip>
           )}
         </header>
+
 
         <div className="md:hidden flex gap-1 overflow-x-auto p-2 border-b border-border bg-card shrink-0">
           {items.map(item => (

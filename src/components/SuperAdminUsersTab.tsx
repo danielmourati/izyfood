@@ -6,10 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Users, Search, KeyRound, Loader2 } from 'lucide-react';
+import { Users, Search, KeyRound, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { AppRole } from '@/contexts/AuthContext';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { UserFormModal, type UserFormValue } from '@/components/UserFormModal';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrador',
@@ -24,6 +26,7 @@ interface UserWithTenant {
   email: string;
   phone: string;
   role: string;
+  tenantId: string;
   tenantName: string;
   tenantSlug: string;
 }
@@ -37,6 +40,11 @@ export function SuperAdminUsersTab() {
   const [resetModal, setResetModal] = useState<UserWithTenant | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [formInitial, setFormInitial] = useState<UserFormValue | undefined>();
+  const [deleteTarget, setDeleteTarget] = useState<UserWithTenant | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -44,7 +52,7 @@ export function SuperAdminUsersTab() {
       supabase.from('profiles').select('id, name, email, phone'),
       supabase.from('user_roles').select('user_id, role'),
       supabase.from('tenant_members').select('user_id, tenant_id, tenants(name, slug)'),
-      supabase.from('tenants').select('id, name, slug'),
+      supabase.from('tenants').select('id, name, slug').order('name'),
     ]);
 
     setTenants(tenantsRes.data || []);
@@ -63,6 +71,7 @@ export function SuperAdminUsersTab() {
         email: p.email,
         phone: p.phone || '',
         role: userRole?.role || 'atendente',
+        tenantId: member?.tenant_id || '',
         tenantName: tenant?.name || '—',
         tenantSlug: tenant?.slug || '',
       };
@@ -87,8 +96,8 @@ export function SuperAdminUsersTab() {
     }
     setResetting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('reset-user-password', {
-        body: { user_id: resetModal.id, new_password: newPassword },
+      const { data, error } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'reset_password', user_id: resetModal.id, new_password: newPassword },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -102,13 +111,55 @@ export function SuperAdminUsersTab() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'delete', user_id: deleteTarget.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success('Usuário excluído');
+      setDeleteTarget(null);
+      fetchUsers();
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao excluir');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const openCreate = () => {
+    setFormMode('create');
+    setFormInitial(undefined);
+    setFormOpen(true);
+  };
+
+  const openEdit = (u: UserWithTenant) => {
+    setFormMode('edit');
+    setFormInitial({
+      id: u.id, name: u.name, email: u.email, phone: u.phone,
+      role: u.role, tenant_id: u.tenantId,
+    });
+    setFormOpen(true);
+  };
+
   return (
     <>
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Users className="h-5 w-5" /> Usuários por Tenant
           </CardTitle>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" onClick={openCreate} className="gap-1.5">
+                <Plus className="h-4 w-4" /> Novo usuário
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Criar usuário em qualquer tenant</TooltipContent>
+          </Tooltip>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-3">
@@ -159,9 +210,32 @@ export function SuperAdminUsersTab() {
                         <Badge variant="outline" className="font-mono text-xs">{u.tenantName}</Badge>
                       </td>
                       <td className="py-3">
-                        <Button variant="ghost" size="sm" onClick={() => setResetModal(u)}>
-                          <KeyRound className="h-4 w-4 mr-1" /> Senha
-                        </Button>
+                        <div className="flex gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => openEdit(u)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Editar usuário</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => setResetModal(u)}>
+                                <KeyRound className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Redefinir senha</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(u)} disabled={u.role === 'superadmin'}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Excluir usuário</TooltipContent>
+                          </Tooltip>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -192,6 +266,32 @@ export function SuperAdminUsersTab() {
           </Button>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação removerá permanentemente <strong>{deleteTarget?.name}</strong> ({deleteTarget?.email}) e todos os seus vínculos. Não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <UserFormModal
+        open={formOpen}
+        mode={formMode}
+        initial={formInitial}
+        tenants={tenants}
+        onClose={() => setFormOpen(false)}
+        onSaved={() => { fetchUsers(); toast.success(formMode === 'create' ? 'Usuário criado!' : 'Usuário atualizado!'); }}
+      />
     </>
   );
 }

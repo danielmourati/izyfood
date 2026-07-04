@@ -1,80 +1,92 @@
-# Fechar o fluxo de instalação do QZ Tray por tenant
-
-## Problema
-
-Hoje geramos `cert.pem` + `private_key_pem` no banco (tabela `qz_tray_certs`) e o `.bat` copia o cert para o QZ Tray. Mas:
-
-1. **O cliente nunca assina as mensagens** — `src/lib/printer.ts` chama `qz.websocket.connect` sem `setCertificatePromise` nem `setSignaturePromise`. Sem assinatura, o QZ Tray trata a página como "Untrusted website" e mostra o pop-up de autorização (exatamente o mockup do anexo), mesmo com o cert instalado.
-2. **O `.bat` grava no caminho errado.** Ele escreve em `%QZDIR%\auth\override.crt`. O QZ Tray 2.1+ lê `%ProgramFiles%\QZ Tray\override.crt` (raiz do install dir), não a subpasta `auth`.
-3. **Não há endpoint de assinatura.** A chave privada precisa ficar no servidor — o front envia o nonce, o servidor devolve a assinatura SHA-512.
-
-Sem 1+2+3, o admin baixa os arquivos mas o pop-up continua aparecendo — o fluxo prometido no modal ("sem pop-up de autorização") não se cumpre.
-
 ## Escopo
 
-Nada muda em UI/UX visível fora do modal. Apenas fecha o loop técnico.
+7 mudanças agrupadas por área. Cada uma independente.
 
-## 1. Edge Function `qz-sign` (nova)
+---
 
-`supabase/functions/qz-sign/index.ts`
+### 1. Criar admin `fabiano@gmail.com` para tenant `xofome`
+- Consultar `tenants` pelo slug `xofome` (via SQL de leitura antes da migração).
+- Chamar edge function existente `manage-users` OU criar via `supabase.auth.admin.createUser` numa migração dedicada usando `insert` no `auth.users` não é permitido — usaremos uma nova invocação: adicionar rota `create-user` reutilizando a edge function `manage-users` (ou seed pontual via `seed-users` estendida).
+- Vincular em `tenant_members` (tenant xofome, role `admin`) e `user_roles` (`admin`).
+- Senha: `xofome@123`.
 
-- `POST { request: string }` autenticado (JWT do tenant).
-- Busca `private_key_pem` de `qz_tray_certs` pelo tenant do usuário (mesma resolução usada em `qz-cert`).
-- Assina `request` com RSA-SHA512 usando `node-forge` e devolve `{ signature: base64 }`.
-- Retorna 404 se ainda não houver cert (força o front a chamar `qz-cert` antes).
-- `verify_jwt = true` (default). Sem CORS extra além do padrão já usado em `qz-cert`.
+### 2. CRUD completo de usuários pelo Superadmin
+- Estender edge function `manage-users` (service_role) para suportar: `create`, `update`, `delete`, além do reset já existente.
+- Payload: `{ action, user_id?, email?, password?, name?, phone?, role?, tenant_id? }`.
+- Validar caller como `superadmin` via `has_role`.
+- Refatorar `SuperAdminUsersTab.tsx`:
+  - Botão "Novo usuário" → modal (nome, email, senha, telefone, role, tenant).
+  - Botão "Editar" por linha → modal de edição (permite trocar tenant/role).
+  - Botão "Excluir" → confirm dialog.
+  - Manter "Redefinir senha".
+- Separar tela: em `/configuracoes` do admin do tenant fica **Meu Perfil** e **preferências gerais** (impressoras, loja). Gestão de usuários de outros tenants **só no /superadmin/usuarios**. (Já é o caso; apenas garantir que a aba "Usuários" atual do admin do tenant só liste usuários do próprio tenant e não exponha superadmin actions.)
 
-## 2. Wiring de segurança no cliente
+### 3. `/superadmin/planos` — bloqueio + cortesia + status MP
+- Ampliar `PlanosPage.tsx` para listar todos os tenants com:
+  - Status do plano (`tenant_plans`): trial / pro_monthly / pro_yearly / suspended.
+  - Ações: **Suspender** (`status='suspended'`), **Reativar** (`status='active'`), **Estender cortesia** (input dias → soma em `trial_ends_at`).
+  - Coluna "Últimos pagamentos MP" lendo `payment_intents` filtrado por tenant, mostrando status/valor/data.
+- Loading enforcement: `AuthContext` já valida tenant; adicionar guarda em `fetchAppUser` — se `is_tenant_pro=false` E `trial_ends_at<now` E `status='suspended'`, ainda permite login mas mostra banner "Conta suspensa — contate o suporte" via `TrialBanner`/novo componente e bloqueia rotas de escrita (opção mínima: apenas mostrar aviso, sem redirect — pediu "apenas suspender plano").
 
-`src/lib/printer.ts`
+### 4. Impressoras adicionais — duplicar configuração existente
+- Em `ImpressoraTab.tsx`: adicionar botão "Duplicar impressora" ao lado de cada `printer_config`.
+- Ao clicar: abre modal pré-preenchido com nome/IP/porta da origem, exigindo apenas escolher novo **papel** (dropdown: `balcao`, `cozinha`, `bar`, `caixa`, `delivery`).
+- Salva nova linha em `printer_configs` com `role=<novo papel>` e demais campos copiados.
+- Migração: adicionar coluna `role text not null default 'balcao'` em `printer_configs` (se não existir).
 
-- Antes de `qz.websocket.connect`, uma única vez por sessão:
-  - `qz.security.setCertificatePromise((resolve, reject) => fetchTenantCertPem().then(({pem}) => resolve(pem)).catch(reject))`
-  - `qz.api.setSha256Type(...)` não é necessário; usar default SHA-512.
-  - `qz.security.setSignatureAlgorithm('SHA512')`
-  - `qz.security.setSignaturePromise(toSign => (resolve, reject) => supabase.functions.invoke('qz-sign', { body: { request: toSign }}).then(r => resolve(r.data.signature)).catch(reject))`
-- Novo helper `configureQzSecurity()` chamado do `ensureQzConnected()` antes do `connect`. Idempotente via flag de módulo.
-- Import dinâmico do `fetchTenantCertPem` (já existe em `src/lib/qz-installer.ts`) para evitar ciclo.
+### 5. Impressão de teste com pedido genérico
+- Corrigir handler `Imprimir Teste` em `ImpressoraTab.tsx` para gerar um pedido fake completo (mesa 3, 2 itens com observações, subtotal, total, forma de pagamento) e enviar via `printer.printOrder(mockOrder)` usando o layout comanda real.
+- Reutilizar `src/lib/escpos.ts` — sem novo formato.
 
-## 3. Corrigir o caminho do `.bat`
+### 6. Sidebar do storefront do admin sempre retraído por padrão
+- Em `src/App.tsx` (ou wrapper onde `SidebarProvider` é montado para rotas `/:slug/*`): setar `defaultOpen={false}`.
+- Não afeta `/superadmin` (mantém preferência atual).
 
-`src/lib/qz-installer.ts` — função `buildDegustBat`:
+### 7. Tooltips no hover + data/hora no header
+- **Tooltips**: envolver todos os `Button`/`DropdownMenuTrigger`/ícones-ação sem label visível com `Tooltip` do shadcn. Foco em: header (theme toggle, logout, sidebar trigger), botões de ação de tabelas (editar/excluir/reset), FABs. Criar helper `<IconButton tooltip="...">` reutilizável para reduzir boilerplate.
+- **Data/hora no header**: adicionar componente `HeaderClock` (mostra `dd/MM/yyyy HH:mm:ss`, atualiza a cada segundo, formato pt-BR) no `Layout.tsx` do storefront e no `SuperAdminLayout.tsx`.
 
-- Trocar `set "CERTFILE=%QZDIR%\auth\override.crt"` por `set "CERTFILE=%QZDIR%\override.crt"`.
-- Remover o `mkdir "%QZDIR%\auth"`.
-- Adicionar comentário no cabeçalho do `.bat` explicando qual arquivo é gerado.
-- Manter o restante (elevação, stop/start do serviço, mensagem final).
+---
 
-Efeito: o QZ Tray passa a reconhecer o cert como override permanente e, combinado com a assinatura do passo 2, deixa de mostrar o pop-up.
+## Arquivos
 
-## 4. Persistência — sem novos arquivos no banco
+**Novos:**
+- `src/components/HeaderClock.tsx`
+- `src/components/UserFormModal.tsx` (create/edit user)
+- `src/components/DuplicatePrinterModal.tsx`
 
-A tabela `qz_tray_certs(tenant_id, cert_pem, private_key_pem)` já cobre o que precisamos:
+**Migração:**
+- `printer_configs.role` (novo enum de texto)
+- Talvez função `has_role_any_tenant` — não necessária, `has_role(uid, 'superadmin')` já cobre.
 
-- `cert_pem` é servido pela função `qz-cert` (existente) para o `.bat` e para `setCertificatePromise`.
-- `private_key_pem` fica confinado ao servidor e é usado apenas pela nova `qz-sign`.
-- Sem migração nova.
+**Edge functions:**
+- Estender `supabase/functions/manage-users/index.ts` com actions `create|update|delete`.
+- Novo seed pontual: chamar `manage-users` do próprio painel do superadmin para criar o admin do xofome, OU um script one-off (via `insert` tool no auth não é possível; usaremos edge function chamada manualmente após deploy).
 
-## 5. Verificação
+**Editados:**
+- `src/pages/superadmin/PlanosPage.tsx` (suspender/estender/MP)
+- `src/components/SuperAdminUsersTab.tsx` (CRUD)
+- `src/components/ImpressoraTab.tsx` (duplicar + teste real)
+- `src/App.tsx` (sidebar defaultOpen=false para storefront)
+- `src/components/Layout.tsx` (HeaderClock + tooltips)
+- `src/pages/superadmin/SuperAdminLayout.tsx` (HeaderClock)
+- Vários botões espalhados: adicionar `Tooltip` — feito de forma incremental no header primeiro, depois nas tabelas de ações.
 
-Após o merge, no ambiente do admin:
+## Ordem de execução
+1. Migração (`printer_configs.role`).
+2. Estender `manage-users` + deploy.
+3. Criar usuário `fabiano@gmail.com` via `manage-users` recém-deployada.
+4. CRUD UI no `SuperAdminUsersTab`.
+5. `PlanosPage` — suspender/cortesia/MP.
+6. Impressoras adicionais + teste real.
+7. Sidebar default retraído.
+8. Tooltips + HeaderClock.
 
-1. Abrir `/configuracoes → Impressora → Como instalar`.
-2. Baixar `.bat`, rodar como admin no Windows com QZ Tray instalado.
-3. Voltar e clicar em "Testar de novo" → deve ficar verde **sem** o pop-up "Action Required".
-4. `Imprimir Teste` envia direto para a impressora selecionada.
-
-## Arquivos afetados
-
-- new  `supabase/functions/qz-sign/index.ts`
-- edit `supabase/config.toml` (registrar `qz-sign`)
-- edit `src/lib/printer.ts` (wiring de assinatura)
-- edit `src/lib/qz-installer.ts` (corrigir path do override.crt)
-
-## Detalhes técnicos
-
-- QZ Tray usa `override.crt` na raiz do install dir para pular a etapa de confiança; assinatura RSA-SHA512 é o default do `qz-tray` JS a partir de 2.1.
-- `node-forge`: `forge.pki.privateKeyFromPem(pem).sign(md)` com `forge.md.sha512.create()`, resultado em `forge.util.encode64`.
-- `supabase.functions.invoke` já envia JWT do usuário — a função reutiliza a resolução de `tenant_id` de `qz-cert`.
-- Nenhuma dependência nova no front (`qz-tray` já instalado).
-- Sem alteração em `client.ts`/`types.ts`.
+## Verificação
+- Login com fabiano@gmail.com / xofome@123 → deve entrar como admin do xofome.
+- Superadmin cria/edita/exclui usuário de qualquer tenant.
+- Suspender um tenant em /planos → admin do tenant vê aviso "Suspenso".
+- Duplicar impressora balcão para cozinha → nova linha aparece.
+- Botão "Imprimir Teste" → cupom com pedido fake sai na impressora.
+- Storefront do admin abre com sidebar retraída.
+- Hover em qualquer ícone do header mostra tooltip; relógio atualiza no header.

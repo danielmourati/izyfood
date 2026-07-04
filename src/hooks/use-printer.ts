@@ -356,17 +356,29 @@ export function usePrinter() {
   };
 
   const printTest = async () => {
-    const testData = buildOrderReceipt({
-      id: 'TESTE-0001',
-      orderType: 'balcao',
-      items: [{ name: 'Produto Teste', quantity: 1, price: 10, subtotal: 10 }],
-      total: 10,
+    // Rich mock order to exercise the same code path as a real print
+    const mockOrder = {
+      id: `TESTE-${Date.now().toString().slice(-6)}`,
+      orderType: 'mesa',
+      tableNumber: '3',
+      customerName: 'Cliente Teste',
+      operatorName: user?.name || 'Operador',
+      items: [
+        { id: 'i1', name: 'X-Salada', quantity: 2, price: 22.5, subtotal: 45, notes: 'Sem cebola' },
+        { id: 'i2', name: 'Refrigerante Lata 350ml', quantity: 2, price: 6.5, subtotal: 13, notes: '' },
+        { id: 'i3', name: 'Batata Frita Média', quantity: 1, price: 18, subtotal: 18, notes: 'Bem passada' },
+      ],
+      subtotal: 76,
+      serviceTax: 7.6,
+      discount: 0,
+      total: 83.6,
+      paymentMethod: 'pix',
       createdAt: new Date().toISOString(),
-      operatorName: 'Teste',
-    }, paperWidth);
-    const testHtml = `<div class="big">TESTE DE IMPRESSÃO</div><div class="line"></div><p>Se você está lendo isto, a impressão está funcionando!</p><div class="line"></div><p>${new Date().toLocaleString('pt-BR')}</p>`;
-    await sendToPrinter(testData, testHtml, 'Teste');
+      __test: true,
+    };
+    return printOrder(mockOrder);
   };
+
 
   return {
     printers,
