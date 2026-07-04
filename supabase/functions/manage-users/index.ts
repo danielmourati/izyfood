@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
 
       // Update auth email if changed
       if (email) {
-        const { error } = await adminClient.auth.admin.updateUser(user_id, { email })
+        const { error } = await adminClient.auth.admin.updateUserById(user_id, { email })
         if (error) return json({ error: error.message }, 400)
       }
 
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
       if (!user_id || !new_password || new_password.length < 6) {
         return json({ error: 'user_id e nova senha (mínimo 6 caracteres) obrigatórios' }, 400)
       }
-      const { error } = await adminClient.auth.admin.updateUser(user_id, { password: new_password })
+      const { error } = await adminClient.auth.admin.updateUserById(user_id, { password: new_password })
       if (error) return json({ error: error.message }, 400)
       return json({ success: true })
     }

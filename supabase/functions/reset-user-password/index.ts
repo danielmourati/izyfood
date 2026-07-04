@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    const { error } = await adminClient.auth.admin.updateUser(user_id, { password: new_password })
+    const { error } = await adminClient.auth.admin.updateUserById(user_id, { password: new_password })
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }

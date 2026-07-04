@@ -32,7 +32,7 @@ serve(async (req) => {
       if (existing) {
         userId = existing.id;
         // Always update password to keep seed idempotent
-        await supabase.auth.admin.updateUser(userId, { password: u.password });
+        await supabase.auth.admin.updateUserById(userId, { password: u.password });
         results.push({ email: u.email, status: "updated_password", id: userId });
       } else {
         const { data, error } = await supabase.auth.admin.createUser({
