@@ -26,23 +26,8 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [tenantLogo, setTenantLogo] = useState<string | null>(null);
-  const [tenantName, setTenantName] = useState<string>('');
-  const [loginIcon, setLoginIcon] = useState<string | null>(null);
   const { slug } = useParams<{ slug: string }>();
   const { login } = useAuth();
-
-  useEffect(() => {
-    if (!slug) return;
-    (supabase.rpc as any)('get_tenant_branding', { _slug: slug }).then(({ data }: any) => {
-      const row = Array.isArray(data) ? data[0] : data;
-      if (row) {
-        setTenantLogo(row.logo);
-        setTenantName(row.name);
-        if (row.login_icon) setLoginIcon(row.login_icon);
-      }
-    });
-  }, [slug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
