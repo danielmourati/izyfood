@@ -1,55 +1,84 @@
 ## Objetivo
+Adicionar uma prévia visual do cupom [CONTA] em 58mm (32 colunas) na aba Impressora de Configurações, renderizando exatamente como o texto será quebrado e alinhado antes de enviar para a impressora térmica.
 
-No cupom **CONTA** impresso em 58mm (32 colunas), garantir que:
+## Escopo
+- Somente frontend/apresentação. Sem alterar `escpos.ts`, `printer.ts`, `use-printer.ts` ou banco.
+- Prévia é apenas para o cupom **CONTA** (não comanda nem fechamento de caixa).
+- Suporta 58mm e 80mm (32/48 colunas) — usuário escolhe via toggle na prévia; padrão = largura da impressora default.
 
-1. Cada item ocupe seu próprio bloco de linhas (nunca compartilhe linha com outro item).
-2. Se o texto do item (quantidade + nome) não couber junto com o preço na largura útil, o nome quebre em múltiplas linhas.
-3. O preço permaneça alinhado à direita na última linha do item, mantendo o mesmo alinhamento vertical dos demais preços.
-4. Complementos (`+ Nx Nome`) sigam a mesma regra, com indentação preservada nas linhas quebradas.
+## Arquivos
 
-Escopo restrito a apresentação/impressão. Sem mudanças de dados, RLS ou fluxo.
+### Novo: `src/lib/receipt-preview.ts`
+Gera uma **string monoespaçada** (linhas separadas por `\n`) representando o cupom que seria impresso, reutilizando a lógica de formatação.
 
-## Alterações
+- Exporta `buildBillPreviewText(bill: BillData, paperWidth: 58|80, ps: PrintSettings): string`.
+- Reimplementa em texto puro as mesmas regras de `buildBillReceipt` do `escpos.ts`:
+  - Mesmas funções auxiliares `row`, `rowWrap`, `center`, `lineOf`, `fmtBRL`, `fmtDate`, `colsForWidth`.
+  - Cabeçalho dinâmico (storeName / address / document / whatsapp) respeitando toggles `ps.show*`.
+  - Título "CONTA" centralizado.
+  - Linhas de detalhe (Tipo, Mesa, Cliente, Data).
+  - Itens com `rowWrap` + complementos com prefixo `  + `.
+  - Bloco de ajustes (Desconto, Taxa de Serviço, Taxa de entrega).
+  - TOTAL, bloco PAGAMENTO, rodapé (PIX/Instagram/Agradecimento).
+- Não emite bytes ESC/POS — apenas texto. Marcações de negrito/duplo são ignoradas visualmente (opcional: envolver em `**...**` para negrito na renderização).
 
-### `src/lib/escpos.ts`
+Motivação para arquivo separado: `escpos.ts` mantém strings intercaladas com bytes de comando. Extrair uma versão text-only evita acoplar o encoder ao preview e permite reuso em testes.
 
-**1. Endurecer `rowWrap()`** (função já existente, usada em `buildBillReceipt` para itens):
+### Novo: `src/components/ReceiptPreview.tsx`
+Componente de apresentação da prévia.
 
-Situação atual: já quebra o rótulo em várias linhas e coloca o valor à direita na última linha. Problemas observados em 58mm:
+- Props: `paperWidth: 58 | 80`, `printSettings: PrintSettings`, `bill: BillData` (mock).
+- Renderiza um `<pre>` monoespaçado dentro de um "papel" com:
+  - Largura fixa em `ch` proporcional às colunas (32ch ou 48ch), com padding lateral simulando margem física.
+  - `font-family: ui-monospace, Menlo, Consolas, monospace`, `font-size: 12px`, `line-height: 1.25`.
+  - Fundo branco levemente amarelado (`bg-[hsl(48_50%_97%)]`), borda tracejada nas bordas laterais para sugerir bobina, sombra sutil.
+  - Overflow-x se necessário; centralizado no container.
+- Um cabeçalho pequeno: "Prévia · 58mm (32 col)" — muda conforme largura.
 
-- Quando a última palavra do rótulo cabe justo, o preço pode ser empurrado sem espaço mínimo (colando no texto).
-- Complementos com prefixo `  + ` perdem a indentação nas linhas seguintes em alguns casos porque o `indent` é detectado apenas por espaços iniciais e o `+` conta como palavra.
+### Editar: `src/components/ImpressoraTab.tsx`
+- Importar `ReceiptPreview` e `buildBillPreviewText`.
+- Adicionar nova seção **"Prévia do cupom"** dentro da aba Impressora, abaixo do form de impressora e acima da lista, dentro de um `Card` com título e descrição curta.
+- Controles no topo do card:
+  - Toggle largura: botões `58mm` / `80mm` (grupo). Padrão = `paper_width` da impressora default (ou 58 se não houver).
+  - Toggle "Usar itens de exemplo" (default on). Quando off, mostra dica: "Realize uma venda para testar cupom real" — v1 não pluga carrinho real, apenas mock.
+- Body: `<ReceiptPreview />` com um `bill` mock realista para stress-test das quebras:
+  - 1 item curto: `2x Coca 350ml` — R$ 15,00
+  - 1 item longo: `1x Açaí 500g com granola crocante e leite condensado` — R$ 32,50
+  - Item longo com 2 complementos: `+ 1x Cobertura de chocolate belga premium` e `+ 2x Morango`.
+  - Desconto 10%, Taxa de Serviço R$ 3,00, sem taxa de entrega.
+  - Pagamento split: PIX + Dinheiro.
+- Sem toasts. Feedback puramente visual.
+- `printSettings` já disponível via `getCachedPrintSettings()` (mesmo padrão usado pelo hook).
 
-Ajustes:
+## Layout esperado
 
-- Reservar sempre no mínimo **1 espaço** entre rótulo e valor; se não sobrar, empurrar o valor para uma nova linha alinhada à direita (sem rótulo).
-- Detectar indentação de complemento (`  + `) como prefixo literal e reaplicá-lo em cada linha quebrada, para manter o alinhamento visual do "+".
-- Se um único "token" (palavra) exceder as colunas disponíveis, quebrar por caractere (comportamento já existente, apenas confirmar que respeita a indentação de complementos).
+```text
++------------------------- Card: Prévia do cupom -------------------------+
+| [ 58mm ] [ 80mm ]                          Usar itens de exemplo [on]  |
+|                                                                        |
+|              +------- papel 32ch -------+                              |
+|              |        LOJA EXEMPLO      |                              |
+|              | ------------------------ |                              |
+|              |          CONTA           |                              |
+|              | ------------------------ |                              |
+|              | Tipo:               Mesa |                              |
+|              | 1x Açaí 500g com granola |                              |
+|              | crocante         R$32,50 |                              |
+|              |   + 1x Cobertura de      |                              |
+|              |     chocolate    R$ 5,00 |                              |
+|              | ...                      |                              |
+|              +--------------------------+                              |
++------------------------------------------------------------------------+
+```
 
-**2. `buildBillReceipt()` — bloco de itens:**
-
-Substituir o loop atual por uma chamada única a `rowWrap()` por item e por complemento (já é o caso), garantindo:
-
-- Uma linha em branco NÃO é adicionada entre itens (mantém compacto, comportamento atual).
-- Cada item começa em nova linha — garantir via `\n` explícito ao final do último fragmento de `rowWrap` (já é o caso, apenas validar).
-- A largura passada é `cols = colsForWidth(paperWidth)` (32 para 58mm). Nenhuma margem extra: usar toda a área útil.
-
-### `src/test/escpos.test.ts`
-
-Adicionar 3 casos para 58mm (`paperWidth = 58`, `cols = 32`):
-
-1. Item com nome curto e preço → uma única linha, valor à direita.
-2. Item com nome longo que ultrapassa 32 col → nome quebra em N linhas, preço na última linha alinhado à direita, com ao menos 1 espaço antes.
-3. Complemento com nome longo (`  + 1x Nome muito muito grande`) → linhas quebradas preservam a indentação `    ` (alinhada ao "+").
+## Considerações técnicas
+- Nenhuma dependência nova.
+- `BillData` e `PrintSettings` continuam definidos em `escpos.ts`; exportar tipos se ainda não estiverem (verificar antes; se privados, tornar `export`).
+- Zero mudança em business logic: mock 100% local no componente, sem hit em Supabase.
+- Acessibilidade: `<pre aria-label="Prévia do cupom em 58mm">`.
+- Mobile: card com `overflow-x-auto` para largura 80mm em telas estreitas.
 
 ## Fora de escopo
-
-- Cupom COMANDA (cozinha) e FECHAMENTO DE CAIXA — comportamento inalterado.
-- 80mm — inalterado (mesma função `rowWrap`, mais espaço, sem regressão esperada; coberto por testes existentes).
-- Ajustes de fonte/condensado.
-
-## Detalhes técnicos
-
-- `rowWrap(label, value, cols)` continua sendo a única função responsável pela quebra + alinhamento; toda a lógica nova fica encapsulada nela.
-- Sem novas dependências. Sem mudanças em `src/lib/printer.ts` ou `src/hooks/use-printer.ts`.
-- Validação: `bunx vitest run src/test/escpos.test.ts`.
+- Prévia de COMANDA e FECHAMENTO DE CAIXA.
+- Prévia baseada em cupom real de uma venda concreta.
+- Impressão direta a partir do preview (o botão "Imprimir teste" já existente cobre isso).
