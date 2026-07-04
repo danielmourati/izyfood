@@ -303,5 +303,78 @@ describe('ESC/POS bill receipt', () => {
     expect(nextLine.startsWith('    ')).toBe(true);
     expect(nextLine.length).toBeLessThanOrEqual(30);
   });
+
+  it('58mm: NENHUMA linha do cupom excede 30 colunas úteis', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'safe-w',
+      orderType: 'mesa',
+      tableNumber: 12,
+      items: [
+        { name: 'Coca 350ml', quantity: 2, price: 5, subtotal: 10 },
+        {
+          name: 'Açaí 500ml com granola morango banana leite condensado premium',
+          quantity: 1, price: 32.5, subtotal: 32.5,
+          selectedComplements: [
+            { name: 'Cobertura chocolate belga cremosa premium extra', price: 3, quantity: 1 },
+          ],
+        },
+      ],
+      total: 45.5,
+      serviceFee: 3,
+      paymentSplits: [{ method: 'pix', amount: 45.5 }],
+      createdAt: '2026-05-22T20:13:00.000Z',
+      customerName: 'Consumidor',
+    }, 58, {
+      storeName: 'Lanchonete Muito Grande do Bairro Central',
+      address: 'Avenida Presidente Getúlio Vargas, 1234, Sala 5',
+      documentType: 'cnpj',
+      document: '00.000.000/0001-00',
+      whatsapp: '(86) 99999-9999',
+      pixKey: 'chave-pix-muito-longa-para-testar-quebra@exemplo.com',
+      instagram: '@lanchonetemuitograndedobairro',
+      thankMessage: 'Obrigado pela preferência e volte sempre!',
+      showAddress: true, showDocument: true, showWhatsapp: true,
+      showPixKey: true, showInstagram: true, showThankMessage: true,
+    }));
+    const lines = receipt.split('\n');
+    // Ignore lines that carry double-width TOTAL (uses cols/2 partition)
+    // — the visible printed width may differ, but the raw text width must still fit 30.
+    for (const l of lines) {
+      // Strip ESC/POS control bytes (< 0x20 and not \n) which shouldn't count
+      const visible = l.replace(/[\x00-\x1F]/g, '');
+      expect(visible.length).toBeLessThanOrEqual(30);
+    }
+  });
+
+  it('58mm: nome de loja longo é quebrado em múltiplas linhas centralizadas <=30 col', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'store-wrap',
+      orderType: 'balcao',
+      items: [{ name: 'Coca', quantity: 1, price: 5, subtotal: 5 }],
+      total: 5,
+      createdAt: '2026-05-22T20:13:00.000Z',
+    }, 58, { storeName: 'Lanchonete Muito Grande do Bairro Central' }));
+    const upperName = 'LANCHONETE MUITO GRANDE DO BAIRRO CENTRAL';
+    // Should NOT appear as a single line
+    expect(receipt.split('\n').some(l => l.includes(upperName))).toBe(false);
+    // Yet some fragment ("LANCHONETE") should be present
+    expect(receipt).toContain('LANCHONETE');
+    expect(receipt).toContain('CENTRAL');
+  });
+
+  it('58mm: item com nome ~22 col + preço 8 col respeita partição nome/preço', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'partition',
+      orderType: 'balcao',
+      // "1x " (3) + name(19) = 22, price "R$100,00" (8) → total 30, gap 0? need gap>=1.
+      items: [{ name: 'Sanduíche Grande XL', quantity: 1, price: 100, subtotal: 100 }],
+      total: 100,
+      createdAt: '2026-05-22T20:13:00.000Z',
+    }, 58));
+    const lines = receipt.split('\n');
+    const priceLine = lines.find(l => /R\$100,00\s*$/.test(l))!;
+    expect(priceLine).toBeDefined();
+    expect(priceLine.length).toBeLessThanOrEqual(30);
+  });
 });
 
