@@ -209,9 +209,7 @@ function GeralTab() {
           const data = tenantRes.data as any;
           setTenantName(data.name ?? '');
           setTenantLogo(data.logo ?? null);
-          setLoginIcon(data.login_icon ?? null);
-          const imgs = data.login_carousel_images as string[] | null;
-          if (imgs && Array.isArray(imgs)) setCarouselImages(imgs);
+        }
         }
       });
 
