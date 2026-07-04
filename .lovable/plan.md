@@ -1,29 +1,13 @@
 ## Problema
 
-O upload do logo em `/configuracoes` (aba Geral) não renderiza a imagem nem persiste. O código atual em `src/pages/Configuracoes.tsx` (`handleLogoUpload`, linhas 255-273) tem falhas:
-
-1. O `update` na tabela `tenants` **não verifica erro** — se a RLS bloquear (usuário sem admin/tenant_id), a falha é silenciada e o usuário vê "Logo atualizada!" mesmo sem persistir.
-2. O bucket `tenant-assets` é público, mas o objeto pode não estar acessível se o path foi salvo mas o UPDATE do DB falhou → imagem "some" no próximo reload.
-3. Sem log/console para diagnóstico do que retorna cada etapa.
-4. `file.name.split('.').pop()` pode devolver o próprio nome se não houver extensão; melhor usar `file.type` como fallback.
-
-RLS verificada:
-- Storage `tenant-assets` INSERT/UPDATE OK (path `${tenantId}/...`)
-- `tenants` UPDATE só para `is_tenant_admin` do próprio tenant — se a role não estiver em `admin/superadmin` em `tenant_members`, o update silencia.
+Na sidebar mobile (sheet aberto), os rótulos dos itens de menu não aparecem — só os ícones. Isso acontece porque `AppSidebar.tsx` usa `const collapsed = state === 'collapsed'` para decidir se mostra o texto, mas no mobile o `state` do `useSidebar` continua como `'collapsed'` mesmo quando o sheet (openMobile) está aberto. O `collapsible="icon"` só afeta desktop; no mobile o sheet deveria sempre mostrar os labels.
 
 ## Correção
 
-**Arquivo:** `src/pages/Configuracoes.tsx` — refatorar `handleLogoUpload`:
+Em `src/components/AppSidebar.tsx`:
 
-1. Validar tipo/extensão da imagem antes do upload (fallback via `file.type`).
-2. Fazer upload no bucket `tenant-assets` no path `${tenantId}/logo-<timestamp>.<ext>` (nome único evita cache stale de CDN).
-3. Após upload, obter `getPublicUrl` e **capturar o erro do `update` na tabela `tenants`** com `await ... ; if (error) { toast.error(msg); return; }`.
-4. Só chamar `setTenantLogo(url)` e `toast.success` após confirmação de sucesso do UPDATE.
-5. Adicionar `console.error` detalhado em cada falha (upload, update) para diagnóstico.
-6. Limpar `e.target.value` no final para permitir re-upload do mesmo arquivo.
+- Ler `isMobile` do `useSidebar()` (já é lido).
+- Trocar `const collapsed = state === 'collapsed'` por `const collapsed = !isMobile && state === 'collapsed'`.
+- Isso garante que no mobile os rótulos (nome do tenant, "Sistema PDV", labels dos itens, nome/email do usuário, ícone de settings) sempre apareçam quando o sheet estiver aberto, mantendo o comportamento icon-only apenas no desktop colapsado.
 
-Sem mudanças em migrations, RLS ou storage buckets — a infraestrutura já está correta; o bug é apenas de tratamento de erro no cliente que mascarava falhas.
-
-## Arquivos alterados
-
-- `src/pages/Configuracoes.tsx`
+Nenhuma outra alteração de layout, estilo ou lógica.
