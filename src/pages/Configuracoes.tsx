@@ -210,7 +210,6 @@ function GeralTab() {
           setTenantName(data.name ?? '');
           setTenantLogo(data.logo ?? null);
         }
-        }
       });
 
       // 3. Realtime subscription to receive updates from other devices instantly
