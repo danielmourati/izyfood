@@ -1,32 +1,27 @@
-Substituir o dropdown único do rodapé do sidebar por botões independentes de **Configurações** e **Sair** no desktop expandido, mantendo um gatilho compacto por ícone de menu quando o sidebar estiver colapsado.
+## Objetivo
 
-## Contexto
-Atualmente `src/components/AppSidebar.tsx` renderiza o rodapé do sidebar como um único `DropdownMenu` acionado pelo avatar/nome do usuário. O menu esconde as ações de *Configurações* e *Sair* em itens de dropdown. O usuário quer que essas ações apareçam como botões independentes no rodapé, corrigindo a visualização em desktop. Quando colapsado, o espaço é reduzido, então um único ícone de menu abrirá as opções.
+Ao efetuar logout, o usuário deve ser levado à página de login **padrão Degust** (sem branding de tenant). Cada tenant continua com sua própria página de login personalizada acessível via URL direta `/:slug/login` (logotipo do tenant permanece salvo e visível quando alguém acessa o link do próprio tenant).
 
-## Alterações
-1. **Refatorar o rodapé de `AppSidebar.tsx`**
-   - Remover o layout atual de dropdown único no rodapé.
-   - Criar layout condicional baseado no estado `collapsed` do `useSidebar`.
+## Comportamento atual
 
-2. **Desktop expandido (`collapsed === false`)**
-   - Linha de perfil: avatar + nome + email (pode ser clicável para *Meu Perfil*).
-   - Botão **Configurações** (ícone `Settings`) navegando para `/:slug/configuracoes`.
-   - Botão **Sair** (ícone `LogOut`, cor `text-destructive`) chamando `logout()`.
-   - Preservar a opção *Área Super Admin* condicional para `role === 'superadmin'`.
+- Ao clicar em "Sair", `logout()` executa `supabase.auth.signOut()` e limpa o estado.
+- O `RequireAuth` percebe a ausência de usuário e redireciona para `/login`.
+- A rota `/login` (quando há slug na URL atual) é interceptada e redireciona para `/:slug/login`, exibindo o logotipo do tenant.
 
-3. **Desktop colapsado (`collapsed === true`)**
-   - Renderizar um único botão de ícone (ex. `Menu` ou `Settings`) que abre um dropdown com as opções: *Meu Perfil*, *Configurações*, *Sair* e *Área Super Admin* (quando aplicável).
-   - Garantir que o dropdown não seja cortado pela largura estreita do sidebar.
+Resultado: após logout, o usuário vê o logotipo do tenant que acabou de sair — não o padrão Degust.
 
-4. **Mobile**
-   - Manter o layout expandido, pois o sidebar mobile é um sheet de largura total.
+## Mudanças
 
-5. **Estilo e acessibilidade**
-   - Usar tokens semânticos do projeto (`bg-card`, `text-foreground`, `text-destructive`, `hover:bg-muted`, `border-border`).
-   - Adicionar `aria-label` nos botões de ícone.
-   - Garantir espaçamento consistente e estados de hover.
+### `src/contexts/AuthContext.tsx`
+- Após `supabase.auth.signOut()`, executar `window.location.assign('/login')` (navegação hard para forçar rota raiz sem slug, garantindo que o `Login.tsx` renderize sem `slug` e use o logotipo Degust padrão).
+- Limpar `setUser(null)` antes do redirect.
+
+### Nada a alterar em `Login.tsx`
+- Já exibe logo Degust padrão quando não há `slug` (verificado em `displayIcon` e no painel esquerdo).
+- A rota `/:slug/login` continua funcionando normalmente para acesso direto (mantém branding do tenant salvo).
 
 ## Validação
-- Visualizar a aplicação em desktop expandido e confirmar que *Configurações* e *Sair* são botões visíveis no rodapé.
-- Colapsar o sidebar e confirmar que o ícone de menu abre o dropdown com as mesmas opções, sem cortes.
-- Verificar mobile para garantir que o layout expandido continue funcional.
+
+- Login em um tenant → clicar em "Sair" no sidebar (desktop expandido, colapsado e mobile) → confirmar redirecionamento para `/login` com logotipo Degust.
+- Acessar diretamente `/:slug/login` de outro tenant → confirmar que o logotipo customizado do tenant continua sendo exibido.
+- Screenshot Playwright das duas situações.

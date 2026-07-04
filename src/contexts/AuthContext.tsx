@@ -120,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    window.location.assign('/login');
   };
 
   return (
