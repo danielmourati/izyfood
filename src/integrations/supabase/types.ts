@@ -18,44 +18,74 @@ export type Database = {
         Row: {
           apply_discounts: boolean
           cancel_orders: boolean
+          close_cash_register: boolean
           edit_prices: boolean
           id: string
           manage_cash: boolean
           manage_categories: boolean
+          manage_coupons: boolean
           manage_customers: boolean
+          manage_deliveries: boolean
+          manage_printers: boolean
           manage_products: boolean
           manage_stock: boolean
+          manage_suppliers: boolean
+          manage_tables: boolean
+          open_cash_register: boolean
           remove_order_items: boolean
           tenant_id: string
           user_id: string
+          view_cash_register: boolean
+          view_orders_history: boolean
+          view_reports: boolean
         }
         Insert: {
           apply_discounts?: boolean
           cancel_orders?: boolean
+          close_cash_register?: boolean
           edit_prices?: boolean
           id?: string
           manage_cash?: boolean
           manage_categories?: boolean
+          manage_coupons?: boolean
           manage_customers?: boolean
+          manage_deliveries?: boolean
+          manage_printers?: boolean
           manage_products?: boolean
           manage_stock?: boolean
+          manage_suppliers?: boolean
+          manage_tables?: boolean
+          open_cash_register?: boolean
           remove_order_items?: boolean
           tenant_id?: string
           user_id: string
+          view_cash_register?: boolean
+          view_orders_history?: boolean
+          view_reports?: boolean
         }
         Update: {
           apply_discounts?: boolean
           cancel_orders?: boolean
+          close_cash_register?: boolean
           edit_prices?: boolean
           id?: string
           manage_cash?: boolean
           manage_categories?: boolean
+          manage_coupons?: boolean
           manage_customers?: boolean
+          manage_deliveries?: boolean
+          manage_printers?: boolean
           manage_products?: boolean
           manage_stock?: boolean
+          manage_suppliers?: boolean
+          manage_tables?: boolean
+          open_cash_register?: boolean
           remove_order_items?: boolean
           tenant_id?: string
           user_id?: string
+          view_cash_register?: boolean
+          view_orders_history?: boolean
+          view_reports?: boolean
         }
         Relationships: [
           {
