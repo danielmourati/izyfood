@@ -272,52 +272,8 @@ function GeralTab() {
     setUploading(false);
   };
 
-  const handleLoginIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user?.tenantId) return;
-    setUploadingIcon(true);
-    const ext = file.name.split('.').pop();
-    const path = `${user.tenantId}/login-icon.${ext}`;
-    const { error: uploadError } = await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true });
-    if (uploadError) {
-      toast.error('Erro ao enviar ícone');
-      setUploadingIcon(false);
-      return;
-    }
-    const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path);
-    const iconUrl = urlData.publicUrl + '?t=' + Date.now();
-    await supabase.from('tenants').update({ login_icon: iconUrl } as any).eq('id', user.tenantId);
-    setLoginIcon(iconUrl);
-    toast.success('Ícone do login atualizado!');
-    setUploadingIcon(false);
-  };
 
-  const handleCarouselUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0 || !user?.tenantId) return;
-    setUploadingCarousel(true);
-    const newImages = [...carouselImages];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const ext = file.name.split('.').pop();
-      const path = `${user.tenantId}/carousel-${Date.now()}-${i}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true });
-      if (uploadError) continue;
-      const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path);
-      newImages.push(urlData.publicUrl + '?t=' + Date.now());
-    }
-    await supabase.from('tenants').update({ login_carousel_images: newImages } as any).eq('id', user.tenantId);
-    setCarouselImages(newImages);
-    toast.success('Imagens do carrossel atualizadas!');
-    setUploadingCarousel(false);
-  };
 
-  const removeCarouselImage = async (index: number) => {
-    const newImages = carouselImages.filter((_, i) => i !== index);
-    await supabase.from('tenants').update({ login_carousel_images: newImages } as any).eq('id', user?.tenantId!);
-    setCarouselImages(newImages);
-    toast.success('Imagem removida');
-  };
 
   const handleSaveAll = async () => {
     if (!user?.tenantId) {
