@@ -12,7 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import {
   Printer, Plus, Trash2, Bluetooth, Wifi, TestTube, Loader2, Monitor,
   Download, HelpCircle, PlugZap, CheckCircle2, ShieldCheck, FileDown,
-  ExternalLink, Lock, Sparkles, ChefHat,
+  ExternalLink, Lock, Sparkles, ChefHat, Copy,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { usePrinter, type PrinterConfig } from '@/hooks/use-printer';
@@ -21,6 +21,8 @@ import { useStore } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getQzPrinters } from '@/lib/printer';
 import { fetchTenantCertPem, downloadDegustBat, downloadCertPem } from '@/lib/qz-installer';
+import { DuplicatePrinterModal } from '@/components/DuplicatePrinterModal';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const QZ_DOWNLOAD_URL = 'https://qz.io/download/';
 const QZ_CERT_URL = 'https://qz.io/wiki/2.0-signing-messages';
@@ -80,6 +82,7 @@ export function ImpressoraTab() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [certLoading, setCertLoading] = useState(false);
   const [certError, setCertError] = useState<string | null>(null);
+  const [duplicateSource, setDuplicateSource] = useState<PrinterConfig | null>(null);
 
   // Tenant plan (for Pro-gated additional printers)
   const [isPro, setIsPro] = useState(false);
@@ -463,9 +466,22 @@ export function ImpressoraTab() {
                         Definir padrão
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDuplicateSource(p)}>
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Reutilizar em outro setor (cozinha, bar…)</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Excluir impressora</TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               ))}
