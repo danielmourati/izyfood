@@ -180,11 +180,11 @@ export function AppSidebar() {
               </div>
             </button>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" size="sm" className="justify-start gap-2" onClick={() => { navigate('/configuracoes'); handleItemClick(); }}>
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => { navigate('/configuracoes'); handleItemClick(); }}>
                 <Settings className="h-4 w-4" /> Configurações
               </Button>
-              <Button variant="outline" size="sm" className="justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={logout}>
+              <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={logout}>
                 <LogOut className="h-4 w-4" /> Sair
               </Button>
             </div>
