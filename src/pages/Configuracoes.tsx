@@ -128,11 +128,7 @@ function GeralTab() {
   const [serviceFee, setServiceFee] = useState('');
   const [tenantName, setTenantName] = useState('');
   const [tenantLogo, setTenantLogo] = useState<string | null>(null);
-  const [loginIcon, setLoginIcon] = useState<string | null>(null);
-  const [carouselImages, setCarouselImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadingIcon, setUploadingIcon] = useState(false);
-  const [uploadingCarousel, setUploadingCarousel] = useState(false);
   const [savingGeneral, setSavingGeneral] = useState(false);
   // printSettings lives in StoreContext — no local duplication needed
 
