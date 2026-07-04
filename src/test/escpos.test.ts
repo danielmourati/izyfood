@@ -238,5 +238,70 @@ describe('ESC/POS bill receipt', () => {
     expect(receipt).not.toMatch(/Mesa:[^\n]*Cliente:/);
     expect(receipt).not.toMatch(/Cliente:[^\n]*Data:/);
   });
+
+  it('58mm: item curto cabe em uma linha com preço à direita', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'x1',
+      orderType: 'balcao',
+      items: [{ name: 'Coca 350ml', quantity: 2, price: 5, subtotal: 10 }],
+      total: 10,
+      createdAt: '2026-05-22T20:13:00.000Z',
+    }, 58));
+    const line = receipt.split('\n').find(l => /Coca 350ml/.test(l))!;
+    expect(line).toBeDefined();
+    expect(line.length).toBe(32);
+    expect(line).toMatch(/^2x Coca 350ml +R\$10,00$/);
+  });
+
+  it('58mm: item longo quebra em várias linhas com preço na última linha e gap >=1', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'x2',
+      orderType: 'balcao',
+      items: [{
+        name: 'Açaí 500ml com granola morango banana leite condensado',
+        quantity: 1,
+        price: 32.5,
+        subtotal: 32.5,
+      }],
+      total: 32.5,
+      createdAt: '2026-05-22T20:13:00.000Z',
+    }, 58));
+    const lines = receipt.split('\n');
+    const priceIdx = lines.findIndex(l => /R\$32,50\s*$/.test(l));
+    expect(priceIdx).toBeGreaterThan(0);
+    const priceLine = lines[priceIdx];
+    expect(priceLine.length).toBeLessThanOrEqual(32);
+    // Gap mínimo de 1 espaço entre texto e preço (ou linha somente com preço à direita)
+    expect(priceLine).toMatch(/(?:^ +R\$32,50$|\S +R\$32,50$)/);
+    // Linha anterior é parte do rótulo quebrado, sem preço
+    expect(lines[priceIdx - 1]).not.toMatch(/R\$/);
+  });
+
+  it('58mm: complemento longo mantém indentação alinhada ao "+" nas linhas quebradas', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'x3',
+      orderType: 'balcao',
+      items: [{
+        name: 'Açaí',
+        quantity: 1,
+        price: 20,
+        subtotal: 20,
+        selectedComplements: [
+          { name: 'Cobertura chocolate belga cremosa premium extra', price: 3, quantity: 1 },
+        ],
+      }],
+      total: 23,
+      createdAt: '2026-05-22T20:13:00.000Z',
+    }, 58));
+    const lines = receipt.split('\n');
+    const firstCompIdx = lines.findIndex(l => /^\s*\+ 1x Cobertura/.test(l));
+    expect(firstCompIdx).toBeGreaterThan(-1);
+    // Ao menos uma linha subsequente do mesmo complemento (quebrada) deve começar com a indentação alinhada ao caractere após o "+"
+    // Prefixo do complemento é "  + " (4 chars) → linhas de continuação começam com 4 espaços.
+    const nextLine = lines[firstCompIdx + 1];
+    expect(nextLine).toBeDefined();
+    expect(nextLine.startsWith('    ')).toBe(true);
+    expect(nextLine.length).toBeLessThanOrEqual(32);
+  });
 });
 
