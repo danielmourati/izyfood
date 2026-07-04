@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ArrowLeft, Eye, EyeOff, Zap, Truck, Wallet, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import degustLogoHorizontal from '@/assets/degust-logo-horizontal.png.asset.json';
-import degustLogoCream from '@/assets/degust-logo-cream.png';
+import degustLogoLogin from '@/assets/degust-logo-login.png.asset.json';
 
 const benefits = [
   { icon: Zap, title: 'Pedidos em segundos', desc: 'Do balcão à mesa, sem fricção.' },
@@ -94,7 +94,7 @@ const Login = () => {
           {/* Brand */}
           <div className="flex items-center gap-3">
             <img
-              src={degustLogoCream}
+              src={degustLogoLogin.url}
               alt="Degust - Sistema de Gestão para Restaurantes"
               className="h-12 object-contain"
             />
