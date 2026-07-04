@@ -434,57 +434,6 @@ function GeralTab() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Image className="h-5 w-5" /> Tela de Login</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Login Icon */}
-          <div className="space-y-2">
-            <Label>Ícone do Login</Label>
-            <p className="text-xs text-muted-foreground">Imagem exibida acima do formulário de login (diferente da logo da sidebar).</p>
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-xl border-2 border-dashed border-border overflow-hidden bg-muted flex items-center justify-center">
-                {loginIcon ? (
-                  <img src={loginIcon} alt="Login Icon" className="h-full w-full object-contain" />
-                ) : (
-                  <Upload className="h-5 w-5 text-muted-foreground" />
-                )}
-              </div>
-              <label className="cursor-pointer">
-                <Button variant="outline" size="sm" asChild>
-                  <span>{uploadingIcon ? 'Enviando...' : 'Alterar ícone'}</span>
-                </Button>
-                <input type="file" accept="image/*" className="hidden" onChange={handleLoginIconUpload} disabled={uploadingIcon} />
-              </label>
-            </div>
-          </div>
-
-          {/* Carousel Images */}
-          <div className="space-y-2">
-            <Label>Imagens do Carrossel</Label>
-            <p className="text-xs text-muted-foreground">Imagens exibidas no lado esquerdo da tela de login. Se vazio, serão usadas as imagens padrão.</p>
-            <div className="flex flex-wrap gap-3">
-              {carouselImages.map((img, i) => (
-                <div key={i} className="relative h-20 w-32 rounded-lg overflow-hidden border bg-muted group">
-                  <img src={img} alt={`Slide ${i + 1}`} className="h-full w-full object-cover" />
-                  <button
-                    onClick={() => removeCarouselImage(i)}
-                    className="absolute top-1 right-1 p-1 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-              <label className="h-20 w-32 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
-                <Plus className="h-5 w-5 text-muted-foreground" />
-                <span className="text-[10px] text-muted-foreground mt-1">{uploadingCarousel ? 'Enviando...' : 'Adicionar'}</span>
-                <input type="file" accept="image/*" multiple className="hidden" onChange={handleCarouselUpload} disabled={uploadingCarousel} />
-              </label>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
