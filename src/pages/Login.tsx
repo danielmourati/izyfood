@@ -55,14 +55,8 @@ const Login = () => {
     }
   };
 
-  const displayIcon = loginIcon || tenantLogo;
-
-  const pageTitle = tenantName
-    ? `Entrar em ${tenantName} — Degust`
-    : 'Entrar — Degust | Sistema de Gestão para Restaurantes';
-  const pageDescription = tenantName
-    ? `Acesse a conta ${tenantName} no Degust para gerenciar pedidos, mesas, delivery e caixa.`
-    : 'Acesse sua conta Degust para gerenciar pedidos, mesas, delivery, caixa e comissões do seu restaurante.';
+  const pageTitle = 'Entrar — Degust | Sistema de Gestão para Restaurantes';
+  const pageDescription = 'Acesse sua conta Degust para gerenciar pedidos, mesas, delivery, caixa e comissões do seu restaurante.';
   const canonicalPath = slug ? `/${slug}/login` : '/login';
 
   return (
