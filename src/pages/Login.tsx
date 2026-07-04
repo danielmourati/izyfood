@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -71,7 +72,26 @@ const Login = () => {
 
   const displayIcon = loginIcon || tenantLogo;
 
+  const pageTitle = tenantName
+    ? `Entrar em ${tenantName} — Degust`
+    : 'Entrar — Degust | Sistema de Gestão para Restaurantes';
+  const pageDescription = tenantName
+    ? `Acesse a conta ${tenantName} no Degust para gerenciar pedidos, mesas, delivery e caixa.`
+    : 'Acesse sua conta Degust para gerenciar pedidos, mesas, delivery, caixa e comissões do seu restaurante.';
+  const canonicalPath = slug ? `/${slug}/login` : '/login';
+
   return (
+    <>
+    <Helmet>
+      <title>{pageTitle}</title>
+      <meta name="description" content={pageDescription} />
+      <link rel="canonical" href={`https://degust.app${canonicalPath}`} />
+      <meta property="og:title" content={pageTitle} />
+      <meta property="og:description" content={pageDescription} />
+      <meta property="og:url" content={`https://degust.app${canonicalPath}`} />
+      <meta name="twitter:title" content={pageTitle} />
+      <meta name="twitter:description" content={pageDescription} />
+    </Helmet>
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left side - Persuasive brand panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-login-bg">
@@ -94,11 +114,11 @@ const Login = () => {
           {/* Brand */}
           <div className="flex items-center gap-3">
             {tenantLogo ? (
-              <img src={tenantLogo} alt={tenantName} className="h-11 object-contain" />
+              <img src={tenantLogo} alt={`Logo ${tenantName}`} className="h-11 object-contain" />
             ) : (
               <img
                 src={degustLogoHorizontal.url}
-                alt="Degust"
+                alt="Degust - Sistema de Gestão para Restaurantes"
                 className="h-11 object-contain bg-secondary/95 rounded-lg px-3 py-1.5"
               />
             )}
@@ -153,11 +173,11 @@ const Login = () => {
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
             {displayIcon ? (
-              <img src={displayIcon} alt={tenantName} className="h-20 mx-auto mb-2 object-contain" />
+              <img src={displayIcon} alt={`Logo ${tenantName}`} className="h-20 mx-auto mb-2 object-contain" />
             ) : (
               <img
                 src={degustLogoHorizontal.url}
-                alt="Degust"
+                alt="Degust - Sistema de Gestão para Restaurantes"
                 className="h-16 mx-auto mb-2 object-contain"
               />
             )}
@@ -165,7 +185,7 @@ const Login = () => {
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-foreground">Login</h1>
+            <h2 className="text-2xl font-bold text-foreground">Login</h2>
             <p className="text-sm text-muted-foreground">Acesse sua conta para continuar</p>
           </div>
 
@@ -188,6 +208,7 @@ const Login = () => {
                   onChange={(e) => setPassword(e.target.value)} className="h-12 pr-10" required />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Esconder senha' : 'Mostrar senha'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors rounded-full focus:outline-none focus:ring-1 focus:ring-primary h-7 w-7 flex items-center justify-center"
                   onClick={() => setShowPassword(!showPassword)}
                 >
@@ -229,6 +250,7 @@ const Login = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 };
 
