@@ -1,7 +1,8 @@
 import {
-  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield
+  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield, Menu
 } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
@@ -141,38 +142,60 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="bg-card border-t border-border p-2 space-y-0.5">
-        {/* User Profile */}
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center justify-between w-full p-2 outline-none hover:bg-muted rounded-lg transition-colors overflow-hidden">
-            <div className="flex items-center gap-3 overflow-hidden">
+      <SidebarFooter className="bg-card border-t border-border p-2 space-y-2">
+        {collapsed ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="w-full h-9" aria-label="Menu do usuário">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="start" className="w-56">
+              <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><UserIcon className="h-4 w-4 mr-2" /> Meu Perfil</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><Settings className="h-4 w-4 mr-2" /> Configurações</DropdownMenuItem>
+              {user?.role === 'superadmin' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => { window.location.href = '/superadmin'; }}>
+                    <Shield className="h-4 w-4 mr-2" /> Área Super Admin
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={logout} className="text-destructive"><LogOut className="h-4 w-4 mr-2" /> Sair</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <>
+            <button
+              onClick={() => { navigate('/configuracoes'); handleItemClick(); }}
+              className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-muted transition-colors text-left"
+            >
               <Avatar className="h-8 w-8 shrink-0">
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{initials}</AvatarFallback>
               </Avatar>
-              {!collapsed && (
-                <div className="text-left min-w-0">
-                  <p className="text-sm font-medium text-foreground leading-tight truncate">{user?.name}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
-                </div>
-              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground leading-tight truncate">{user?.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+              </div>
+            </button>
+
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => { navigate('/configuracoes'); handleItemClick(); }}>
+                <Settings className="h-4 w-4" /> Configurações
+              </Button>
+              <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={logout}>
+                <LogOut className="h-4 w-4" /> Sair
+              </Button>
             </div>
-            {!collapsed && <Settings className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 mb-2">
-            <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><UserIcon className="h-4 w-4 mr-2" /> Meu Perfil</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><Settings className="h-4 w-4 mr-2" /> Configurações</DropdownMenuItem>
+
             {user?.role === 'superadmin' && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => { window.location.href = '/superadmin'; }}>
-                  <Shield className="h-4 w-4 mr-2" /> Área Super Admin
-                </DropdownMenuItem>
-              </>
+              <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" onClick={() => { window.location.href = '/superadmin'; }}>
+                <Shield className="h-4 w-4" /> Área Super Admin
+              </Button>
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout} className="text-destructive"><LogOut className="h-4 w-4 mr-2" /> Sair</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
