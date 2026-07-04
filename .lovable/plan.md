@@ -1,57 +1,55 @@
-
 ## Objetivo
 
-Permitir que em navegadores mobile (Chrome/Edge Android) o usuário defina a impressora Bluetooth pareada como **prioritária/padrão**, sobrepondo qualquer impressora configurada no banco (QZ Tray/Rede). Hoje o roteamento de impressão só usa Bluetooth se a impressora `default` em `printer_configs` também for do tipo `bluetooth` — o que não faz sentido em celular, onde tipicamente não há registro de impressora no banco e o pareamento vive só no dispositivo.
+No cupom **CONTA** impresso em 58mm (32 colunas), garantir que:
 
-## Escopo
+1. Cada item ocupe seu próprio bloco de linhas (nunca compartilhe linha com outro item).
+2. Se o texto do item (quantidade + nome) não couber junto com o preço na largura útil, o nome quebre em múltiplas linhas.
+3. O preço permaneça alinhado à direita na última linha do item, mantendo o mesmo alinhamento vertical dos demais preços.
+4. Complementos (`+ Nx Nome`) sigam a mesma regra, com indentação preservada nas linhas quebradas.
 
-Somente frontend (`ImpressoraTab.tsx` e `use-printer.ts`) + persistência local. Sem mudanças em banco, RLS ou Edge Functions.
+Escopo restrito a apresentação/impressão. Sem mudanças de dados, RLS ou fluxo.
 
-## Comportamento
+## Alterações
 
-1. **Nova flag local `bt_priority_default`** (localStorage) por dispositivo. Persistente, sem ligação com `tenant_id` porque o pareamento Bluetooth também é local.
-2. **Toggle na aba Impressora → seção "Conexão Bluetooth"**:
-   - Rótulo: **"Usar esta impressora como padrão neste aparelho"**
-   - Descrição curta: "Envia todas as impressões para esta impressora Bluetooth, ignorando outras impressoras configuradas."
-   - Só habilitado quando há dispositivo pareado (`lastPairedName` presente) e Web Bluetooth disponível.
-   - Ao ligar: salva `bt_priority_default = "1"`.
-   - Ao desligar / ao clicar em "Esquecer": remove a flag.
-3. **Badge visual** "Padrão neste aparelho" ao lado do nome do dispositivo quando a flag está ativa.
-4. **Roteamento de impressão (`sendToPrinter` em `use-printer.ts`)**:
-   - Se `bt_priority_default` estiver ligada e houver dispositivo BT pareado:
-     - Garante conexão via `ensureBluetoothConnected()`.
-     - Se conectar, imprime via Bluetooth e retorna, **independente** do `defaultPrinter` no banco.
-     - Se falhar (BT indisponível/fora de alcance), cai no fluxo atual (QZ → HTML fallback) sem alterar a flag.
-   - Caso contrário mantém o comportamento atual.
-5. Aplica-se aos três documentos: comanda (`printOrder`), conta (`printBill`) e fechamento (`printCashClose`) — todos passam por `sendToPrinter`, então nenhuma mudança adicional é necessária.
+### `src/lib/escpos.ts`
 
-## Alterações técnicas
+**1. Endurecer `rowWrap()`** (função já existente, usada em `buildBillReceipt` para itens):
 
-**`src/lib/printer.ts`**
-- Novo helper: `getBluetoothPriorityDefault()` / `setBluetoothPriorityDefault(v: boolean)` usando `localStorage` (`bt_priority_default`). Constante `LS_BT_PRIORITY = 'bt_priority_default'`.
-- `forgetBluetoothDevice()` também limpa a flag.
+Situação atual: já quebra o rótulo em várias linhas e coloca o valor à direita na última linha. Problemas observados em 58mm:
 
-**`src/hooks/use-printer.ts`**
-- Novo estado `btPriorityDefault` inicializado de `getBluetoothPriorityDefault()`.
-- Nova função `toggleBluetoothPriorityDefault(v: boolean)` que persiste via helper e atualiza o estado.
-- `sendToPrinter`: nova primeira etapa — se `btPriorityDefault && (isBluetoothConnected() || lastPairedName)`, tenta `ensureBluetoothConnected()` + `printViaBluetooth(data)`. Em erro, `console.warn` e segue o pipeline atual.
-- Exporta `btPriorityDefault` e `toggleBluetoothPriorityDefault` no retorno do hook.
+- Quando a última palavra do rótulo cabe justo, o preço pode ser empurrado sem espaço mínimo (colando no texto).
+- Complementos com prefixo `  + ` perdem a indentação nas linhas seguintes em alguns casos porque o `indent` é detectado apenas por espaços iniciais e o `+` conta como palavra.
 
-**`src/components/ImpressoraTab.tsx`**
-- Consome `btPriorityDefault` e `toggleBluetoothPriorityDefault`.
-- Dentro do `AccordionContent` da seção Bluetooth (após a linha dos botões Parear/Reconectar/Esquecer), adiciona bloco:
+Ajustes:
 
-```text
-[ Switch ] Usar esta impressora como padrão neste aparelho
-           Envia todas as impressões para esta impressora Bluetooth,
-           ignorando outras impressoras configuradas.
-```
+- Reservar sempre no mínimo **1 espaço** entre rótulo e valor; se não sobrar, empurrar o valor para uma nova linha alinhada à direita (sem rótulo).
+- Detectar indentação de complemento (`  + `) como prefixo literal e reaplicá-lo em cada linha quebrada, para manter o alinhamento visual do "+".
+- Se um único "token" (palavra) exceder as colunas disponíveis, quebrar por caractere (comportamento já existente, apenas confirmar que respeita a indentação de complementos).
 
-  - `disabled` quando não há `lastPairedName`.
-  - Adiciona `<Badge variant="outline">Padrão neste aparelho</Badge>` ao lado do `btDeviceName` quando ativa.
+**2. `buildBillReceipt()` — bloco de itens:**
+
+Substituir o loop atual por uma chamada única a `rowWrap()` por item e por complemento (já é o caso), garantindo:
+
+- Uma linha em branco NÃO é adicionada entre itens (mantém compacto, comportamento atual).
+- Cada item começa em nova linha — garantir via `\n` explícito ao final do último fragmento de `rowWrap` (já é o caso, apenas validar).
+- A largura passada é `cols = colsForWidth(paperWidth)` (32 para 58mm). Nenhuma margem extra: usar toda a área útil.
+
+### `src/test/escpos.test.ts`
+
+Adicionar 3 casos para 58mm (`paperWidth = 58`, `cols = 32`):
+
+1. Item com nome curto e preço → uma única linha, valor à direita.
+2. Item com nome longo que ultrapassa 32 col → nome quebra em N linhas, preço na última linha alinhado à direita, com ao menos 1 espaço antes.
+3. Complemento com nome longo (`  + 1x Nome muito muito grande`) → linhas quebradas preservam a indentação `    ` (alinhada ao "+").
 
 ## Fora de escopo
 
-- Não cria registro em `printer_configs` para dispositivos BT (mantém pareamento estritamente local).
-- Não altera desktop: o toggle simplesmente fica desabilitado se não houver pareamento; o aviso existente que recomenda QZ Tray no desktop permanece.
-- Sem mudanças em `escpos.ts`, roteamento de auto-reconexão nem no fluxo QZ.
+- Cupom COMANDA (cozinha) e FECHAMENTO DE CAIXA — comportamento inalterado.
+- 80mm — inalterado (mesma função `rowWrap`, mais espaço, sem regressão esperada; coberto por testes existentes).
+- Ajustes de fonte/condensado.
+
+## Detalhes técnicos
+
+- `rowWrap(label, value, cols)` continua sendo a única função responsável pela quebra + alinhamento; toda a lógica nova fica encapsulada nela.
+- Sem novas dependências. Sem mudanças em `src/lib/printer.ts` ou `src/hooks/use-printer.ts`.
+- Validação: `bunx vitest run src/test/escpos.test.ts`.
