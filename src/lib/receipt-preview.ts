@@ -38,7 +38,12 @@ const orderTypeLabels: Record<string, string> = {
 };
 
 function colsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 32 : 48;
+  // 58mm safe useful width = 30 cols (32 total − ~1 char margin each side)
+  return paperWidth <= 58 ? 30 : 48;
+}
+
+function priceZone(cols: number): number {
+  return cols <= 30 ? 8 : 12;
 }
 
 function fmtBRL(v: number): string {
@@ -62,19 +67,44 @@ function lineOf(char: string, cols: number): string {
   return char.repeat(cols);
 }
 
-function center(s: string, cols: number): string {
+function centerLine(s: string, cols: number): string {
   const pad = Math.max(0, Math.floor((cols - s.length) / 2));
   return ' '.repeat(pad) + s;
 }
 
+function center(s: string, cols: number): string {
+  if (s.length <= cols) return centerLine(s, cols);
+  const words = s.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const w of words) {
+    const candidate = current ? current + ' ' + w : w;
+    if (candidate.length <= cols) current = candidate;
+    else {
+      if (current) lines.push(current);
+      let piece = w;
+      while (piece.length > cols) {
+        lines.push(piece.slice(0, cols));
+        piece = piece.slice(cols);
+      }
+      current = piece;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.map(l => centerLine(l, cols)).join('\n');
+}
+
 function row(label: string, value: string, cols: number): string {
   const gap = cols - label.length - value.length;
-  if (gap < 1) return label + ' ' + value;
+  if (gap < 1) return rowWrap(label, value, cols);
   return label + ' '.repeat(gap) + value;
 }
 
 function rowWrap(label: string, value: string, cols: number): string {
-  if (label.length + 1 + value.length <= cols) return row(label, value, cols);
+  if (label.length + 1 + value.length <= cols) {
+    const gap = cols - label.length - value.length;
+    return label + ' '.repeat(gap) + value;
+  }
 
   let indent = '';
   const complementMatch = label.match(/^(\s*\+\s+)/);
@@ -90,14 +120,17 @@ function rowWrap(label: string, value: string, cols: number): string {
   const rest = headMatch ? headMatch[2] : label;
   const words = rest.trim().split(/\s+/).filter(Boolean);
 
+  const price = Math.max(value.length, priceZone(cols));
+  const nameMax = Math.max(8, cols - price - 1);
+
   const lines: string[] = [];
   let current = head;
 
   const pushBreakWord = (w: string, prefix: string) => {
     let piece = prefix + w;
-    while (piece.length > cols) {
-      lines.push(piece.slice(0, cols));
-      piece = indent + piece.slice(cols);
+    while (piece.length > nameMax) {
+      lines.push(piece.slice(0, nameMax));
+      piece = indent + piece.slice(nameMax);
     }
     current = piece;
   };
@@ -105,7 +138,7 @@ function rowWrap(label: string, value: string, cols: number): string {
   for (const w of words) {
     const atStart = current === head || current === indent || current === '';
     const candidate = atStart ? current + w : current + ' ' + w;
-    if (candidate.length <= cols) current = candidate;
+    if (candidate.length <= nameMax) current = candidate;
     else {
       if (current.trim().length > 0) lines.push(current);
       pushBreakWord(w, indent);
