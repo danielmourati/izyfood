@@ -85,47 +85,60 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
     return row(label, value, cols);
   }
 
-  // Get leading whitespace of label to indent wrapped lines
-  const indentMatch = label.match(/^(\s+)/);
-  const indent = indentMatch ? indentMatch[1] : '';
+  // Detect indent prefix. Complement lines start with "  + " — reapply an
+  // indent of the same width on wrapped lines so text stays visually aligned
+  // under the first character after the "+".
+  let indent = '';
+  const complementMatch = label.match(/^(\s*\+\s+)/);
+  if (complementMatch) {
+    indent = ' '.repeat(complementMatch[1].length);
+  } else {
+    const wsMatch = label.match(/^(\s+)/);
+    if (wsMatch) indent = wsMatch[1];
+  }
 
-  const words = label.trim().split(/\s+/);
+  // Preserve the "  + " (or whitespace) prefix as the head of the first line;
+  // wrapped lines use `indent` (same width, no "+") instead.
+  const headMatch = label.match(/^(\s*(?:\+\s+)?)(.*)$/);
+  const head = headMatch ? headMatch[1] : '';
+  const rest = headMatch ? headMatch[2] : label;
+  const words = rest.trim().split(/\s+/).filter(Boolean);
+
   const lines: string[] = [];
-  let current = indent;
+  let current = head;
 
-  for (let i = 0; i < words.length; i++) {
-    const w = words[i];
-    const candidate = current === indent ? indent + w : current + ' ' + w;
+  const pushBreakWord = (w: string, prefix: string) => {
+    let piece = prefix + w;
+    while (piece.length > cols) {
+      lines.push(piece.slice(0, cols));
+      piece = indent + piece.slice(cols);
+    }
+    current = piece;
+  };
+
+  for (const w of words) {
+    const atStart = current === head || current === indent || current === '';
+    const candidate = atStart ? current + w : current + ' ' + w;
     if (candidate.length <= cols) {
       current = candidate;
     } else {
-      if (current !== indent) {
-        lines.push(current);
-      }
-      current = indent + w;
-      // Handle case where a single word is longer than cols
-      while (current.length > cols) {
-        lines.push(current.slice(0, cols));
-        current = indent + current.slice(cols);
-      }
+      if (current.trim().length > 0) lines.push(current);
+      pushBreakWord(w, indent);
     }
   }
-  if (current && current !== indent) {
-    lines.push(current);
-  }
+  if (current.trim().length > 0) lines.push(current);
 
-  // Now, the last line needs to fit value.
-  let last = lines.pop() ?? '';
+  // Fit value on the last line with at least 1 space of gap; otherwise
+  // push the value on a new right-aligned line.
+  const last = lines.pop() ?? indent;
   if (last.length + 1 + value.length > cols) {
-    if (last) {
-      lines.push(last);
-    }
-    last = indent;
+    if (last.trim().length > 0) lines.push(last);
+    const gap = Math.max(0, cols - value.length);
+    lines.push(' '.repeat(gap) + value);
+  } else {
+    const gap = cols - last.length - value.length;
+    lines.push(last + ' '.repeat(gap) + value);
   }
-
-  const gap = cols - last.length - value.length;
-  const lastLine = last + ' '.repeat(gap) + value;
-  lines.push(lastLine);
 
   return text(lines.join('\n') + '\n');
 }
