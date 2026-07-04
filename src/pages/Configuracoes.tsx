@@ -1043,6 +1043,7 @@ function PermissoesTab() {
     }).map(p => ({ id: p.id, name: p.name, email: p.email, role: 'atendente' }));
 
     setUsers(attendants);
+    setSelectedUserId(prev => prev && attendants.some(a => a.id === prev) ? prev : (attendants[0]?.id ?? null));
 
     const permMap: Record<string, AttendantPermissionsRow> = {};
     for (const perm of (perms || [])) {
