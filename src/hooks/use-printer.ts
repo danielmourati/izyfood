@@ -412,6 +412,8 @@ export function usePrinter() {
     btDeviceName,
     lastPairedName,
     btAvailable: isBluetoothAvailable(),
+    btPriorityDefault,
+    toggleBluetoothPriorityDefault,
     qzConnected,
     retryQzConnection,
     fetchPrinters,
