@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 import { fmt } from '@/lib/utils';
 import {
-  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, Image, Upload, CreditCard
+  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, CreditCard
 } from 'lucide-react';
 import {
   Select,
@@ -128,11 +128,7 @@ function GeralTab() {
   const [serviceFee, setServiceFee] = useState('');
   const [tenantName, setTenantName] = useState('');
   const [tenantLogo, setTenantLogo] = useState<string | null>(null);
-  const [loginIcon, setLoginIcon] = useState<string | null>(null);
-  const [carouselImages, setCarouselImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadingIcon, setUploadingIcon] = useState(false);
-  const [uploadingCarousel, setUploadingCarousel] = useState(false);
   const [savingGeneral, setSavingGeneral] = useState(false);
   // printSettings lives in StoreContext — no local duplication needed
 
@@ -213,9 +209,6 @@ function GeralTab() {
           const data = tenantRes.data as any;
           setTenantName(data.name ?? '');
           setTenantLogo(data.logo ?? null);
-          setLoginIcon(data.login_icon ?? null);
-          const imgs = data.login_carousel_images as string[] | null;
-          if (imgs && Array.isArray(imgs)) setCarouselImages(imgs);
         }
       });
 
@@ -250,8 +243,6 @@ function GeralTab() {
         }, (payload) => {
           if (payload.new.name) setTenantName(payload.new.name);
           if (payload.new.logo !== undefined) setTenantLogo(payload.new.logo);
-          if (payload.new.login_icon !== undefined) setLoginIcon(payload.new.login_icon);
-          if (payload.new.login_carousel_images !== undefined) setCarouselImages(payload.new.login_carousel_images || []);
         })
         .subscribe();
 
@@ -281,52 +272,8 @@ function GeralTab() {
     setUploading(false);
   };
 
-  const handleLoginIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user?.tenantId) return;
-    setUploadingIcon(true);
-    const ext = file.name.split('.').pop();
-    const path = `${user.tenantId}/login-icon.${ext}`;
-    const { error: uploadError } = await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true });
-    if (uploadError) {
-      toast.error('Erro ao enviar ícone');
-      setUploadingIcon(false);
-      return;
-    }
-    const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path);
-    const iconUrl = urlData.publicUrl + '?t=' + Date.now();
-    await supabase.from('tenants').update({ login_icon: iconUrl } as any).eq('id', user.tenantId);
-    setLoginIcon(iconUrl);
-    toast.success('Ícone do login atualizado!');
-    setUploadingIcon(false);
-  };
 
-  const handleCarouselUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0 || !user?.tenantId) return;
-    setUploadingCarousel(true);
-    const newImages = [...carouselImages];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const ext = file.name.split('.').pop();
-      const path = `${user.tenantId}/carousel-${Date.now()}-${i}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true });
-      if (uploadError) continue;
-      const { data: urlData } = supabase.storage.from('tenant-assets').getPublicUrl(path);
-      newImages.push(urlData.publicUrl + '?t=' + Date.now());
-    }
-    await supabase.from('tenants').update({ login_carousel_images: newImages } as any).eq('id', user.tenantId);
-    setCarouselImages(newImages);
-    toast.success('Imagens do carrossel atualizadas!');
-    setUploadingCarousel(false);
-  };
 
-  const removeCarouselImage = async (index: number) => {
-    const newImages = carouselImages.filter((_, i) => i !== index);
-    await supabase.from('tenants').update({ login_carousel_images: newImages } as any).eq('id', user?.tenantId!);
-    setCarouselImages(newImages);
-    toast.success('Imagem removida');
-  };
 
   const handleSaveAll = async () => {
     if (!user?.tenantId) {
@@ -487,57 +434,6 @@ function GeralTab() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Image className="h-5 w-5" /> Tela de Login</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Login Icon */}
-          <div className="space-y-2">
-            <Label>Ícone do Login</Label>
-            <p className="text-xs text-muted-foreground">Imagem exibida acima do formulário de login (diferente da logo da sidebar).</p>
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-xl border-2 border-dashed border-border overflow-hidden bg-muted flex items-center justify-center">
-                {loginIcon ? (
-                  <img src={loginIcon} alt="Login Icon" className="h-full w-full object-contain" />
-                ) : (
-                  <Upload className="h-5 w-5 text-muted-foreground" />
-                )}
-              </div>
-              <label className="cursor-pointer">
-                <Button variant="outline" size="sm" asChild>
-                  <span>{uploadingIcon ? 'Enviando...' : 'Alterar ícone'}</span>
-                </Button>
-                <input type="file" accept="image/*" className="hidden" onChange={handleLoginIconUpload} disabled={uploadingIcon} />
-              </label>
-            </div>
-          </div>
-
-          {/* Carousel Images */}
-          <div className="space-y-2">
-            <Label>Imagens do Carrossel</Label>
-            <p className="text-xs text-muted-foreground">Imagens exibidas no lado esquerdo da tela de login. Se vazio, serão usadas as imagens padrão.</p>
-            <div className="flex flex-wrap gap-3">
-              {carouselImages.map((img, i) => (
-                <div key={i} className="relative h-20 w-32 rounded-lg overflow-hidden border bg-muted group">
-                  <img src={img} alt={`Slide ${i + 1}`} className="h-full w-full object-cover" />
-                  <button
-                    onClick={() => removeCarouselImage(i)}
-                    className="absolute top-1 right-1 p-1 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-              <label className="h-20 w-32 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
-                <Plus className="h-5 w-5 text-muted-foreground" />
-                <span className="text-[10px] text-muted-foreground mt-1">{uploadingCarousel ? 'Enviando...' : 'Adicionar'}</span>
-                <input type="file" accept="image/*" multiple className="hidden" onChange={handleCarouselUpload} disabled={uploadingCarousel} />
-              </label>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
