@@ -173,11 +173,11 @@ const Login = () => {
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
             {displayIcon ? (
-              <img src={displayIcon} alt={tenantName} className="h-20 mx-auto mb-2 object-contain" />
+              <img src={displayIcon} alt={`Logo ${tenantName}`} className="h-20 mx-auto mb-2 object-contain" />
             ) : (
               <img
                 src={degustLogoHorizontal.url}
-                alt="Degust"
+                alt="Degust - Sistema de Gestão para Restaurantes"
                 className="h-16 mx-auto mb-2 object-contain"
               />
             )}
@@ -185,7 +185,7 @@ const Login = () => {
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-foreground">Login</h1>
+            <h2 className="text-2xl font-bold text-foreground">Login</h2>
             <p className="text-sm text-muted-foreground">Acesse sua conta para continuar</p>
           </div>
 
@@ -208,6 +208,7 @@ const Login = () => {
                   onChange={(e) => setPassword(e.target.value)} className="h-12 pr-10" required />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Esconder senha' : 'Mostrar senha'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors rounded-full focus:outline-none focus:ring-1 focus:ring-primary h-7 w-7 flex items-center justify-center"
                   onClick={() => setShowPassword(!showPassword)}
                 >
@@ -249,6 +250,7 @@ const Login = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 };
 
