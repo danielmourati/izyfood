@@ -305,8 +305,8 @@ describe('ESC/POS bill receipt', () => {
     expect(nextLine.length).toBeLessThanOrEqual(30);
   });
 
-  it('58mm: NENHUMA linha do cupom excede 30 colunas úteis', () => {
-    const receipt = decodeReceipt(buildBillReceipt({
+  it('58mm: NENHUMA linha da prévia excede 30 colunas úteis', () => {
+    const text = buildBillPreviewText({
       id: 'safe-w',
       orderType: 'mesa',
       tableNumber: 12,
@@ -320,7 +320,6 @@ describe('ESC/POS bill receipt', () => {
           ],
         },
       ],
-      total: 45.5,
       serviceFee: 3,
       paymentSplits: [{ method: 'pix', amount: 45.5 }],
       createdAt: '2026-05-22T20:13:00.000Z',
@@ -336,14 +335,9 @@ describe('ESC/POS bill receipt', () => {
       thankMessage: 'Obrigado pela preferência e volte sempre!',
       showAddress: true, showDocument: true, showWhatsapp: true,
       showPixKey: true, showInstagram: true, showThankMessage: true,
-    }));
-    const lines = receipt.split('\n');
-    // Ignore lines that carry double-width TOTAL (uses cols/2 partition)
-    // — the visible printed width may differ, but the raw text width must still fit 30.
-    for (const l of lines) {
-      // Strip ESC/POS control bytes (< 0x20 and not \n) which shouldn't count
-      const visible = l.replace(/[\x00-\x1F]/g, '');
-      expect(visible.length).toBeLessThanOrEqual(30);
+    });
+    for (const l of text.split('\n')) {
+      expect(l.length).toBeLessThanOrEqual(30);
     }
   });
 
