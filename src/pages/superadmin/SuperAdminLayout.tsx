@@ -9,6 +9,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { HeaderClock } from '@/components/HeaderClock';
 import degustLogoHorizontal from '@/assets/degust-logo-horizontal.png.asset.json';
 
 const items = [
