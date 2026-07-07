@@ -604,7 +604,7 @@ const PDV = () => {
                 <Button variant="outline" className="flex-1 h-full flex flex-col items-center justify-center font-bold text-xs bg-background border-muted-foreground/20 text-foreground shadow-sm" onClick={() => navigate('/')}>
                   <ArrowLeft className="h-6 w-6 mb-0.5" /> VOLTAR
                 </Button>
-                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-[#4CAF50] hover:bg-[#388E3C] text-primary-foreground relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
+                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
                   <ShoppingCart className="h-5 w-5 mb-0.5 opacity-90" />
                   <span className="flex items-center">
                     REVISAR
@@ -645,7 +645,7 @@ const PDV = () => {
               {mobileLastAddedId && (() => {
                 const lastItem = cart.find(i => i.id === mobileLastAddedId);
                 if (lastItem) return (
-                  <div className="bg-[#4CAF50] p-3 flex flex-col gap-3 shadow-[0_-8px_20px_-3px_rgba(0,0,0,0.3)]">
+                  <div className="bg-primary p-3 flex flex-col gap-3 shadow-[0_-8px_20px_-3px_rgba(0,0,0,0.3)]">
                     <div className="flex justify-between items-center text-primary-foreground px-1">
                       <div className="flex items-center gap-1.5 font-bold text-[17px] drop-shadow-sm leading-none">
                         <Check className="h-5 w-5" /> {lastItem.name} 
@@ -678,7 +678,7 @@ const PDV = () => {
                 <Button variant="outline" className="flex-1 h-full flex flex-col items-center justify-center font-bold text-[10px] bg-muted/30 border-muted-foreground/20 text-foreground" onClick={() => setMobileView('categories')}>
                   <ArrowLeft className="h-6 w-6 mb-0.5" /> VOLTAR
                 </Button>
-                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-[#4CAF50] hover:bg-[#388E3C] text-primary-foreground relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
+                <Button className="flex-[2] h-full flex flex-col items-center justify-center font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground relative shadow-sm" onClick={() => setMobileView('cart')} disabled={cart.length === 0}>
                   <ShoppingCart className="h-5 w-5 mb-0.5 opacity-90" />
                   <span className="flex items-center">
                     REVISAR
@@ -1111,7 +1111,7 @@ function CartContent({
               VOLTAR
             </Button>
             <Button 
-              className="h-11 text-[11px] px-1 font-bold shadow-sm bg-[#4CAF50] hover:bg-[#388E3C] text-primary-foreground" 
+              className="h-11 text-[11px] px-1 font-bold shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground" 
               onClick={onPrintOrder} 
               disabled={cart.length === 0 || cart.every(i => i.printed)}
             >
