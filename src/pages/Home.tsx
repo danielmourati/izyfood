@@ -64,7 +64,7 @@ const Home: React.FC = () => {
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
 
-  const can = (key: 'manage_customers' | 'manage_products' | 'manage_stock') =>
+  const can = (key: 'manage_customers' | 'manage_products' | 'manage_stock' | 'open_cash_register') =>
     isAdmin || !!permissions[key];
 
   // Cash register status
