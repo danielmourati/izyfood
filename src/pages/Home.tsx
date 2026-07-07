@@ -182,7 +182,7 @@ const Home: React.FC = () => {
             <p className="text-sm font-semibold text-foreground">Fechado</p>
           )}
         </div>
-        {!cashStatus.loading && !cashStatus.open && (
+        {!cashStatus.loading && !cashStatus.open && can('open_cash_register') && (
           <button
             onClick={() => navigate('/caixa')}
             className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-section-gestao text-primary-foreground text-xs sm:text-sm font-bold px-3 py-2 shadow-sm hover:brightness-110 active:scale-95 transition-all"
