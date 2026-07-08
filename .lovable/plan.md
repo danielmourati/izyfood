@@ -1,65 +1,48 @@
+## Objetivo
+
+Corrigir a divergência entre a **prévia do cupom** (que mostra as 3 observações — Arroz Branco, Sem farofa, Teste) e a **impressão física** (que sai apenas com 2 — sem Arroz Branco), garantindo que o cupom impresso na cozinha contenha exatamente o mesmo conjunto de observações exibido em tela.
+
 ## Diagnóstico
 
-O `ItemNotesModal` hoje serializa **selectedObs (checkboxes)** e **otherNotes (input)** em uma única string `item.notes` unida por ` | ` (ex.: `"Arroz Branco | Sem tempero | sem cebola"`). O gerador ESC/POS (`src/lib/escpos.ts`) e o HTML de prévia (`src/hooks/use-printer.ts`) dividem essa string por `|` e imprimem cada trecho.
+- `buildOrderReceipt` (ESC/POS) e `buildOrderHtml` (prévia HTML) já usam o mesmo helper `getItemNoteLines`, que prioriza `selectedNotes` + `otherNotes` sobre o legado `notes`.
+- Mesmo assim, o cupom físico do anexo 2 saiu sem "Arroz Branco". Como usuário confirmou que marcou tudo antes de mandar (uma tacada só), o problema mais provável é **inconsistência entre o snapshot enviado ao driver da impressora e o snapshot que gerou a prévia**:
+  - `handleSendAndHold` calcula `unprintedItems = cart.filter(i => !i.printed)` uma vez e passa para `printOrder`. Se a atualização do `cart` disparada por `handleConfirmNotes` (via setState) ainda estava em batch pendente quando o botão Enviar foi clicado, `unprintedItems` pode conter o item sem o último `selectedNotes` gravado.
+  - Além disso, se por alguma razão `selectedNotes` for um array vazio `[]` mas `notes` (legado) já tiver todas as observações, `getItemNoteLines` prefere o array vazio e cai em "0 linhas", em vez de fazer fallback para `notes`.
+  - A lógica de dedup / trim atual não protege contra strings duplicadas com espaço/caixa diferente entre `selectedNotes` e `otherNotes`.
 
-Na teoria, ambos os tipos deveriam sair no cupom. Na prática, o usuário reporta que apenas o texto do input aparece. Causas plausíveis:
-1. Reabrir o modal, o `useEffect` de parse-back tenta casar cada parte contra `noteOptions` filtrado por categoria; se um checkbox foi criado sem `categoryIds` do produto ou removido/renomeado, ele cai em `others`, é reinserido no input, e depois o operador limpa o input e reenvia — perdendo a obs de checkbox.
-2. Concatenar tudo numa string é frágil: qualquer texto do input com `|` corta a impressão; qualquer trim/normalização acidental derruba trechos.
+## Escopo da correção
 
-A correção robusta é separar os dois canais em campos estruturados no `OrderItem` e imprimir explicitamente cada um.
+Somente frontend/apresentação (hooks de impressão, PDV, escpos util e testes). Sem alterações de schema, RLS, backend ou UI de cadastro.
 
-## Escopo
+### 1. `src/lib/escpos.ts` — endurecer `getItemNoteLines`
 
-### 1. `src/types/index.ts`
-- Adicionar em `OrderItem`:
-  ```ts
-  selectedNotes?: string[]; // observações marcadas em checkbox
-  otherNotes?: string;      // texto livre do input "Outras observações"
-  ```
-- Manter `notes?: string` para compatibilidade com pedidos antigos e display atual do carrinho.
+- Considerar `structured` verdadeiro apenas quando produzir **pelo menos uma linha**; se `selectedNotes` vier `[]` e `otherNotes` vazio, cair no fallback de `notes`.
+- Fazer trim + dedupe (case-insensitive) do conjunto final para evitar linhas repetidas ou perdidas por espaço.
 
-### 2. `src/components/ItemNotesModal.tsx`
-- Alterar `onConfirm` signature para:
-  ```ts
-  onConfirm: (
-    itemId: string,
-    payload: { notes: string; selectedNotes: string[]; otherNotes: string },
-    newComplements: {...}[]
-  ) => void
-  ```
-- No `handleConfirm`: gerar `notes` (string única, mantida para display) **e** enviar `selectedNotes`, `otherNotes` separadamente.
-- No `useEffect` de reload: preferir `item.selectedNotes`/`item.otherNotes` quando existirem; fallback à parseia atual apenas para pedidos legados.
+### 2. `src/hooks/use-printer.ts` — logging + snapshot único
 
-### 3. `src/pages/PDV.tsx`
-- Atualizar `handleConfirmNotes` para receber o payload e persistir `notes`, `selectedNotes`, `otherNotes` no item do carrinho. Manter o cálculo de subtotal atual.
-- Nenhum outro consumidor precisa mudar (carrinho continua exibindo `item.notes`).
+- Em `printOrder`, logar `order.items.map(i => ({ name: i.name, selectedNotes: i.selectedNotes, otherNotes: i.otherNotes, notes: i.notes }))` para inspeção rápida em campo.
+- Garantir que o mesmo `order` seja usado para `buildOrderReceipt` **e** `buildOrderHtml` (já é o caso — apenas reforçar comentário).
 
-### 4. `src/lib/escpos.ts` — `buildOrderReceipt`
-- Substituir o bloco atual `if (item.notes) { split('|') ... }` por:
-  ```ts
-  const noteLines = getNoteLines(item); // helper local
-  for (const n of noteLines) parts.push(rowWrap(`  * ${n}`, '', cols));
-  ```
-- `getNoteLines(item)`:
-  1. Se `item.selectedNotes?.length` ou `item.otherNotes`, concatenar `[...selectedNotes, otherNotes].filter(Boolean)`.
-  2. Senão, fallback ao legado: `String(item.notes || '').split('|').map(trim).filter(Boolean)`.
+### 3. `src/pages/PDV.tsx` — flush síncrono das observações antes de enviar
 
-### 5. `src/hooks/use-printer.ts` — `buildOrderHtml`
-- Aplicar o mesmo helper para gerar `noteLines`, cada uma em um `<p>` separado (mesmo layout atual `* …`).
+- Em `handleSendAndHold`, antes de calcular `unprintedItems`, aplicar `flushSync` (ou releitura via ref) para garantir que a última alteração de `handleConfirmNotes` já está refletida no `cart` avaliado.
+- Alternativa mais simples e sem `flushSync`: manter um `cartRef` (useRef atualizado no useEffect com `cart`) e usar `cartRef.current` como fonte de `unprintedItems` no momento do envio.
+- Garantir também que, se o usuário editar observações de um item já `printed`, o item seja re-marcado como não-impresso (ou seja re-enviado como "ALTERAÇÃO"). Comportamento configurável já existente será preservado; nesta correção, apenas incluir novamente no batch enviado.
 
-### 6. Testes — `src/test/escpos.test.ts`
-- Adicionar 3 casos ao `buildOrderReceipt`:
-  1. Item com `selectedNotes: ['Sem cebola', 'Bem passado']` e `otherNotes: 'Extra crocante'` → o receipt (decodificado) contém as três linhas com prefixo `*`.
-  2. Item legado com apenas `notes: 'Sem sal | Sem açúcar'` → duas linhas `*` impressas (retrocompatibilidade).
-  3. Item com apenas `selectedNotes` (sem `otherNotes` e sem `notes` legado) → todas as obs de checkbox aparecem.
-- Se o arquivo de teste não existir/estiver vazio, criar cobertura mínima com decoder `TextDecoder('utf-8')` sobre o `Uint8Array` retornado.
+### 4. Testes — `src/test/escpos.test.ts`
 
-### 7. Verificação
-- `bunx tsgo --noEmit`.
-- `bunx vitest run src/test/escpos.test.ts`.
-- Manual: no PDV, adicionar item → abrir modal de observações → marcar 2 checkboxes → digitar texto no input → confirmar → enviar pedido → prévia HTML e cupom impresso mostram **as 3 linhas**.
+- Adicionar caso: `selectedNotes: []` + `otherNotes: ''` + `notes: 'A | B | C'` → retorna `['A','B','C']` (fallback).
+- Adicionar caso: `selectedNotes: ['Arroz Branco','Sem farofa']` + `otherNotes: 'Teste'` → `buildOrderReceipt` contém as 3 linhas na ordem.
+- Adicionar caso: `selectedNotes: ['Arroz Branco',' arroz branco ']` → dedupe para 1 linha.
 
-## Fora do escopo
-- Sem alterar a exibição do carrinho (continua usando `item.notes` amigável).
-- Sem tocar em pagamento, RLS, banco ou lógica de impressora BT.
-- Sem novos toasts.
+## Validação
+
+- Rodar `bunx vitest run src/test/escpos.test.ts` — todos os testes verdes.
+- Verificação manual sugerida ao usuário (após deploy): abrir PDV, adicionar item, marcar 2 checkboxes + digitar texto extra, tocar Enviar; conferir console (`[printOrder] items:`) e cupom físico — devem mostrar exatamente as 3 linhas com `*`.
+
+## Fora de escopo
+
+- Alterações em RLS, tabelas ou edge functions.
+- Redesenho do modal de observações ou do fluxo de complementos.
+- Impressão da Conta (`printBill`) — não é o alvo desta correção; permanece igual.
