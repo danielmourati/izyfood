@@ -773,9 +773,10 @@ const PDV = () => {
         order={printPreview.order}
         paperWidth={previewPaperWidth}
         reason={printPreview.reason}
-        title="Comanda"
         printSettings={printSettings}
+        onConfigurePrinter={() => navigate('/configuracoes?tab=impressora')}
       />
+
     </>
   );
 };
