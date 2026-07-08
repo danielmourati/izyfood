@@ -225,12 +225,20 @@ export function usePrinter() {
   const defaultPrinter = printers.find(p => p.is_default) || printers[0];
   const paperWidth = defaultPrinter?.paper_width || 58; // Default para 58mm (mini impressoras térmicas)
 
-  // Existe impressora utilizável? (configurada no banco E com alguma via de saída disponível)
+  // Existe impressora utilizável? (configurada no banco E com alguma via de saída plausível)
+  // Para BT padrão: basta o navegador suportar Web Bluetooth OU já ter pareamento prévio OU
+  // toggle de prioridade BT ligado neste aparelho — sendToPrinter fará ensureBluetoothConnected
+  // e cai no fallback HTML se necessário, sem travar o fluxo.
+  const hasBluetoothDefault =
+    defaultPrinter?.connection_type === 'bluetooth' &&
+    (btConnected || btPriorityDefault || !!getLastPairedDeviceName() || isBluetoothAvailable());
+
   const hasPrinterAvailable = printers.length > 0 && (
     btConnected ||
     qzConnected ||
     defaultPrinter?.connection_type === 'system' ||
-    (!!getLastPairedDeviceName() && defaultPrinter?.connection_type === 'bluetooth')
+    defaultPrinter?.connection_type === 'network' ||
+    hasBluetoothDefault
   );
 
   const pairBluetooth = async () => {
