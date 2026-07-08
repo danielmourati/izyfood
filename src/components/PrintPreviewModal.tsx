@@ -28,8 +28,14 @@ export function PrintPreviewModal({
   reason,
   printSettings,
   onConfigurePrinter,
+  kind = 'order',
 }: Props) {
-  const html = useMemo(() => (order ? buildOrderHtml(order, printSettings || {}) : ''), [order, printSettings]);
+  const html = useMemo(() => {
+    if (!order) return '';
+    return kind === 'bill'
+      ? buildBillHtml(order, printSettings || {})
+      : buildOrderHtml(order, printSettings || {});
+  }, [order, printSettings, kind]);
   const previewWidth = paperWidth === 58 ? 240 : 320;
 
   return (
