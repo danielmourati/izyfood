@@ -1,47 +1,50 @@
 ## Objetivo
-Ajustar o modal de Observações/Complementos (`ItemNotesModal`) para exibir as observações em lista vertical com checkbox, e garantir que o texto do campo "Outras observações" seja preservado e renderizado no cupom da cozinha.
+
+1. Garantir que **todas as observações** (as marcadas via checkbox e o texto livre de "Outras observações") apareçam no cupom da cozinha, tanto na impressão ESC/POS quanto no fallback HTML.
+2. Verificar se existe impressora configurada/conectada antes de disparar impressão automática no botão "Enviar pedido"; quando não houver, emitir alerta claro e pular a impressão para evitar erros no storefront do usuário.
+
+---
 
 ## Escopo
 
-### 1. `src/components/ItemNotesModal.tsx` — Layout vertical com checkbox
+### 1. `src/hooks/use-printer.ts` — Fallback HTML por linha
 
-- Substituir o container atual das observações (`flex flex-wrap gap-2` com `<button>` estilizados) por uma lista **vertical** (`flex flex-col`).
-- Cada item da lista vira uma linha clicável contendo:
-  - `Checkbox` (shadcn `@/components/ui/checkbox`) alinhado à esquerda
-  - Label com o nome da observação (`obs.name`) ao lado
-  - Toda a linha continua clicável (`onClick` chama `toggleObs`) e o checkbox reflete `selectedObs.includes(obs.name)`
-- Manter o input "Outras observações..." logo abaixo da lista (sem alterações no comportamento do input).
-- Não alterar a seção de Complementos.
+- Em `buildOrderHtml`, quando `i.notes` existir, dividir por `|` e renderizar **um `<p>` por observação** (mesma lógica já aplicada no ESC/POS via `buildOrderReceipt` em `src/lib/escpos.ts`).
+- Assim, "Outras observações" (texto livre) e cada observação de checkbox ficam em linhas separadas também no fallback nativo Android/Windows.
 
-### 2. `src/components/ItemNotesModal.tsx` — Corrigir persistência de "Outras observações"
+### 2. `src/hooks/use-printer.ts` — Expor helper de disponibilidade
 
-Problema atual: no `useEffect` que reabre o modal, o parser divide `item.notes` por `|`, e qualquer trecho que não seja uma observação pré-definida cai em `others`. Isso funciona na primeira edição, mas o texto salvo em `finalNotesString` usa `' | '` como separador, e ao reabrir tudo é remontado — porém há dois pontos frágeis:
+- Adicionar um helper derivado no retorno do hook, ex.: `hasPrinterAvailable: boolean`, calculado como:
+  - `printers.length > 0` **e**
+  - alguma via de saída disponível: `btConnected` OU `qzConnected` OU `defaultPrinter?.connection_type === 'system'` (fallback HTML nativo do navegador é sempre possível quando há uma impressora `system`/BROWSER configurada).
+- Manter `printOrder` como está internamente; o gate fica no chamador (PDV) para permitir mensagem específica de UI.
 
-- Se o usuário digitar texto contendo `|`, ele é fragmentado.
-- Se uma observação pré-definida for renomeada/removida depois, ela reaparece como "outras".
+### 3. `src/pages/PDV.tsx` — Alerta e bypass da impressão no envio
 
-Ajuste mínimo (sem mudar estrutura de dados):
-- Serializar como hoje (`selectedObs.join(' | ') + ' | ' + otherNotes`), mas ao reparsear, tratar como "outras" tudo que não bater exatamente com uma observação ativa e não começar com `+`. Manter comportamento atual.
-- Garantir que `otherNotes.trim()` seja incluído mesmo quando `selectedObs` estiver vazio (já está — validar).
+Em `handleSendAndHold` (e por simetria em `handleReprintOrder`):
 
-### 3. `src/lib/escpos.ts` — Renderizar "Outras observações" no cupom da cozinha
+- Antes de chamar `printOrder`, verificar `hasPrinterAvailable`.
+- Se **não houver impressora**:
+  - Não chamar `printOrder` (evita `printViaHtmlFallback` abrindo janela vazia / erros).
+  - Exibir alerta persistente inline no rodapé do carrinho (estado `printWarning` já existe) com texto tipo: _"Nenhuma impressora configurada. O pedido foi enviado à produção sem impressão. Configure uma impressora em Configurações > Impressora."_
+  - Prosseguir normalmente com o restante do fluxo (salvar pedido, marcar itens como `printed`, navegar).
+- Se **houver impressora**: comportamento atual (tentar imprimir, capturar erro).
 
-Hoje `buildOrderReceipt` imprime `item.notes` em uma única linha:
-```
-if (item.notes) parts.push(rowWrap(`  *${item.notes}`, '', cols));
-```
-Isso concatena tudo separado por ` | `, o que na prática funciona, mas visualmente fica ruim e o texto livre pode ser truncado/misturado com as observações fixas.
-
-Ajuste:
-- Dividir `item.notes` por ` | ` e imprimir **uma linha por observação**, cada uma prefixada por `  * `, usando `rowWrap(..., '', cols)` para respeitar a largura útil (30 cols em 58mm, 44 em 80mm).
-- Isso garante que o texto de "Outras observações" apareça em sua própria linha, sem risco de ficar cortado no meio da lista.
+Adicionalmente, no botão "Enviar pedido" (dentro do `CartFooter` renderizado no PDV):
+- Quando `!hasPrinterAvailable`, alterar o rótulo/subtítulo do botão para deixar explícito que a impressão automática está desabilitada (ex.: manter ação "Enviar", mas exibir um pequeno badge/aviso: _"Sem impressora — envio sem impressão"_). Não desabilitar o botão em si (o envio precisa continuar funcionando); apenas desativar a etapa de impressão.
 
 ## Fora do escopo
-- Não alterar a lógica/aparência da seção de Complementos.
-- Não alterar `buildBillReceipt`, `buildCashCloseReceipt`, `receipt-preview.ts` nem `ReceiptPreview.tsx`.
-- Sem mudanças em RLS, banco de dados, tipos ou StoreContext.
+
+- Não alterar lógica de `printBill` / `printCashClose`.
+- Não alterar `ItemNotesModal` (já persiste checkbox + texto livre corretamente).
+- Não mexer em RLS, banco, tipos ou StoreContext.
+- Não introduzir `toast` novo — reutilizar `printWarning` inline (memória do projeto proíbe toasts).
 
 ## Verificação
+
 - `bunx tsgo --noEmit` e `bun run build`.
-- Estender `src/test/escpos.test.ts` com um caso de comanda 58mm em que `item.notes = "Sem cebola | Sem farofa | tirar tudo e mandar extra"`, validando que cada trecho é impresso em sua própria linha com prefixo `  * ` e sem exceder `cols`.
-- Verificação visual: abrir modal de observações no PDV, marcar/desmarcar via checkbox, digitar em "Outras observações", confirmar, reabrir para verificar persistência, imprimir comanda da cozinha e conferir as linhas.
+- Estender `src/test/escpos.test.ts` (se necessário) para confirmar múltiplas linhas de observações no HTML fallback — opcional, o teste ESC/POS já cobre a divisão.
+- Verificação manual:
+  1. Abrir modal de observações, marcar 2 checkboxes + digitar em "Outras observações" → confirmar → enviar pedido → conferir que cada linha aparece separada no cupom da cozinha (ESC/POS e fallback HTML).
+  2. Remover/desconfigurar todas as impressoras → clicar "Enviar pedido" → alerta inline aparece, pedido é salvo, nenhuma janela de impressão nativa abre.
+  3. Reconectar impressora Bluetooth → botão volta ao comportamento normal com impressão automática.

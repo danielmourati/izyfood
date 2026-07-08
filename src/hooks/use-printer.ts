@@ -225,6 +225,14 @@ export function usePrinter() {
   const defaultPrinter = printers.find(p => p.is_default) || printers[0];
   const paperWidth = defaultPrinter?.paper_width || 58; // Default para 58mm (mini impressoras térmicas)
 
+  // Existe impressora utilizável? (configurada no banco E com alguma via de saída disponível)
+  const hasPrinterAvailable = printers.length > 0 && (
+    btConnected ||
+    qzConnected ||
+    defaultPrinter?.connection_type === 'system' ||
+    (!!getLastPairedDeviceName() && defaultPrinter?.connection_type === 'bluetooth')
+  );
+
   const pairBluetooth = async () => {
     const name = await connectBluetooth({ forcePairing: true });
     setBtConnected(true);
@@ -415,6 +423,7 @@ export function usePrinter() {
     btPriorityDefault,
     toggleBluetoothPriorityDefault,
     qzConnected,
+    hasPrinterAvailable,
     retryQzConnection,
     fetchPrinters,
     pairBluetooth,
@@ -445,7 +454,10 @@ function buildOrderHtml(order: any, ps: any = {}): string {
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
     let html = `<p class="bold" style="margin: 0 0 2px 0;">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
     if (i.notes) {
-      html += `<p style="margin: 0 0 4px 12px; font-size: 12px; font-style: italic;">* ${i.notes}</p>`;
+      const noteLines = String(i.notes).split('|').map((s: string) => s.trim()).filter(Boolean);
+      noteLines.forEach((n: string) => {
+        html += `<p style="margin: 0 0 4px 12px; font-size: 12px; font-style: italic;">* ${n}</p>`;
+      });
     }
     if (i.selectedComplements && i.selectedComplements.length > 0) {
       i.selectedComplements.forEach((c: any) => {

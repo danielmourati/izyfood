@@ -69,7 +69,7 @@ const PDV = () => {
     }
   }, [mobileView]);
 
-  const { printOrder, printBill } = usePrinter();
+  const { printOrder, printBill, hasPrinterAvailable } = usePrinter();
 
   useEffect(() => {
     if (initialized) return;
@@ -389,12 +389,16 @@ const PDV = () => {
       customerAddress: cust?.address || undefined,
     };
 
-    // 1. Enviar para a impressora
-    try {
-      await printOrder(orderData);
-      toast.success('Comanda enviada para impressão!');
-    } catch (err) {
-      toast.error('Erro na impressão, mas o pedido será salvo.');
+    // 1. Enviar para a impressora (somente se houver impressora utilizável)
+    if (hasPrinterAvailable) {
+      try {
+        await printOrder(orderData);
+        toast.success('Comanda enviada para impressão!');
+      } catch (err) {
+        toast.error('Erro na impressão, mas o pedido será salvo.');
+      }
+    } else {
+      setPrintWarning('Nenhuma impressora configurada ou conectada. O pedido foi enviado à produção sem impressão. Configure uma impressora em Configurações > Impressora.');
     }
 
     // 2. Atualizar estado interno
@@ -444,6 +448,10 @@ const PDV = () => {
       customerPhone: cust?.phone || undefined,
       customerAddress: cust?.address || undefined,
     };
+    if (!hasPrinterAvailable) {
+      setPrintWarning('Nenhuma impressora configurada ou conectada. Configure uma impressora em Configurações > Impressora para reimprimir.');
+      return;
+    }
     try {
       await printOrder(orderData);
       toast.success(`${items.length} item(ns) reimpresso(s)!`);
@@ -556,7 +564,7 @@ const PDV = () => {
               selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
               manualCustomerName={manualCustomerName} setManualCustomerName={setManualCustomerName}
               onPrintOrder={handleSendAndHold} onReprintOrder={handleReprintOrder} onPrintBill={handlePrintBill}
-              printWarning={printWarning}
+              printWarning={printWarning} hasPrinterAvailable={hasPrinterAvailable}
               setEditingItemNotesId={setEditingItemNotesId} isMobile={false} onAddNewItem={() => setMobileView('categories')}
               onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)} />
           </div>
@@ -721,7 +729,7 @@ const PDV = () => {
                 selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
                 manualCustomerName={manualCustomerName} setManualCustomerName={setManualCustomerName}
                 onPrintOrder={handleSendAndHold} onReprintOrder={handleReprintOrder} onPrintBill={handlePrintBill}
-                printWarning={printWarning}
+                printWarning={printWarning} hasPrinterAvailable={hasPrinterAvailable}
                 setEditingItemNotesId={setEditingItemNotesId}
                 isMobile={true} onAddNewItem={() => setMobileView('categories')}
                 onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)}
@@ -758,7 +766,7 @@ function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen,
   tables, onSelectTable, selectedCustomerId, onSelectCustomer, isHeldMesa,
   onPrintOrder, onReprintOrder, onPrintBill, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder,
-  manualCustomerName, setManualCustomerName, printWarning
+  manualCustomerName, setManualCustomerName, printWarning, hasPrinterAvailable
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
@@ -776,6 +784,7 @@ function CartContent({
   manualCustomerName?: string;
   setManualCustomerName?: (val: string) => void;
   printWarning?: string | null;
+  hasPrinterAvailable?: boolean;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
@@ -1111,11 +1120,15 @@ function CartContent({
               VOLTAR
             </Button>
             <Button 
-              className="h-11 text-[11px] px-1 font-bold shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground" 
+              className="h-11 text-[11px] px-1 font-bold shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground flex-col gap-0 leading-none" 
               onClick={onPrintOrder} 
               disabled={cart.length === 0 || cart.every(i => i.printed)}
+              title={hasPrinterAvailable ? undefined : 'Sem impressora configurada — envio sem impressão automática'}
             >
-              <SendHorizontal className="h-4 w-4 mr-1" /> Enviar
+              <span className="flex items-center"><SendHorizontal className="h-4 w-4 mr-1" /> Enviar</span>
+              {!hasPrinterAvailable && (
+                <span className="text-[9px] font-semibold opacity-80 mt-0.5">sem impressão</span>
+              )}
             </Button>
             <Button className="h-11 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
               <ShoppingCart className="h-4 w-4 mr-1.5" /> Pagar
