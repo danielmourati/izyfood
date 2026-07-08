@@ -400,7 +400,11 @@ const PDV = () => {
         toast.error('Erro na impressão, mas o pedido será salvo.');
       }
     } else {
-      setPrintWarning('Nenhuma impressora configurada ou conectada. O pedido foi enviado à produção sem impressão. Configure uma impressora em Configurações > Impressora.');
+      setPrintPreview({
+        open: true,
+        order: orderData,
+        reason: 'Nenhuma impressora configurada ou conectada. O pedido foi salvo — você pode imprimir manualmente pelo navegador ou seguir sem impressão. Configure uma impressora em Configurações > Impressora.',
+      });
     }
 
     // 2. Atualizar estado interno
