@@ -423,6 +423,7 @@ export function usePrinter() {
     btPriorityDefault,
     toggleBluetoothPriorityDefault,
     qzConnected,
+    hasPrinterAvailable,
     retryQzConnection,
     fetchPrinters,
     pairBluetooth,
