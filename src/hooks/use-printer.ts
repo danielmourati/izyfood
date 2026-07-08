@@ -225,6 +225,14 @@ export function usePrinter() {
   const defaultPrinter = printers.find(p => p.is_default) || printers[0];
   const paperWidth = defaultPrinter?.paper_width || 58; // Default para 58mm (mini impressoras térmicas)
 
+  // Existe impressora utilizável? (configurada no banco E com alguma via de saída disponível)
+  const hasPrinterAvailable = printers.length > 0 && (
+    btConnected ||
+    qzConnected ||
+    defaultPrinter?.connection_type === 'system' ||
+    (!!getLastPairedDeviceName() && defaultPrinter?.connection_type === 'bluetooth')
+  );
+
   const pairBluetooth = async () => {
     const name = await connectBluetooth({ forcePairing: true });
     setBtConnected(true);
