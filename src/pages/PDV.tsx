@@ -766,7 +766,7 @@ function CartContent({
   cart, orderType, setOrderType, tableNumber, total, updateQty, removeItem, cancelOrder, holdOrder, setCheckoutOpen,
   tables, onSelectTable, selectedCustomerId, onSelectCustomer, isHeldMesa,
   onPrintOrder, onReprintOrder, onPrintBill, setEditingItemNotesId, isMobile, onAddNewItem, onDeleteOrder,
-  manualCustomerName, setManualCustomerName, printWarning
+  manualCustomerName, setManualCustomerName, printWarning, hasPrinterAvailable
 }: {
   cart: OrderItem[]; orderType: OrderType; setOrderType: (t: OrderType) => void; tableNumber?: number;
   total: number; updateQty: (id: string, delta: number) => void; removeItem: (id: string) => void;
