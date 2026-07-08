@@ -89,7 +89,7 @@ export function ItemNotesModal({
 
         // Podemos formatar as notas ou apenas enviar
         const finalNotesString = finalNotesArray.join(' | ');
-        onConfirm(item.id, finalNotesString, complements);
+        onConfirm(item.id, { notes: finalNotesString, selectedNotes: [...selectedObs], otherNotes: otherNotes.trim() }, complements);
         onClose();
     };
 
