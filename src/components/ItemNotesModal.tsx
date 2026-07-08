@@ -36,22 +36,25 @@ export function ItemNotesModal({
 
     useEffect(() => {
         if (open && item) {
-            // Parse item.notes back into selectedObs and otherNotes (best effort MVP)
-            const currentNotes = item.notes || '';
-
-            const parts = currentNotes.split('|').map(s => s.trim()).filter(Boolean);
-            const parsedObs: string[] = [];
-            const others: string[] = [];
-
-            for (const p of parts) {
-                if (noteOptions.some(n => n.type === 'note' && n.name === p)) {
-                    parsedObs.push(p);
-                } else if (!p.startsWith('+')) { // Ignorando os textos gerados para os complementos por segurança. O estado 'complements' é q gerencia.
-                    others.push(p);
+            // Prefer structured fields when available; fallback to legacy joined string.
+            if (item.selectedNotes !== undefined || item.otherNotes !== undefined) {
+                setSelectedObs(item.selectedNotes || []);
+                setOtherNotes(item.otherNotes || '');
+            } else {
+                const currentNotes = item.notes || '';
+                const parts = currentNotes.split('|').map(s => s.trim()).filter(Boolean);
+                const parsedObs: string[] = [];
+                const others: string[] = [];
+                for (const p of parts) {
+                    if (noteOptions.some(n => n.type === 'note' && n.name === p)) {
+                        parsedObs.push(p);
+                    } else if (!p.startsWith('+')) {
+                        others.push(p);
+                    }
                 }
+                setSelectedObs(parsedObs);
+                setOtherNotes(others.join(', '));
             }
-            setSelectedObs(parsedObs);
-            setOtherNotes(others.join(', '));
             setComplements(item.selectedComplements || []);
         }
     }, [open, item, noteOptions]);
