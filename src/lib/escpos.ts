@@ -443,11 +443,9 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   for (const item of order.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}`;
     parts.push(CMD_BOLD_ON, rowWrap(`${qty} ${item.name}`, '', cols), CMD_BOLD_OFF);
-    if (item.notes) {
-      const noteLines = item.notes.split('|').map(s => s.trim()).filter(Boolean);
-      for (const n of noteLines) {
-        parts.push(rowWrap(`  * ${n}`, '', cols));
-      }
+    const noteLines = getItemNoteLines(item);
+    for (const n of noteLines) {
+      parts.push(rowWrap(`  * ${n}`, '', cols));
     }
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
