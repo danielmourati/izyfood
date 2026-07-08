@@ -445,7 +445,10 @@ function buildOrderHtml(order: any, ps: any = {}): string {
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
     let html = `<p class="bold" style="margin: 0 0 2px 0;">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
     if (i.notes) {
-      html += `<p style="margin: 0 0 4px 12px; font-size: 12px; font-style: italic;">* ${i.notes}</p>`;
+      const noteLines = String(i.notes).split('|').map((s: string) => s.trim()).filter(Boolean);
+      noteLines.forEach((n: string) => {
+        html += `<p style="margin: 0 0 4px 12px; font-size: 12px; font-style: italic;">* ${n}</p>`;
+      });
     }
     if (i.selectedComplements && i.selectedComplements.length > 0) {
       i.selectedComplements.forEach((c: any) => {
