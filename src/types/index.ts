@@ -46,6 +46,8 @@ export interface OrderItem {
   addedBy?: string;
   addedByName?: string;
   notes?: string;
+  selectedNotes?: string[];
+  otherNotes?: string;
   selectedComplements?: { name: string; price: number; quantity: number }[];
   printed?: boolean;
 }
