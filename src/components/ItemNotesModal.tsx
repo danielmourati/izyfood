@@ -16,7 +16,7 @@ export function ItemNotesModal({
     open: boolean;
     onClose: () => void;
     item: OrderItem | null;
-    onConfirm: (itemId: string, newNotes: string, newComplements: { name: string; price: number; quantity: number }[]) => void;
+    onConfirm: (itemId: string, payload: { notes: string; selectedNotes: string[]; otherNotes: string }, newComplements: { name: string; price: number; quantity: number }[]) => void;
 }) {
     const { noteOptions, products } = useStore();
     const [selectedObs, setSelectedObs] = useState<string[]>([]);
