@@ -158,6 +158,57 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
   return text(lines.join('\n') + '\n');
 }
 
+/**
+ * Wrap a single text-only receipt line without padding it to the full paper
+ * width. Kitchen tickets use this for item/observation lines because some
+ * compact Bluetooth printers are sensitive to trailing-space padded lines
+ * followed immediately by ESC/POS mode changes.
+ */
+function textOnlyWrap(label: string, cols: number): Uint8Array {
+  const raw = String(label ?? '');
+  if (raw.length <= cols) return text(raw + '\n');
+
+  let indent = '';
+  const symbolMatch = raw.match(/^(\s*[+*]\s+)/);
+  if (symbolMatch) {
+    indent = ' '.repeat(symbolMatch[1].length);
+  } else {
+    const wsMatch = raw.match(/^(\s+)/);
+    if (wsMatch) indent = wsMatch[1];
+  }
+
+  const headMatch = raw.match(/^(\s*(?:[+*]\s+)?)(.*)$/);
+  const head = headMatch ? headMatch[1] : '';
+  const rest = headMatch ? headMatch[2] : raw;
+  const words = rest.trim().split(/\s+/).filter(Boolean);
+
+  const lines: string[] = [];
+  let current = head;
+
+  const pushBreakWord = (word: string, prefix: string) => {
+    let piece = prefix + word;
+    while (piece.length > cols) {
+      lines.push(piece.slice(0, cols));
+      piece = indent + piece.slice(cols);
+    }
+    current = piece;
+  };
+
+  for (const word of words) {
+    const atStart = current === head || current === indent || current === '';
+    const candidate = atStart ? current + word : current + ' ' + word;
+    if (candidate.length <= cols) {
+      current = candidate;
+    } else {
+      if (current.trim().length > 0) lines.push(current);
+      pushBreakWord(word, indent);
+    }
+  }
+
+  if (current.trim().length > 0) lines.push(current);
+  return text(lines.join('\n') + '\n');
+}
+
 function center(s: string, cols: number): Uint8Array {
   if (s.length <= cols) {
     const pad = Math.max(0, Math.floor((cols - s.length) / 2));
@@ -469,14 +520,14 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   // Items
   for (const item of order.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}`;
-    parts.push(CMD_BOLD_ON, rowWrap(`${qty} ${item.name}`, '', cols), CMD_BOLD_OFF);
+    parts.push(CMD_ALIGN_LEFT, CMD_BOLD_ON, textOnlyWrap(`${qty} ${item.name}`, cols), CMD_BOLD_OFF, CMD_PRINT_MODE_NORMAL, CMD_ALIGN_LEFT);
     const noteLines = getItemNoteLines(item);
     for (const n of noteLines) {
-      parts.push(rowWrap(`  * ${n}`, '', cols));
+      parts.push(CMD_PRINT_MODE_NORMAL, CMD_ALIGN_LEFT, textOnlyWrap(`  * ${n}`, cols));
     }
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        parts.push(rowWrap(`  + ${comp.quantity}x ${comp.name}`, '', cols));
+        parts.push(CMD_PRINT_MODE_NORMAL, CMD_ALIGN_LEFT, textOnlyWrap(`  + ${comp.quantity}x ${comp.name}`, cols));
       }
     }
   }

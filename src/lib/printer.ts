@@ -322,7 +322,7 @@ export function getBluetoothDeviceName(): string | null {
 
 /**
  * Send raw ESC/POS bytes via Bluetooth.
- * Splits into 256-byte chunks for BLE reliability and auto-reconecta se cair.
+ * Splits into small newline-aware chunks for BLE reliability and auto-reconecta se cair.
  */
 export async function printViaBluetooth(data: Uint8Array): Promise<void> {
   // Garante conexão (reconecta se necessário) antes de imprimir
@@ -331,35 +331,48 @@ export async function printViaBluetooth(data: Uint8Array): Promise<void> {
     if (!ok || !_characteristic) throw new Error('Impressora não conectada.');
   }
 
-  const CHUNK = 256;
-  try {
-    for (let i = 0; i < data.length; i += CHUNK) {
-      const chunk = data.slice(i, i + CHUNK);
+  const CHUNK = 180;
+  const chunkData = (bytes: Uint8Array): Uint8Array[] => {
+    const chunks: Uint8Array[] = [];
+    let start = 0;
+
+    while (start < bytes.length) {
+      let end = Math.min(start + CHUNK, bytes.length);
+      if (end < bytes.length) {
+        let split = end;
+        while (split > start && bytes[split - 1] !== 0x0A) split--;
+        if (split > start) end = split;
+      }
+      chunks.push(bytes.slice(start, end));
+      start = end;
+    }
+
+    return chunks;
+  };
+
+  const chunks = chunkData(data);
+  const writeChunks = async () => {
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
       if (_characteristic.properties.writeWithoutResponse) {
         await _characteristic.writeValueWithoutResponse(chunk);
       } else {
         await _characteristic.writeValueWithResponse(chunk);
       }
-      if (i + CHUNK < data.length) {
-        await new Promise(r => setTimeout(r, 100));
+      if (i + 1 < chunks.length) {
+        await new Promise(r => setTimeout(r, 120));
       }
     }
+  };
+
+  try {
+    await writeChunks();
   } catch (err) {
     // Se cair no meio, tenta reconectar uma vez e reenviar
     console.warn('[bt] erro durante impressão, tentando reconectar e reenviar:', err);
     const ok = await ensureBluetoothConnected();
     if (!ok || !_characteristic) throw err;
-    for (let i = 0; i < data.length; i += CHUNK) {
-      const chunk = data.slice(i, i + CHUNK);
-      if (_characteristic.properties.writeWithoutResponse) {
-        await _characteristic.writeValueWithoutResponse(chunk);
-      } else {
-        await _characteristic.writeValueWithResponse(chunk);
-      }
-      if (i + CHUNK < data.length) {
-        await new Promise(r => setTimeout(r, 100));
-      }
-    }
+    await writeChunks();
   }
 }
 
