@@ -235,17 +235,25 @@ function leftRightAlign(left: string, right: string, cols: number): Uint8Array {
  * pipe-joined `notes` string for backward compatibility.
  */
 export function getItemNoteLines(item: { notes?: string; selectedNotes?: string[]; otherNotes?: string }): string[] {
-  const structured = (item.selectedNotes && item.selectedNotes.length > 0) || (item.otherNotes && item.otherNotes.trim());
-  if (structured) {
-    const lines: string[] = [];
-    (item.selectedNotes || []).forEach(n => { const t = String(n).trim(); if (t) lines.push(t); });
-    if (item.otherNotes && item.otherNotes.trim()) lines.push(item.otherNotes.trim());
-    return lines;
+  const collected: string[] = [];
+  (item.selectedNotes || []).forEach(n => { const t = String(n ?? '').trim(); if (t) collected.push(t); });
+  if (item.otherNotes && String(item.otherNotes).trim()) collected.push(String(item.otherNotes).trim());
+
+  // Fallback to legacy pipe-joined `notes` ONLY when no structured line was produced.
+  if (collected.length === 0 && item.notes) {
+    String(item.notes).split('|').forEach(s => { const t = s.trim(); if (t) collected.push(t); });
   }
-  if (item.notes) {
-    return String(item.notes).split('|').map(s => s.trim()).filter(Boolean);
+
+  // Case-insensitive dedupe preserving first occurrence.
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const l of collected) {
+    const key = l.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(l);
   }
-  return [];
+  return out;
 }
 
 interface OrderItem {
