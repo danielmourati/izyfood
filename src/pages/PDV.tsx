@@ -64,6 +64,8 @@ const PDV = () => {
   const [printWarning, setPrintWarning] = useState<string | null>(null);
   const [printPreview, setPrintPreview] = useState<{ open: boolean; order: any | null; reason: string; kind?: 'order' | 'bill' }>({ open: false, order: null, reason: '', kind: 'order' });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cartRef = useRef<OrderItem[]>([]);
+  useEffect(() => { cartRef.current = cart; }, [cart]);
   
   useEffect(() => {
     if (mobileView !== 'products') {
