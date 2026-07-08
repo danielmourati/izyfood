@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBillReceipt } from '@/lib/escpos';
+import { buildBillReceipt, buildOrderReceipt, getItemNoteLines } from '@/lib/escpos';
 import { buildBillPreviewText } from '@/lib/receipt-preview';
 
 const decodeReceipt = (data: Uint8Array) => new TextDecoder().decode(data);
