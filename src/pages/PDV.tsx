@@ -389,12 +389,16 @@ const PDV = () => {
       customerAddress: cust?.address || undefined,
     };
 
-    // 1. Enviar para a impressora
-    try {
-      await printOrder(orderData);
-      toast.success('Comanda enviada para impressão!');
-    } catch (err) {
-      toast.error('Erro na impressão, mas o pedido será salvo.');
+    // 1. Enviar para a impressora (somente se houver impressora utilizável)
+    if (hasPrinterAvailable) {
+      try {
+        await printOrder(orderData);
+        toast.success('Comanda enviada para impressão!');
+      } catch (err) {
+        toast.error('Erro na impressão, mas o pedido será salvo.');
+      }
+    } else {
+      setPrintWarning('Nenhuma impressora configurada ou conectada. O pedido foi enviado à produção sem impressão. Configure uma impressora em Configurações > Impressora.');
     }
 
     // 2. Atualizar estado interno
