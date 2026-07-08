@@ -225,21 +225,26 @@ export function usePrinter() {
   const defaultPrinter = printers.find(p => p.is_default) || printers[0];
   const paperWidth = defaultPrinter?.paper_width || 58; // Default para 58mm (mini impressoras térmicas)
 
-  // Existe impressora utilizável? (configurada no banco E com alguma via de saída plausível)
-  // Para BT padrão: basta o navegador suportar Web Bluetooth OU já ter pareamento prévio OU
-  // toggle de prioridade BT ligado neste aparelho — sendToPrinter fará ensureBluetoothConnected
-  // e cai no fallback HTML se necessário, sem travar o fluxo.
+  // Existe impressora utilizável? Considera dois cenários:
+  // 1) Toggle "Padrão neste aparelho" ligado + BT realmente conectado agora
+  //    (funciona mesmo sem linha em printer_configs — caso comum em mobile).
+  // 2) Há impressora registrada em printer_configs e alguma via de saída plausível.
+  const hasActiveLocalBluetooth = btPriorityDefault && btConnected;
+
   const hasBluetoothDefault =
     defaultPrinter?.connection_type === 'bluetooth' &&
-    (btConnected || btPriorityDefault || !!getLastPairedDeviceName() || isBluetoothAvailable());
+    (btConnected || btPriorityDefault || !!getLastPairedDeviceName());
 
-  const hasPrinterAvailable = printers.length > 0 && (
-    btConnected ||
-    qzConnected ||
-    defaultPrinter?.connection_type === 'system' ||
-    defaultPrinter?.connection_type === 'network' ||
-    hasBluetoothDefault
-  );
+  const hasPrinterAvailable =
+    hasActiveLocalBluetooth ||
+    (printers.length > 0 && (
+      btConnected ||
+      qzConnected ||
+      defaultPrinter?.connection_type === 'system' ||
+      defaultPrinter?.connection_type === 'network' ||
+      hasBluetoothDefault
+    ));
+
 
   const pairBluetooth = async () => {
     const name = await connectBluetooth({ forcePairing: true });

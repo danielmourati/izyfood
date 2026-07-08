@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Printer, X, AlertTriangle } from 'lucide-react';
+import { Settings, AlertTriangle } from 'lucide-react';
 import { buildOrderHtml } from '@/hooks/use-printer';
-import { printViaHtmlFallback } from '@/lib/printer';
 
 interface Props {
   open: boolean;
@@ -11,14 +10,14 @@ interface Props {
   order: any | null;
   paperWidth?: number;
   reason?: string;
-  title?: string;
   printSettings?: any;
+  onConfigurePrinter?: () => void;
 }
 
 /**
  * Modal que exibe uma prévia do cupom da cozinha quando a impressão automática
- * é pulada por falta de impressora configurada/selecionada. Permite ao operador
- * imprimir manualmente pelo navegador ou apenas confirmar e seguir.
+ * é pulada por falta de impressora configurada/selecionada. O operador pode
+ * seguir o fluxo ou ir direto para as configurações da impressora.
  */
 export function PrintPreviewModal({
   open,
@@ -26,16 +25,11 @@ export function PrintPreviewModal({
   order,
   paperWidth = 58,
   reason,
-  title = 'Comanda',
   printSettings,
+  onConfigurePrinter,
 }: Props) {
   const html = useMemo(() => (order ? buildOrderHtml(order, printSettings || {}) : ''), [order, printSettings]);
   const previewWidth = paperWidth === 58 ? 240 : 320;
-
-  const handleManualPrint = () => {
-    if (!html) return;
-    printViaHtmlFallback(html, title, paperWidth);
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,11 +59,19 @@ export function PrintPreviewModal({
 
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">
-            <X className="h-4 w-4 mr-1" /> Fechar
+            Ok, entendi!
           </Button>
-          <Button onClick={handleManualPrint} className="flex-1 sm:flex-none">
-            <Printer className="h-4 w-4 mr-1" /> Imprimir agora
-          </Button>
+          {onConfigurePrinter && (
+            <Button
+              onClick={() => {
+                onOpenChange(false);
+                onConfigurePrinter();
+              }}
+              className="flex-1 sm:flex-none"
+            >
+              <Settings className="h-4 w-4 mr-1" /> Configurar impressora
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
