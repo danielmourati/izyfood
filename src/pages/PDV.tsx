@@ -64,6 +64,8 @@ const PDV = () => {
   const [printWarning, setPrintWarning] = useState<string | null>(null);
   const [printPreview, setPrintPreview] = useState<{ open: boolean; order: any | null; reason: string; kind?: 'order' | 'bill' }>({ open: false, order: null, reason: '', kind: 'order' });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cartRef = useRef<OrderItem[]>([]);
+  useEffect(() => { cartRef.current = cart; }, [cart]);
   
   useEffect(() => {
     if (mobileView !== 'products') {
@@ -377,10 +379,13 @@ const PDV = () => {
   };
 
   const handleSendAndHold = async () => {
-    const unprintedItems = cart.filter(i => !i.printed);
+    // Usa cartRef para garantir o snapshot mais recente (evita perder edições
+    // de observações feitas imediatamente antes do clique em Enviar).
+    const currentCart = cartRef.current.length ? cartRef.current : cart;
+    const unprintedItems = currentCart.filter(i => !i.printed);
     if (unprintedItems.length === 0) return;
 
-    const markedCart = cart.map(i => ({ ...i, printed: true }));
+    const markedCart = currentCart.map(i => ({ ...i, printed: true }));
     
     const cust = customers.find(c => c.id === currentOrder.customerId);
     const orderData = {
