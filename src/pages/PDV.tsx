@@ -157,13 +157,13 @@ const PDV = () => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [cart, pedidoParam, initialized, setOrders, selectedCustomerId, orderType, resolveCustomer]);
 
-  const handleConfirmNotes = (itemId: string, newNotes: string, newComplements: { name: string, price: number, quantity: number }[]) => {
+  const handleConfirmNotes = (itemId: string, payload: { notes: string; selectedNotes: string[]; otherNotes: string }, newComplements: { name: string, price: number, quantity: number }[]) => {
     setCart(prev => prev.map(i => {
       if (i.id !== itemId) return i;
       const compsTotal = newComplements.reduce((acc, c) => acc + (c.price * c.quantity), 0);
       const baseSubtotal = i.weight ? i.weight * i.price : i.quantity * i.price;
       const subtotal = baseSubtotal + (compsTotal * i.quantity);
-      return { ...i, notes: newNotes, selectedComplements: newComplements, subtotal };
+      return { ...i, notes: payload.notes, selectedNotes: payload.selectedNotes, otherNotes: payload.otherNotes, selectedComplements: newComplements, subtotal };
     }));
   };
 

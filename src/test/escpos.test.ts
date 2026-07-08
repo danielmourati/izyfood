@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBillReceipt } from '@/lib/escpos';
+import { buildBillReceipt, buildOrderReceipt, getItemNoteLines } from '@/lib/escpos';
 import { buildBillPreviewText } from '@/lib/receipt-preview';
 
 const decodeReceipt = (data: Uint8Array) => new TextDecoder().decode(data);
@@ -372,4 +372,82 @@ describe('ESC/POS bill receipt', () => {
     expect(priceLine.length).toBeLessThanOrEqual(30);
   });
 });
+
+describe('kitchen order notes rendering', () => {
+  const baseOrder = {
+    id: 'ord-notes',
+    orderType: 'mesa',
+    tableNumber: 3,
+    total: 20,
+    createdAt: '2026-05-22T20:13:00.000Z',
+    customerName: 'Cliente',
+  };
+
+  it('getItemNoteLines: prefers structured fields (selectedNotes + otherNotes)', () => {
+    const lines = getItemNoteLines({
+      notes: 'ignored | legacy',
+      selectedNotes: ['Sem cebola', 'Bem passado'],
+      otherNotes: 'Extra crocante',
+    });
+    expect(lines).toEqual(['Sem cebola', 'Bem passado', 'Extra crocante']);
+  });
+
+  it('getItemNoteLines: falls back to legacy pipe-joined notes', () => {
+    const lines = getItemNoteLines({ notes: 'Sem sal | Sem açúcar' });
+    expect(lines).toEqual(['Sem sal', 'Sem açúcar']);
+  });
+
+  it('getItemNoteLines: only selectedNotes (no otherNotes, no legacy)', () => {
+    const lines = getItemNoteLines({ selectedNotes: ['A', 'B', 'C'] });
+    expect(lines).toEqual(['A', 'B', 'C']);
+  });
+
+  it('buildOrderReceipt: prints checkbox notes AND input note on kitchen ticket', () => {
+    const receipt = decodeReceipt(buildOrderReceipt({
+      ...baseOrder,
+      items: [{
+        name: 'Arrumadinho de Carne de Sol',
+        quantity: 1,
+        price: 20,
+        subtotal: 20,
+        selectedNotes: ['Arroz Branco', 'Sem tempero'],
+        otherNotes: 'com molho à parte',
+      }],
+    }, 58));
+    expect(receipt).toContain('* Arroz Branco');
+    expect(receipt).toContain('* Sem tempero');
+    expect(receipt).toContain('* com molho à parte');
+  });
+
+  it('buildOrderReceipt: legacy items with only pipe-joined notes still print all lines', () => {
+    const receipt = decodeReceipt(buildOrderReceipt({
+      ...baseOrder,
+      items: [{
+        name: 'X-Burger',
+        quantity: 1,
+        price: 20,
+        subtotal: 20,
+        notes: 'Sem cebola | Sem picles',
+      }],
+    }, 58));
+    expect(receipt).toContain('* Sem cebola');
+    expect(receipt).toContain('* Sem picles');
+  });
+
+  it('buildOrderReceipt: only checkbox notes (no input text) still print', () => {
+    const receipt = decodeReceipt(buildOrderReceipt({
+      ...baseOrder,
+      items: [{
+        name: 'Pizza',
+        quantity: 1,
+        price: 20,
+        subtotal: 20,
+        selectedNotes: ['Borda recheada', 'Bem assada'],
+      }],
+    }, 58));
+    expect(receipt).toContain('* Borda recheada');
+    expect(receipt).toContain('* Bem assada');
+  });
+});
+
 

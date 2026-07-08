@@ -1,33 +1,65 @@
-## Objetivo
+## Diagnóstico
 
-Aplicar a mesma verificação de impressora disponível (`hasPrinterAvailable`) e o mesmo modal de prévia usado em **Enviar pedido** também em:
-- **Conta** (`handlePrintBill` / botão "Conta" no rodapé do carrinho e ações de mesa retida).
-- **Reimprimir** (já verificado — manter, apenas normalizar mensagem e indicativo visual).
-- **Botões de ação no rodapé do carrinho**: exibir o mesmo indicador "sem impressão" em **Reimprimir** e **Conta**, além do já existente no **Enviar**.
+O `ItemNotesModal` hoje serializa **selectedObs (checkboxes)** e **otherNotes (input)** em uma única string `item.notes` unida por ` | ` (ex.: `"Arroz Branco | Sem tempero | sem cebola"`). O gerador ESC/POS (`src/lib/escpos.ts`) e o HTML de prévia (`src/hooks/use-printer.ts`) dividem essa string por `|` e imprimem cada trecho.
+
+Na teoria, ambos os tipos deveriam sair no cupom. Na prática, o usuário reporta que apenas o texto do input aparece. Causas plausíveis:
+1. Reabrir o modal, o `useEffect` de parse-back tenta casar cada parte contra `noteOptions` filtrado por categoria; se um checkbox foi criado sem `categoryIds` do produto ou removido/renomeado, ele cai em `others`, é reinserido no input, e depois o operador limpa o input e reenvia — perdendo a obs de checkbox.
+2. Concatenar tudo numa string é frágil: qualquer texto do input com `|` corta a impressão; qualquer trim/normalização acidental derruba trechos.
+
+A correção robusta é separar os dois canais em campos estruturados no `OrderItem` e imprimir explicitamente cada um.
 
 ## Escopo
 
-### 1. `src/hooks/use-printer.ts`
-- Exportar também `buildBillHtml` como named export (hoje é função interna). Sem outras mudanças.
+### 1. `src/types/index.ts`
+- Adicionar em `OrderItem`:
+  ```ts
+  selectedNotes?: string[]; // observações marcadas em checkbox
+  otherNotes?: string;      // texto livre do input "Outras observações"
+  ```
+- Manter `notes?: string` para compatibilidade com pedidos antigos e display atual do carrinho.
 
-### 2. `src/components/PrintPreviewModal.tsx`
-- Adicionar prop opcional `kind?: 'order' | 'bill'` (default `'order'`).
-- Quando `kind === 'bill'`, usar `buildBillHtml` no `useMemo` em vez de `buildOrderHtml`. Título e reason continuam controlados pelo caller.
+### 2. `src/components/ItemNotesModal.tsx`
+- Alterar `onConfirm` signature para:
+  ```ts
+  onConfirm: (
+    itemId: string,
+    payload: { notes: string; selectedNotes: string[]; otherNotes: string },
+    newComplements: {...}[]
+  ) => void
+  ```
+- No `handleConfirm`: gerar `notes` (string única, mantida para display) **e** enviar `selectedNotes`, `otherNotes` separadamente.
+- No `useEffect` de reload: preferir `item.selectedNotes`/`item.otherNotes` quando existirem; fallback à parseia atual apenas para pedidos legados.
 
 ### 3. `src/pages/PDV.tsx`
-- Trocar `printPreview` state para incluir `kind`: `{ open, order, reason, kind: 'order' | 'bill' }`.
-- Em `handlePrintBill`: antes do `try/printBill`, checar `!hasPrinterAvailable` → abrir modal com `kind: 'bill'`, `order: billData`, mesma `reason` usada nos outros fluxos. Sem chamada a `printBill` nesse caso.
-- Passar `hasPrinterAvailable` ao `CartContent` (já é passado). No `CartFooter`/rodapé compacto do carrinho:
-  - **Botão Reimprimir** (linhas ~1155 e ~1173): adicionar o mesmo micro-texto "sem impressão" (variante warning) quando `!hasPrinterAvailable`, seguindo o mesmo padrão visual do botão Enviar.
-  - **Botão Conta** (linha ~1161): idem.
-- Passar `kind` para o `<PrintPreviewModal>` render (`kind={printPreview.kind}`).
+- Atualizar `handleConfirmNotes` para receber o payload e persistir `notes`, `selectedNotes`, `otherNotes` no item do carrinho. Manter o cálculo de subtotal atual.
+- Nenhum outro consumidor precisa mudar (carrinho continua exibindo `item.notes`).
 
-### 4. Verificação
+### 4. `src/lib/escpos.ts` — `buildOrderReceipt`
+- Substituir o bloco atual `if (item.notes) { split('|') ... }` por:
+  ```ts
+  const noteLines = getNoteLines(item); // helper local
+  for (const n of noteLines) parts.push(rowWrap(`  * ${n}`, '', cols));
+  ```
+- `getNoteLines(item)`:
+  1. Se `item.selectedNotes?.length` ou `item.otherNotes`, concatenar `[...selectedNotes, otherNotes].filter(Boolean)`.
+  2. Senão, fallback ao legado: `String(item.notes || '').split('|').map(trim).filter(Boolean)`.
+
+### 5. `src/hooks/use-printer.ts` — `buildOrderHtml`
+- Aplicar o mesmo helper para gerar `noteLines`, cada uma em um `<p>` separado (mesmo layout atual `* …`).
+
+### 6. Testes — `src/test/escpos.test.ts`
+- Adicionar 3 casos ao `buildOrderReceipt`:
+  1. Item com `selectedNotes: ['Sem cebola', 'Bem passado']` e `otherNotes: 'Extra crocante'` → o receipt (decodificado) contém as três linhas com prefixo `*`.
+  2. Item legado com apenas `notes: 'Sem sal | Sem açúcar'` → duas linhas `*` impressas (retrocompatibilidade).
+  3. Item com apenas `selectedNotes` (sem `otherNotes` e sem `notes` legado) → todas as obs de checkbox aparecem.
+- Se o arquivo de teste não existir/estiver vazio, criar cobertura mínima com decoder `TextDecoder('utf-8')` sobre o `Uint8Array` retornado.
+
+### 7. Verificação
 - `bunx tsgo --noEmit`.
-- Manual: sem impressora configurada, clicar em **Conta** e **Reimprimir** → modal abre com a prévia correta (Conta usa layout de conta, Reimprimir usa layout de comanda) e botões "Ok, entendi!" + "Configurar impressora".
-- Com BT conectado + toggle padrão ativo (mobile): nenhum botão mostra "sem impressão" e todas as impressões seguem normalmente.
+- `bunx vitest run src/test/escpos.test.ts`.
+- Manual: no PDV, adicionar item → abrir modal de observações → marcar 2 checkboxes → digitar texto no input → confirmar → enviar pedido → prévia HTML e cupom impresso mostram **as 3 linhas**.
 
 ## Fora do escopo
-- Sem tocar em `printCashClose` (não é acionado por botão no PDV; permanece no fluxo próprio do Caixa, onde impressora já é opcional pelo design atual).
-- Sem mudanças em ESC/POS, RLS, banco, ou lógica de conexão.
+- Sem alterar a exibição do carrinho (continua usando `item.notes` amigável).
+- Sem tocar em pagamento, RLS, banco ou lógica de impressora BT.
 - Sem novos toasts.
