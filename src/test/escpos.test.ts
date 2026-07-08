@@ -449,6 +449,50 @@ describe('kitchen order notes rendering', () => {
     expect(receipt).toContain('* Bem assada');
   });
 
+  it('buildOrderReceipt: prints short item checkbox note immediately after item line', () => {
+    const receipt = decodeReceipt(buildOrderReceipt({
+      ...baseOrder,
+      items: [{
+        name: 'Coca Lata',
+        quantity: 1,
+        price: 6,
+        subtotal: 6,
+        selectedNotes: ['gelo e limão'],
+      }],
+    }, 58));
+
+    const itemIdx = receipt.indexOf('1 Coca Lata');
+    const noteIdx = receipt.indexOf('* gelo e limão');
+    const attendantIdx = receipt.indexOf('Atendente:');
+
+    expect(itemIdx).toBeGreaterThan(-1);
+    expect(noteIdx).toBeGreaterThan(itemIdx);
+    expect(attendantIdx).toBeGreaterThan(noteIdx);
+    expect(receipt).toMatch(/1 Coca Lata[^\n]*\n(?:\x1B[\s\S]{1,2})*\s*\* gelo e limão/);
+  });
+
+  it('buildOrderReceipt: keeps observation between item and complements', () => {
+    const receipt = decodeReceipt(buildOrderReceipt({
+      ...baseOrder,
+      items: [{
+        name: 'Coca Lata',
+        quantity: 1,
+        price: 6,
+        subtotal: 6,
+        selectedNotes: ['gelo e limão'],
+        selectedComplements: [{ name: 'Copo descartável', price: 0, quantity: 1 }],
+      }],
+    }, 58));
+
+    const itemIdx = receipt.indexOf('1 Coca Lata');
+    const noteIdx = receipt.indexOf('* gelo e limão');
+    const compIdx = receipt.indexOf('+ 1x Copo descartável');
+
+    expect(itemIdx).toBeGreaterThan(-1);
+    expect(noteIdx).toBeGreaterThan(itemIdx);
+    expect(compIdx).toBeGreaterThan(noteIdx);
+  });
+
   it('getItemNoteLines: falls back to legacy notes when structured fields are empty arrays/strings', () => {
     const lines = getItemNoteLines({
       selectedNotes: [],
