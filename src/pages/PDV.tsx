@@ -564,7 +564,7 @@ const PDV = () => {
               selectedCustomerId={selectedCustomerId} onSelectCustomer={setSelectedCustomerId} isHeldMesa={isHeldMesa}
               manualCustomerName={manualCustomerName} setManualCustomerName={setManualCustomerName}
               onPrintOrder={handleSendAndHold} onReprintOrder={handleReprintOrder} onPrintBill={handlePrintBill}
-              printWarning={printWarning}
+              printWarning={printWarning} hasPrinterAvailable={hasPrinterAvailable}
               setEditingItemNotesId={setEditingItemNotesId} isMobile={false} onAddNewItem={() => setMobileView('categories')}
               onDeleteOrder={() => executeDeleteOrder(pedidoParam || currentOrderId)} />
           </div>
