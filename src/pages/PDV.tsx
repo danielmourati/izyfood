@@ -62,7 +62,7 @@ const PDV = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [manualCustomerName, setManualCustomerName] = useState('');
   const [printWarning, setPrintWarning] = useState<string | null>(null);
-  const [printPreview, setPrintPreview] = useState<{ open: boolean; order: any | null; reason: string; kind: 'order' | 'bill' }>({ open: false, order: null, reason: '', kind: 'order' });
+  const [printPreview, setPrintPreview] = useState<{ open: boolean; order: any | null; reason: string; kind?: 'order' | 'bill' }>({ open: false, order: null, reason: '', kind: 'order' });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
