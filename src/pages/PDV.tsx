@@ -31,7 +31,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 };
 
 const PDV = () => {
-  const { products, categories, orders, setOrders, tables, setTables, getCategoryById, settings } = useStore();
+  const { products, categories, orders, setOrders, tables, setTables, getCategoryById, settings, printSettings } = useStore();
   const { user, isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useTenantNavigate();
