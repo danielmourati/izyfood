@@ -70,7 +70,9 @@ const PDV = () => {
     }
   }, [mobileView]);
 
-  const { printOrder, printBill, hasPrinterAvailable } = usePrinter();
+  const { printOrder, printBill, hasPrinterAvailable, defaultPrinter } = usePrinter();
+  const { printSettings } = useStore();
+  const previewPaperWidth = defaultPrinter?.paper_width || 58;
 
   useEffect(() => {
     if (initialized) return;
