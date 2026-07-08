@@ -12,6 +12,7 @@ interface Props {
   reason?: string;
   printSettings?: any;
   onConfigurePrinter?: () => void;
+  kind?: 'order' | 'bill';
 }
 
 /**
