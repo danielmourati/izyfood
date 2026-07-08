@@ -958,16 +958,6 @@ function CartContent({
         )}
       </div>
 
-      {printWarning && (
-        <div className="px-3 pt-3">
-          <Alert className="border-warning/50 bg-warning/10">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            <AlertDescription className="text-sm font-medium text-foreground">
-              {printWarning}
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
 
       {/* Customer Selector */}
       <div className="px-3 py-2 border-b space-y-1">
