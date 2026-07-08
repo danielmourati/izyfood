@@ -784,6 +784,7 @@ function CartContent({
   manualCustomerName?: string;
   setManualCustomerName?: (val: string) => void;
   printWarning?: string | null;
+  hasPrinterAvailable?: boolean;
 }) {
   const { customers, setCustomers, products, categories } = useStore();
   const { isAdmin } = useAuth();
