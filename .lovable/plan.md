@@ -1,50 +1,70 @@
 ## Objetivo
 
-1. Garantir que **todas as observações** (as marcadas via checkbox e o texto livre de "Outras observações") apareçam no cupom da cozinha, tanto na impressão ESC/POS quanto no fallback HTML.
-2. Verificar se existe impressora configurada/conectada antes de disparar impressão automática no botão "Enviar pedido"; quando não houver, emitir alerta claro e pular a impressão para evitar erros no storefront do usuário.
+1. Corrigir o reconhecimento de impressora Bluetooth configurada como padrão: hoje o toggle "impressora padrão" via Bluetooth só passa a valer como `hasPrinterAvailable = true` se o BT estiver conectado no momento **ou** se houver `getLastPairedDeviceName()` gravado no `localStorage` deste aparelho. Isso quebra em três cenários reais:
+   - Usuário configurou a impressora BT como padrão em outro aparelho e abre o PDV em um novo dispositivo (nunca pareou aqui).
+   - `localStorage` foi limpo (sessão privada, "esquecer impressora", nova instalação PWA).
+   - Toggle `btPriorityDefault` ligado mas GATT ainda não reconectou → botão "Enviar pedido" mostra "sem impressão" e o alerta indevidamente.
+2. Substituir o alerta inline atual (screenshot enviado) por um **modal de prévia do cupom** quando a impressão for pulada por falta de impressora configurada/selecionada — permitindo ao operador visualizar o pedido, imprimir manualmente pelo navegador ou apenas confirmar e seguir.
 
 ---
 
 ## Escopo
 
-### 1. `src/hooks/use-printer.ts` — Fallback HTML por linha
+### 1. `src/hooks/use-printer.ts` — corrigir `hasPrinterAvailable`
 
-- Em `buildOrderHtml`, quando `i.notes` existir, dividir por `|` e renderizar **um `<p>` por observação** (mesma lógica já aplicada no ESC/POS via `buildOrderReceipt` em `src/lib/escpos.ts`).
-- Assim, "Outras observações" (texto livre) e cada observação de checkbox ficam em linhas separadas também no fallback nativo Android/Windows.
+Reescrever o cálculo para refletir a **intenção de configuração**, não só o estado momentâneo de conexão:
 
-### 2. `src/hooks/use-printer.ts` — Expor helper de disponibilidade
+```ts
+const hasBluetoothDefault =
+  defaultPrinter?.connection_type === 'bluetooth' &&
+  (btConnected || btPriorityDefault || !!getLastPairedDeviceName() || isBluetoothAvailable());
 
-- Adicionar um helper derivado no retorno do hook, ex.: `hasPrinterAvailable: boolean`, calculado como:
-  - `printers.length > 0` **e**
-  - alguma via de saída disponível: `btConnected` OU `qzConnected` OU `defaultPrinter?.connection_type === 'system'` (fallback HTML nativo do navegador é sempre possível quando há uma impressora `system`/BROWSER configurada).
-- Manter `printOrder` como está internamente; o gate fica no chamador (PDV) para permitir mensagem específica de UI.
+const hasPrinterAvailable = printers.length > 0 && (
+  btConnected ||
+  qzConnected ||
+  defaultPrinter?.connection_type === 'system' ||
+  defaultPrinter?.connection_type === 'network' ||
+  hasBluetoothDefault
+);
+```
 
-### 3. `src/pages/PDV.tsx` — Alerta e bypass da impressão no envio
+Racional: quando existe uma `printer_configs` marcada como padrão do tipo `bluetooth` e o navegador suporta Web Bluetooth, tratamos como "há impressora configurada" — o `sendToPrinter` já tem `ensureBluetoothConnected()` + fallback HTML, então não há risco de erro silencioso. `btPriorityDefault` (toggle deste aparelho) também deve contar como configuração válida.
 
-Em `handleSendAndHold` (e por simetria em `handleReprintOrder`):
+Adicionar `isBluetoothAvailable` no import do topo (já é usado abaixo via `btAvailable`).
 
-- Antes de chamar `printOrder`, verificar `hasPrinterAvailable`.
-- Se **não houver impressora**:
-  - Não chamar `printOrder` (evita `printViaHtmlFallback` abrindo janela vazia / erros).
-  - Exibir alerta persistente inline no rodapé do carrinho (estado `printWarning` já existe) com texto tipo: _"Nenhuma impressora configurada. O pedido foi enviado à produção sem impressão. Configure uma impressora em Configurações > Impressora."_
-  - Prosseguir normalmente com o restante do fluxo (salvar pedido, marcar itens como `printed`, navegar).
-- Se **houver impressora**: comportamento atual (tentar imprimir, capturar erro).
+### 2. Novo componente `src/components/PrintPreviewModal.tsx`
 
-Adicionalmente, no botão "Enviar pedido" (dentro do `CartFooter` renderizado no PDV):
-- Quando `!hasPrinterAvailable`, alterar o rótulo/subtítulo do botão para deixar explícito que a impressão automática está desabilitada (ex.: manter ação "Enviar", mas exibir um pequeno badge/aviso: _"Sem impressora — envio sem impressão"_). Não desabilitar o botão em si (o envio precisa continuar funcionando); apenas desativar a etapa de impressão.
+Modal reutilizável que:
+- Recebe `open`, `onOpenChange`, `order` (ou HTML pronto), `paperWidth`, `title`, `reason` (texto do motivo pelo qual caiu no modal).
+- Renderiza o mesmo HTML do `buildOrderHtml` (extrair export do `use-printer.ts`) dentro de um container com CSS monoespaçado (largura conforme 58/80mm), simulando o cupom.
+- Ações no rodapé:
+  - **Imprimir agora** → chama `printViaHtmlFallback(html, title, paperWidth)` (janela nativa do navegador).
+  - **Fechar** → apenas fecha o modal.
+- Cabeçalho com `DialogTitle` "Prévia do cupom" e `DialogDescription` com o `reason` (evita warnings de acessibilidade já vistos no console).
+- Segue paleta atual (sem verde hardcoded, sem toast).
+
+### 3. `src/hooks/use-printer.ts` — expor `buildOrderHtml`
+
+Mover `buildOrderHtml` para export nomeado (ou exportar via `src/lib/printer.ts` novo helper) para reuso no modal sem duplicar lógica de itens/observações/complementos.
+
+### 4. `src/pages/PDV.tsx` — trocar alerta inline pelo modal
+
+- Adicionar estado `previewOrder: Order | null` e `previewReason: string`.
+- Em `handleSendAndHold` quando `!hasPrinterAvailable`: em vez de apenas setar `printWarning`, salvar o pedido normalmente (fluxo atual), abrir o modal com o pedido recém-enviado e a razão "Nenhuma impressora configurada ou conectada. Você pode imprimir manualmente pelo navegador ou seguir sem impressão."
+- Em `handleReprintOrder` quando `!hasPrinterAvailable`: abrir o modal com o mesmo pedido.
+- Remover o bloco de alerta amarelo inline no rodapé do carrinho (linhas ~951-956) — a informação passa a viver no modal. Manter apenas o badge "sem impressão" no botão como pista visual antecipada.
+- Manter comportamento de sucesso quando `hasPrinterAvailable` é true (impressão automática segue igual).
+
+### 5. Verificação
+
+- `bunx tsgo --noEmit` e `bun run build`.
+- Teste manual:
+  1. Configurar impressora BT como padrão em outro navegador/limpar localStorage → abrir PDV → `hasPrinterAvailable` deve ser `true`, botão sem badge "sem impressão", tentativa de impressão cai no fallback HTML sem alerta.
+  2. Sem nenhuma impressora em `printer_configs` → enviar pedido → modal de prévia abre com o cupom + botão "Imprimir agora" + "Fechar"; pedido é salvo normalmente.
+  3. Reimprimir pedido antigo sem impressora → mesmo modal abre.
 
 ## Fora do escopo
 
-- Não alterar lógica de `printBill` / `printCashClose`.
-- Não alterar `ItemNotesModal` (já persiste checkbox + texto livre corretamente).
-- Não mexer em RLS, banco, tipos ou StoreContext.
-- Não introduzir `toast` novo — reutilizar `printWarning` inline (memória do projeto proíbe toasts).
-
-## Verificação
-
-- `bunx tsgo --noEmit` e `bun run build`.
-- Estender `src/test/escpos.test.ts` (se necessário) para confirmar múltiplas linhas de observações no HTML fallback — opcional, o teste ESC/POS já cobre a divisão.
-- Verificação manual:
-  1. Abrir modal de observações, marcar 2 checkboxes + digitar em "Outras observações" → confirmar → enviar pedido → conferir que cada linha aparece separada no cupom da cozinha (ESC/POS e fallback HTML).
-  2. Remover/desconfigurar todas as impressoras → clicar "Enviar pedido" → alerta inline aparece, pedido é salvo, nenhuma janela de impressão nativa abre.
-  3. Reconectar impressora Bluetooth → botão volta ao comportamento normal com impressão automática.
+- Lógica de conexão Bluetooth em si (`connectBluetooth`, `ensureBluetoothConnected`) permanece.
+- Sem mudanças em `printBill`, `printCashClose`, RLS, banco, tipos ou StoreContext.
+- Sem toasts novos (memória do projeto).

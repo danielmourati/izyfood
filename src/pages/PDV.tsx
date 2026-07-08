@@ -12,6 +12,7 @@ import { Product, OrderItem, Order, OrderType, TableInfo, Customer } from '@/typ
 import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { ItemNotesModal } from '@/components/ItemNotesModal';
+import { PrintPreviewModal } from '@/components/PrintPreviewModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -31,7 +32,7 @@ const orderTypeLabels: Record<OrderType, string> = {
 };
 
 const PDV = () => {
-  const { products, categories, orders, setOrders, tables, setTables, getCategoryById, settings } = useStore();
+  const { products, categories, orders, setOrders, tables, setTables, getCategoryById, settings, printSettings } = useStore();
   const { user, isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useTenantNavigate();
@@ -61,6 +62,7 @@ const PDV = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [manualCustomerName, setManualCustomerName] = useState('');
   const [printWarning, setPrintWarning] = useState<string | null>(null);
+  const [printPreview, setPrintPreview] = useState<{ open: boolean; order: any | null; reason: string }>({ open: false, order: null, reason: '' });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
@@ -69,7 +71,8 @@ const PDV = () => {
     }
   }, [mobileView]);
 
-  const { printOrder, printBill, hasPrinterAvailable } = usePrinter();
+  const { printOrder, printBill, hasPrinterAvailable, defaultPrinter } = usePrinter();
+  const previewPaperWidth = defaultPrinter?.paper_width || 58;
 
   useEffect(() => {
     if (initialized) return;
@@ -398,7 +401,11 @@ const PDV = () => {
         toast.error('Erro na impressão, mas o pedido será salvo.');
       }
     } else {
-      setPrintWarning('Nenhuma impressora configurada ou conectada. O pedido foi enviado à produção sem impressão. Configure uma impressora em Configurações > Impressora.');
+      setPrintPreview({
+        open: true,
+        order: orderData,
+        reason: 'Nenhuma impressora configurada ou conectada. O pedido foi salvo — você pode imprimir manualmente pelo navegador ou seguir sem impressão. Configure uma impressora em Configurações > Impressora.',
+      });
     }
 
     // 2. Atualizar estado interno
@@ -449,7 +456,11 @@ const PDV = () => {
       customerAddress: cust?.address || undefined,
     };
     if (!hasPrinterAvailable) {
-      setPrintWarning('Nenhuma impressora configurada ou conectada. Configure uma impressora em Configurações > Impressora para reimprimir.');
+      setPrintPreview({
+        open: true,
+        order: orderData,
+        reason: 'Nenhuma impressora configurada ou conectada. Você pode imprimir manualmente pelo navegador ou configurar uma impressora em Configurações > Impressora.',
+      });
       return;
     }
     try {
@@ -756,6 +767,15 @@ const PDV = () => {
         item={cart.find(i => i.id === editingItemNotesId) || null}
         onConfirm={handleConfirmNotes}
       />
+      <PrintPreviewModal
+        open={printPreview.open}
+        onOpenChange={(open) => setPrintPreview(prev => ({ ...prev, open }))}
+        order={printPreview.order}
+        paperWidth={previewPaperWidth}
+        reason={printPreview.reason}
+        title="Comanda"
+        printSettings={printSettings}
+      />
     </>
   );
 };
@@ -948,16 +968,6 @@ function CartContent({
         )}
       </div>
 
-      {printWarning && (
-        <div className="px-3 pt-3">
-          <Alert className="border-warning/50 bg-warning/10">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            <AlertDescription className="text-sm font-medium text-foreground">
-              {printWarning}
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
 
       {/* Customer Selector */}
       <div className="px-3 py-2 border-b space-y-1">
@@ -1341,6 +1351,8 @@ function CartContent({
         </DialogContent>
       </Dialog >
     </>
+
+
   );
 }
 
