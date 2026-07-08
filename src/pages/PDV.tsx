@@ -486,6 +486,15 @@ const PDV = () => {
       serviceFee: serviceFee > 0 ? serviceFee : undefined,
       total: itemsTotal + serviceFee,
     };
+    if (!hasPrinterAvailable) {
+      setPrintPreview({
+        open: true,
+        order: billData,
+        reason: 'Nenhuma impressora configurada ou conectada. Você pode configurar uma impressora em Configurações > Impressora.',
+        kind: 'bill',
+      });
+      return;
+    }
     try {
       await printBill(billData);
       toast.success('Conta enviada para impressão!');
