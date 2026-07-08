@@ -69,7 +69,7 @@ const PDV = () => {
     }
   }, [mobileView]);
 
-  const { printOrder, printBill } = usePrinter();
+  const { printOrder, printBill, hasPrinterAvailable } = usePrinter();
 
   useEffect(() => {
     if (initialized) return;
