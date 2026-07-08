@@ -379,10 +379,13 @@ const PDV = () => {
   };
 
   const handleSendAndHold = async () => {
-    const unprintedItems = cart.filter(i => !i.printed);
+    // Usa cartRef para garantir o snapshot mais recente (evita perder edições
+    // de observações feitas imediatamente antes do clique em Enviar).
+    const currentCart = cartRef.current.length ? cartRef.current : cart;
+    const unprintedItems = currentCart.filter(i => !i.printed);
     if (unprintedItems.length === 0) return;
 
-    const markedCart = cart.map(i => ({ ...i, printed: true }));
+    const markedCart = currentCart.map(i => ({ ...i, printed: true }));
     
     const cust = customers.find(c => c.id === currentOrder.customerId);
     const orderData = {
