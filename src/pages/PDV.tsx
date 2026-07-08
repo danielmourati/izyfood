@@ -455,7 +455,11 @@ const PDV = () => {
       customerAddress: cust?.address || undefined,
     };
     if (!hasPrinterAvailable) {
-      setPrintWarning('Nenhuma impressora configurada ou conectada. Configure uma impressora em Configurações > Impressora para reimprimir.');
+      setPrintPreview({
+        open: true,
+        order: orderData,
+        reason: 'Nenhuma impressora configurada ou conectada. Você pode imprimir manualmente pelo navegador ou configurar uma impressora em Configurações > Impressora.',
+      });
       return;
     }
     try {
