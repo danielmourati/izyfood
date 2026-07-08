@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Settings, AlertTriangle } from 'lucide-react';
-import { buildOrderHtml } from '@/hooks/use-printer';
+import { buildOrderHtml, buildBillHtml } from '@/hooks/use-printer';
 
 interface Props {
   open: boolean;
