@@ -106,17 +106,19 @@ export function ItemNotesModal({
                 {/* Observações Section */}
                 <div>
                     <h3 className="text-primary font-bold text-lg mb-3">Observações</h3>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                        {availableNotes.length === 0 && <p className="text-sm text-muted-foreground italic mb-2">Nenhuma observação pré-definida.</p>}
+                    <div className="flex flex-col mb-4 border-t">
+                        {availableNotes.length === 0 && <p className="text-sm text-muted-foreground italic py-3">Nenhuma observação pré-definida.</p>}
                         {availableNotes.map(obs => {
                             const isSelected = selectedObs.includes(obs.name);
                             return (
                                 <button
                                     key={obs.id}
+                                    type="button"
                                     onClick={() => toggleObs(obs.name)}
-                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${isSelected ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/50 border-transparent hover:bg-muted'}`}
+                                    className="flex items-center gap-3 py-3 border-b text-left transition-colors hover:bg-muted/30"
                                 >
-                                    {obs.name}
+                                    <Checkbox checked={isSelected} onCheckedChange={() => toggleObs(obs.name)} className="pointer-events-none" />
+                                    <span className={`text-sm font-medium ${isSelected ? 'text-foreground' : 'text-foreground/80'}`}>{obs.name}</span>
                                 </button>
                             );
                         })}
