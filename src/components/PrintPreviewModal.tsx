@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Settings, AlertTriangle } from 'lucide-react';
-import { buildOrderHtml } from '@/hooks/use-printer';
+import { buildOrderHtml, buildBillHtml } from '@/hooks/use-printer';
 
 interface Props {
   open: boolean;
@@ -12,6 +12,7 @@ interface Props {
   reason?: string;
   printSettings?: any;
   onConfigurePrinter?: () => void;
+  kind?: 'order' | 'bill';
 }
 
 /**
@@ -27,8 +28,14 @@ export function PrintPreviewModal({
   reason,
   printSettings,
   onConfigurePrinter,
+  kind = 'order',
 }: Props) {
-  const html = useMemo(() => (order ? buildOrderHtml(order, printSettings || {}) : ''), [order, printSettings]);
+  const html = useMemo(() => {
+    if (!order) return '';
+    return kind === 'bill'
+      ? buildBillHtml(order, printSettings || {})
+      : buildOrderHtml(order, printSettings || {});
+  }, [order, printSettings, kind]);
   const previewWidth = paperWidth === 58 ? 240 : 320;
 
   return (

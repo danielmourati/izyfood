@@ -521,7 +521,7 @@ export function buildOrderHtml(order: any, ps: any = {}): string {
 }
 
 
-function buildBillHtml(bill: any, ps: any = {}): string {
+export function buildBillHtml(bill: any, ps: any = {}): string {
   const items = (bill.items || []).map((i: any) => {
     const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}x`;
     let html = `<div class="row"><span>${qty} ${i.name || 'Item'}</span><span>${fmtBRL(i.subtotal || 0)}</span></div>`;

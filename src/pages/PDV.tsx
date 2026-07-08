@@ -62,7 +62,7 @@ const PDV = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [manualCustomerName, setManualCustomerName] = useState('');
   const [printWarning, setPrintWarning] = useState<string | null>(null);
-  const [printPreview, setPrintPreview] = useState<{ open: boolean; order: any | null; reason: string }>({ open: false, order: null, reason: '' });
+  const [printPreview, setPrintPreview] = useState<{ open: boolean; order: any | null; reason: string; kind?: 'order' | 'bill' }>({ open: false, order: null, reason: '', kind: 'order' });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
@@ -486,6 +486,15 @@ const PDV = () => {
       serviceFee: serviceFee > 0 ? serviceFee : undefined,
       total: itemsTotal + serviceFee,
     };
+    if (!hasPrinterAvailable) {
+      setPrintPreview({
+        open: true,
+        order: billData,
+        reason: 'Nenhuma impressora configurada ou conectada. Você pode configurar uma impressora em Configurações > Impressora.',
+        kind: 'bill',
+      });
+      return;
+    }
     try {
       await printBill(billData);
       toast.success('Conta enviada para impressão!');
@@ -774,6 +783,7 @@ const PDV = () => {
         paperWidth={previewPaperWidth}
         reason={printPreview.reason}
         printSettings={printSettings}
+        kind={printPreview.kind}
         onConfigurePrinter={() => navigate('/configuracoes?tab=impressora')}
       />
 
@@ -1155,11 +1165,17 @@ function CartContent({
             >
               <X className="h-4 w-4" />
             </Button>
-            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-              <RefreshCcw className="h-3.5 w-3.5" /> Reimprimir
+            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1 flex-col leading-tight" onClick={handleReprintClick} disabled={cart.length === 0}>
+              <span className="flex items-center gap-1"><RefreshCcw className="h-3.5 w-3.5" /> Reimprimir</span>
+              {!hasPrinterAvailable && (
+                <span className="text-[9px] font-semibold text-warning">sem impressão</span>
+              )}
             </Button>
-            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
-              <ReceiptText className="h-3.5 w-3.5" /> Conta
+            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1 flex-col leading-tight" onClick={onPrintBill} disabled={cart.length === 0}>
+              <span className="flex items-center gap-1"><ReceiptText className="h-3.5 w-3.5" /> Conta</span>
+              {!hasPrinterAvailable && (
+                <span className="text-[9px] font-semibold text-warning">sem impressão</span>
+              )}
             </Button>
           </div>
         </div>
