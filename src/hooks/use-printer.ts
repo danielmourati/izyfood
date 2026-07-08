@@ -26,6 +26,7 @@ import {
   buildBillReceipt,
   buildCashCloseReceipt,
   fetchPrintSettings,
+  getItemNoteLines,
 } from '@/lib/escpos';
 import type { PrintSettings } from '@/lib/escpos';
 
