@@ -71,7 +71,6 @@ const PDV = () => {
   }, [mobileView]);
 
   const { printOrder, printBill, hasPrinterAvailable, defaultPrinter } = usePrinter();
-  const { printSettings: _psFromStore } = useStore(); void _psFromStore;
   const previewPaperWidth = defaultPrinter?.paper_width || 58;
 
   useEffect(() => {
