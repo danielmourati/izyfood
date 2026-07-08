@@ -457,7 +457,7 @@ function fmtDate(iso: string) {
 const orderTypeLabels: Record<string, string> = { balcao: 'Balcão', mesa: 'Mesa', delivery: 'Delivery', retirada: 'Retirada' };
 const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX', cartao: 'Cartão', fiado: 'Fiado' };
 
-function buildOrderHtml(order: any, ps: any = {}): string {
+export function buildOrderHtml(order: any, ps: any = {}): string {
   const items = (order.items || []).map((i: any) => {
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
     let html = `<p class="bold" style="margin: 0 0 2px 0;">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
