@@ -448,6 +448,43 @@ describe('kitchen order notes rendering', () => {
     expect(receipt).toContain('* Borda recheada');
     expect(receipt).toContain('* Bem assada');
   });
+
+  it('getItemNoteLines: falls back to legacy notes when structured fields are empty arrays/strings', () => {
+    const lines = getItemNoteLines({
+      selectedNotes: [],
+      otherNotes: '',
+      notes: 'A | B | C',
+    });
+    expect(lines).toEqual(['A', 'B', 'C']);
+  });
+
+  it('buildOrderReceipt: prints all 3 lines when checkbox notes + input are set together', () => {
+    const receipt = decodeReceipt(buildOrderReceipt({
+      ...baseOrder,
+      items: [{
+        name: 'Arrumadinho de Carne de Sol',
+        quantity: 1,
+        price: 20,
+        subtotal: 20,
+        selectedNotes: ['Arroz Branco', 'Sem farofa'],
+        otherNotes: 'Teste',
+      }],
+    }, 58));
+    const idxArroz = receipt.indexOf('* Arroz Branco');
+    const idxFarofa = receipt.indexOf('* Sem farofa');
+    const idxTeste = receipt.indexOf('* Teste');
+    expect(idxArroz).toBeGreaterThan(-1);
+    expect(idxFarofa).toBeGreaterThan(idxArroz);
+    expect(idxTeste).toBeGreaterThan(idxFarofa);
+  });
+
+  it('getItemNoteLines: deduplicates case-insensitively (trim + lower)', () => {
+    const lines = getItemNoteLines({
+      selectedNotes: ['Arroz Branco', ' arroz branco '],
+      otherNotes: 'ARROZ BRANCO',
+    });
+    expect(lines).toEqual(['Arroz Branco']);
+  });
 });
 
 
