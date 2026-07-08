@@ -1120,11 +1120,15 @@ function CartContent({
               VOLTAR
             </Button>
             <Button 
-              className="h-11 text-[11px] px-1 font-bold shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground" 
+              className="h-11 text-[11px] px-1 font-bold shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground flex-col gap-0 leading-none" 
               onClick={onPrintOrder} 
               disabled={cart.length === 0 || cart.every(i => i.printed)}
+              title={hasPrinterAvailable ? undefined : 'Sem impressora configurada — envio sem impressão automática'}
             >
-              <SendHorizontal className="h-4 w-4 mr-1" /> Enviar
+              <span className="flex items-center"><SendHorizontal className="h-4 w-4 mr-1" /> Enviar</span>
+              {!hasPrinterAvailable && (
+                <span className="text-[9px] font-semibold opacity-80 mt-0.5">sem impressão</span>
+              )}
             </Button>
             <Button className="h-11 text-[11px] px-1 font-bold shadow-sm" onClick={() => setCheckoutOpen(true)} disabled={cart.length === 0}>
               <ShoppingCart className="h-4 w-4 mr-1.5" /> Pagar
