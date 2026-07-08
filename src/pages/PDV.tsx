@@ -12,6 +12,7 @@ import { Product, OrderItem, Order, OrderType, TableInfo, Customer } from '@/typ
 import { WeightModal } from '@/components/WeightModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { ItemNotesModal } from '@/components/ItemNotesModal';
+import { PrintPreviewModal } from '@/components/PrintPreviewModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
