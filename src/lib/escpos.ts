@@ -229,6 +229,25 @@ function leftRightAlign(left: string, right: string, cols: number): Uint8Array {
   return text(left + ' '.repeat(gap) + right + '\n');
 }
 
+/**
+ * Extract note lines for a kitchen receipt item.
+ * Prefers structured fields (selectedNotes + otherNotes); falls back to legacy
+ * pipe-joined `notes` string for backward compatibility.
+ */
+export function getItemNoteLines(item: { notes?: string; selectedNotes?: string[]; otherNotes?: string }): string[] {
+  const structured = (item.selectedNotes && item.selectedNotes.length > 0) || (item.otherNotes && item.otherNotes.trim());
+  if (structured) {
+    const lines: string[] = [];
+    (item.selectedNotes || []).forEach(n => { const t = String(n).trim(); if (t) lines.push(t); });
+    if (item.otherNotes && item.otherNotes.trim()) lines.push(item.otherNotes.trim());
+    return lines;
+  }
+  if (item.notes) {
+    return String(item.notes).split('|').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 interface OrderItem {
   name: string;
   quantity: number;
