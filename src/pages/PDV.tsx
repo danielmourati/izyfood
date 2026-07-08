@@ -767,6 +767,15 @@ const PDV = () => {
         item={cart.find(i => i.id === editingItemNotesId) || null}
         onConfirm={handleConfirmNotes}
       />
+      <PrintPreviewModal
+        open={printPreview.open}
+        onOpenChange={(open) => setPrintPreview(prev => ({ ...prev, open }))}
+        order={printPreview.order}
+        paperWidth={previewPaperWidth}
+        reason={printPreview.reason}
+        title="Comanda"
+        printSettings={printSettings}
+      />
     </>
   );
 };
