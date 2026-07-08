@@ -377,6 +377,10 @@ export function usePrinter() {
   const printOrder = async (order: any) => {
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printOrder] printSettings usados:', JSON.stringify(ps));
+    console.log('[printOrder] items snapshot:', JSON.stringify((order.items || []).map((i: any) => ({
+      name: i.name, selectedNotes: i.selectedNotes, otherNotes: i.otherNotes, notes: i.notes,
+    }))));
+    // O mesmo `order` alimenta ESC/POS e HTML para garantir paridade prévia ↔ impressão.
     const escpos = buildOrderReceipt(order, paperWidth, ps);
     const html = buildOrderHtml(order, ps);
     await sendToPrinter(escpos, html, 'Comanda');
