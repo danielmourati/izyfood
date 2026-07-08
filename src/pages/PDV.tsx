@@ -1165,11 +1165,17 @@ function CartContent({
             >
               <X className="h-4 w-4" />
             </Button>
-            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={handleReprintClick} disabled={cart.length === 0}>
-              <RefreshCcw className="h-3.5 w-3.5" /> Reimprimir
+            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1 flex-col leading-tight" onClick={handleReprintClick} disabled={cart.length === 0}>
+              <span className="flex items-center gap-1"><RefreshCcw className="h-3.5 w-3.5" /> Reimprimir</span>
+              {!hasPrinterAvailable && (
+                <span className="text-[9px] font-semibold text-warning">sem impressão</span>
+              )}
             </Button>
-            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1" onClick={onPrintBill} disabled={cart.length === 0}>
-              <ReceiptText className="h-3.5 w-3.5" /> Conta
+            <Button variant="outline" className="h-10 text-[11px] px-1 font-semibold gap-1 flex-col leading-tight" onClick={onPrintBill} disabled={cart.length === 0}>
+              <span className="flex items-center gap-1"><ReceiptText className="h-3.5 w-3.5" /> Conta</span>
+              {!hasPrinterAvailable && (
+                <span className="text-[9px] font-semibold text-warning">sem impressão</span>
+              )}
             </Button>
           </div>
         </div>
