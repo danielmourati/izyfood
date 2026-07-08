@@ -783,6 +783,7 @@ const PDV = () => {
         paperWidth={previewPaperWidth}
         reason={printPreview.reason}
         printSettings={printSettings}
+        kind={printPreview.kind}
         onConfigurePrinter={() => navigate('/configuracoes?tab=impressora')}
       />
 
