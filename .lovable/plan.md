@@ -1,39 +1,47 @@
 ## Objetivo
-Aplicar na comanda de cozinha (`buildOrderReceipt` em `src/lib/escpos.ts`) a mesma lógica de área segura, colunas úteis e quebra/alinhamento já usada na CONTA — evitando cortes laterais em impressoras 58mm e 80mm.
+Ajustar o modal de Observações/Complementos (`ItemNotesModal`) para exibir as observações em lista vertical com checkbox, e garantir que o texto do campo "Outras observações" seja preservado e renderizado no cupom da cozinha.
 
-## Escopo (apenas `src/lib/escpos.ts` → função `buildOrderReceipt`)
+## Escopo
 
-1. **Colunas úteis**
-   - Já usa `colsForWidth(paperWidth)` (30 cols para 58mm / 44 cols para 80mm). Manter, e passar essas colunas para todos os helpers abaixo em vez de imprimir strings brutas com `text()`.
+### 1. `src/components/ItemNotesModal.tsx` — Layout vertical com checkbox
 
-2. **Cabeçalho "Cozinha Principal" e tipo do pedido**
-   - Trocar `text('Cozinha Principal\n\n')` por `center('Cozinha Principal', cols)` (com wrap).
-   - Trocar `text('* Cod. Pers./Senha: XXXX *\n')` por `center(...)`.
-   - Trocar `text('${tipoPedido}\n\n')` por `center(tipoPedido, cols)` para nunca estourar em 58mm (ex.: `MESA: 001`, `DELIVERY`).
+- Substituir o container atual das observações (`flex flex-wrap gap-2` com `<button>` estilizados) por uma lista **vertical** (`flex flex-col`).
+- Cada item da lista vira uma linha clicável contendo:
+  - `Checkbox` (shadcn `@/components/ui/checkbox`) alinhado à esquerda
+  - Label com o nome da observação (`obs.name`) ao lado
+  - Toda a linha continua clicável (`onClick` chama `toggleObs`) e o checkbox reflete `selectedObs.includes(obs.name)`
+- Manter o input "Outras observações..." logo abaixo da lista (sem alterações no comportamento do input).
+- Não alterar a seção de Complementos.
 
-3. **Linha de data + nº do pedido**
-   - Hoje: `text(\`${fmtDate(...)} Pedido No: ${orderNo}\n\n\`)`. Em 58mm (30 cols) `dd/mm/aaaa hh:mm Pedido No: XXXX` estoura.
-   - Trocar por `row('Pedido Nº:', orderNo, cols)` + linha separada `text(fmtDate(...) + '\n')` (ou `rowWrap('Data:', fmtDate(...), cols)`), garantindo que nada exceda `cols`.
+### 2. `src/components/ItemNotesModal.tsx` — Corrigir persistência de "Outras observações"
 
-4. **Cliente / endereço / telefone**
-   - `customerLine` pode ser longo (nome + endereço no delivery). Trocar `text('Cliente: ' + ... + '\n\n')` por `rowWrap('Cliente:', customerName, cols)` e, quando houver, imprimir endereço/telefone em linha própria também via `rowWrap` (ou `centerWrap` do texto), assim o wrap acontece dentro da área segura em vez de cortar.
+Problema atual: no `useEffect` que reabre o modal, o parser divide `item.notes` por `|`, e qualquer trecho que não seja uma observação pré-definida cai em `others`. Isso funciona na primeira edição, mas o texto salvo em `finalNotesString` usa `' | '` como separador, e ao reabrir tudo é remontado — porém há dois pontos frágeis:
 
-5. **Itens, observações e complementos**
-   - Substituir `text(\`${qty} ${item.name}\n\`)` por `rowWrap(\`${qty} ${item.name}\`, '', cols)` (valor vazio → apenas quebra o nome dentro de `cols`), preservando `CMD_BOLD_ON/OFF`.
-   - Observações: `text(\`  *${item.notes}\n\`)` → `rowWrap(\`  *${item.notes}\`, '', cols)` (a função já respeita indent nas linhas quebradas).
-   - Complementos: `text(\`  + ${comp.quantity}x ${comp.name}\n\`)` → `rowWrap(\`  + ${comp.quantity}x ${comp.name}\`, '', cols)` (o helper já reconhece o prefixo `  + ` para reindentar quebras).
+- Se o usuário digitar texto contendo `|`, ele é fragmentado.
+- Se uma observação pré-definida for renomeada/removida depois, ela reaparece como "outras".
 
-6. **Rodapé "Atendente do Pedido"**
-   - Trocar as duas linhas `text('Atendente do Pedido:\n')` e `text('${nome}\n')` por versões com `rowWrap('Atendente:', nome, cols)` (ou manter em duas linhas usando `centerWrap`/`text` limitado a `cols`), garantindo que nomes longos não cortem.
+Ajuste mínimo (sem mudar estrutura de dados):
+- Serializar como hoje (`selectedObs.join(' | ') + ' | ' + otherNotes`), mas ao reparsear, tratar como "outras" tudo que não bater exatamente com uma observação ativa e não começar com `+`. Manter comportamento atual.
+- Garantir que `otherNotes.trim()` seja incluído mesmo quando `selectedObs` estiver vazio (já está — validar).
 
-7. **Ajuste do helper `rowWrap` (se necessário)**
-   - `rowWrap` atualmente reserva `priceZone(cols)` mesmo quando `value` é vazio. Ajustar para: se `value.length === 0`, usar `nameMax = cols` (sem reservar zona de preço) — assim os itens/complementos/observações usam toda a largura útil na comanda da cozinha sem alterar o comportamento na CONTA.
+### 3. `src/lib/escpos.ts` — Renderizar "Outras observações" no cupom da cozinha
+
+Hoje `buildOrderReceipt` imprime `item.notes` em uma única linha:
+```
+if (item.notes) parts.push(rowWrap(`  *${item.notes}`, '', cols));
+```
+Isso concatena tudo separado por ` | `, o que na prática funciona, mas visualmente fica ruim e o texto livre pode ser truncado/misturado com as observações fixas.
+
+Ajuste:
+- Dividir `item.notes` por ` | ` e imprimir **uma linha por observação**, cada uma prefixada por `  * `, usando `rowWrap(..., '', cols)` para respeitar a largura útil (30 cols em 58mm, 44 em 80mm).
+- Isso garante que o texto de "Outras observações" apareça em sua própria linha, sem risco de ficar cortado no meio da lista.
 
 ## Fora do escopo
-- Não alterar `buildBillReceipt` nem `buildCashCloseReceipt`.
-- Não mexer em `ReceiptPreview.tsx` nem em `receipt-preview.ts` (comanda da cozinha não é exibida na prévia).
-- Sem mudanças de UI, RLS, banco ou outros arquivos.
+- Não alterar a lógica/aparência da seção de Complementos.
+- Não alterar `buildBillReceipt`, `buildCashCloseReceipt`, `receipt-preview.ts` nem `ReceiptPreview.tsx`.
+- Sem mudanças em RLS, banco de dados, tipos ou StoreContext.
 
 ## Verificação
-- `bunx tsc --noEmit` e `bun run build`.
-- Atualizar/estender `src/test/escpos.test.ts` com um caso 58mm de comanda contendo nome de item longo, complemento longo e cliente delivery com endereço, validando que nenhuma linha do buffer gerado excede `cols` (30 para 58mm, 44 para 80mm).
+- `bunx tsgo --noEmit` e `bun run build`.
+- Estender `src/test/escpos.test.ts` com um caso de comanda 58mm em que `item.notes = "Sem cebola | Sem farofa | tirar tudo e mandar extra"`, validando que cada trecho é impresso em sua própria linha com prefixo `  * ` e sem exceder `cols`.
+- Verificação visual: abrir modal de observações no PDV, marcar/desmarcar via checkbox, digitar em "Outras observações", confirmar, reabrir para verificar persistência, imprimir comanda da cozinha e conferir as linhas.
