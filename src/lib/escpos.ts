@@ -236,6 +236,8 @@ interface OrderItem {
   price: number;
   subtotal: number;
   notes?: string;
+  selectedNotes?: string[];
+  otherNotes?: string;
   selectedComplements?: { name: string; price: number; quantity: number }[];
 }
 
