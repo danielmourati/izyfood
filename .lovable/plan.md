@@ -1,29 +1,34 @@
-## Plano
+## Plano: Reduzir cards de produtos e aumentar densidade do grid
 
-Corrigir a impressão da comanda de cozinha para que observações de checkbox como “gelo e limão” sejam enviadas à impressora física mesmo quando aparecem imediatamente após a descrição do item no preview.
+### Objetivo
+Diminuir o tamanho dos cards de produtos em aproximadamente 50%, manter o formato quadrado e reorganizar o grid da PDV para exibir 5–6 colunas no desktop e mais colunas no mobile/tablet, sem perder legibilidade de preço/nome.
 
-## O que será alterado
+### O que será alterado
 
-1. **Gerador ESC/POS da comanda**
-   - Ajustar a impressão das observações para emitir cada linha de observação com terminação de linha explícita e modo normal/alinhado à esquerda antes de imprimir.
-   - Evitar que a observação logo após o nome do item seja “engolida” por impressoras Bluetooth sensíveis a sequência de comandos de negrito/quebra de linha.
-   - Manter quebra de texto segura para 58mm e 80mm.
+1. **ProductCard.tsx**
+   - Trocar a área de imagem de `aspect-[4/3]` para `aspect-square`.
+   - Reduzir padding interno (`p-2.5` → `p-2` ou `p-1.5`).
+   - Reduzir tamanhos de texto: nome (`text-[13px]` → `text-[11px]`), preço (`text-[14px]` → `text-[12px]`), botão (`text-[12px]` → `text-[10px]`).
+   - Diminuir altura do botão (`py-1.5` → `py-1`).
+   - Ajustar badge "Esgotando" para não invadir o card menor.
+   - Manter imagem com `object-cover` e fallback com letra da categoria.
 
-2. **Paridade preview x impressão**
-   - Criar/usar um helper textual para montar a comanda de cozinha em formato simples e comparar com o ESC/POS decodificado nos testes.
-   - Garantir que “Coca Lata” + checkbox “gelo e limão” apareça tanto no preview quanto no buffer físico.
+2. **PDV.tsx — grid desktop**
+   - Alterar `grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-5` para algo como:
+     - `grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-6 gap-3`.
+   - Reduzir gaps para `gap-3` ou `gap-2.5`.
 
-3. **Envio Bluetooth**
-   - Revisar o envio em chunks para reduzir chance de corte no meio de linhas pequenas, sem mudar o fluxo visual do app.
-   - Se necessário, diminuir chunk e/ou garantir pausa mínima entre blocos para impressoras BLE mais instáveis.
+3. **PDV.tsx — grid mobile**
+   - Ajustar `grid grid-cols-2 gap-4` para `grid-cols-3 gap-3` (ou `grid-cols-2 gap-3` se a tela for muito estreita), aproveitando o card menor.
 
-4. **Testes de regressão**
-   - Adicionar teste específico para item curto: `Coca Lata` seguido imediatamente de `* gelo e limão`.
-   - Adicionar teste verificando que a linha de observação vem depois da linha do item e antes de complementos/rodapé.
-   - Rodar os testes de impressão existentes para confirmar que não quebra conta, complementos e observações longas.
+4. **Categoria mobile (grid de categorias)**
+   - Aproveitar para aumentar de `grid-cols-2` para `grid-cols-3` ou `grid-cols-4`, já que os cards de produto ficarão menores e a densidade visual deve ser consistente.
 
-## Fora do escopo
+5. **Testes visuais**
+   - Verificar no preview desktop se 5–6 colunas cabem sem quebra de texto excessiva.
+   - Verificar no mobile se 3 colunas de produtos permanecem legíveis.
 
-- Não alterar banco de dados, autenticação, permissões ou cadastro de produtos.
-- Não redesenhar o modal de observações.
-- Não mudar a regra de preço/complementos.
+### Fora do escopo
+- Não alterar funcionalidade de adicionar ao carrinho, estoque, peso, complementos ou observações.
+- Não alterar cores da paleta.
+- Não alterar banco de dados.
