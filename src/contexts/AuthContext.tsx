@@ -219,6 +219,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.error) {
         return { success: false, error: formatAuthError(res.error) };
       }
+
+      if (res.data?.user) {
+        const appUser = await fetchAppUser(res.data.user);
+        setUser(appUser);
+      }
+
       return { success: true };
     } catch (err: any) {
       return { success: false, error: formatAuthError(err) };

@@ -33,13 +33,20 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError('');
     setIsLoading(true);
-    const result = await login(email, password);
-    if (!result.success) {
-      setError(result.error || 'Credenciais inválidas');
+
+    try {
+      const result = await login(email, password);
+      if (!result.success) {
+        setError(result.error || 'Credenciais inválidas. Verifique seu e-mail e senha.');
+        setIsLoading(false);
+      }
+    } catch (err: any) {
+      setError(formatAuthError(err));
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
