@@ -577,19 +577,19 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
         {filtered.map(product => {
           const cat = getCat(product.categoryId);
           return (
-            <div key={product.id} className="bg-card rounded-[16px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all flex flex-col p-2.5 border border-border h-full w-full group relative">
-              {/* Image area */}
-              <div className="relative aspect-[4/3] w-full rounded-[10px] overflow-hidden bg-muted mb-2 shrink-0">
+            <div key={product.id} className="bg-card rounded-[16px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all flex flex-col border border-border h-full w-full group relative">
+              {/* Image area - Full width top header */}
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted shrink-0">
                 {product.image ? (
-                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  <img src={product.image} alt={product.name} className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-primary/5">
-                    <span className="text-4xl opacity-30 font-bold">
+                    <span className="text-4xl opacity-30 font-bold text-muted-foreground">
                       {cat?.name?.charAt(0)?.toUpperCase() || '?'}
                     </span>
                   </div>
                 )}
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                   <Button variant="secondary" size="icon" className="h-8 w-8 shadow-md" onClick={() => openEdit(product)}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
@@ -600,12 +600,12 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
               </div>
 
               {/* Info */}
-              <div className="flex flex-col flex-1 justify-between">
+              <div className="p-3 flex flex-col flex-1 justify-between">
                 <div>
-                  <h3 className="font-semibold text-[13px] leading-tight text-muted-foreground line-clamp-2 mb-1" title={product.name}>
+                  <h3 className="font-semibold text-[13px] leading-tight text-foreground line-clamp-2 mb-1" title={product.name}>
                     {product.name}
                   </h3>
-                  <p className="text-[#4CAF50] font-bold text-[14px]">
+                  <p className="text-[#4CAF50] dark:text-emerald-400 font-bold text-[14px]">
                     R$ {fmt(product.price)}
                     {product.type === 'weight' && <span className="text-[10px] font-medium text-muted-foreground ml-1">/kg</span>}
                   </p>

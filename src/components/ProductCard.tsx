@@ -12,39 +12,39 @@ interface ProductCardProps {
 export function ProductCard({ product, category, onAdd }: ProductCardProps) {
   return (
     <div
-      className="bg-card rounded-[12px] overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.08)] transition-all active:scale-[0.98] select-none flex flex-col p-1.5 border border-border h-full w-full"
+      className="bg-card rounded-[14px] overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_18px_rgba(0,0,0,0.12)] transition-all active:scale-[0.98] select-none flex flex-col border border-border h-full w-full group"
       onClick={() => onAdd(product)}
     >
-      {/* Image area */}
-      <div className="relative aspect-square w-full rounded-[8px] overflow-hidden bg-muted mb-1.5 shrink-0">
+      {/* Image area - Full width top header */}
+      <div className="relative aspect-square w-full overflow-hidden bg-muted shrink-0">
         {product.image ? (
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-primary/5">
-            <span className="text-2xl opacity-30 font-bold">
+            <span className="text-2xl opacity-30 font-bold text-muted-foreground">
               {category?.name?.charAt(0)?.toUpperCase() || '?'}
             </span>
           </div>
         )}
 
-        {product.stock <= 5 && (
-          <Badge variant="destructive" className="absolute top-1 left-1 text-[8px] font-bold px-1 py-0 rounded-full shadow-sm">
+        {product.stock <= 5 && product.controlStock && (
+          <Badge variant="destructive" className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-sm z-10">
             Esgotando
           </Badge>
         )}
       </div>
 
       {/* Info */}
-      <div className="flex flex-col flex-1 justify-between">
+      <div className="flex flex-col flex-1 justify-between p-2.5">
         <div>
-          <h3 className="font-semibold text-[11px] leading-tight text-muted-foreground line-clamp-2 mb-0.5">
+          <h3 className="font-semibold text-xs leading-tight text-foreground line-clamp-2 mb-1" title={product.name}>
             {product.name}
           </h3>
-          <p className="text-[#4CAF50] font-bold text-[12px]">
+          <p className="text-[#4CAF50] dark:text-emerald-400 font-bold text-xs">
             R$ {fmt(product.price)}
             {product.type === 'weight' && (
               <span className="text-[9px] font-medium text-muted-foreground ml-1">/kg</span>
@@ -53,7 +53,7 @@ export function ProductCard({ product, category, onAdd }: ProductCardProps) {
         </div>
 
         <button
-          className="w-full bg-[#D32F2F] hover:bg-[#B71C1C] text-primary-foreground font-medium py-1 rounded-[6px] transition-colors flex items-center justify-center gap-1 shadow-sm text-[10px] mt-1.5"
+          className="w-full bg-[#D32F2F] hover:bg-[#B71C1C] text-white font-medium py-1.5 rounded-[8px] transition-colors flex items-center justify-center gap-1 shadow-sm text-xs mt-2"
           onClick={(e) => { e.stopPropagation(); onAdd(product); }}
         >
           Adicionar
