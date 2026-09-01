@@ -58,7 +58,8 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
         .limit(1)
         .maybeSingle();
 
-      if (!profile) return null;
+      const userName = profile?.name || supaUser.user_metadata?.name || supaUser.email?.split('@')[0] || 'Usuário';
+      const userEmail = profile?.email || supaUser.email || '';
 
       const rawTenant = memberData?.tenants as any;
       const tenantObj = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
@@ -111,8 +112,8 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
 
       return {
         id: supaUser.id,
-        name: profile.name,
-        email: profile.email,
+        name: userName,
+        email: userEmail,
         role: bestRole,
         tenantId,
         tenantSlug,
@@ -121,48 +122,75 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
     }, 2, 600);
   } catch (err) {
     console.error('[Auth] Erro ao carregar dados do usuário:', err);
-    return null;
+    // Retornar objeto básico em caso de falha completa de rede em vez de travar o app
+    return {
+      id: supaUser.id,
+      name: supaUser.email?.split('@')[0] || 'Usuário',
+      email: supaUser.email || '',
+      role: 'atendente',
+      tenantId: '',
+      tenantSlug: 'default',
+      tenantName: 'Minha Loja',
+    };
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const initializedRef = React.useRef(false);
 
   useEffect(() => {
+    let active = true;
+
+    // Timeout de segurança máximo de 3.5s para nunca travar a aplicação no loader
+    const safetyTimer = setTimeout(() => {
+      if (active) setLoading(false);
+    }, 3500);
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'INITIAL_SESSION') {
         return;
       }
       if (session?.user) {
-        setTimeout(async () => {
+        try {
           const appUser = await fetchAppUser(session.user);
-          setUser(appUser);
-          setLoading(false);
-        }, 0);
+          if (active) {
+            setUser(appUser);
+            setLoading(false);
+          }
+        } catch {
+          if (active) setLoading(false);
+        }
       } else {
-        setUser(null);
-        setLoading(false);
+        if (active) {
+          setUser(null);
+          setLoading(false);
+        }
       }
     });
 
     // Check existing session (runs once)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (initializedRef.current) return;
-      initializedRef.current = true;
       if (session?.user) {
-        const appUser = await fetchAppUser(session.user);
-        setUser(appUser);
+        try {
+          const appUser = await fetchAppUser(session.user);
+          if (active) setUser(appUser);
+        } catch (err) {
+          console.error('[Auth] Erro na sessão inicial:', err);
+        }
       }
-      setLoading(false);
+      if (active) setLoading(false);
     }).catch(err => {
       console.error('[Auth] Erro ao obter sessão inicial:', err);
-      setLoading(false);
+      if (active) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      clearTimeout(safetyTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (emailStr: string, passwordStr: string) => {
