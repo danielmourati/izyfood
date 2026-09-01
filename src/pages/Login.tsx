@@ -9,6 +9,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatAuthError } from '@/lib/auth-errors';
 import { ArrowLeft, Eye, EyeOff, Zap, Truck, Wallet, Printer, AlertCircle, RefreshCw, WifiOff } from 'lucide-react';
+import { toast } from 'sonner';
+import degustLogoHorizontal from '@/assets/degust-logo-horizontal.png.asset.json';
+import degustLogoLogin from '@/assets/degust-logo-login.png.asset.json';
 
 const benefits = [
   { icon: Zap, title: 'Pedidos em segundos', desc: 'Do balcão à mesa, sem fricção.' },
