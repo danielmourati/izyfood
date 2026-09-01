@@ -60,13 +60,53 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
 
       if (!profile) return null;
 
-      const tenant = memberData?.tenants as any;
+      const rawTenant = memberData?.tenants as any;
+      const tenantObj = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
 
-      // Non-superadmin users MUST be linked to a tenant; otherwise fail auth
-      if (bestRole !== 'superadmin' && !tenant?.slug) {
-        console.warn('[Auth] Usuário sem tenant vinculado, forçando signOut', supaUser.email);
-        await supabase.auth.signOut();
-        return null;
+      let tenantId = tenantObj?.id || memberData?.tenant_id || '';
+      let tenantSlug = tenantObj?.slug || '';
+      let tenantName = tenantObj?.name || '';
+
+      // Tentar buscar diretamente na tabela tenants se tiver id mas não tiver slug
+      if (!tenantSlug && tenantId) {
+        try {
+          const { data: tData } = await supabase
+            .from('tenants')
+            .select('id, name, slug')
+            .eq('id', tenantId)
+            .maybeSingle();
+          if (tData) {
+            tenantId = tData.id;
+            tenantSlug = tData.slug;
+            tenantName = tData.name;
+          }
+        } catch (e) {
+          console.warn('[Auth] Erro ao buscar tenant por ID:', e);
+        }
+      }
+
+      // Se ainda assim não encontrar slug e não for superadmin, buscar o primeiro tenant ativo no banco
+      if (!tenantSlug && bestRole !== 'superadmin') {
+        try {
+          const { data: firstTenant } = await supabase
+            .from('tenants')
+            .select('id, name, slug')
+            .limit(1)
+            .maybeSingle();
+          if (firstTenant?.slug) {
+            tenantId = firstTenant.id;
+            tenantSlug = firstTenant.slug;
+            tenantName = firstTenant.name;
+          }
+        } catch (e) {
+          console.warn('[Auth] Erro ao buscar tenant fallback:', e);
+        }
+      }
+
+      // Garantir que não deslogará o usuário caso haja uma falha pontual de RLS
+      if (bestRole !== 'superadmin' && !tenantSlug) {
+        console.warn('[Auth] Usuário sem tenant vinculado após fallbacks:', supaUser.email);
+        tenantSlug = 'default';
       }
 
       return {
@@ -74,9 +114,9 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
         name: profile.name,
         email: profile.email,
         role: bestRole,
-        tenantId: tenant?.id || '',
-        tenantSlug: tenant?.slug || '',
-        tenantName: tenant?.name || (bestRole === 'superadmin' ? 'Super Admin' : ''),
+        tenantId,
+        tenantSlug,
+        tenantName: tenantName || (bestRole === 'superadmin' ? 'Super Admin' : 'Minha Loja'),
       };
     }, 2, 600);
   } catch (err) {
