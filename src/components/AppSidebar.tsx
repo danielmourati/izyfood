@@ -99,23 +99,37 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarContent className="bg-card flex flex-col">
         {/* Tenant Logo & Trigger */}
-        <div className="p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3 w-full overflow-hidden">
-            {tenantLogo ? (
-              <img src={tenantLogo} alt={tenantName} className="h-10 w-10 rounded-lg object-contain bg-muted shrink-0" />
-            ) : (
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
-                {tenantName?.charAt(0)?.toUpperCase() || '?'}
+        <div className={cn("p-3 flex items-center transition-all", collapsed ? "justify-center px-1" : "justify-between gap-2")}>
+          {!collapsed ? (
+            <>
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
+                {tenantLogo ? (
+                  <img src={tenantLogo} alt={tenantName} className="h-9 w-9 rounded-lg object-contain bg-muted shrink-0" />
+                ) : (
+                  <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                    {tenantName?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                )}
+                <div className="min-w-0 pr-1">
+                  <p className="font-bold text-foreground text-sm leading-tight truncate">{tenantName || 'Minha Loja'}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">Sistema PDV</p>
+                </div>
               </div>
-            )}
-            {!collapsed && (
-              <div className="min-w-0 pr-2">
-                <p className="font-bold text-foreground text-sm leading-tight truncate">{tenantName || 'Minha Loja'}</p>
-                <p className="text-[10px] text-muted-foreground truncate">Sistema PDV</p>
-              </div>
-            )}
-          </div>
-          <SidebarTrigger className="shrink-0 ml-auto" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <SidebarTrigger className="h-8 w-8 shrink-0 hover:bg-accent" />
+                </TooltipTrigger>
+                <TooltipContent side="right">Recolher menu</TooltipContent>
+              </Tooltip>
+            </>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SidebarTrigger className="h-9 w-9 shrink-0 hover:bg-accent" />
+              </TooltipTrigger>
+              <TooltipContent side="right">Expandir menu</TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
         <Separator className="mx-3 w-auto" />

@@ -35,10 +35,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Desktop slim back bar (hidden on home & pdv to preserve their fullscreen layout) */}
           {showDesktopBar && (
             <div className="hidden md:flex items-center h-10 border-b bg-card px-4 shrink-0 gap-3">
-              <Tooltip>
-                <TooltipTrigger asChild><SidebarTrigger /></TooltipTrigger>
-                <TooltipContent>Abrir/fechar menu</TooltipContent>
-              </Tooltip>
               <BackButton />
               <HeaderClock className="ml-auto" />
             </div>
