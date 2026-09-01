@@ -36,6 +36,9 @@ const emptyNoteOptionForm = {
 
 const emptyCategoryForm = { name: '' };
 
+/** Flag para ativar/desativar botões e dialog de importação via CSV (Mudar para true quando desejar reativar) */
+const ENABLE_CSV_IMPORT = false;
+
 const Produtos = () => {
   const { products, setProducts, categories, setCategories, noteOptions, setNoteOptions, suppliers, setSuppliers } = useStore();
 
@@ -517,19 +520,23 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Produtos</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={downloadCSVModel} title="Baixar arquivo modelo .CSV">
-            <Download className="h-4 w-4 mr-2 text-muted-foreground" /> Modelo CSV
-          </Button>
-          <Button variant="outline" onClick={() => csvInputRef.current?.click()} title="Importar categorias e produtos de arquivo CSV">
-            <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400" /> Importar CSV
-          </Button>
-          <input
-            type="file"
-            ref={csvInputRef}
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={handleCSVFileSelect}
-          />
+          {ENABLE_CSV_IMPORT && (
+            <>
+              <Button variant="outline" onClick={downloadCSVModel} title="Baixar arquivo modelo .CSV">
+                <Download className="h-4 w-4 mr-2 text-muted-foreground" /> Modelo CSV
+              </Button>
+              <Button variant="outline" onClick={() => csvInputRef.current?.click()} title="Importar categorias e produtos de arquivo CSV">
+                <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400" /> Importar CSV
+              </Button>
+              <input
+                type="file"
+                ref={csvInputRef}
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleCSVFileSelect}
+              />
+            </>
+          )}
           <Button variant="outline" onClick={() => { setOptsDialogOpen(true); }}>
             <Tag className="h-4 w-4 mr-2" /> Obs & Complementos
           </Button>
@@ -1019,94 +1026,96 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
       </Dialog>
 
       {/* CSV Import Preview Modal */}
-      <Dialog open={csvPreviewOpen} onOpenChange={setCsvPreviewOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <FileSpreadsheet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Confirmar Importação CSV
-            </DialogTitle>
-          </DialogHeader>
+      {ENABLE_CSV_IMPORT && (
+        <Dialog open={csvPreviewOpen} onOpenChange={setCsvPreviewOpen}>
+          <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <FileSpreadsheet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Confirmar Importação CSV
+              </DialogTitle>
+            </DialogHeader>
 
-          <div className="space-y-4 overflow-y-auto pr-1 flex-1 my-2">
-            {/* Action Summary Cards */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-center">
-                <span className="block text-2xl font-bold text-emerald-600 dark:text-emerald-400">{csvStats.newProds}</span>
-                <span className="text-xs text-muted-foreground font-medium">Novos Produtos</span>
-              </div>
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-center">
-                <span className="block text-2xl font-bold text-amber-600 dark:text-amber-400">{csvStats.updateProds}</span>
-                <span className="text-xs text-muted-foreground font-medium">Produtos a Atualizar</span>
-              </div>
-              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-center">
-                <span className="block text-2xl font-bold text-blue-600 dark:text-blue-400">{csvStats.newCats}</span>
-                <span className="text-xs text-muted-foreground font-medium">Novas Categorias</span>
-              </div>
-            </div>
-
-            {csvNewCategories.length > 0 && (
-              <div className="bg-muted/50 p-3 rounded-lg border text-sm space-y-1">
-                <span className="font-semibold text-foreground">Novas Categorias que serão criadas:</span>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {csvNewCategories.map(cat => (
-                    <Badge key={cat} variant="secondary" className="bg-blue-500/15 text-blue-700 dark:text-blue-300">
-                      + {cat}
-                    </Badge>
-                  ))}
+            <div className="space-y-4 overflow-y-auto pr-1 flex-1 my-2">
+              {/* Action Summary Cards */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-center">
+                  <span className="block text-2xl font-bold text-emerald-600 dark:text-emerald-400">{csvStats.newProds}</span>
+                  <span className="text-xs text-muted-foreground font-medium">Novos Produtos</span>
+                </div>
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-center">
+                  <span className="block text-2xl font-bold text-amber-600 dark:text-amber-400">{csvStats.updateProds}</span>
+                  <span className="text-xs text-muted-foreground font-medium">Produtos a Atualizar</span>
+                </div>
+                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-center">
+                  <span className="block text-2xl font-bold text-blue-600 dark:text-blue-400">{csvStats.newCats}</span>
+                  <span className="text-xs text-muted-foreground font-medium">Novas Categorias</span>
                 </div>
               </div>
-            )}
 
-            {/* Table Preview */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold">Lista de Produtos para Importação ({csvItems.length} itens):</h4>
-              </div>
-              <div className="border rounded-md overflow-hidden max-h-64 overflow-y-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-muted text-muted-foreground sticky top-0 border-b">
-                    <tr>
-                      <th className="p-2">Ação</th>
-                      <th className="p-2">Categoria</th>
-                      <th className="p-2">Produto</th>
-                      <th className="p-2">Preço</th>
-                      <th className="p-2">Estoque</th>
-                      <th className="p-2">Tipo</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {csvItems.map((item, i) => (
-                      <tr key={i} className="hover:bg-muted/30">
-                        <td className="p-2">
-                          {item.action === 'create_product' ? (
-                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Criar</Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20">Atualizar</Badge>
-                          )}
-                        </td>
-                        <td className="p-2 font-medium">{item.categoryName}</td>
-                        <td className="p-2 font-semibold">{item.name}</td>
-                        <td className="p-2 font-mono">{fmt(item.price)}</td>
-                        <td className="p-2">{item.stock} {item.unit}</td>
-                        <td className="p-2">{item.type === 'weight' ? 'Peso (Kg)' : 'Unidade'}</td>
-                      </tr>
+              {csvNewCategories.length > 0 && (
+                <div className="bg-muted/50 p-3 rounded-lg border text-sm space-y-1">
+                  <span className="font-semibold text-foreground">Novas Categorias que serão criadas:</span>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {csvNewCategories.map(cat => (
+                      <Badge key={cat} variant="secondary" className="bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                        + {cat}
+                      </Badge>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Table Preview */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold">Lista de Produtos para Importação ({csvItems.length} itens):</h4>
+                </div>
+                <div className="border rounded-md overflow-hidden max-h-64 overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-muted text-muted-foreground sticky top-0 border-b">
+                      <tr>
+                        <th className="p-2">Ação</th>
+                        <th className="p-2">Categoria</th>
+                        <th className="p-2">Produto</th>
+                        <th className="p-2">Preço</th>
+                        <th className="p-2">Estoque</th>
+                        <th className="p-2">Tipo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {csvItems.map((item, i) => (
+                        <tr key={i} className="hover:bg-muted/30">
+                          <td className="p-2">
+                            {item.action === 'create_product' ? (
+                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Criar</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20">Atualizar</Badge>
+                            )}
+                          </td>
+                          <td className="p-2 font-medium">{item.categoryName}</td>
+                          <td className="p-2 font-semibold">{item.name}</td>
+                          <td className="p-2 font-mono">{fmt(item.price)}</td>
+                          <td className="p-2">{item.stock} {item.unit}</td>
+                          <td className="p-2">{item.type === 'weight' ? 'Peso (Kg)' : 'Unidade'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex gap-2 pt-3 border-t">
-            <Button variant="outline" className="flex-1" onClick={() => setCsvPreviewOpen(false)}>
-              Cancelar
-            </Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleConfirmCSVImport}>
-              <CheckCircle2 className="h-4 w-4 mr-2" /> Confirmar Importação
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            <div className="flex gap-2 pt-3 border-t">
+              <Button variant="outline" className="flex-1" onClick={() => setCsvPreviewOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleConfirmCSVImport}>
+                <CheckCircle2 className="h-4 w-4 mr-2" /> Confirmar Importação
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
