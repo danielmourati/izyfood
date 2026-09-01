@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { formatAuthError, withRetry } from '@/lib/auth-errors';
 
 export type AppRole = 'admin' | 'atendente' | 'motoboy' | 'superadmin';
 
@@ -25,52 +26,63 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
-  // Fetch profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('name, email')
-    .eq('id', supaUser.id)
-    .single();
+  try {
+    return await withRetry(async () => {
+      // Fetch profile
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', supaUser.id)
+        .maybeSingle();
 
-  // Fetch roles (pick highest: superadmin > admin > others)
-  const { data: rolesData } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', supaUser.id);
+      if (profileErr) throw profileErr;
 
-  const roles = (rolesData || []).map(r => r.role as AppRole);
-  const bestRole = roles.includes('superadmin') ? 'superadmin'
-    : roles.includes('admin') ? 'admin'
-    : roles[0] || 'atendente';
+      // Fetch roles (pick highest: superadmin > admin > others)
+      const { data: rolesData, error: rolesErr } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', supaUser.id);
 
-  // Fetch tenant membership + tenant info
-  const { data: memberData } = await supabase
-    .from('tenant_members')
-    .select('tenant_id, role, tenants(id, name, slug)')
-    .eq('user_id', supaUser.id)
-    .limit(1)
-    .single();
+      if (rolesErr) throw rolesErr;
 
-  if (!profile) return null;
+      const roles = (rolesData || []).map(r => r.role as AppRole);
+      const bestRole = roles.includes('superadmin') ? 'superadmin'
+        : roles.includes('admin') ? 'admin'
+        : roles[0] || 'atendente';
 
-  const tenant = memberData?.tenants as any;
+      // Fetch tenant membership + tenant info
+      const { data: memberData } = await supabase
+        .from('tenant_members')
+        .select('tenant_id, role, tenants(id, name, slug)')
+        .eq('user_id', supaUser.id)
+        .limit(1)
+        .maybeSingle();
 
-  // Non-superadmin users MUST be linked to a tenant; otherwise fail auth
-  if (bestRole !== 'superadmin' && !tenant?.slug) {
-    console.warn('[Auth] Usuário sem tenant vinculado, forçando signOut', supaUser.email);
-    await supabase.auth.signOut();
+      if (!profile) return null;
+
+      const tenant = memberData?.tenants as any;
+
+      // Non-superadmin users MUST be linked to a tenant; otherwise fail auth
+      if (bestRole !== 'superadmin' && !tenant?.slug) {
+        console.warn('[Auth] Usuário sem tenant vinculado, forçando signOut', supaUser.email);
+        await supabase.auth.signOut();
+        return null;
+      }
+
+      return {
+        id: supaUser.id,
+        name: profile.name,
+        email: profile.email,
+        role: bestRole,
+        tenantId: tenant?.id || '',
+        tenantSlug: tenant?.slug || '',
+        tenantName: tenant?.name || (bestRole === 'superadmin' ? 'Super Admin' : ''),
+      };
+    }, 2, 600);
+  } catch (err) {
+    console.error('[Auth] Erro ao carregar dados do usuário:', err);
     return null;
   }
-
-  return {
-    id: supaUser.id,
-    name: profile.name,
-    email: profile.email,
-    role: bestRole,
-    tenantId: tenant?.id || '',
-    tenantSlug: tenant?.slug || '',
-    tenantName: tenant?.name || (bestRole === 'superadmin' ? 'Super Admin' : ''),
-  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -82,7 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'INITIAL_SESSION') {
-        // Handled by getSession below
         return;
       }
       if (session?.user) {
@@ -106,19 +117,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(appUser);
       }
       setLoading(false);
+    }).catch(err => {
+      console.error('[Auth] Erro ao obter sessão inicial:', err);
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { success: false, error: error.message };
-    return { success: true };
+  const login = async (emailStr: string, passwordStr: string) => {
+    const cleanEmail = emailStr.trim();
+    const cleanPassword = passwordStr;
+
+    if (!cleanEmail || !cleanPassword) {
+      return { success: false, error: 'Preencha o e-mail e a senha.' };
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return {
+        success: false,
+        error: 'Você está sem conexão com a internet. Verifique sua rede e tente novamente.',
+      };
+    }
+
+    try {
+      const res = await withRetry(async () => {
+        return await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword,
+        });
+      }, 1, 800);
+
+      if (res.error) {
+        return { success: false, error: formatAuthError(res.error) };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: formatAuthError(err) };
+    }
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('[Auth] Erro durante o logout:', err);
+    }
     setUser(null);
     window.location.assign('/login');
   };

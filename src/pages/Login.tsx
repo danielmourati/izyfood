@@ -7,10 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Eye, EyeOff, Zap, Truck, Wallet, Printer } from 'lucide-react';
-import { toast } from 'sonner';
-import degustLogoHorizontal from '@/assets/degust-logo-horizontal.png.asset.json';
-import degustLogoLogin from '@/assets/degust-logo-login.png.asset.json';
+import { formatAuthError } from '@/lib/auth-errors';
+import { ArrowLeft, Eye, EyeOff, Zap, Truck, Wallet, Printer, AlertCircle, RefreshCw, WifiOff } from 'lucide-react';
 
 const benefits = [
   { icon: Zap, title: 'Pedidos em segundos', desc: 'Do balcão à mesa, sem fricção.' },
@@ -48,7 +46,7 @@ const Login = () => {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(formatAuthError(error));
     } else {
       toast.success('Email de recuperação enviado!');
       setForgotOpen(false);
@@ -188,7 +186,18 @@ const Login = () => {
               </div>
             </div>
 
-            {error && <p className="text-sm text-destructive text-center">{error}</p>}
+            {error && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-start gap-2.5">
+                {error.includes('conexão') || error.includes('internet') || error.includes('servidor') ? (
+                  <WifiOff className="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+                )}
+                <div className="flex-1">
+                  <p className="font-medium text-xs leading-snug">{error}</p>
+                </div>
+              </div>
+            )}
 
             <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={isLoading}>
               {isLoading ? 'Entrando...' : 'Entrar'}
