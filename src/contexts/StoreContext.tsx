@@ -117,19 +117,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [isCashRegisterOpen, setIsCashRegisterOpen] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const tenantIdRef = useRef<string | undefined>(undefined);
+  const tabIdRef = useRef<string>(Math.random().toString(36).slice(2));
+  const broadcastRef = useRef<BroadcastChannel | null>(null);
 
-  // ============ Initial data fetch ============
-  const userId = user?.id;
-  useEffect(() => {
-    if (!userId) { setLoading(false); return; }
-    let cancelled = false;
+  const notifyCrossTabSync = useCallback(() => {
+    try {
+      broadcastRef.current?.postMessage({
+        type: 'IZYFOOD_SYNC_UPDATE',
+        senderId: tabIdRef.current,
+        timestamp: Date.now(),
+      });
+    } catch {}
+  }, []);
 
-    async function fetchAll() {
-      // Grab tenantId from user to filter store_settings and tenants
-      const tenantId = user?.tenantId;
-      tenantIdRef.current = tenantId;
-      const lsKey = tenantId ? `print_settings_${tenantId}` : null;
+  const silentFetchAll = useCallback(async () => {
+    if (!user?.id) return;
+    const tenantId = user?.tenantId;
+    tenantIdRef.current = tenantId;
+    const lsKey = tenantId ? `print_settings_${tenantId}` : null;
 
+    try {
       const [
         { data: cats }, { data: prods }, { data: custs }, { data: supps },
         { data: ords }, { data: sls }, { data: stks }, { data: tbls },
@@ -155,29 +162,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : Promise.resolve({ data: null, error: null }),
       ]);
 
-      if (cancelled) return;
-
-      setCategories((cats || []).map(dbToCategory));
-      setProducts((prods || []).map(dbToProduct));
-      setCustomers((custs || []).map(dbToCustomer));
-      setSuppliers((supps || []).map(dbToSupplier));
-      setOrders((ords || []).map(dbToOrder));
-      setSales((sls || []).map(dbToSale));
-      setStockEntries((stks || []).map(dbToStockEntry));
-
-      // Auto-seed 5 default tables if none exist
-      if (!tbls || tbls.length === 0) {
-        const defaultTables = Array.from({ length: 5 }, (_, i) => ({
-          number: i + 1,
-          status: 'available' as const,
-        }));
-        const { data: inserted, error: insertErr } = await supabase.from('store_tables').insert(defaultTables).select();
-        if (insertErr) {
-          console.error('Error auto-seeding tables:', insertErr);
-        }
-        setTables((inserted || []).map(dbToTable));
-      } else {
-        // Fix duplicate tables bug
+      if (cats) setCategories(cats.map(dbToCategory));
+      if (prods) setProducts(prods.map(dbToProduct));
+      if (custs) setCustomers(custs.map(dbToCustomer));
+      if (supps) setSuppliers(supps.map(dbToSupplier));
+      if (ords) setOrders(ords.map(dbToOrder));
+      if (sls) setSales(sls.map(dbToSale));
+      if (stks) setStockEntries(stks.map(dbToStockEntry));
+      if (tbls && tbls.length > 0) {
         const uniqueTbls = [];
         const seen = new Set();
         for (const t of tbls) {
@@ -188,70 +180,104 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         setTables(uniqueTbls.map(dbToTable));
       }
-      setCoupons((cpns || []).map(dbToCoupon));
-      setNoteOptions((opts || []).map(dbToNoteOption));
+      if (cpns) setCoupons(cpns.map(dbToCoupon));
+      if (opts) setNoteOptions(opts.map(dbToNoteOption));
       if (setts && setts.length > 0) {
         setSettings({
           tableCount: setts[0].table_count,
           serviceFeePercentage: setts[0].service_fee_percentage ? Number(setts[0].service_fee_percentage) : undefined,
         });
-
-        // ---- Load printSettings from DB and sync to localStorage + window cache ----
         const tenantName = (tenantNameRes as any)?.data?.name || '';
         const dbPs = (setts[0] as any).print_settings;
-        const hasDbData = dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0;
-
-        if (hasDbData) {
+        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
           const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, ...dbPs, storeName: tenantName };
           setPrintSettings(merged);
           if (lsKey) {
             localStorage.setItem(lsKey, JSON.stringify(merged));
             (window as any).__printSettingsCache = merged;
           }
-          console.log('[StoreContext] printSettings loaded from DB');
-        } else if (lsKey) {
-          // DB empty — try localStorage as seed
-          const saved = localStorage.getItem(lsKey);
-          if (saved) {
-            try {
-              const localPs: PrintSettings = JSON.parse(saved);
-              const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, ...localPs, storeName: tenantName };
-              setPrintSettings(merged);
-              (window as any).__printSettingsCache = merged;
-              console.log('[StoreContext] printSettings loaded from localStorage (DB was empty)');
-              // Push up to DB so other devices benefit
-              if (tenantId && Object.keys(localPs).length > 0) {
-                supabase.from('store_settings')
-                  .update({ print_settings: localPs } as any)
-                  .eq('tenant_id', tenantId)
-                  .then(({ error }) => {
-                    if (error) console.error('[StoreContext] Failed to push localPs to DB:', error);
-                    else console.log('[StoreContext] localStorage printSettings pushed to DB');
-                  });
-              }
-            } catch { }
-          } else {
-            const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, storeName: tenantName };
-            setPrintSettings(merged);
-          }
-        } else {
-          const tenantName2 = (tenantNameRes as any)?.data?.name || '';
-          setPrintSettings(prev => ({ ...prev, storeName: tenantName2 }));
         }
-      } else {
-        // No store_settings row at all — seed from storeName only
-        const tenantName = (tenantNameRes as any)?.data?.name || '';
-        setPrintSettings(prev => ({ ...prev, storeName: tenantName }));
       }
       setIsCashRegisterOpen(!!(cashRegs && cashRegs.length > 0));
-      setLoading(false);
+    } catch (err) {
+      console.warn('[StoreContext] Silent sync error:', err);
+    }
+  }, [user?.id, user?.tenantId]);
+
+  // ============ Initial data fetch ============
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) { setLoading(false); return; }
+    let cancelled = false;
+
+    async function fetchAll() {
+      await silentFetchAll();
+      if (!cancelled) setLoading(false);
     }
 
     fetchAll();
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, silentFetchAll]);
 
-  // ============ Realtime subscriptions ============
+  // ============ Silent Multi-Tab & Cross-Device Event Listeners ============
+  useEffect(() => {
+    if (!userId) return;
+
+    // 1. Cross-Tab BroadcastChannel
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        const bc = new BroadcastChannel('izyfood-realtime-cross-tab');
+        bc.onmessage = (ev) => {
+          if (ev.data && ev.data.senderId !== tabIdRef.current) {
+            silentFetchAll();
+          }
+        };
+        broadcastRef.current = bc;
+      } catch (e) {
+        console.warn('[StoreContext] BroadcastChannel unsupported:', e);
+      }
+    }
+
+    // 2. Window Visibility & Online listeners
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        silentFetchAll();
+      }
+    };
+    const handleOnline = () => {
+      silentFetchAll();
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key && e.key.startsWith('print_settings_') && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setPrintSettings(prev => ({ ...prev, ...parsed }));
+        } catch {}
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('storage', handleStorage);
+
+    // 3. Silent background heartbeat every 20 seconds for fail-safe data parity
+    const heartbeatId = setInterval(() => {
+      silentFetchAll();
+    }, 20000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(heartbeatId);
+      if (broadcastRef.current) {
+        broadcastRef.current.close();
+        broadcastRef.current = null;
+      }
+    };
+  }, [userId, silentFetchAll]);
+
+  // ============ Realtime subscriptions (Supabase WebSockets) ============
   useEffect(() => {
     if (!userId) return;
 
@@ -299,14 +325,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, (payload) => {
         if (payload.eventType === 'UPDATE') setTables(prev => prev.map(t => t.number === payload.new.number ? dbToTable(payload.new) : t));
         else if (payload.eventType === 'INSERT') setTables(prev => {
-          // Avoid duplicates
           if (prev.some(t => t.number === payload.new.number)) {
             return prev.map(t => t.number === payload.new.number ? dbToTable(payload.new) : t);
           }
           return [...prev, dbToTable(payload.new)].sort((a, b) => a.number - b.number);
         });
         else if (payload.eventType === 'DELETE') {
-          // Only remove if the table is not occupied (protect against race conditions)
           const old = payload.old as any;
           if (old.status === 'occupied') return;
           setTables(prev => prev.filter(t => t.number !== old.number));
@@ -349,11 +373,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setIsCashRegisterOpen(!!(data && data.length > 0));
         });
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          silentFetchAll();
+        }
+      });
 
     channelRef.current = channel;
     return () => { supabase.removeChannel(channel); };
-  }, [userId]);
+  }, [userId, silentFetchAll]);
 
   const getCategoryById = useCallback((id: string) => categories.find(c => c.id === id), [categories]);
 
@@ -387,70 +415,80 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setProducts(next); // optimistic
     syncProducts(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const setCategoriesWrapped: typeof setCategories = useCallback((updater) => {
     const prev = categoriesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setCategories(next);
     syncCategories(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const setCustomersWrapped: typeof setCustomers = useCallback((updater) => {
     const prev = customersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setCustomers(next);
     syncCustomers(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const setSuppliersWrapped: typeof setSuppliers = useCallback((updater) => {
     const prev = suppliersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setSuppliers(next);
     syncSuppliers(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const setOrdersWrapped: typeof setOrders = useCallback((updater) => {
     const prev = ordersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setOrders(next);
     syncOrders(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const setSalesWrapped: typeof setSales = useCallback((updater) => {
     const prev = salesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setSales(next);
     syncSales(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const setStockEntriesWrapped: typeof setStockEntries = useCallback((updater) => {
     const prev = stockEntriesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setStockEntries(next);
     syncStockEntries(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const setTablesWrapped: typeof setTables = useCallback((updater) => {
     const prev = tablesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setTables(next);
     syncTables(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const setCouponsWrapped: typeof setCoupons = useCallback((updater) => {
     const prev = couponsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setCoupons(next);
     syncCoupons(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const setNoteOptionsWrapped: typeof setNoteOptions = useCallback((updater) => {
     const prev = noteOptionsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setNoteOptions(next);
     syncNoteOptions(prev, next);
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const updateTableCount = useCallback(async (count: number) => {
     const validCount = Math.max(5, count);
