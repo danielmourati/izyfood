@@ -1,0 +1,13 @@
+categoria;produto;descricao;preco;tipo;unidade;estoque;controla_estoque;fidelidade;imagem_url
+Bebidas;Coca-Cola 2L;Refrigerante garrafa 2 Litros;12.50;unit;un;50;SIM;SIM;https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500
+Bebidas;Suco de Laranja 500ml;Suco natural de laranja sem açúcar;8.00;unit;un;30;SIM;NAO;
+Bebidas;Água Mineral 500ml;Água mineral sem gás;4.00;unit;un;100;SIM;NAO;
+Lanches;X-Salada Especial;Hambúrguer artesanal 150g, queijo, alface, tomate e maionese da casa;24.90;unit;un;0;NAO;SIM;
+Lanches;X-Burguer Duplo;Dois hambúrgueres 150g com duplo queijo cheddar;29.90;unit;un;0;NAO;SIM;
+Lanches;Cachorro Quente Completo;Duas salsichas, molho, purê, milho, batata palha e vinagrete;18.00;unit;un;0;NAO;NAO;
+Porções;Batata Frita Tradicional;Porção de 500g de batata frita crocante com maionese temperada;25.00;unit;un;100;SIM;NAO;
+Porções;Isca de Peixe 400g;Filezinho de peixe empanado acompanhado de molho tártaro;42.00;unit;un;20;SIM;NAO;
+Porções;Calabresa Acebolada;300g de calabresa fatiada acebolada com torradas;32.00;unit;un;15;SIM;NAO;
+Sobremesas;Pudim de Leite Condensado;Fatia generosa de pudim de leite condensado caseiro;9.90;unit;un;25;SIM;NAO;
+Sobremesas;Brownie com Sorvete;Brownie de chocolate meio amargo com uma bola de sorvete de creme;18.50;unit;un;15;SIM;NAO;
+Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado ou em peça (venda por peso);45.00;weight;kg;12.5;SIM;NAO;
