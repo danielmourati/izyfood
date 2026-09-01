@@ -579,9 +579,9 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
           return (
             <div key={product.id} className="bg-card rounded-[16px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all flex flex-col border border-border h-full w-full group relative">
               {/* Image area - Full width top header */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted shrink-0">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-50 dark:bg-zinc-900/60 shrink-0 p-2 flex items-center justify-center">
                 {product.image ? (
-                  <img src={product.image} alt={product.name} className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105" />
+                  <img src={product.image} alt={product.name} className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-primary/5">
                     <span className="text-4xl opacity-30 font-bold text-muted-foreground">
@@ -646,8 +646,8 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
               <Label>Foto do Produto</Label>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
               {form.image ? (
-                <div className="relative mt-2 rounded-lg overflow-hidden aspect-video bg-muted">
-                  <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                <div className="relative mt-2 rounded-lg overflow-hidden aspect-video bg-slate-50 dark:bg-zinc-900/60 p-2 flex items-center justify-center">
+                  <img src={form.image} alt="Preview" className="w-full h-full object-contain object-center" />
                   <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={() => setForm(f => ({ ...f, image: '' }))}>
                     <X className="h-3.5 w-3.5" />
                   </Button>

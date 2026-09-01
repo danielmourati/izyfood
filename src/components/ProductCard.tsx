@@ -16,12 +16,12 @@ export function ProductCard({ product, category, onAdd }: ProductCardProps) {
       onClick={() => onAdd(product)}
     >
       {/* Image area - Full width top header */}
-      <div className="relative aspect-square w-full overflow-hidden bg-muted shrink-0">
+      <div className="relative aspect-square w-full overflow-hidden bg-slate-50 dark:bg-zinc-900/60 shrink-0 p-2 flex items-center justify-center">
         {product.image ? (
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-primary/5">
