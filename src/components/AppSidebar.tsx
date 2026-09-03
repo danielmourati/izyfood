@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
+import { cn } from '@/lib/utils';
 
 import type { AttendantPermissions } from '@/hooks/use-attendant-permissions';
 
