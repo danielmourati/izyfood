@@ -147,21 +147,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (active) setLoading(false);
     }, 3500);
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // Set up auth state listener.
+    // IMPORTANT: never await Supabase calls inside this callback — it runs while
+    // the auth lock is held and any query would deadlock (app trava no loader).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'INITIAL_SESSION') {
         return;
       }
       if (session?.user) {
-        try {
-          const appUser = await fetchAppUser(session.user);
-          if (active) {
-            setUser(appUser);
-            setLoading(false);
-          }
-        } catch {
-          if (active) setLoading(false);
-        }
+        const supaUser = session.user;
+        setTimeout(() => {
+          if (!active) return;
+          fetchAppUser(supaUser)
+            .then(appUser => {
+              if (active) {
+                setUser(appUser);
+                setLoading(false);
+              }
+            })
+            .catch(() => {
+              if (active) setLoading(false);
+            });
+        }, 0);
       } else {
         if (active) {
           setUser(null);
