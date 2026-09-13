@@ -4,6 +4,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import qz from 'qz-tray';
+import { isDesktopApp, getDesktopPrinters, printViaDesktopSpooler, printViaDesktopSocket } from './printer-desktop';
 
 const PRINTER_SERVICE_UUIDS = [
   '000018f0-0000-1000-8000-00805f9b34fb', // generic thermal
@@ -413,9 +414,10 @@ async function configureQzSecurity() {
 }
 
 /**
- * Check if QZ Tray is available and connect.
+ * Check if QZ Tray or Native Desktop Printing is available.
  */
 export async function initQzTray(): Promise<boolean> {
+  if (isDesktopApp()) return true;
   if (_qzConnected && qz.websocket.isActive()) return true;
 
   try {
@@ -433,13 +435,17 @@ export async function initQzTray(): Promise<boolean> {
 }
 
 export function isQzConnected(): boolean {
+  if (isDesktopApp()) return true;
   return _qzConnected && qz.websocket.isActive();
 }
 
 /**
- * Get all system printers via QZ Tray.
+ * Get all system printers via Native Desktop API or QZ Tray fallback.
  */
 export async function getQzPrinters(): Promise<string[]> {
+  if (isDesktopApp()) {
+    return await getDesktopPrinters();
+  }
   if (!isQzConnected()) return [];
   try {
     return await qz.printers.find();
@@ -450,9 +456,31 @@ export async function getQzPrinters(): Promise<string[]> {
 }
 
 /**
- * Print ESC/POS bytes via QZ Tray.
+ * Print ESC/POS bytes via Native Desktop Spooler/Socket or QZ Tray fallback.
  */
 export async function printViaQzTray(data: Uint8Array, printerName?: string): Promise<void> {
+  if (isDesktopApp()) {
+    // Check if printerName is an IP address
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (printerName && ipRegex.test(printerName.trim())) {
+      await printViaDesktopSocket(data, printerName.trim(), 9100);
+      return;
+    }
+
+    const printers = await getDesktopPrinters();
+    if (printers.length === 0) throw new Error('Nenhuma impressora encontrada no sistema.');
+
+    let targetPrinter = printers[0];
+    if (printerName && printerName !== 'SYSTEM_BROWSER') {
+      const match = printers.find((p: string) => p.toLowerCase() === printerName.toLowerCase()) 
+        || printers.find((p: string) => p.toLowerCase().includes(printerName.toLowerCase()));
+      if (match) targetPrinter = match;
+    }
+
+    await printViaDesktopSpooler(data, targetPrinter);
+    return;
+  }
+
   if (!isQzConnected()) throw new Error('QZ Tray não conectado.');
 
   // Find the printer

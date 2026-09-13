@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, HashRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
+import { isDesktopApp } from "@/lib/printer-desktop";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { StoreProvider } from "@/contexts/StoreContext";
@@ -110,16 +111,19 @@ function AppRoutes() {
   );
 }
 
+const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:';
+const RouterComponent = isDesktopApp() || isFileProtocol ? HashRouter : BrowserRouter;
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <BrowserRouter>
+      <RouterComponent>
         <AuthProvider>
           <StoreProvider>
             <AppRoutes />
           </StoreProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </RouterComponent>
     </TooltipProvider>
   </QueryClientProvider>
 );

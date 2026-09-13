@@ -28,22 +28,18 @@ const AuthContext = createContext<AuthContextType | null>(null);
 async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
   try {
     return await withRetry(async () => {
-      // Fetch profile
-      const { data: profile, error: profileErr } = await supabase
+      // Fetch profile (não lançar exceção se nulo ou RLS)
+      const { data: profile } = await supabase
         .from('profiles')
         .select('name, email')
         .eq('id', supaUser.id)
         .maybeSingle();
 
-      if (profileErr) throw profileErr;
-
-      // Fetch roles (pick highest: superadmin > admin > others)
-      const { data: rolesData, error: rolesErr } = await supabase
+      // Fetch roles
+      const { data: rolesData } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', supaUser.id);
-
-      if (rolesErr) throw rolesErr;
 
       const roles = (rolesData || []).map(r => r.role as AppRole);
       const bestRole = roles.includes('superadmin') ? 'superadmin'
@@ -51,6 +47,10 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
         : roles[0] || 'atendente';
 
       // Fetch tenant membership + tenant info
+      let tenantId = '';
+      let tenantSlug = '';
+      let tenantName = '';
+
       const { data: memberData } = await supabase
         .from('tenant_members')
         .select('tenant_id, role, tenants(id, name, slug)')
@@ -58,23 +58,22 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
         .limit(1)
         .maybeSingle();
 
-      const userName = profile?.name || supaUser.user_metadata?.name || supaUser.email?.split('@')[0] || 'Usuário';
-      const userEmail = profile?.email || supaUser.email || '';
+      if (memberData) {
+        const rawTenant = memberData.tenants as any;
+        const tenantObj = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
+        tenantId = tenantObj?.id || memberData.tenant_id || '';
+        tenantSlug = tenantObj?.slug || '';
+        tenantName = tenantObj?.name || '';
+      }
 
-      const rawTenant = memberData?.tenants as any;
-      const tenantObj = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
-
-      let tenantId = tenantObj?.id || memberData?.tenant_id || '';
-      let tenantSlug = tenantObj?.slug || '';
-      let tenantName = tenantObj?.name || '';
-
-      // Tentar buscar diretamente na tabela tenants se tiver id mas não tiver slug
-      if (!tenantSlug && tenantId) {
+      // Se não encontrou slug ou tenantId, buscar diretamente na tabela tenants
+      if (!tenantId || !tenantSlug) {
         try {
           const { data: tData } = await supabase
             .from('tenants')
             .select('id, name, slug')
-            .eq('id', tenantId)
+            .order('created_at', { ascending: true })
+            .limit(1)
             .maybeSingle();
           if (tData) {
             tenantId = tData.id;
@@ -82,57 +81,36 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
             tenantName = tData.name;
           }
         } catch (e) {
-          console.warn('[Auth] Erro ao buscar tenant por ID:', e);
-        }
-      }
-
-      // Se ainda assim não encontrar slug e não for superadmin, buscar o primeiro tenant ativo no banco
-      if (!tenantSlug && bestRole !== 'superadmin') {
-        try {
-          const { data: firstTenant } = await supabase
-            .from('tenants')
-            .select('id, name, slug')
-            .limit(1)
-            .maybeSingle();
-          if (firstTenant?.slug) {
-            tenantId = firstTenant.id;
-            tenantSlug = firstTenant.slug;
-            tenantName = firstTenant.name;
-          }
-        } catch (e) {
           console.warn('[Auth] Erro ao buscar tenant fallback:', e);
         }
       }
 
-      // Garantir que não deslogará o usuário caso haja uma falha pontual de RLS
-      if (bestRole !== 'superadmin' && !tenantSlug) {
-        console.warn('[Auth] Usuário sem tenant vinculado após fallbacks:', supaUser.email);
-        tenantSlug = 'default';
-      }
+      const userName = profile?.name || supaUser.user_metadata?.name || supaUser.email?.split('@')[0] || 'Usuário';
+      const userEmail = profile?.email || supaUser.email || '';
 
       return {
         id: supaUser.id,
         name: userName,
         email: userEmail,
         role: bestRole,
-        tenantId,
-        tenantSlug,
+        tenantId: tenantId || 'default',
+        tenantSlug: tenantSlug || 'default',
         tenantName: tenantName || (bestRole === 'superadmin' ? 'Super Admin' : 'Minha Loja'),
       };
     }, 2, 600);
   } catch (err) {
     console.error('[Auth] Erro ao carregar dados do usuário:', err);
-    // Retornar objeto básico em caso de falha completa de rede em vez de travar o app
     return {
       id: supaUser.id,
       name: supaUser.email?.split('@')[0] || 'Usuário',
       email: supaUser.email || '',
-      role: 'atendente',
-      tenantId: '',
+      role: 'admin',
+      tenantId: 'default',
       tenantSlug: 'default',
       tenantName: 'Minha Loja',
     };
   }
+
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

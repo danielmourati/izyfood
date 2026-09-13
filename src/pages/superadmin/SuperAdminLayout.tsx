@@ -33,7 +33,12 @@ export function SuperAdminLayout({ children }: { children: React.ReactNode }) {
       <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-border bg-card">
         <div className="p-5 border-b border-border">
           <div className="flex flex-col gap-3">
-            <img src={degustLogoHorizontal.url} alt="Degust" className="h-9 object-contain self-start" />
+            <img
+              src={degustLogoHorizontal.url}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = './assets/degust-logo-horizontal.jpg'; }}
+              alt="Degust"
+              className="h-9 object-contain self-start"
+            />
             <div className="flex items-center gap-2 text-muted-foreground">
               <Shield className="h-3.5 w-3.5" />
               <p className="text-[10px] uppercase tracking-wider font-semibold">Super Admin Console</p>

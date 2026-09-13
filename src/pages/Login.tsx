@@ -103,6 +103,7 @@ const Login = () => {
           <div className="flex items-center gap-3">
             <img
               src={degustLogoLogin.url}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = './assets/degust-logo-login.jpg'; }}
               alt="Degust - Sistema de Gestão para Restaurantes"
               className="h-12 object-contain"
             />
@@ -158,6 +159,7 @@ const Login = () => {
           <div className="text-center">
             <img
               src={degustLogoHorizontal.url}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = './assets/degust-logo-horizontal.jpg'; }}
               alt="Degust - Sistema de Gestão para Restaurantes"
               className="h-16 mx-auto mb-2 object-contain"
             />

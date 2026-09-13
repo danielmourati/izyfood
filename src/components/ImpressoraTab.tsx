@@ -23,6 +23,7 @@ import { getQzPrinters } from '@/lib/printer';
 import { fetchTenantCertPem, downloadDegustBat, downloadCertPem } from '@/lib/qz-installer';
 import { DuplicatePrinterModal } from '@/components/DuplicatePrinterModal';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { isDesktopApp } from '@/lib/printer-desktop';
 
 
 const QZ_DOWNLOAD_URL = 'https://qz.io/download/';
@@ -279,17 +280,21 @@ export function ImpressoraTab() {
 
   return (
     <div className="space-y-4">
-      {/* Card 1 — QZ Tray Status */}
+      {/* Card 1 — Status de Impressão */}
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-3 flex-wrap">
           <div>
             <CardTitle className="flex items-center gap-2 flex-wrap">
-              <PlugZap className="h-5 w-5" /> Status do QZ Tray
+              <PlugZap className="h-5 w-5" /> {isDesktopApp() ? 'Impressão Nativa Desktop' : 'Status do QZ Tray'}
               <Badge
-                variant={qzConnected ? 'default' : 'secondary'}
-                className={qzConnected ? 'bg-success text-success-foreground' : ''}
+                variant={isDesktopApp() || qzConnected ? 'default' : 'secondary'}
+                className={isDesktopApp() || qzConnected ? 'bg-success text-success-foreground' : ''}
               >
-                {qzConnected ? (
+                {isDesktopApp() ? (
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Modulo Nativo Ativo
+                  </span>
+                ) : qzConnected ? (
                   <span className="flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" /> Cert: {tenantLabel}
                   </span>
@@ -299,64 +304,77 @@ export function ImpressoraTab() {
               </Badge>
             </CardTitle>
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
-            <HelpCircle className="h-4 w-4" /> Como instalar
-          </Button>
+          {!isDesktopApp() && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
+              <HelpCircle className="h-4 w-4" /> Como instalar
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm text-muted-foreground flex-1 min-w-[180px]">
-              {qzConnected
+              {isDesktopApp()
+                ? 'Conexão direta ativada com impressoras do sistema Windows (Spooler RAW) e impressoras de rede (TCP/IP). Nenhuma dependência de terceiros necessária.'
+                : qzConnected
                 ? 'Agente de impressão ativo. Impressões vão direto para a impressora sem janela de confirmação.'
                 : 'Clique em Detectar para verificar se o QZ Tray está rodando neste computador.'}
             </p>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDetectQz} disabled={detectingQz}>
-              {detectingQz ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />} Detectar
-            </Button>
-            <Button size="sm" className="gap-1.5" onClick={handleTestQzConnection} disabled={testingQz}>
-              {testingQz ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Teste de conexão
-            </Button>
+            {!isDesktopApp() && (
+              <>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDetectQz} disabled={detectingQz}>
+                  {detectingQz ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />} Detectar
+                </Button>
+                <Button size="sm" className="gap-1.5" onClick={handleTestQzConnection} disabled={testingQz}>
+                  {testingQz ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Teste de conexão
+                </Button>
+              </>
+            )}
           </div>
 
           {renderFeedback(qzFeedback)}
 
-          <Accordion type="single" collapsible>
-            <AccordionItem value="help" className="border rounded-lg">
-              <AccordionTrigger className="px-3 py-2 text-sm hover:no-underline">
-                Ajuda & solução de problemas
-              </AccordionTrigger>
-              <AccordionContent className="px-3 pb-3 text-sm text-muted-foreground space-y-1.5">
-                <p>• Certifique-se de que o QZ Tray está em execução (ícone na bandeja).</p>
-                <p>• Verifique se a porta 8181 (WebSocket) não está bloqueada pelo firewall.</p>
-                <p>• Se o navegador pedir para confiar em um certificado, aceite a solicitação.</p>
-                <p>• Reinicie o QZ Tray e recarregue esta página se a conexão ficar instável.</p>
-                <p>• Em ambientes corporativos, verifique com o TI se HTTPS/WSS está liberado.</p>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+          {!isDesktopApp() && (
+            <>
+              <Accordion type="single" collapsible>
+                <AccordionItem value="help" className="border rounded-lg">
+                  <AccordionTrigger className="px-3 py-2 text-sm hover:no-underline">
+                    Ajuda & solução de problemas
+                  </AccordionTrigger>
+                  <AccordionContent className="px-3 pb-3 text-sm text-muted-foreground space-y-1.5">
+                    <p>• Certifique-se de que o QZ Tray está em execução (ícone na bandeja).</p>
+                    <p>• Verifique se a porta 8181 (WebSocket) não está bloqueada pelo firewall.</p>
+                    <p>• Se o navegador pedir para confiar em um certificado, aceite a solicitação.</p>
+                    <p>• Reinicie o QZ Tray e recarregue esta página se a conexão ficar instável.</p>
+                    <p>• Em ambientes corporativos, verifique com o TI se HTTPS/WSS está liberado.</p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
 
-          {isDesktop && (
-            <div className="border rounded-lg p-3 space-y-2">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="space-y-1">
-                  <p className="font-semibold text-sm flex items-center gap-2 flex-wrap">
-                    Configurar confiança permanente (Windows)
-                    <Badge variant="outline" className="text-xs">
-                      <ShieldCheck className="h-3 w-3 mr-1" /> Cert próprio: {tenantLabel}
-                    </Badge>
-                  </p>
-                  <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside">
-                    <li>Baixe o instalador abaixo.</li>
-                    <li>Clique direito → <strong>Executar como administrador</strong>.</li>
-                    <li>Volte aqui e clique em <strong>Detectar</strong>. O prompt não deve mais aparecer.</li>
-                  </ol>
+              {isDesktop && (
+                <div className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-sm flex items-center gap-2 flex-wrap">
+                        Configurar confiança permanente (Windows)
+                        <Badge variant="outline" className="text-xs">
+                          <ShieldCheck className="h-3 w-3 mr-1" /> Cert próprio: {tenantLabel}
+                        </Badge>
+                      </p>
+                      <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside">
+                        <li>Baixe o instalador abaixo.</li>
+                        <li>Clique direito → <strong>Executar como administrador</strong>.</li>
+                        <li>Volte aqui e clique em <strong>Detectar</strong>. O prompt não deve mais aparecer.</li>
+                      </ol>
+                    </div>
+                    <Button size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
+                      <Download className="h-4 w-4" /> Ver passo a passo
+                    </Button>
+                  </div>
                 </div>
-                <Button size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
-                  <Download className="h-4 w-4" /> Ver passo a passo
-                </Button>
-              </div>
-            </div>
+              )}
+            </>
           )}
+
 
           <Accordion type="single" collapsible>
             <AccordionItem value="manual" className="border-0">

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,12 +8,20 @@ import { ArrowRightLeft, Merge, Lock, Utensils, Store, Bike, ShoppingBag } from 
 import { toast } from 'sonner';
 import { fmt } from '@/lib/utils';
 import { differenceInMinutes } from 'date-fns';
+import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
+import { usePrinter } from '@/hooks/use-printer';
+import { Order } from '@/types';
 
 const Mesas = () => {
   const { tables, setTables, orders, setOrders, customers } = useStore();
+  const { user } = useAuth();
+  const { printOrder } = usePrinter();
   const navigate = useTenantNavigate();
   const [transferModal, setTransferModal] = useState<{ open: boolean; fromTable: number | null }>({ open: false, fromTable: null });
   const [mergeModal, setMergeModal] = useState<{ open: boolean; sourceTable: number | null }>({ open: false, sourceTable: null });
+  const [consumerOrderModal, setConsumerOrderModal] = useState<{ open: boolean; order: Order | null; tableNumber?: number }>({ open: false, order: null });
+
+  const isQuintalDeCasa = user?.tenantSlug === 'quintal-de-casa';
 
   const occupiedTables = useMemo(() => tables.filter(t => t.status === 'occupied'), [tables]);
   const availableTables = useMemo(() => tables.filter(t => t.status === 'available'), [tables]);
@@ -21,10 +30,20 @@ const Mesas = () => {
     const table = tables.find(t => t.number === tableNum);
     if (!table) return;
 
+    let targetOrder: Order;
+
     if (table.status === 'occupied' && table.orderId) {
-      navigate(`/pdv?mesa=${tableNum}&pedido=${table.orderId}`);
+      targetOrder = orders.find(o => o.id === table.orderId) || {
+        id: table.orderId,
+        items: [],
+        total: 0,
+        orderType: 'mesa',
+        status: 'aberto',
+        tableNumber: tableNum,
+        createdAt: new Date().toISOString(),
+      };
     } else {
-      const newOrder = {
+      targetOrder = {
         id: crypto.randomUUID(),
         items: [],
         total: 0,
@@ -33,11 +52,29 @@ const Mesas = () => {
         tableNumber: tableNum,
         createdAt: new Date().toISOString(),
       };
-      setOrders(prev => [...prev, newOrder]);
+      setOrders(prev => [...prev, targetOrder]);
       setTables(prev => prev.map(t =>
-        t.number === tableNum ? { ...t, status: 'occupied', orderId: newOrder.id } : t
+        t.number === tableNum ? { ...t, status: 'occupied', orderId: targetOrder.id } : t
       ));
-      navigate(`/pdv?mesa=${tableNum}&pedido=${newOrder.id}`);
+    }
+
+    if (isQuintalDeCasa) {
+      setConsumerOrderModal({ open: true, order: targetOrder, tableNumber: tableNum });
+    } else {
+      navigate(`/pdv?mesa=${tableNum}&pedido=${targetOrder.id}`);
+    }
+  };
+
+  const handleSaveConsumerOrder = (updatedOrder: Order) => {
+    setOrders(prev => prev.map(o => (o.id === updatedOrder.id ? updatedOrder : o)));
+  };
+
+  const handlePrintConsumerOrder = async (orderToPrint: Order) => {
+    try {
+      await printOrder(orderToPrint);
+      toast.success('Comanda impressa!');
+    } catch (err) {
+      toast.error('Erro ao imprimir comanda.');
     }
   };
 
@@ -260,6 +297,16 @@ const Mesas = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Consumer Order Modal (tenant quintal-de-casa) */}
+      <ConsumerOrderModal
+        open={consumerOrderModal.open}
+        onClose={() => setConsumerOrderModal({ open: false, order: null })}
+        tableNumber={consumerOrderModal.tableNumber}
+        order={consumerOrderModal.order}
+        onSaveOrder={handleSaveConsumerOrder}
+        onPrintOrder={handlePrintConsumerOrder}
+      />
     </div>
   );
 };

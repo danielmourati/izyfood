@@ -23,6 +23,7 @@ import { ProductCard } from '@/components/ProductCard';
 import { TableBar } from '@/components/TableBar';
 import { OrderTypeSelector } from '@/components/OrderTypeSelector';
 import { usePrinter } from '@/hooks/use-printer';
+import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 
 const orderTypeLabels: Record<OrderType, string> = {
   balcao: '🏪 Balcão',
@@ -514,6 +515,24 @@ const PDV = () => {
       navigate(`/pdv?mesa=${table.number}&pedido=${table.orderId}`);
     }
   };
+
+  const isQuintalDeCasa = user?.tenantSlug === 'quintal-de-casa';
+
+  if (isQuintalDeCasa) {
+    return (
+      <ConsumerOrderModal
+        open={true}
+        onClose={() => navigate('/')}
+        tableNumber={tableNumber}
+        order={currentOrder}
+        onSaveOrder={(updatedOrder) => {
+          setOrders(prev => prev.map(o => (o.id === updatedOrder.id ? updatedOrder : o)));
+          setCart(updatedOrder.items);
+        }}
+        onPrintOrder={handleSendAndHold}
+      />
+    );
+  }
 
   return (
     <>
