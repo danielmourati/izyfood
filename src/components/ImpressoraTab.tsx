@@ -4,29 +4,30 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   Printer, Plus, Trash2, RefreshCw, HelpCircle, CheckCircle2,
-  AlertTriangle, Monitor, TestTube, Check, Loader2, Settings2, Sliders, ChevronDown
+  AlertTriangle, Monitor, Check, Loader2, Sliders
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { usePrinter, type PrinterConfig } from '@/hooks/use-printer';
+import { usePrinter } from '@/hooks/use-printer';
 import { useAuth } from '@/contexts/AuthContext';
-import { useStore } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getQzPrinters } from '@/lib/printer';
 import { QzSetupModal } from '@/components/QzSetupModal';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
-type SectorKey = 'recibo' | 'cozinha' | 'bar' | 'balcao';
+export interface SectorItem {
+  key: string;
+  name: string;
+  description: string;
+}
 
-const DEFAULT_SECTORS: { key: SectorKey; name: string; description: string }[] = [
+const DEFAULT_SECTORS: SectorItem[] = [
   { key: 'recibo', name: 'Caixa (recibo)', description: 'Impressora usada para o recibo deste computador.' },
   { key: 'cozinha', name: 'Cozinha', description: 'Impressora de produção da Cozinha.' },
   { key: 'bar', name: 'Bar', description: 'Impressora de bebidas e pedidos do Bar.' },
@@ -41,14 +42,15 @@ export function ImpressoraTab() {
     printers, loading, qzConnected, retryQzConnection, fetchPrinters, printTest,
   } = usePrinter();
 
-  const [selectedSector, setSelectedSector] = useState<SectorKey>('recibo');
+  const [selectedSector, setSelectedSector] = useState<string>('recibo');
+  const [customSectors, setCustomSectors] = useState<SectorItem[]>([]);
   const [qzPrintersList, setQzPrintersList] = useState<string[]>([]);
   const [fetchingQzPrinters, setFetchingQzPrinters] = useState(false);
   const [showQzWizard, setShowQzWizard] = useState(false);
   const [showAddLocalModal, setShowAddLocalModal] = useState(false);
   const [newLocalName, setNewLocalName] = useState('');
 
-  // Active form state for the selected location/sector
+  // Form state
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [form, setForm] = useState({
@@ -58,13 +60,36 @@ export function ImpressoraTab() {
     auto_connect_qz: true,
     escpos_profile: 'generic',
     feed_lines: 3,
-    cut_type: 'full',
   });
 
+  // Combine default and custom sectors, including any stored in DB
+  const allSectors = React.useMemo(() => {
+    const map = new Map<string, SectorItem>();
+    DEFAULT_SECTORS.forEach(s => map.set(s.key, s));
+    customSectors.forEach(s => map.set(s.key, s));
+
+    // Incorporate any sector from printers array that is not default
+    printers.forEach(p => {
+      const sec = (p as any).sector;
+      if (sec && !map.has(sec)) {
+        map.set(sec, {
+          key: sec,
+          name: p.name || sec.toUpperCase(),
+          description: `Impressora configurada para ${p.name || sec}.`,
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [customSectors, printers]);
+
   // Find printer config for selected sector
-  const currentPrinter = printers.find(p => (p as any).sector === selectedSector) || printers[0] || null;
+  const currentPrinter = printers.find(p => (p as any).sector === selectedSector) || null;
 
   useEffect(() => {
+    const savedFeed = typeof window !== 'undefined' ? localStorage.getItem('izf_feed_lines') : null;
+    const initialFeed = savedFeed ? Number(savedFeed) : 3;
+
     if (currentPrinter) {
       setForm({
         name: currentPrinter.name || '',
@@ -72,22 +97,20 @@ export function ImpressoraTab() {
         paper_width: currentPrinter.paper_width || 80,
         auto_connect_qz: currentPrinter.auto_connect_qz ?? true,
         escpos_profile: currentPrinter.escpos_profile || 'generic',
-        feed_lines: 3,
-        cut_type: 'full',
+        feed_lines: initialFeed,
       });
     } else {
-      const activeSectorDef = DEFAULT_SECTORS.find(s => s.key === selectedSector);
+      const activeSectorDef = allSectors.find(s => s.key === selectedSector);
       setForm({
         name: activeSectorDef ? activeSectorDef.name : 'Nova Impressora',
         address: '',
         paper_width: 80,
         auto_connect_qz: true,
         escpos_profile: 'generic',
-        feed_lines: 3,
-        cut_type: 'full',
+        feed_lines: initialFeed,
       });
     }
-  }, [selectedSector, currentPrinter]);
+  }, [selectedSector, currentPrinter, allSectors]);
 
   // Load QZ Tray system printers
   const handleRefreshPrintersList = async () => {
@@ -117,12 +140,16 @@ export function ImpressoraTab() {
     }
   }, [qzConnected]);
 
+  // CRUD: Save / Update printer location
   const handleSaveConfig = async () => {
     if (!user?.tenantId) return;
     setSaving(true);
     try {
+      const sectorDef = allSectors.find(s => s.key === selectedSector);
+      const nameToSave = form.name.trim() || sectorDef?.name || 'Impressora';
+
       const payload: any = {
-        name: form.name || DEFAULT_SECTORS.find(s => s.key === selectedSector)?.name || 'Impressora',
+        name: nameToSave,
         model: 'ESC/POS compatível',
         escpos_profile: form.escpos_profile,
         auto_connect_qz: form.auto_connect_qz,
@@ -133,6 +160,14 @@ export function ImpressoraTab() {
         tenant_id: user.tenantId,
       };
 
+      // Save feed lines to local device storage & window cache
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('izf_feed_lines', String(form.feed_lines));
+        if ((window as any).__printSettingsCache) {
+          (window as any).__printSettingsCache.feedLines = Number(form.feed_lines);
+        }
+      }
+
       if (currentPrinter?.id) {
         const { error } = await supabase.from('printer_configs').update(payload).eq('id', currentPrinter.id);
         if (error) throw error;
@@ -141,8 +176,8 @@ export function ImpressoraTab() {
         if (error) throw error;
       }
 
-      toast.success('Configuração de impressora salva com sucesso!');
-      fetchPrinters();
+      toast.success(`Configuração de ${nameToSave} salva com sucesso!`);
+      await fetchPrinters();
     } catch (e: any) {
       toast.error('Erro ao salvar impressora: ' + (e.message || 'Falha na requisição'));
     } finally {
@@ -150,6 +185,7 @@ export function ImpressoraTab() {
     }
   };
 
+  // CRUD: Delete / Unlink printer location
   const handleUnlinkPrinter = async () => {
     if (!currentPrinter?.id) {
       setForm(f => ({ ...f, address: '' }));
@@ -160,10 +196,28 @@ export function ImpressoraTab() {
       await supabase.from('printer_configs').delete().eq('id', currentPrinter.id);
       toast.success('Impressora desvinculada.');
       setForm(f => ({ ...f, address: '' }));
-      fetchPrinters();
+      await fetchPrinters();
     } catch (e: any) {
       toast.error('Erro ao desvincular: ' + e.message);
     }
+  };
+
+  // Create new local
+  const handleAddLocal = () => {
+    if (!newLocalName.trim()) return;
+    const cleanName = newLocalName.trim();
+    const key = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const newSector: SectorItem = {
+      key,
+      name: cleanName,
+      description: `Impressora configurada para ${cleanName}.`,
+    };
+
+    setCustomSectors(prev => [...prev.filter(s => s.key !== key), newSector]);
+    setSelectedSector(key);
+    setShowAddLocalModal(false);
+    setNewLocalName('');
+    toast.success(`Local "${cleanName}" adicionado. Configure os detalhes e clique em Salvar.`);
   };
 
   const handleRunTest = async () => {
@@ -178,7 +232,7 @@ export function ImpressoraTab() {
     }
   };
 
-  const activeSectorObj = DEFAULT_SECTORS.find(s => s.key === selectedSector) || {
+  const activeSectorObj = allSectors.find(s => s.key === selectedSector) || {
     key: selectedSector,
     name: selectedSector,
     description: 'Impressora configurada para este setor.',
@@ -186,7 +240,7 @@ export function ImpressoraTab() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Header Modal Style */}
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-border pb-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-2xl bg-primary/10 text-primary">
@@ -213,10 +267,10 @@ export function ImpressoraTab() {
             </div>
 
             <div className="space-y-2.5">
-              {DEFAULT_SECTORS.map((sec) => {
+              {allSectors.map((sec) => {
                 const isSelected = selectedSector === sec.key;
-                const hasConfig = printers.some(p => (p as any).sector === sec.key);
                 const boundPrinter = printers.find(p => (p as any).sector === sec.key);
+                const hasConfig = !!boundPrinter;
 
                 return (
                   <button
@@ -239,7 +293,7 @@ export function ImpressoraTab() {
                             {sec.name}
                           </p>
                           <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mt-0.5">
-                            {boundPrinter ? boundPrinter.name : sec.key}
+                            {boundPrinter ? boundPrinter.name : sec.key.toUpperCase()}
                           </p>
                         </div>
                       </div>
@@ -410,10 +464,10 @@ export function ImpressoraTab() {
                           <Label className="text-xs font-medium">Avanço de linhas (Feed)</Label>
                           <Input
                             type="number"
-                            min="0"
+                            min="1"
                             max="10"
                             value={form.feed_lines}
-                            onChange={(e) => setForm(f => ({ ...f, feed_lines: Number(e.target.value) }))}
+                            onChange={(e) => setForm(f => ({ ...f, feed_lines: Math.max(1, Number(e.target.value)) }))}
                             className="rounded-xl bg-background border-border"
                           />
                         </div>
@@ -453,15 +507,6 @@ export function ImpressoraTab() {
             className="text-xs font-medium text-muted-foreground hover:text-foreground gap-1.5"
           >
             <HelpCircle className="h-4 w-4" /> Ajuda
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/diagnostico-sync')}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground"
-          >
-            Diagnóstico
           </Button>
 
           <Button
@@ -525,12 +570,7 @@ export function ImpressoraTab() {
               Cancelar
             </Button>
             <Button
-              onClick={() => {
-                if (!newLocalName.trim()) return;
-                toast.success(`Setor ${newLocalName} adicionado.`);
-                setShowAddLocalModal(false);
-                setNewLocalName('');
-              }}
+              onClick={handleAddLocal}
               className="rounded-full bg-primary text-primary-foreground font-semibold"
             >
               Adicionar

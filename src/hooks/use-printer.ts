@@ -337,22 +337,25 @@ export function usePrinter() {
     // 1) Context baseline
     let ps: any = { ...printSettings };
 
+    const savedFeed = typeof window !== 'undefined' ? localStorage.getItem('izf_feed_lines') : null;
+    const feedLines = savedFeed ? Number(savedFeed) : (ps.feedLines ?? 4);
+
     // If the context already has real data, that's our truth.
     if (isPrintSettingsUsable(ps)) {
-      return ps;
+      return { ...ps, feedLines };
     }
 
-    // 2) Fresh DB fetch (no timeout race — mobile networks may be slow).
+    // 2) Fresh DB fetch
     if (tenantId) {
       try {
         const dbPs = await fetchPrintSettings(tenantId);
         if (isPrintSettingsUsable(dbPs)) {
-          // Persist for next prints on this device
+          const merged = { ...dbPs, feedLines };
           try {
-            localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(dbPs));
-            (window as any).__printSettingsCache = dbPs;
+            localStorage.setItem(`print_settings_${tenantId}`, JSON.stringify(merged));
+            (window as any).__printSettingsCache = merged;
           } catch { /* storage unavailable */ }
-          return dbPs;
+          return merged;
         }
       } catch (err) {
         console.warn('[print] fetchPrintSettings falhou, tentando localStorage', err);
@@ -364,14 +367,13 @@ export function usePrinter() {
         if (saved) {
           const localPs = JSON.parse(saved);
           if (isPrintSettingsUsable(localPs)) {
-            return localPs;
+            return { ...localPs, feedLines };
           }
         }
       } catch { /* parse failed */ }
     }
 
-    // 4) Whatever we have (even if empty) — at least keep storeName if context has it
-    return ps;
+    return { ...ps, feedLines };
   };
 
   const printOrder = async (order: any) => {

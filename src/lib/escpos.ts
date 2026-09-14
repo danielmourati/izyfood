@@ -416,6 +416,7 @@ export interface PrintSettings {
   showPixKey?: boolean;
   showInstagram?: boolean;
   showThankMessage?: boolean;
+  feedLines?: number;
 }
 
 /** Safe defaults: all toggles false, all text empty — no field ever undefined */
@@ -434,6 +435,7 @@ const PRINT_SETTINGS_DEFAULTS: Required<PrintSettings> = {
   showPixKey: false,
   showInstagram: false,
   showThankMessage: false,
+  feedLines: 4,
 };
 
 let _cachedPrintSettings: PrintSettings | null = null;
@@ -570,7 +572,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   // Comanda da cozinha: sem rodapé promocional (PIX, Instagram, mensagem de agradecimento).
 
 
-  parts.push(feedAndCut());
+  parts.push(feedAndCut(Math.max(3, ps.feedLines ?? 4)));
 
   return concat(...parts);
 }
@@ -730,8 +732,8 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     }
   }
 
-  // Minimal feed then cut (2 lines instead of 4 to save paper)
-  parts.push(new Uint8Array([0x0A, 0x0A]), CMD_PARTIAL_CUT);
+  // Feed configured lines then cut (guarantees guillotine does not cut receipt footer)
+  parts.push(feedAndCut(Math.max(3, ps.feedLines ?? 4)));
 
   return concat(...parts);
 }
