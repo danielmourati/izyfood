@@ -38,7 +38,7 @@ export function ConsumerOrderModal({
   const { products, customers, tables, setTables } = useStore();
   const { user } = useAuth();
 
-  const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  const [currentOrder, setCurrentOrder] = useState<Order | null>(order);
   const [finderOpen, setFinderOpen] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -367,9 +367,16 @@ export function ConsumerOrderModal({
     onClose();
   };
 
-  const formattedDate = currentOrder.createdAt
-    ? format(new Date(currentOrder.createdAt), "dd-MM 'às' HH:mm")
-    : format(new Date(), "dd-MM 'às' HH:mm");
+  const formattedDate = useMemo(() => {
+    if (!currentOrder?.createdAt) return format(new Date(), "dd-MM 'às' HH:mm");
+    try {
+      const d = new Date(currentOrder.createdAt);
+      if (isNaN(d.getTime())) return format(new Date(), "dd-MM 'às' HH:mm");
+      return format(d, "dd-MM 'às' HH:mm");
+    } catch {
+      return format(new Date(), "dd-MM 'às' HH:mm");
+    }
+  }, [currentOrder?.createdAt]);
 
   const displayMesaNum = currentOrder?.tableNumber || tableNumber || 1;
   const shortOrderId = currentOrder?.id ? currentOrder.id.slice(0, 4) : '0000';

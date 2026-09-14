@@ -190,8 +190,15 @@ const Mesas = () => {
             <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
               {occupiedTables.map(table => {
                 const order = orders.find(o => o.id === table.orderId);
-                const minutesOpen = order?.createdAt ? differenceInMinutes(currentTime, new Date(order.createdAt)) : 0;
-                // e.g. yellow if > 45 minutes, green otherwise for testing logic
+                let minutesOpen = 0;
+                if (order?.createdAt) {
+                  try {
+                    const d = new Date(order.createdAt);
+                    if (!isNaN(d.getTime())) {
+                      minutesOpen = Math.max(0, differenceInMinutes(currentTime, d));
+                    }
+                  } catch { }
+                }
                 const bgColor = minutesOpen > 45 ? 'bg-[#d9a036]' : 'bg-[#2e8c56]';
                 const customer = order?.customerId ? customers.find(c => c.id === order.customerId) : null;
                 const custName = customer?.name || order?.customerName || '';
