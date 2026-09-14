@@ -114,34 +114,49 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(() => {
+  const [user, setUserState] = useState<AppUser | null>(() => {
     if (typeof window !== 'undefined') {
       const storedDemo = localStorage.getItem('izyfood_demo_user');
       if (storedDemo) {
         try { return JSON.parse(storedDemo); } catch {}
       }
+      const storedCached = localStorage.getItem('izyfood_cached_user');
+      if (storedCached) {
+        try { return JSON.parse(storedCached); } catch {}
+      }
     }
     return null;
   });
+
   const [loading, setLoading] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const storedDemo = localStorage.getItem('izyfood_demo_user');
-      if (storedDemo) return false;
+      const storedCached = localStorage.getItem('izyfood_cached_user');
+      if (storedDemo || storedCached) return false;
     }
     return true;
   });
 
+  const setUser = (newUser: AppUser | null) => {
+    setUserState(newUser);
+    if (typeof window !== 'undefined') {
+      if (newUser) {
+        localStorage.setItem('izyfood_cached_user', JSON.stringify(newUser));
+      } else {
+        localStorage.removeItem('izyfood_cached_user');
+      }
+    }
+  };
+
   useEffect(() => {
     let active = true;
 
-    // Timeout de segurança reduzido para 800ms (resposta rápida na inicialização)
+    // Safety timer: resolve loading quickly if session check takes time
     const safetyTimer = setTimeout(() => {
       if (active) setLoading(false);
     }, 800);
 
     // Set up auth state listener.
-    // IMPORTANT: never await Supabase calls inside this callback — it runs while
-    // the auth lock is held and any query would deadlock (app trava no loader).
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'INITIAL_SESSION') {
         return;
@@ -163,13 +178,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }, 0);
       } else {
         if (active) {
-          setUser(null);
+          const storedDemo = localStorage.getItem('izyfood_demo_user');
+          if (!storedDemo) {
+            setUser(null);
+          }
           setLoading(false);
         }
       }
     });
 
-    // Check existing session (runs once)
+    // Check existing session (runs once on boot)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         try {
@@ -180,20 +198,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         const storedDemo = localStorage.getItem('izyfood_demo_user');
+        const storedCached = localStorage.getItem('izyfood_cached_user');
         if (storedDemo && active) {
-          try {
-            setUser(JSON.parse(storedDemo));
-          } catch {}
+          try { setUser(JSON.parse(storedDemo)); } catch {}
+        } else if (storedCached && active) {
+          try { setUser(JSON.parse(storedCached)); } catch {}
         }
       }
       if (active) setLoading(false);
     }).catch(err => {
       console.error('[Auth] Erro ao obter sessão inicial:', err);
       const storedDemo = localStorage.getItem('izyfood_demo_user');
+      const storedCached = localStorage.getItem('izyfood_cached_user');
       if (storedDemo && active) {
-        try {
-          setUser(JSON.parse(storedDemo));
-        } catch {}
+        try { setUser(JSON.parse(storedDemo)); } catch {}
+      } else if (storedCached && active) {
+        try { setUser(JSON.parse(storedCached)); } catch {}
       }
       if (active) setLoading(false);
     });
@@ -269,6 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     localStorage.removeItem('izyfood_demo_user');
+    localStorage.removeItem('izyfood_cached_user');
     try {
       await supabase.auth.signOut();
     } catch (err) {

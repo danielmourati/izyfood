@@ -29,11 +29,14 @@ type PermissionKey = keyof AttendantPermissions;
 
 function ProtectedRoute({ children, adminOnly = false, superadminOnly = false, permissionKey }: { children: React.ReactNode; adminOnly?: boolean; superadminOnly?: boolean; permissionKey?: PermissionKey }) {
   const { user, isAdmin } = useAuth();
-  const { permissions } = useAttendantPermissions();
+  const { permissions, loading: permsLoading } = useAttendantPermissions();
   if (!user) return <Navigate to="/login" replace />;
   if (superadminOnly && user.role !== 'superadmin') return <Navigate to={`/${user.tenantSlug}`} replace />;
   // For admin-only routes with a permissionKey, allow if admin OR has permission
   if (adminOnly && !isAdmin) {
+    if (permsLoading) {
+      return <AppSkeleton />;
+    }
     if (!permissionKey || !permissions[permissionKey]) {
       return <Navigate to={`/${user.tenantSlug}`} replace />;
     }
