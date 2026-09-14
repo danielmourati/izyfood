@@ -73,7 +73,9 @@ export function ConsumerItemCustomizeModal({
   const filteredComplements = availableComplements.filter(c => c.name.toLowerCase().includes(compSearch.toLowerCase()));
 
   const toggleObs = (name: string) => {
-    setSelectedObs(prev => (prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]));
+    setSelectedObs(prev =>
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    );
   };
 
   const updateCompQty = (comp: { name: string; price: number }, delta: number) => {
@@ -82,11 +84,11 @@ export function ConsumerItemCustomizeModal({
       if (existing) {
         const newQty = existing.quantity + delta;
         if (newQty <= 0) return prev.filter(c => c.name !== comp.name);
-        return prev.map(c => (c.name === comp.name ? { ...c, quantity: newQty } : c));
-      } else if (delta > 0) {
-        return [...prev, { name: comp.name, price: comp.price, quantity: 1 }];
+        return prev.map(c => c.name === comp.name ? { ...c, quantity: newQty } : c);
+      } else {
+        if (delta <= 0) return prev;
+        return [...prev, { name: comp.name, price: comp.price, quantity: delta }];
       }
-      return prev;
     });
   };
 
@@ -109,78 +111,78 @@ export function ConsumerItemCustomizeModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/75 flex items-center justify-center p-2 sm:p-4 backdrop-blur-xs font-sans">
-      <div className="bg-[#252526] text-white w-full max-w-4xl rounded-md shadow-2xl overflow-hidden border border-[#3c3c3c] flex flex-col h-[90vh] max-h-[700px] animate-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 font-sans">
+      <div className="bg-card text-card-foreground w-full max-w-4xl rounded-md shadow-2xl overflow-hidden border border-border flex flex-col h-[90vh] max-h-[700px] animate-in zoom-in-95 duration-150">
         
         {/* Title Bar */}
-        <div className="bg-[#1e1e1e] px-4 py-2 flex justify-between items-center border-b border-[#333333] shrink-0">
-          <span className="text-sm font-semibold text-gray-200">Personalizar Item</span>
+        <div className="bg-muted/70 px-4 py-2 flex justify-between items-center border-b border-border shrink-0">
+          <span className="text-sm font-bold text-foreground">Personalizar Item</span>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
+            className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Sub-header Bar (Quantity, Item Name, Total Price) */}
-        <div className="bg-[#2b2b2b] px-4 py-3 border-b border-[#383838] flex items-center justify-between shrink-0 gap-4">
+        <div className="bg-muted/30 px-4 py-3 border-b border-border flex items-center justify-between shrink-0 gap-4">
           <div className="flex items-center gap-3">
             {/* Quantity Selector */}
-            <div className="flex items-center bg-[#1e1e1e] border border-[#444444] rounded">
+            <div className="flex items-center bg-background border border-input rounded">
               <button
                 type="button"
                 onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                className="w-8 h-8 flex items-center justify-center text-blue-400 hover:bg-[#333333] font-bold text-lg border-r border-[#444444] transition-colors"
+                className="w-8 h-8 flex items-center justify-center text-primary hover:bg-muted font-bold text-lg border-r border-input transition-colors"
               >
                 <Minus className="h-4 w-4" />
               </button>
-              <span className="w-10 text-center font-bold text-base text-white">{quantity}</span>
+              <span className="w-10 text-center font-bold text-base text-foreground">{quantity}</span>
               <button
                 type="button"
                 onClick={() => setQuantity(q => q + 1)}
-                className="w-8 h-8 flex items-center justify-center text-blue-400 hover:bg-[#333333] font-bold text-lg border-l border-[#444444] transition-colors"
+                className="w-8 h-8 flex items-center justify-center text-primary hover:bg-muted font-bold text-lg border-l border-input transition-colors"
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
 
             {/* Product Title */}
-            <h2 className="text-lg font-bold text-white truncate max-w-md">{product.name}</h2>
+            <h2 className="text-lg font-bold text-foreground truncate max-w-md">{product.name}</h2>
           </div>
 
           {/* Price Tag */}
           <div className="text-right">
-            <span className="text-2xl font-extrabold text-[#38bdf8] drop-shadow-sm">
-              {fmt(totalPrice)}
+            <span className="text-2xl font-extrabold text-primary drop-shadow-sm">
+              R$ {fmt(totalPrice)}
             </span>
           </div>
         </div>
 
         {/* Body Split (2 Columns) */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#383838] overflow-hidden bg-[#222222]">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border overflow-hidden bg-background">
           
           {/* Left Column: Observações */}
-          <div className="flex flex-col h-full overflow-hidden p-3 bg-[#242424]">
-            <h3 className="text-sm font-bold text-gray-200 mb-2 flex items-center gap-2">
+          <div className="flex flex-col h-full overflow-hidden p-3 bg-muted/10">
+            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
               Observações
             </h3>
 
             {/* Search Bar */}
             <div className="relative mb-3 shrink-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Pesquisar aqui..."
+                placeholder="Pesquisar observações..."
                 value={obsSearch}
                 onChange={e => setObsSearch(e.target.value)}
-                className="pl-8 h-8 text-xs bg-[#1e1e1e] border-[#3a3a3a] text-gray-200 placeholder:text-gray-500 focus-visible:ring-blue-500"
+                className="pl-8 h-8 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
               />
             </div>
 
             {/* Checkbox List */}
-            <div className="flex-1 overflow-y-auto space-y-1 pr-1 border border-[#333333] rounded bg-[#1e1e1e] p-2 mb-3">
+            <div className="flex-1 overflow-y-auto space-y-1 pr-1 border border-border rounded bg-background p-2 mb-3">
               {filteredNotes.length === 0 ? (
-                <p className="text-xs text-gray-500 italic p-3 text-center">Nenhuma observação cadastrada</p>
+                <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhuma observação cadastrada</p>
               ) : (
                 filteredNotes.map(obs => {
                   const isChecked = selectedObs.includes(obs.name);
@@ -188,16 +190,16 @@ export function ConsumerItemCustomizeModal({
                     <label
                       key={obs.id}
                       onClick={() => toggleObs(obs.name)}
-                      className={`flex items-center gap-3 p-2 rounded cursor-pointer text-xs font-medium transition-colors border ${
+                      className={`flex items-center gap-3 p-2 rounded cursor-pointer text-xs font-semibold transition-colors border ${
                         isChecked
-                          ? 'bg-[#1d4ed8]/30 border-blue-500 text-white'
-                          : 'bg-[#282828] border-transparent hover:bg-[#333333] text-gray-300'
+                          ? 'bg-primary/15 border-primary text-foreground'
+                          : 'bg-card border-border/60 hover:bg-muted text-foreground'
                       }`}
                     >
                       <Checkbox
                         checked={isChecked}
                         onCheckedChange={() => toggleObs(obs.name)}
-                        className="border-gray-500 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                       />
                       <span>{obs.name}</span>
                     </label>
@@ -212,32 +214,32 @@ export function ConsumerItemCustomizeModal({
                 placeholder="Digite aqui outras observações..."
                 value={otherNotes}
                 onChange={e => setOtherNotes(e.target.value)}
-                className="h-9 text-xs bg-[#1e1e1e] border-[#3a3a3a] text-gray-200 placeholder:text-gray-500 focus-visible:ring-blue-500"
+                className="h-9 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
               />
             </div>
           </div>
 
           {/* Right Column: Complementos */}
-          <div className="flex flex-col h-full overflow-hidden p-3 bg-[#242424]">
-            <h3 className="text-sm font-bold text-gray-200 mb-2 flex items-center gap-2">
+          <div className="flex flex-col h-full overflow-hidden p-3 bg-muted/10">
+            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
               Complementos
             </h3>
 
             {/* Search Bar */}
             <div className="relative mb-3 shrink-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Pesquisar aqui..."
+                placeholder="Pesquisar complementos..."
                 value={compSearch}
                 onChange={e => setCompSearch(e.target.value)}
-                className="pl-8 h-8 text-xs bg-[#1e1e1e] border-[#3a3a3a] text-gray-200 placeholder:text-gray-500 focus-visible:ring-blue-500"
+                className="pl-8 h-8 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
               />
             </div>
 
             {/* Complements List */}
-            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 border border-[#333333] rounded bg-[#1e1e1e] p-2">
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 border border-border rounded bg-background p-2">
               {filteredComplements.length === 0 ? (
-                <p className="text-xs text-gray-500 italic p-3 text-center">Nenhum complemento disponível</p>
+                <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhum complemento disponível</p>
               ) : (
                 filteredComplements.map(comp => {
                   const qty = getCompQty(comp.name);
@@ -245,28 +247,28 @@ export function ConsumerItemCustomizeModal({
                     <div
                       key={comp.id}
                       className={`flex justify-between items-center p-2 rounded text-xs border transition-colors ${
-                        qty > 0 ? 'bg-[#1e293b] border-blue-500/50' : 'bg-[#282828] border-transparent'
+                        qty > 0 ? 'bg-primary/10 border-primary/50' : 'bg-card border-border/60 hover:bg-muted'
                       }`}
                     >
-                      <span className="font-semibold text-gray-200 truncate max-w-[200px]">
-                        {comp.name} {comp.price > 0 ? `(${fmt(comp.price)})` : ''}
+                      <span className="font-semibold text-foreground truncate max-w-[200px]">
+                        {comp.name} {comp.price > 0 ? `(R$ ${fmt(comp.price)})` : ''}
                       </span>
 
                       {/* Quantity Selector */}
-                      <div className="flex items-center bg-[#18181b] border border-[#3f3f46] rounded">
+                      <div className="flex items-center bg-background border border-input rounded">
                         <button
                           type="button"
                           onClick={() => updateCompQty(comp, -1)}
                           disabled={qty <= 0}
-                          className="w-7 h-7 flex items-center justify-center text-blue-400 hover:bg-[#333333] disabled:opacity-30 disabled:hover:bg-transparent font-bold border-r border-[#3f3f46]"
+                          className="w-7 h-7 flex items-center justify-center text-primary hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent font-bold border-r border-input"
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="w-8 text-center font-bold text-gray-200">{qty}</span>
+                        <span className="w-8 text-center font-bold text-foreground">{qty}</span>
                         <button
                           type="button"
                           onClick={() => updateCompQty(comp, 1)}
-                          className="w-7 h-7 flex items-center justify-center text-blue-400 hover:bg-[#333333] font-bold border-l border-[#3f3f46]"
+                          className="w-7 h-7 flex items-center justify-center text-primary hover:bg-muted font-bold border-l border-input"
                         >
                           <Plus className="h-3 w-3" />
                         </button>
@@ -280,18 +282,18 @@ export function ConsumerItemCustomizeModal({
         </div>
 
         {/* Footer Action Buttons */}
-        <div className="bg-[#1e1e1e] p-3 border-t border-[#333333] flex justify-between items-center shrink-0">
+        <div className="bg-muted/60 p-3 border-t border-border flex justify-between items-center shrink-0">
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={onClose}
-            className="text-gray-400 hover:text-white hover:bg-[#2e2e2e] text-xs h-9 px-4 flex items-center gap-1.5 font-medium"
+            className="bg-secondary hover:bg-secondary/80 text-secondary-foreground text-xs h-9 px-4 flex items-center gap-1.5 font-bold border-border"
           >
             <ChevronLeft className="h-4 w-4" /> Cancelar
           </Button>
 
           <Button
             onClick={handleSave}
-            className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs h-9 px-5 flex items-center gap-2 font-bold shadow-md active:scale-95 transition-all"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-9 px-5 flex items-center gap-2 font-bold shadow-md active:scale-95 transition-all"
           >
             <Check className="h-4 w-4 stroke-[3]" /> Adicionar Item
           </Button>
