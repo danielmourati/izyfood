@@ -433,14 +433,14 @@ export function ConsumerOrderModal({
           {/* Top Inside Control Bar */}
           <div className="bg-muted/30 px-4 py-2.5 border-b border-border flex items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3">
-              {/* Green Table/Badge Icon */}
-              <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 px-1">
+              {/* Table Number Icon */}
+              <div className={`text-2xl font-black px-1 ${isLocked ? 'text-[#d9a036]' : 'text-emerald-600 dark:text-emerald-400'}`}>
                 {String(displayMesaNum).padStart(2, '0')}
               </div>
 
               {/* Status Badge */}
-              <span className="bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded">
-                Em Aberto
+              <span className={`text-white text-xs font-bold px-3 py-1 rounded transition-colors ${isLocked ? 'bg-[#d9a036]' : 'bg-emerald-600'}`}>
+                {isLocked ? 'Bloqueado' : 'Em Aberto'}
               </span>
 
               <span className="text-sm font-bold text-foreground opacity-90">
