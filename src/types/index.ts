@@ -136,6 +136,7 @@ export interface User {
 export interface PaymentSplit {
   method: PaymentMethod;
   amount: number;
+  notes?: string;
 }
 
 export interface DiscountCoupon {

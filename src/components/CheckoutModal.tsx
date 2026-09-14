@@ -254,8 +254,9 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     const newCust: Customer = {
       id: newId,
       name: newCustName.trim(),
-      phone: newCustPhone.trim() || undefined,
-      address: newCustAddress.trim() || undefined,
+      phone: newCustPhone.trim() || '',
+      address: newCustAddress.trim() || '',
+      notes: '',
       creditBalance: 0,
       loyaltyPoints: 0,
     };

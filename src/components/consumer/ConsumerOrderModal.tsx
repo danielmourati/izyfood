@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle, Check, LockKeyhole } from 'lucide-react';
-import { Order, OrderItem, Product, TableInfo } from '@/types';
+import { Order, OrderItem, OrderType, Product, TableInfo } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -372,7 +372,7 @@ export function ConsumerOrderModal({
     setMoreOptionsOpen(false);
   };
 
-  const handleChangeOrderType = (newType: 'mesa' | 'balcao' | 'caixa' | 'delivery') => {
+  const handleChangeOrderType = (newType: OrderType) => {
     const updatedOrder: Order = { ...currentOrder, orderType: newType };
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
@@ -910,10 +910,10 @@ export function ConsumerOrderModal({
 
             <button
               type="button"
-              onClick={() => handleChangeOrderType('caixa')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'caixa' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
+              onClick={() => handleChangeOrderType('retirada')}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'retirada' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
             >
-              Pedido no Caixa
+              Retirada {currentOrder.orderType === 'retirada' ? '(Atual)' : ''}
             </button>
 
             <button
