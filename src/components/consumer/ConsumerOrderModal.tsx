@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle, Check, LockKeyhole } from 'lucide-react';
-import { Order, OrderItem, Product, TableInfo } from '@/types';
+import { Order, OrderItem, OrderType, Product, TableInfo } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
