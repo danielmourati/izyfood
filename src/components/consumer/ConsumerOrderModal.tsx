@@ -366,7 +366,7 @@ export function ConsumerOrderModal({
     setMoreOptionsOpen(false);
   };
 
-  const handleChangeOrderType = (newType: 'mesa' | 'balcao' | 'caixa' | 'delivery') => {
+  const handleChangeOrderType = (newType: OrderType) => {
     const updatedOrder: Order = { ...currentOrder, orderType: newType };
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
@@ -896,10 +896,10 @@ export function ConsumerOrderModal({
 
             <button
               type="button"
-              onClick={() => handleChangeOrderType('caixa')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'caixa' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
+              onClick={() => handleChangeOrderType('retirada')}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'retirada' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
             >
-              Pedido no Caixa
+              Retirada {currentOrder.orderType === 'retirada' ? '(Atual)' : ''}
             </button>
 
             <button

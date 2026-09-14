@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/contexts/StoreContext';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
 import { CashRegister } from '@/types';
+import { logAudit } from '@/lib/audit';
 import { CashRegisterReceipt } from '@/components/CashRegisterReceipt';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
