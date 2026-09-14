@@ -541,6 +541,7 @@ const PDV = () => {
           setCart(updatedOrder.items);
         }}
         onPrintOrder={handleSendAndHold}
+        onPrintBill={handlePrintBill}
       />
     );
   }

@@ -15,7 +15,7 @@ import { Order } from '@/types';
 const Mesas = () => {
   const { tables, setTables, orders, setOrders, customers } = useStore();
   const { user } = useAuth();
-  const { printOrder } = usePrinter();
+  const { printOrder, printBill } = usePrinter();
   const navigate = useTenantNavigate();
   const [transferModal, setTransferModal] = useState<{ open: boolean; fromTable: number | null }>({ open: false, fromTable: null });
   const [mergeModal, setMergeModal] = useState<{ open: boolean; sourceTable: number | null }>({ open: false, sourceTable: null });
@@ -83,12 +83,21 @@ const Mesas = () => {
     }
   };
 
-  const handlePrintConsumerOrder = async (orderToPrint: Order) => {
+  const handlePrintConsumerKitchen = async (orderToPrint: Order) => {
     try {
       await printOrder(orderToPrint);
-      toast.success('Comanda impressa!');
-    } catch (err) {
-      toast.error('Erro ao imprimir comanda.');
+      toast.success('Comanda enviada para a Cozinha!');
+    } catch (err: any) {
+      toast.error('Erro ao imprimir comanda da cozinha.');
+    }
+  };
+
+  const handlePrintConsumerBill = async (orderToPrint: Order) => {
+    try {
+      await printBill(orderToPrint);
+      toast.success('Conta do cliente enviada para impressão!');
+    } catch (err: any) {
+      toast.error('Erro ao imprimir conta: ' + (err?.message || 'Verifique a impressora'));
     }
   };
 
@@ -326,7 +335,8 @@ const Mesas = () => {
         tableNumber={consumerOrderModal.tableNumber}
         order={consumerOrderModal.order}
         onSaveOrder={handleSaveConsumerOrder}
-        onPrintOrder={handlePrintConsumerOrder}
+        onPrintOrder={handlePrintConsumerKitchen}
+        onPrintBill={handlePrintConsumerBill}
         onDiscardEmptyOrder={handleDiscardEmptyOrder}
         onDeleteOrder={handleDeleteConsumerOrder}
       />

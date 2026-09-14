@@ -22,6 +22,7 @@ interface ConsumerOrderModalProps {
   order: Order | null;
   onSaveOrder: (updatedOrder: Order) => void;
   onPrintOrder?: (order: Order) => void;
+  onPrintBill?: (order: Order) => void;
   onDiscardEmptyOrder?: (orderId: string, tableNumber?: number) => void;
   onDeleteOrder?: (orderId: string, tableNumber?: number) => void;
 }
@@ -33,6 +34,7 @@ export function ConsumerOrderModal({
   order,
   onSaveOrder,
   onPrintOrder,
+  onPrintBill,
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
@@ -278,14 +280,22 @@ export function ConsumerOrderModal({
 
   // Handlers for Print Menu (Anexo 1)
   const handlePrintAccount = () => {
-    if (onPrintOrder) onPrintOrder(currentOrder);
+    if (onPrintBill) {
+      onPrintBill(currentOrder);
+    } else if (onPrintOrder) {
+      onPrintBill ? onPrintBill(currentOrder) : onPrintOrder(currentOrder);
+    }
     toast.success('Imprimindo Conta do Cliente...');
     setPrintMenuOpen(false);
   };
 
   const handlePrintAccountAndLock = () => {
     setIsLocked(true);
-    if (onPrintOrder) onPrintOrder(currentOrder);
+    if (onPrintBill) {
+      onPrintBill(currentOrder);
+    } else if (onPrintOrder) {
+      onPrintOrder(currentOrder);
+    }
     toast.success('Conta impressa e pedido bloqueado!');
     setPrintMenuOpen(false);
   };
