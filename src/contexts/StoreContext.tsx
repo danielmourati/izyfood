@@ -179,6 +179,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
         }
         setTables(uniqueTbls.map(dbToTable));
+      } else {
+        setTables(Array.from({ length: 20 }, (_, i) => ({
+          number: i + 1,
+          status: 'available' as const,
+        })));
       }
       if (cpns) setCoupons(cpns.map(dbToCoupon));
       if (opts) setNoteOptions(opts.map(dbToNoteOption));

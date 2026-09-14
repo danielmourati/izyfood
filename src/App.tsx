@@ -112,6 +112,8 @@ function AppRoutes() {
   );
 }
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
 const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:';
 const RouterComponent = isDesktopApp() || isFileProtocol ? HashRouter : BrowserRouter;
 
@@ -122,7 +124,9 @@ const App = () => (
         <RouterComponent>
           <AuthProvider>
             <StoreProvider>
-              <AppRoutes />
+              <ErrorBoundary>
+                <AppRoutes />
+              </ErrorBoundary>
             </StoreProvider>
           </AuthProvider>
         </RouterComponent>

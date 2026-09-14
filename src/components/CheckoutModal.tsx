@@ -9,7 +9,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Order, PaymentMethod, PaymentSplit } from '@/types';
 import { fmt } from '@/lib/utils';
-import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle, ExternalLink, ChevronDown, ChevronUp, Printer, Info, CheckCircle2, ChevronLeft, ShoppingBag } from 'lucide-react';
+import { CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign, Ticket, Star, AlertTriangle, ExternalLink, ChevronDown, ChevronUp, Printer, Info, CheckCircle2, ChevronLeft, ShoppingBag, X } from 'lucide-react';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { toast } from 'sonner';
 

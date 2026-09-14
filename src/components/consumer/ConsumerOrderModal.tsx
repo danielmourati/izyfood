@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -118,8 +118,6 @@ export function ConsumerOrderModal({
     finderOpen, customizeOpen, customerModalOpen, checkoutOpen,
     printMenuOpen, changeTypeOpen, deleteConfirmOpen, moreOptionsOpen
   ]);
-
-  if (!open || !currentOrder) return null;
 
   const filteredItems = items.filter(i =>
     i.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
@@ -380,6 +378,8 @@ export function ConsumerOrderModal({
 
   const displayMesaNum = currentOrder?.tableNumber || tableNumber || 1;
   const shortOrderId = currentOrder?.id ? currentOrder.id.slice(0, 4) : '0000';
+
+  if (!open || !currentOrder) return null;
 
   return (
     <>
