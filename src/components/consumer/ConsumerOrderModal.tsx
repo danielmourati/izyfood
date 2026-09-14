@@ -6,6 +6,7 @@ import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edi
 import { Order, OrderItem, Product, TableInfo } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ConsumerProductFinderModal } from './ConsumerProductFinderModal';
 import { ConsumerItemCustomizeModal } from './ConsumerItemCustomizeModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
@@ -55,6 +56,8 @@ export function ConsumerOrderModal({
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [changeTypeOpen, setChangeTypeOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [reprintModalOpen, setReprintModalOpen] = useState(false);
+  const [reprintSelectedIds, setReprintSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (open && order) {
@@ -67,7 +70,7 @@ export function ConsumerOrderModal({
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
 
-  // Centralized close handler: Auto-saves & prints to kitchen if items exist, or discards if empty
+  // Centralized close handler: Auto-saves & prints ONLY NEW ITEMS to kitchen if items exist, or discards if empty
   const handleCloseAndSaveOrDiscard = () => {
     if (!currentOrder) {
       onClose();
@@ -77,11 +80,18 @@ export function ConsumerOrderModal({
     const hasItems = items.length > 0 && totalAmount > 0;
 
     if (hasItems) {
-      onSaveOrder(currentOrder);
-      if (onPrintOrder) {
-        onPrintOrder(currentOrder);
+      const unprintedItems = items.filter(i => !i.printed);
+      const updatedItems = items.map(i => ({ ...i, printed: true }));
+      const updatedOrder: Order = { ...currentOrder, items: updatedItems };
+
+      onSaveOrder(updatedOrder);
+
+      if (onPrintOrder && unprintedItems.length > 0) {
+        onPrintOrder({ ...updatedOrder, items: unprintedItems });
+        toast.success(`${unprintedItems.length} item(ns) novo(s) impresso(s) na cozinha!`);
+      } else {
+        toast.success('Pedido salvo com sucesso!');
       }
-      toast.success('Pedido salvo e enviado para a cozinha!');
     } else {
       if (onDiscardEmptyOrder) {
         onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
@@ -281,23 +291,25 @@ export function ConsumerOrderModal({
   };
 
   const handlePrintKitchenNew = () => {
-    if (unprintedCount === 0) {
+    const unprintedItems = items.filter(i => !i.printed);
+    if (unprintedItems.length === 0) {
       toast.info('Não há itens novos para imprimir na Cozinha.');
+      setPrintMenuOpen(false);
       return;
     }
     const updatedItems = items.map(i => ({ ...i, printed: true }));
     const updatedOrder: Order = { ...currentOrder, items: updatedItems };
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
-    if (onPrintOrder) onPrintOrder(updatedOrder);
-    toast.success('Itens novos enviados e impressos na cozinha!');
+    if (onPrintOrder) onPrintOrder({ ...updatedOrder, items: unprintedItems });
+    toast.success(`${unprintedItems.length} item(ns) novo(s) impresso(s) na cozinha!`);
     setPrintMenuOpen(false);
   };
 
   const handleReprintKitchen = () => {
-    if (onPrintOrder) onPrintOrder(currentOrder);
-    toast.success('Cozinha: Reimpressão enviada com sucesso!');
     setPrintMenuOpen(false);
+    setReprintSelectedIds(items.map(i => i.id));
+    setReprintModalOpen(true);
   };
 
   // Actions for "Mais Opções"
@@ -580,7 +592,14 @@ export function ConsumerOrderModal({
                             {item.quantity}x
                           </td>
                           <td className="py-3 px-3">
-                            <div className="font-bold text-foreground text-sm">{item.name}</div>
+                            <div className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                              <span>{item.name}</span>
+                              {item.printed && (
+                                <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold shadow-2xs">
+                                  <Printer className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> Impresso
+                                </span>
+                              )}
+                            </div>
 
                             {/* Complements & Notes Detail */}
                             {item.selectedComplements && item.selectedComplements.length > 0 && (
@@ -656,8 +675,19 @@ export function ConsumerOrderModal({
 
                   {/* PAGAMENTO Button */}
                   <Button
-                    onClick={() => setCheckoutOpen(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white h-11 px-6 text-sm font-extrabold flex items-center gap-2 shadow-lg tracking-wider active:scale-95 transition-all"
+                    onClick={() => {
+                      if (items.length === 0 || totalAmount <= 0) {
+                        toast.error('Adicione produtos ao pedido antes de efetuar o pagamento.');
+                        return;
+                      }
+                      setCheckoutOpen(true);
+                    }}
+                    disabled={items.length === 0 || totalAmount <= 0}
+                    className={`h-11 px-6 text-sm font-extrabold flex items-center gap-2 shadow-lg tracking-wider transition-all ${
+                      items.length > 0 && totalAmount > 0
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95 cursor-pointer'
+                        : 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border'
+                    }`}
                   >
                     <CreditCard className="h-5 w-5" /> PAGAMENTO
                   </Button>
@@ -912,6 +942,107 @@ export function ConsumerOrderModal({
               Sim, Excluir Pedido
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reimprimir na Cozinha - Item Selection Dialog */}
+      <Dialog open={reprintModalOpen} onOpenChange={setReprintModalOpen}>
+        <DialogContent className="bg-card text-card-foreground border-border max-w-md p-4 font-sans shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <Printer className="h-4 w-4 text-primary" />
+              Reimprimir na Cozinha — Selecionar Itens
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            {/* Select All Toggle Bar */}
+            <div className="flex items-center justify-between p-2.5 bg-muted/50 rounded border border-border font-bold">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <Checkbox
+                  checked={items.length > 0 && reprintSelectedIds.length === items.length}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setReprintSelectedIds(items.map(i => i.id));
+                    } else {
+                      setReprintSelectedIds([]);
+                    }
+                  }}
+                />
+                <span>Selecionar Todos ({reprintSelectedIds.length}/{items.length})</span>
+              </label>
+              <span className="text-[11px] text-muted-foreground font-normal">
+                {reprintSelectedIds.length} selecionado(s)
+              </span>
+            </div>
+
+            {/* Items List with Individual Checkboxes */}
+            <div className="max-h-60 overflow-y-auto space-y-1.5 border border-border rounded p-2 bg-background">
+              {items.map(item => {
+                const isChecked = reprintSelectedIds.includes(item.id);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      setReprintSelectedIds(prev =>
+                        prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]
+                      );
+                    }}
+                    className={`p-2.5 rounded border transition-colors cursor-pointer flex items-center justify-between ${
+                      isChecked ? 'bg-primary/10 border-primary/40 font-semibold' : 'bg-card border-border/70 hover:bg-muted'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => {}}
+                      />
+                      <div>
+                        <div className="font-bold text-foreground">
+                          {item.quantity}x {item.name}
+                        </div>
+                        {item.notes && <p className="text-[10px] text-amber-600 dark:text-amber-400">Obs: {item.notes}</p>}
+                      </div>
+                    </div>
+
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                      item.printed ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-muted text-muted-foreground border-border'
+                    }`}>
+                      {item.printed ? 'Impresso' : 'Novo'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 h-9 text-xs font-bold"
+                onClick={() => setReprintModalOpen(false)}
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                disabled={reprintSelectedIds.length === 0}
+                onClick={() => {
+                  const itemsToReprint = items.filter(i => reprintSelectedIds.includes(i.id));
+                  if (onPrintOrder) {
+                    onPrintOrder({ ...currentOrder, items: itemsToReprint });
+                  }
+                  toast.success(`${itemsToReprint.length} item(ns) enviado(s) para reimpressão na cozinha!`);
+                  setReprintModalOpen(false);
+                }}
+                className="flex-1 h-9 text-xs font-bold bg-primary text-primary-foreground gap-1.5 shadow-xs"
+              >
+                <Printer className="h-3.5 w-3.5" /> Reimprimir ({reprintSelectedIds.length})
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
