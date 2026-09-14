@@ -58,11 +58,7 @@ const Mesas = () => {
       ));
     }
 
-    if (isQuintalDeCasa) {
-      setConsumerOrderModal({ open: true, order: targetOrder, tableNumber: tableNum });
-    } else {
-      navigate(`/pdv?mesa=${tableNum}&pedido=${targetOrder.id}`);
-    }
+    setConsumerOrderModal({ open: true, order: targetOrder, tableNumber: tableNum });
   };
 
   const handleSaveConsumerOrder = (updatedOrder: Order) => {

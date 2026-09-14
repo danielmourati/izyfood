@@ -90,7 +90,18 @@ const PDV = () => {
         setMobileView('cart');
       }
     } else if (pedidoParam) {
-      // Wait for realtime
+      const order: Order = {
+        id: pedidoParam,
+        items: [],
+        total: 0,
+        orderType: tableNumber ? 'mesa' : (tipoParam && ['mesa','balcao','delivery','retirada'].includes(tipoParam) ? tipoParam : 'balcao'),
+        status: 'aberto',
+        tableNumber,
+        createdAt: new Date().toISOString(),
+      };
+      setOrders(prev => [...prev.filter(o => o.id !== pedidoParam), order]);
+      setCurrentOrderId(pedidoParam as any);
+      setInitialized(true);
     } else {
       const newId = currentOrderId;
       const newOrderType: OrderType = tableNumber ? 'mesa' : (tipoParam && ['mesa','balcao','delivery','retirada'].includes(tipoParam) ? tipoParam : 'balcao');

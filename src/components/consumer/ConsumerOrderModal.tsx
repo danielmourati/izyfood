@@ -318,8 +318,8 @@ export function ConsumerOrderModal({
   };
 
   const handleSendWhatsApp = () => {
-    const phone = currentOrder.customerPhone || '5500000000000';
-    let text = `*PEDIDO #${currentOrder.id.slice(0, 4)}*\n`;
+    const phone = currentOrder?.customerPhone || '5500000000000';
+    let text = `*PEDIDO #${currentOrder?.id ? currentOrder.id.slice(0, 4) : ''}*\n`;
     text += `Mesa/Comanda: ${currentOrder.tableNumber || tableNumber || 1}\n\n`;
     text += `*ITENS:*\n`;
     items.forEach(i => {
@@ -371,8 +371,8 @@ export function ConsumerOrderModal({
     ? format(new Date(currentOrder.createdAt), "dd-MM 'às' HH:mm")
     : format(new Date(), "dd-MM 'às' HH:mm");
 
-  const displayMesaNum = currentOrder.tableNumber || tableNumber || 1;
-  const shortOrderId = currentOrder.id.slice(0, 4);
+  const displayMesaNum = currentOrder?.tableNumber || tableNumber || 1;
+  const shortOrderId = currentOrder?.id ? currentOrder.id.slice(0, 4) : '0000';
 
   return (
     <>
