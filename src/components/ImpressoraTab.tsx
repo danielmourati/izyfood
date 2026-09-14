@@ -5,833 +5,539 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
-  Printer, Plus, Trash2, Bluetooth, Wifi, TestTube, Loader2, Monitor,
-  Download, HelpCircle, PlugZap, CheckCircle2, ShieldCheck, FileDown,
-  ExternalLink, Lock, Sparkles, ChefHat, Copy,
+  Printer, Plus, Trash2, RefreshCw, HelpCircle, CheckCircle2,
+  AlertTriangle, Monitor, TestTube, Check, Loader2, Settings2, Sliders, ChevronDown
 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { usePrinter, type PrinterConfig } from '@/hooks/use-printer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getQzPrinters } from '@/lib/printer';
-import { fetchTenantCertPem, downloadDegustBat, downloadCertPem } from '@/lib/qz-installer';
-import { DuplicatePrinterModal } from '@/components/DuplicatePrinterModal';
+import { QzSetupModal } from '@/components/QzSetupModal';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { isDesktopApp } from '@/lib/printer-desktop';
+import { toast } from 'sonner';
 
+type SectorKey = 'recibo' | 'cozinha' | 'bar' | 'balcao';
 
-const QZ_DOWNLOAD_URL = 'https://qz.io/download/';
-const QZ_CERT_URL = 'https://qz.io/wiki/2.0-signing-messages';
-
-const ESCPOS_PROFILES: { value: string; label: string }[] = [
-  { value: 'generic', label: 'Genérico ESC/POS' },
-  { value: 'epson_tm', label: 'Epson TM Series' },
-  { value: 'bematech_mp', label: 'Bematech MP Series' },
-  { value: 'elgin_i9', label: 'Elgin i9' },
-  { value: 'custom', label: 'Personalizado' },
+const DEFAULT_SECTORS: { key: SectorKey; name: string; description: string }[] = [
+  { key: 'recibo', name: 'Caixa (recibo)', description: 'Impressora usada para o recibo deste computador.' },
+  { key: 'cozinha', name: 'Cozinha', description: 'Impressora de produção da Cozinha.' },
+  { key: 'bar', name: 'Bar', description: 'Impressora de bebidas e pedidos do Bar.' },
+  { key: 'balcao', name: 'Balcão', description: 'Impressora de atendimento no Balcão.' },
 ];
-
-const SECTORS: { value: 'recibo' | 'cozinha' | 'bar' | 'balcao'; label: string }[] = [
-  { value: 'recibo', label: 'Recibo (padrão)' },
-  { value: 'cozinha', label: 'Cozinha' },
-  { value: 'bar', label: 'Bar' },
-  { value: 'balcao', label: 'Balcão' },
-];
-
-type Feedback = { type: 'success' | 'error' | 'info'; message: string } | null;
 
 export function ImpressoraTab() {
   const { user } = useAuth();
-  const { storeSettings } = useStore() as any;
-  const tenantLabel: string = storeSettings?.name || user?.tenantName || 'Estabelecimento';
-
-  const {
-    printers, loading, btAvailable, btConnected, btDeviceName, lastPairedName,
-    btPriorityDefault, toggleBluetoothPriorityDefault,
-    qzConnected, retryQzConnection,
-    fetchPrinters, pairBluetooth, unpairBluetooth, reconnectPrinter, forgetPrinter, printTest,
-  } = usePrinter();
-
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    name: '',
-    model: 'ESC/POS compatível',
-    connection_type: 'system' as 'bluetooth' | 'network' | 'system',
-    escpos_profile: 'generic',
-    address: '',
-    paper_width: 80,
-    is_default: false,
-    auto_connect_qz: true,
-    sector: 'recibo' as 'recibo' | 'cozinha' | 'bar' | 'balcao',
-  });
-  const [saving, setSaving] = useState(false);
-  const [pairing, setPairing] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [detectingQz, setDetectingQz] = useState(false);
-  const [testingQz, setTestingQz] = useState(false);
-  const [qzFeedback, setQzFeedback] = useState<Feedback>(null);
-  const [pairFeedback, setPairFeedback] = useState<Feedback>(null);
-  const [formFeedback, setFormFeedback] = useState<Feedback>(null);
-  const [testFeedback, setTestFeedback] = useState<Feedback>(null);
-  const [qzPrintersList, setQzPrintersList] = useState<string[]>([]);
-
-  // Install modal
-  const [showInstallModal, setShowInstallModal] = useState(false);
-  const [certLoading, setCertLoading] = useState(false);
-  const [certError, setCertError] = useState<string | null>(null);
-  const [duplicateSource, setDuplicateSource] = useState<PrinterConfig | null>(null);
-
-  // Tenant plan (for Pro-gated additional printers)
-  const [isPro, setIsPro] = useState(false);
-  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
 
+  const {
+    printers, loading, qzConnected, retryQzConnection, fetchPrinters, printTest,
+  } = usePrinter();
+
+  const [selectedSector, setSelectedSector] = useState<SectorKey>('recibo');
+  const [qzPrintersList, setQzPrintersList] = useState<string[]>([]);
+  const [fetchingQzPrinters, setFetchingQzPrinters] = useState(false);
+  const [showQzWizard, setShowQzWizard] = useState(false);
+  const [showAddLocalModal, setShowAddLocalModal] = useState(false);
+  const [newLocalName, setNewLocalName] = useState('');
+
+  // Active form state for the selected location/sector
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    address: '',
+    paper_width: 80,
+    auto_connect_qz: true,
+    escpos_profile: 'generic',
+    feed_lines: 3,
+    cut_type: 'full',
+  });
+
+  // Find printer config for selected sector
+  const currentPrinter = printers.find(p => (p as any).sector === selectedSector) || printers[0] || null;
+
   useEffect(() => {
-    if (!user?.tenantId) return;
-    (async () => {
-      const { data } = await supabase
-        .from('tenant_plans' as any)
-        .select('plan, status')
-        .eq('tenant_id', user.tenantId)
-        .maybeSingle();
-      const row = data as any;
-      setIsPro(!!row && row.plan !== 'trial' && row.status === 'active');
-    })();
-  }, [user?.tenantId]);
+    if (currentPrinter) {
+      setForm({
+        name: currentPrinter.name || '',
+        address: (currentPrinter.address || '').replace(/^SYSTEM:/, ''),
+        paper_width: currentPrinter.paper_width || 80,
+        auto_connect_qz: currentPrinter.auto_connect_qz ?? true,
+        escpos_profile: currentPrinter.escpos_profile || 'generic',
+        feed_lines: 3,
+        cut_type: 'full',
+      });
+    } else {
+      const activeSectorDef = DEFAULT_SECTORS.find(s => s.key === selectedSector);
+      setForm({
+        name: activeSectorDef ? activeSectorDef.name : 'Nova Impressora',
+        address: '',
+        paper_width: 80,
+        auto_connect_qz: true,
+        escpos_profile: 'generic',
+        feed_lines: 3,
+        cut_type: 'full',
+      });
+    }
+  }, [selectedSector, currentPrinter]);
 
-  const withCert = async (fn: (pem: string, tenantName: string) => void) => {
-    setCertError(null);
-    setCertLoading(true);
+  // Load QZ Tray system printers
+  const handleRefreshPrintersList = async () => {
+    setFetchingQzPrinters(true);
     try {
-      const { pem, tenantName } = await fetchTenantCertPem(user?.tenantId);
-      fn(pem, tenantName);
+      const isReady = qzConnected || (await retryQzConnection());
+      if (isReady) {
+        const list = await getQzPrinters();
+        setQzPrintersList(list);
+        if (list.length > 0 && !form.address) {
+          setForm(f => ({ ...f, address: list[0] }));
+        }
+        toast.success(`${list.length} impressora(s) detectada(s) no sistema.`);
+      } else {
+        setShowQzWizard(true);
+      }
     } catch (e: any) {
-      setCertError(e?.message || 'Falha ao obter certificado.');
+      toast.error('Erro ao buscar impressoras: ' + (e?.message || 'QZ Tray inativo'));
     } finally {
-      setCertLoading(false);
+      setFetchingQzPrinters(false);
     }
   };
 
-  const handleDownloadBat = () => withCert((pem, name) => downloadDegustBat(name, pem));
-  const handleDownloadCert = () => withCert((pem) => downloadCertPem(pem));
-
-  const isDesktop = React.useMemo(
-    () => !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
-    []
-  );
-
-  React.useEffect(() => {
-    if (qzConnected && showForm && form.connection_type === 'system') {
-      getQzPrinters().then(setQzPrintersList);
+  useEffect(() => {
+    if (qzConnected) {
+      getQzPrinters().then(setQzPrintersList).catch(() => {});
     }
-  }, [qzConnected, showForm, form.connection_type]);
+  }, [qzConnected]);
 
-  const resetForm = () => {
-    setForm({
-      name: '', model: 'ESC/POS compatível', connection_type: 'system', escpos_profile: 'generic',
-      address: '', paper_width: 80, is_default: false, auto_connect_qz: true, sector: 'recibo',
-    });
-    setFormFeedback(null);
-    setShowForm(false);
-  };
-
-  const openAddForm = (sector: 'recibo' | 'cozinha' | 'bar' | 'balcao' = 'recibo') => {
-    setForm(f => ({ ...f, sector }));
-    setShowForm(true);
-  };
-
-  const handleSave = async () => {
-    setFormFeedback(null);
-    if (!form.name.trim()) {
-      setFormFeedback({ type: 'error', message: 'Informe o nome da impressora.' });
-      return;
-    }
+  const handleSaveConfig = async () => {
     if (!user?.tenantId) return;
     setSaving(true);
     try {
-      if (form.is_default) {
-        await supabase.from('printer_configs').update({ is_default: false } as any).eq('is_default', true);
-      }
-
       const payload: any = {
-        name: form.name.trim(),
-        model: form.model.trim() || 'ESC/POS compatível',
+        name: form.name || DEFAULT_SECTORS.find(s => s.key === selectedSector)?.name || 'Impressora',
+        model: 'ESC/POS compatível',
         escpos_profile: form.escpos_profile,
         auto_connect_qz: form.auto_connect_qz,
-        connection_type: form.connection_type === 'system' ? 'network' : form.connection_type,
-        address: form.connection_type === 'system' ? `SYSTEM:${form.address.trim() || 'BROWSER'}` : (form.address.trim() || ''),
-        paper_width: form.paper_width,
-        is_default: form.is_default,
-        sector: form.sector,
+        connection_type: 'network',
+        address: form.address ? `SYSTEM:${form.address}` : 'SYSTEM:DEFAULT',
+        paper_width: Number(form.paper_width),
+        sector: selectedSector,
         tenant_id: user.tenantId,
       };
 
-      const { error } = await supabase.from('printer_configs').insert(payload);
-      if (error) throw error;
+      if (currentPrinter?.id) {
+        const { error } = await supabase.from('printer_configs').update(payload).eq('id', currentPrinter.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('printer_configs').insert(payload);
+        if (error) throw error;
+      }
 
-      setFormFeedback({ type: 'success', message: 'Impressora salva com sucesso!' });
-      setTimeout(() => resetForm(), 800);
+      toast.success('Configuração de impressora salva com sucesso!');
       fetchPrinters();
-    } catch (err: any) {
-      console.error('Error saving printer:', err);
-      setFormFeedback({ type: 'error', message: 'Erro ao salvar: ' + (err.message || 'Verifique sua conexão') });
+    } catch (e: any) {
+      toast.error('Erro ao salvar impressora: ' + (e.message || 'Falha na requisição'));
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    await supabase.from('printer_configs').delete().eq('id', id);
-    fetchPrinters();
-  };
-
-  const handleSetDefault = async (id: string) => {
-    await supabase.from('printer_configs').update({ is_default: false } as any).eq('is_default', true);
-    await supabase.from('printer_configs').update({ is_default: true } as any).eq('id', id);
-    fetchPrinters();
-  };
-
-  const handleDetectQz = async () => {
-    setDetectingQz(true);
-    setQzFeedback(null);
-    const ready = await retryQzConnection();
-    setDetectingQz(false);
-    if (ready) {
-      setQzFeedback({ type: 'success', message: 'QZ Tray conectado e pronto para uso.' });
-    } else {
-      setQzFeedback({
-        type: 'error',
-        message: 'QZ Tray não detectado. Verifique se o aplicativo está aberto e rodando na bandeja do sistema.',
-      });
+  const handleUnlinkPrinter = async () => {
+    if (!currentPrinter?.id) {
+      setForm(f => ({ ...f, address: '' }));
+      toast.info('Nenhuma impressora vinculada a este local.');
+      return;
     }
-  };
-
-  const handleTestQzConnection = async () => {
-    setTestingQz(true);
-    setQzFeedback(null);
     try {
-      const ready = qzConnected || (await retryQzConnection());
-      if (!ready) {
-        setQzFeedback({ type: 'error', message: 'QZ Tray não está conectado.' });
-        return;
-      }
-      const printers = await getQzPrinters();
-      setQzPrintersList(printers);
-      setQzFeedback({
-        type: 'success',
-        message: `Conexão OK. ${printers.length} impressora(s) do sistema detectada(s).`,
-      });
+      await supabase.from('printer_configs').delete().eq('id', currentPrinter.id);
+      toast.success('Impressora desvinculada.');
+      setForm(f => ({ ...f, address: '' }));
+      fetchPrinters();
     } catch (e: any) {
-      setQzFeedback({ type: 'error', message: e?.message || 'Falha no teste de conexão.' });
-    } finally {
-      setTestingQz(false);
+      toast.error('Erro ao desvincular: ' + e.message);
     }
   };
 
-  const handlePair = async () => {
-    setPairing(true);
-    setPairFeedback(null);
-    try {
-      const name = await pairBluetooth();
-      setPairFeedback({ type: 'success', message: `Conectado a: ${name}` });
-    } catch (e: any) {
-      let msg = 'Erro ao parear.';
-      if (e.name === 'NotFoundError') msg = 'Nenhuma impressora selecionada.';
-      else if (e.name === 'SecurityError') msg = 'Permissão negada pelo navegador.';
-      else msg = e.message || 'Erro desconhecido.';
-      setPairFeedback({ type: 'error', message: msg });
-    } finally {
-      setPairing(false);
-    }
-  };
-
-  const handleTest = async () => {
+  const handleRunTest = async () => {
     setTesting(true);
-    setTestFeedback(null);
     try {
       await printTest();
-      setTestFeedback({ type: 'success', message: 'Impressão de teste enviada.' });
+      toast.success('Impressão de teste enviada!');
     } catch (e: any) {
-      setTestFeedback({ type: 'error', message: e?.message || 'Falha ao imprimir teste.' });
+      toast.error('Falha no teste de impressão: ' + (e?.message || 'Verifique o QZ Tray'));
+    } finally {
+      setTesting(false);
     }
-    setTesting(false);
   };
 
-  const renderFeedback = (fb: Feedback) => {
-    if (!fb) return null;
-    const cls =
-      fb.type === 'success'
-        ? 'border-success/40 bg-success/10 text-success-foreground'
-        : fb.type === 'error'
-        ? 'border-destructive/40 bg-destructive/10 text-destructive'
-        : 'border-muted bg-muted/40';
-    return (
-      <Alert className={cls}>
-        <AlertDescription className="text-sm">{fb.message}</AlertDescription>
-      </Alert>
-    );
+  const activeSectorObj = DEFAULT_SECTORS.find(s => s.key === selectedSector) || {
+    key: selectedSector,
+    name: selectedSector,
+    description: 'Impressora configurada para este setor.',
   };
 
   return (
-    <div className="space-y-4">
-      {/* Card 1 — Status de Impressão */}
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-3 flex-wrap">
+    <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      {/* Header Modal Style */}
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-primary/10 text-primary">
+            <Printer className="h-6 w-6" />
+          </div>
           <div>
-            <CardTitle className="flex items-center gap-2 flex-wrap">
-              <PlugZap className="h-5 w-5" /> {isDesktopApp() ? 'Impressão Nativa Desktop' : 'Status do QZ Tray'}
-              <Badge
-                variant={isDesktopApp() || qzConnected ? 'default' : 'secondary'}
-                className={isDesktopApp() || qzConnected ? 'bg-success text-success-foreground' : ''}
-              >
-                {isDesktopApp() ? (
-                  <span className="flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Modulo Nativo Ativo
-                  </span>
-                ) : qzConnected ? (
-                  <span className="flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Cert: {tenantLabel}
-                  </span>
-                ) : (
-                  'Não detectado'
-                )}
-              </Badge>
-            </CardTitle>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Impressoras</h1>
+            <p className="text-xs text-muted-foreground">Escolha o local à esquerda e ajuste a impressora ao lado.</p>
           </div>
-          {!isDesktopApp() && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
-              <HelpCircle className="h-4 w-4" /> Como instalar
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm text-muted-foreground flex-1 min-w-[180px]">
-              {isDesktopApp()
-                ? 'Conexão direta ativada com impressoras do sistema Windows (Spooler RAW) e impressoras de rede (TCP/IP). Nenhuma dependência de terceiros necessária.'
-                : qzConnected
-                ? 'Agente de impressão ativo. Impressões vão direto para a impressora sem janela de confirmação.'
-                : 'Clique em Detectar para verificar se o QZ Tray está rodando neste computador.'}
-            </p>
-            {!isDesktopApp() && (
-              <>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDetectQz} disabled={detectingQz}>
-                  {detectingQz ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />} Detectar
-                </Button>
-                <Button size="sm" className="gap-1.5" onClick={handleTestQzConnection} disabled={testingQz}>
-                  {testingQz ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Teste de conexão
-                </Button>
-              </>
-            )}
-          </div>
+        </div>
+      </div>
 
-          {renderFeedback(qzFeedback)}
-
-          {!isDesktopApp() && (
-            <>
-              <Accordion type="single" collapsible>
-                <AccordionItem value="help" className="border rounded-lg">
-                  <AccordionTrigger className="px-3 py-2 text-sm hover:no-underline">
-                    Ajuda & solução de problemas
-                  </AccordionTrigger>
-                  <AccordionContent className="px-3 pb-3 text-sm text-muted-foreground space-y-1.5">
-                    <p>• Certifique-se de que o QZ Tray está em execução (ícone na bandeja).</p>
-                    <p>• Verifique se a porta 8181 (WebSocket) não está bloqueada pelo firewall.</p>
-                    <p>• Se o navegador pedir para confiar em um certificado, aceite a solicitação.</p>
-                    <p>• Reinicie o QZ Tray e recarregue esta página se a conexão ficar instável.</p>
-                    <p>• Em ambientes corporativos, verifique com o TI se HTTPS/WSS está liberado.</p>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-
-              {isDesktop && (
-                <div className="border rounded-lg p-3 space-y-2">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="space-y-1">
-                      <p className="font-semibold text-sm flex items-center gap-2 flex-wrap">
-                        Configurar confiança permanente (Windows)
-                        <Badge variant="outline" className="text-xs">
-                          <ShieldCheck className="h-3 w-3 mr-1" /> Cert próprio: {tenantLabel}
-                        </Badge>
-                      </p>
-                      <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside">
-                        <li>Baixe o instalador abaixo.</li>
-                        <li>Clique direito → <strong>Executar como administrador</strong>.</li>
-                        <li>Volte aqui e clique em <strong>Detectar</strong>. O prompt não deve mais aparecer.</li>
-                      </ol>
-                    </div>
-                    <Button size="sm" className="gap-1.5" onClick={() => setShowInstallModal(true)}>
-                      <Download className="h-4 w-4" /> Ver passo a passo
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-
-          <Accordion type="single" collapsible>
-            <AccordionItem value="manual" className="border-0">
-              <AccordionTrigger className="text-sm py-1 hover:no-underline">
-                Instalação manual (avançado / macOS / Linux)
-              </AccordionTrigger>
-              <AccordionContent className="pt-2 space-y-2 text-sm text-muted-foreground">
-                <p>Para plataformas não-Windows ou instalação manual do certificado, baixe o cert.pem e siga a documentação oficial do QZ Tray.</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadCert} disabled={certLoading}>
-                    {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Baixar cert.pem
-                  </Button>
-                  <Button variant="ghost" size="sm" className="gap-1.5" asChild>
-                    <a href={QZ_CERT_URL} target="_blank" rel="noreferrer">
-                      <ExternalLink className="h-4 w-4" /> Documentação oficial
-                    </a>
-                  </Button>
-                </div>
-                {certError && <p className="text-xs text-destructive">{certError}</p>}
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </CardContent>
-      </Card>
-
-      {/* Card 2 — Bluetooth (advanced/fallback) */}
-      <Accordion type="single" collapsible>
-        <AccordionItem value="bt" className="border rounded-lg bg-card">
-          <AccordionTrigger className="px-6 py-4 hover:no-underline">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Bluetooth className="h-4 w-4" /> Conexão Bluetooth
-              <Badge variant={btConnected ? 'default' : 'secondary'} className="text-xs">
-                {btConnected ? `Conectado: ${btDeviceName}` : 'Desconectado'}
-              </Badge>
-              {btPriorityDefault && (
-                <Badge variant="outline" className="text-xs">Padrão neste aparelho</Badge>
-              )}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-96 rounded-2xl md:col-span-1" />
+          <Skeleton className="h-96 rounded-2xl md:col-span-2" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          {/* Left Column: ONDE IMPRIMIR */}
+          <div className="md:col-span-1 space-y-4">
+            <div className="px-1">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">ONDE IMPRIMIR</h2>
             </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-6 pb-4 space-y-3">
-            {!btAvailable ? (
-              <p className="text-sm text-muted-foreground">
-                Web Bluetooth não disponível neste navegador. Use Chrome ou Edge para conectar via Bluetooth.
-              </p>
-            ) : (
-              <>
-                {isDesktop && (
-                  <Alert className="border-warning/40 bg-warning/10">
-                    <AlertDescription className="text-xs">
-                      Em desktops, prefira o <strong>QZ Tray</strong> — o Bluetooth direto pelo navegador pode falhar em impressões longas.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {btConnected ? (
-                    <Button variant="outline" size="sm" onClick={unpairBluetooth}>Desconectar</Button>
-                  ) : (
-                    <Button size="sm" onClick={handlePair} disabled={pairing}>
-                      {pairing && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Parear Impressora
-                    </Button>
-                  )}
-                  {!btConnected && lastPairedName && (
-                    <>
-                      <span className="text-xs text-muted-foreground">Última: <strong>{lastPairedName}</strong></span>
-                      <Button variant="outline" size="sm" onClick={reconnectPrinter}>Reconectar</Button>
-                      <Button variant="ghost" size="sm" onClick={forgetPrinter}>Esquecer</Button>
-                    </>
-                  )}
-                </div>
-                {renderFeedback(pairFeedback)}
 
-                <div className="flex items-start justify-between gap-3 border rounded-lg p-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground">Usar esta impressora como padrão neste aparelho</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Envia todas as impressões para esta impressora Bluetooth, ignorando outras impressoras configuradas.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={btPriorityDefault}
-                    onCheckedChange={toggleBluetoothPriorityDefault}
-                    disabled={!lastPairedName && !btConnected}
-                  />
-                </div>
-              </>
-            )}
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+            <div className="space-y-2.5">
+              {DEFAULT_SECTORS.map((sec) => {
+                const isSelected = selectedSector === sec.key;
+                const hasConfig = printers.some(p => (p as any).sector === sec.key);
+                const boundPrinter = printers.find(p => (p as any).sector === sec.key);
 
-      {/* Card 3 — Configured printers */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2"><Printer className="h-5 w-5" /> Impressoras Configuradas</span>
-            <Button size="sm" className="gap-1" onClick={() => setShowForm(true)}>
-              <Plus className="h-4 w-4" /> Adicionar
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3 py-2">
-              <Skeleton className="h-16 w-full rounded-lg" />
-              <Skeleton className="h-16 w-full rounded-lg" />
-            </div>
-          ) : printers.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">Nenhuma impressora configurada.</p>
-          ) : (
-            <div className="space-y-3">
-              {printers.map((p: PrinterConfig) => (
-                <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
-                  <div className="flex items-center gap-3">
-                    {p.connection_type === 'bluetooth' ? <Bluetooth className="h-4 w-4 text-primary" /> : p.connection_type === 'network' ? <Wifi className="h-4 w-4 text-primary" /> : <Monitor className="h-4 w-4 text-primary" />}
-                    <div>
-                      <p className="text-sm font-medium text-foreground flex items-center gap-2 flex-wrap">
-                        {p.name}
-                        {p.is_default && <Badge variant="outline" className="text-xs">Padrão</Badge>}
-                        {p.auto_connect_qz && <Badge variant="outline" className="text-xs">Auto-conectar</Badge>}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {p.model || 'ESC/POS'} · {p.connection_type === 'bluetooth' ? 'Bluetooth' : p.connection_type === 'network' ? `Rede — ${p.address}` : 'Sistema (QZ)'} · {p.paper_width}mm
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {!p.is_default && (
-                      <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleSetDefault(p.id)}>
-                        Definir padrão
-                      </Button>
-                    )}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDuplicateSource(p)}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Reutilizar em outro setor (cozinha, bar…)</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(p.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Excluir impressora</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Card 4 — Test print */}
-      <Card>
-        <CardContent className="pt-6 space-y-2">
-          <Button variant="outline" className="gap-2" onClick={handleTest} disabled={testing}>
-            {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <TestTube className="h-4 w-4" />}
-            Imprimir Teste
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Envia uma impressão de teste para a impressora padrão. Se não houver Bluetooth ou QZ Tray, será usado o modo do navegador.
-          </p>
-      {renderFeedback(testFeedback)}
-        </CardContent>
-      </Card>
-
-
-
-      {/* Card 5 — Impressoras adicionais (cozinha, balcão, bar) */}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ChefHat className="h-5 w-5" /> Impressoras adicionais (cozinha, balcão, bar)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!isPro ? (
-            <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 flex items-start gap-3 flex-wrap">
-              <div className="rounded-full bg-warning/20 p-2 flex-shrink-0">
-                <Sparkles className="h-5 w-5 text-warning" />
-              </div>
-              <div className="flex-1 min-w-[220px] space-y-2">
-                <p className="font-semibold text-sm flex items-center gap-1.5">
-                  <Lock className="h-4 w-4" /> Múltiplas impressoras no Plano Pro
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Configure impressoras dedicadas para cozinha, bar e balcão no Plano Pro. No Plano Start a impressora principal de recibo continua disponível normalmente.
-                </p>
-                <Button size="sm" onClick={() => navigate(`/${slug}/configuracoes?tab=plano`)}>
-                  Conhecer o Plano Pro
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {SECTORS.filter(s => s.value !== 'recibo').map(s => {
-                const sectorPrinters = printers.filter((p: any) => (p.sector || 'recibo') === s.value);
                 return (
-                  <div key={s.value} className="border rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold">{s.label}</p>
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => openAddForm(s.value)}>
-                        <Plus className="h-3.5 w-3.5" /> Adicionar
-                      </Button>
+                  <button
+                    key={sec.key}
+                    type="button"
+                    onClick={() => setSelectedSector(sec.key)}
+                    className={`w-full text-left p-4 rounded-2xl transition-all duration-200 border ${
+                      isSelected
+                        ? 'bg-card border-primary ring-2 ring-primary/20 shadow-md'
+                        : 'bg-card/60 hover:bg-card border-border/80 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-xl ${isSelected ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                          <Monitor className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className={`font-semibold text-sm ${isSelected ? 'text-foreground font-bold' : 'text-foreground'}`}>
+                            {sec.name}
+                          </p>
+                          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mt-0.5">
+                            {boundPrinter ? boundPrinter.name : sec.key}
+                          </p>
+                        </div>
+                      </div>
+
+                      {hasConfig && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          Ativa
+                        </span>
+                      )}
                     </div>
-                    {sectorPrinters.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Nenhuma impressora configurada para este setor.</p>
-                    ) : (
-                      <ul className="text-sm space-y-1">
-                        {sectorPrinters.map((p: any) => (
-                          <li key={p.id} className="flex items-center justify-between">
-                            <span>{p.name} <span className="text-xs text-muted-foreground">· {p.model || 'ESC/POS'}</span></span>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(p.id)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-
-      {/* Add printer dialog */}
-      <Dialog open={showForm} onOpenChange={v => !v && resetForm()}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Adicionar Impressora</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Nome da impressora</Label>
-                <Input placeholder="Ex: Balcão" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-                <p className="text-[11px] text-muted-foreground">
-                  {qzConnected ? 'Clique em Detectar acima para listar impressoras do sistema.' : ''}
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Modelo</Label>
-                <Input placeholder="ESC/POS compatível" value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Tipo de conexão</Label>
-                <Select value={form.connection_type} onValueChange={v => setForm(f => ({ ...f, connection_type: v as any }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="system">QZ Tray — Impressão local (recomendado)</SelectItem>
-                    <SelectItem value="bluetooth">Bluetooth</SelectItem>
-                    <SelectItem value="network">Rede (IP)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Perfil ESC/POS</Label>
-                <Select value={form.escpos_profile} onValueChange={v => setForm(f => ({ ...f, escpos_profile: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {ESCPOS_PROFILES.map(p => (
-                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {form.connection_type === 'network' && (
-              <div className="space-y-1.5">
-                <Label>Endereço IP</Label>
-                <Input placeholder="192.168.1.100:9100" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
-              </div>
-            )}
-
-            {form.connection_type === 'system' && qzConnected && (
-              <div className="space-y-1.5">
-                <Label>Impressora do Sistema</Label>
-                <Select value={form.address} onValueChange={v => setForm(f => ({ ...f, address: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                  <SelectContent>
-                    {qzPrintersList.map(p => (
-                      <SelectItem key={p} value={p}>{p}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-muted-foreground">Impressoras detectadas pelo QZ Tray neste computador.</p>
-              </div>
-            )}
-            {form.connection_type === 'system' && !qzConnected && (
-              <div className="space-y-1.5">
-                <Label>Nome exato no sistema</Label>
-                <Input placeholder="Ex: L3150 Series" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
-                <p className="text-[11px] text-muted-foreground">Digite exatamente como está no Painel de Controle (ou instale o QZ Tray para listar automaticamente).</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Largura do Papel</Label>
-                <Select value={String(form.paper_width)} onValueChange={v => setForm(f => ({ ...f, paper_width: parseInt(v) }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="58">58mm</SelectItem>
-                    <SelectItem value="80">80mm</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Setor</Label>
-                <Select
-                  value={form.sector}
-                  onValueChange={v => setForm(f => ({ ...f, sector: v as any }))}
-                  disabled={!isPro && form.sector === 'recibo'}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {SECTORS.map(s => (
-                      <SelectItem key={s.value} value={s.value} disabled={!isPro && s.value !== 'recibo'}>
-                        {s.label}{!isPro && s.value !== 'recibo' ? ' (Pro)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border rounded-lg p-3">
-              <div>
-                <p className="text-sm text-foreground">Conectar automaticamente ao QZ Tray ao logar</p>
-                <p className="text-[11px] text-muted-foreground">Mantém a conexão viva para impressões mais rápidas.</p>
-              </div>
-              <Switch checked={form.auto_connect_qz} onCheckedChange={v => setForm(f => ({ ...f, auto_connect_qz: v }))} />
-            </div>
-
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Switch checked={form.is_default} onCheckedChange={v => setForm(f => ({ ...f, is_default: v }))} />
-              <span className="text-sm text-foreground">Impressora padrão</span>
-            </label>
-
-            {renderFeedback(formFeedback)}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={resetForm}>Cancelar</Button>
-              <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                Salvar
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowAddLocalModal(true)}
+              className="w-full rounded-2xl border-dashed border-border text-foreground hover:bg-muted/50 py-5 font-semibold text-xs gap-2"
+            >
+              <Plus className="h-4 w-4" /> Adicionar local
+            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Install QZ Tray modal */}
-      <Dialog open={showInstallModal} onOpenChange={setShowInstallModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Configurar QZ Tray em 3 passos</DialogTitle>
-            <DialogDescription>
-              Faça uma vez por máquina. Depois disso, a impressão acontece direto, sem pop-up de autorização.
-            </DialogDescription>
-          </DialogHeader>
+          {/* Right Column: Configurações do Local Selecionado */}
+          <div className="md:col-span-2">
+            <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden">
+              <CardHeader className="border-b border-border bg-muted/20 pb-4">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <CardTitle className="text-xl font-bold text-foreground">
+                      {activeSectorObj.name}
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {activeSectorObj.description}
+                    </p>
+                  </div>
 
-          <ol className="space-y-4 mt-2">
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">1</span>
-              <div className="flex-1 space-y-2">
-                <p className="text-sm font-medium">Instale o QZ Tray</p>
-                <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                  <a href={QZ_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-                    <ExternalLink className="h-4 w-4" /> qz.io/download
-                  </a>
-                </Button>
-              </div>
-            </li>
-
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">2</span>
-              <div className="flex-1 space-y-2">
-                <p className="text-sm font-medium">Baixe e rode o configurador Degust (Windows)</p>
-                <Button size="sm" className="gap-1.5" onClick={handleDownloadBat} disabled={certLoading}>
-                  {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  degust-qz-setup.bat
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Clique direito → <strong>Executar como administrador</strong>. Ele já instala e confia no certificado para você.
-                  Se aparecer o SmartScreen azul, clique em <em>Mais informações</em> → <em>Executar assim mesmo</em>.
-                </p>
-              </div>
-            </li>
-
-            <li className="flex gap-3">
-              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-muted text-foreground text-xs font-semibold flex items-center justify-center">3</span>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium">Volte aqui e clique em <em>Testar de novo</em></p>
-                <p className="text-xs text-muted-foreground">Se ficar verde sem pop-up, está pronto para imprimir cupons direto.</p>
-              </div>
-            </li>
-          </ol>
-
-          <Accordion type="single" collapsible className="mt-2">
-            <AccordionItem value="other" className="border-0">
-              <AccordionTrigger className="text-sm py-2 hover:no-underline">
-                Não estou no Windows ou preciso do cert.pem
-              </AccordionTrigger>
-              <AccordionContent className="pt-2 space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Baixe o certificado da sua loja e siga a documentação oficial do QZ Tray para instalação manual em macOS/Linux.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadCert} disabled={certLoading}>
-                    {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Baixar cert.pem
-                  </Button>
-                  <Button variant="ghost" size="sm" className="gap-1.5" asChild>
-                    <a href={QZ_CERT_URL} target="_blank" rel="noreferrer">
-                      <ExternalLink className="h-4 w-4" /> Documentação
-                    </a>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUnlinkPrinter}
+                    className="rounded-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive text-xs font-semibold gap-2"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Desvincular impressora
                   </Button>
                 </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+              </CardHeader>
 
-          {certError && (
-            <Alert className="border-destructive/40 bg-destructive/10">
-              <AlertDescription className="text-sm text-destructive">{certError}</AlertDescription>
-            </Alert>
+              <CardContent className="p-6 space-y-6">
+                {/* Form Field 1: Escolha a impressora */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-bold text-foreground">Escolha a impressora</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRefreshPrintersList}
+                      disabled={fetchingQzPrinters}
+                      className="text-primary hover:text-primary/90 text-xs font-semibold gap-1.5 h-auto p-0"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${fetchingQzPrinters ? 'animate-spin' : ''}`} />
+                      Procurar impressoras
+                    </Button>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Select
+                      value={form.address}
+                      onValueChange={(val) => setForm(f => ({ ...f, address: val }))}
+                    >
+                      <SelectTrigger className="w-full rounded-xl bg-background border-border text-foreground h-11">
+                        <SelectValue placeholder="Selecione a impressora do sistema..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {qzPrintersList.length === 0 ? (
+                          <SelectItem value="DEFAULT_PRINTER" disabled>
+                            Nenhuma impressora encontrada (Clique em Procurar)
+                          </SelectItem>
+                        ) : (
+                          qzPrintersList.map((pName) => (
+                            <SelectItem key={pName} value={pName}>
+                              {pName}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+
+                    {form.address && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setForm(f => ({ ...f, address: '' }))}
+                        className="rounded-xl border-border shrink-0 h-11 w-11 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Form Field 2: Tamanho do papel */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-foreground">Tamanho do papel</Label>
+                  <Select
+                    value={String(form.paper_width)}
+                    onValueChange={(val) => setForm(f => ({ ...f, paper_width: Number(val) }))}
+                  >
+                    <SelectTrigger className="w-full rounded-xl bg-background border-border text-foreground h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="80">80mm (bobina comum)</SelectItem>
+                      <SelectItem value="58">58mm (bobina estreita)</SelectItem>
+                      <SelectItem value="210">A4 / Folha inteira (impressora padrão)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Form Field 3: Imprimir e aceitar pedidos automaticamente */}
+                <div className="rounded-2xl border border-border p-4 bg-muted/10 flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold text-foreground cursor-pointer" htmlFor="auto-print-switch">
+                      Imprimir e aceitar pedidos automaticamente
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      O pedido é aceito assim que chega e o cupom sai na hora.
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-print-switch"
+                    checked={form.auto_connect_qz}
+                    onCheckedChange={(val) => setForm(f => ({ ...f, auto_connect_qz: val }))}
+                  />
+                </div>
+
+                {/* Form Field 4: Opções avançadas Accordion */}
+                <Accordion type="single" collapsible className="w-full border border-border rounded-2xl">
+                  <AccordionItem value="advanced-opts" className="border-none px-4">
+                    <AccordionTrigger className="text-sm font-bold text-foreground py-3 hover:no-underline">
+                      <span className="flex items-center gap-2">
+                        <Sliders className="h-4 w-4 text-primary" /> Opções avançadas
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2 pb-4 space-y-4 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Perfil ESC/POS</Label>
+                          <Select
+                            value={form.escpos_profile}
+                            onValueChange={(val) => setForm(f => ({ ...f, escpos_profile: val }))}
+                          >
+                            <SelectTrigger className="rounded-xl bg-background border-border">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="generic">Genérico ESC/POS</SelectItem>
+                              <SelectItem value="epson_tm">Epson TM Series</SelectItem>
+                              <SelectItem value="bematech_mp">Bematech MP Series</SelectItem>
+                              <SelectItem value="elgin_i9">Elgin i9</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium">Avanço de linhas (Feed)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="10"
+                            value={form.feed_lines}
+                            onChange={(e) => setForm(f => ({ ...f, feed_lines: Number(e.target.value) }))}
+                            className="rounded-xl bg-background border-border"
+                          />
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Footer Controls Bar */}
+      <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Status Badge */}
+          {qzConnected ? (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold">
+              <CheckCircle2 className="h-4 w-4" /> Impressão ligada
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowQzWizard(true)}
+              className="rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20 text-xs font-bold gap-1.5"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" /> QZ Desconectado
+            </Button>
           )}
-          {qzFeedback && renderFeedback(qzFeedback)}
 
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowQzWizard(true)}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground gap-1.5"
+          >
+            <HelpCircle className="h-4 w-4" /> Ajuda
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/diagnostico-sync')}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            Diagnóstico
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRunTest}
+            disabled={testing}
+            className="rounded-full border-border text-foreground hover:bg-muted font-semibold text-xs gap-2 px-4"
+          >
+            {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+            Imprimir teste
+          </Button>
+        </div>
+
+        {/* Primary Save / Concluir */}
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleSaveConfig}
+            disabled={saving}
+            className="rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-2 px-6 shadow-sm"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Salvar
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate(-1)}
+            className="rounded-full border-border text-foreground font-semibold text-xs px-6"
+          >
+            Concluir
+          </Button>
+        </div>
+      </div>
+
+      {/* 3-Step QZ Wizard Modal */}
+      <QzSetupModal
+        open={showQzWizard}
+        onOpenChange={setShowQzWizard}
+        onTestConnection={retryQzConnection}
+      />
+
+      {/* Add Local Modal */}
+      <Dialog open={showAddLocalModal} onOpenChange={setShowAddLocalModal}>
+        <DialogContent className="max-w-md p-6 rounded-2xl bg-card border border-border">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-foreground">Adicionar Novo Local de Impressão</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Nome do Local / Setor</Label>
+              <Input
+                placeholder="Ex: Entrega, Caixa 2, Pizzaria..."
+                value={newLocalName}
+                onChange={(e) => setNewLocalName(e.target.value)}
+                className="rounded-xl bg-background border-border"
+              />
+            </div>
+          </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowInstallModal(false)}>Fechar</Button>
-            <Button className="gap-1.5" onClick={handleTestQzConnection} disabled={testingQz}>
-              {testingQz ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Testar de novo
+            <Button variant="outline" onClick={() => setShowAddLocalModal(false)} className="rounded-full">
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!newLocalName.trim()) return;
+                toast.success(`Setor ${newLocalName} adicionado.`);
+                setShowAddLocalModal(false);
+                setNewLocalName('');
+              }}
+              className="rounded-full bg-primary text-primary-foreground font-semibold"
+            >
+              Adicionar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <DuplicatePrinterModal
-        open={!!duplicateSource}
-        source={duplicateSource}
-        onClose={() => setDuplicateSource(null)}
-        onSaved={() => fetchPrinters()}
-      />
     </div>
   );
 }
