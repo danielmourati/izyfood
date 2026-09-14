@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { FileText, Search } from 'lucide-react';
 
 interface AuditLog {
@@ -63,7 +64,11 @@ export function AuditoriaPage() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-muted-foreground">Carregando...</p>
+            <div className="space-y-3 py-2">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full rounded-lg" />
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum evento encontrado.</p>
           ) : (

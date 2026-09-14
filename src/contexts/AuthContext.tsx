@@ -114,16 +114,30 @@ async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<AppUser | null>(() => {
+    if (typeof window !== 'undefined') {
+      const storedDemo = localStorage.getItem('izyfood_demo_user');
+      if (storedDemo) {
+        try { return JSON.parse(storedDemo); } catch {}
+      }
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const storedDemo = localStorage.getItem('izyfood_demo_user');
+      if (storedDemo) return false;
+    }
+    return true;
+  });
 
   useEffect(() => {
     let active = true;
 
-    // Timeout de segurança máximo de 3.5s para nunca travar a aplicação no loader
+    // Timeout de segurança reduzido para 800ms (resposta rápida na inicialização)
     const safetyTimer = setTimeout(() => {
       if (active) setLoading(false);
-    }, 3500);
+    }, 800);
 
     // Set up auth state listener.
     // IMPORTANT: never await Supabase calls inside this callback — it runs while

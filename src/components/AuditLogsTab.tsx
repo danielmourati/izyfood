@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Search, FileText } from 'lucide-react';
 
 interface AuditLog {
@@ -85,8 +86,11 @@ export function AuditLogsTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-32">
-        <div className="h-6 w-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-3 py-2">
+        <Skeleton className="h-10 w-full rounded-md" />
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full rounded-lg" />
+        ))}
       </div>
     );
   }

@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Users, Search, KeyRound, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { UserFormModal, type UserFormValue } from '@/components/UserFormModal';
@@ -181,7 +182,11 @@ export function SuperAdminUsersTab() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
+            <div className="space-y-3 py-2">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded-md" />
+              ))}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

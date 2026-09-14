@@ -23,6 +23,7 @@ import { getQzPrinters } from '@/lib/printer';
 import { fetchTenantCertPem, downloadDegustBat, downloadCertPem } from '@/lib/qz-installer';
 import { DuplicatePrinterModal } from '@/components/DuplicatePrinterModal';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 import { isDesktopApp } from '@/lib/printer-desktop';
 
 
@@ -477,7 +478,10 @@ export function ImpressoraTab() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center py-6"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="space-y-3 py-2">
+              <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-16 w-full rounded-lg" />
+            </div>
           ) : printers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Nenhuma impressora configurada.</p>
           ) : (

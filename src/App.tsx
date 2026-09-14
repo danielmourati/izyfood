@@ -76,18 +76,60 @@ function TenantRoutes() {
   );
 }
 
+import { Skeleton } from "@/components/ui/skeleton";
+
+function AppSkeleton() {
+  return (
+    <div className="min-h-screen flex bg-background text-foreground">
+      {/* Sidebar Skeleton */}
+      <div className="hidden md:flex w-64 flex-col border-r bg-card p-4 space-y-6">
+        <div className="flex items-center gap-3 px-2">
+          <Skeleton className="h-8 w-8 rounded-lg" />
+          <Skeleton className="h-6 w-32" />
+        </div>
+        <div className="space-y-2 flex-1">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full rounded-md" />
+          ))}
+        </div>
+        <div className="pt-4 border-t space-y-2">
+          <Skeleton className="h-12 w-full rounded-md" />
+        </div>
+      </div>
+
+      {/* Main Content Skeleton */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header Skeleton */}
+        <div className="h-16 border-b flex items-center justify-between px-6 bg-card">
+          <Skeleton className="h-6 w-48" />
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-8 w-8 rounded-full" />
+            <Skeleton className="h-8 w-24 rounded-md" />
+          </div>
+        </div>
+
+        {/* Content Body Skeleton */}
+        <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-28 rounded-xl" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Skeleton className="h-80 md:col-span-2 rounded-xl" />
+            <Skeleton className="h-80 md:col-span-1 rounded-xl" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppRoutes() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-3">
-          <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
-    );
+    return <AppSkeleton />;
   }
 
   if (!user) {

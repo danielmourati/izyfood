@@ -11,6 +11,7 @@ import { DiscountCoupon } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { fmt } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -787,7 +788,11 @@ function UsuariosTab() {
           )}
 
           {loadingUsers ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
+            <div className="space-y-3 py-2">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              ))}
+            </div>
           ) : (
             <div className="space-y-2">
               {users.map(u => (
@@ -1168,7 +1173,21 @@ function PermissoesTab() {
   const targetCandidates = users.filter(u => u.id !== copyModal.sourceUserId);
   const allTargetsSelected = targetCandidates.length > 0 && targetCandidates.every(u => copyTargets.has(u.id));
 
-  if (loading) return <p className="text-sm text-muted-foreground text-center py-8">Carregando...</p>;
+  if (loading) return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-6 w-48" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Skeleton className="h-10 w-full max-w-md" />
+        <div className="space-y-2 pt-4">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full rounded-md" />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <>

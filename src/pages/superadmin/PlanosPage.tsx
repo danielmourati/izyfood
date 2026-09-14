@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 import { CreditCard, Loader2, Ban, PlayCircle, Gift, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -179,8 +180,10 @@ export function PlanosPage() {
         <CardHeader><CardTitle className="text-base">Todos os planos</CardTitle></CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" /> Carregando...
+            <div className="space-y-3 py-2">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded-md" />
+              ))}
             </div>
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum plano encontrado.</p>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { CreditCard, Check, Loader2, Copy, CheckCircle2, XCircle } from 'lucide-react';
 
 type PlanType = 'trial' | 'pro_monthly' | 'pro_yearly';
@@ -121,8 +122,12 @@ export function PlanoTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm p-6">
-        <Loader2 className="h-4 w-4 animate-spin" /> Carregando plano...
+      <div className="space-y-4">
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
       </div>
     );
   }

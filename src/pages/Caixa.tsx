@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert, Filter, Search as SearchIcon, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { logAudit } from '@/lib/audit';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface CashMovement {
   id: string;
@@ -454,8 +454,21 @@ export default function Caixa() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="h-full overflow-y-auto p-4 md:p-6 space-y-6 max-w-2xl mx-auto">
+        <Skeleton className="h-8 w-32" />
+        <Card className="p-6 space-y-4">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-10 w-full" />
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-20 rounded-lg" />
+            <Skeleton className="h-20 rounded-lg" />
+          </div>
+        </Card>
+        <div className="space-y-3">
+          <Skeleton className="h-14 w-full rounded-lg" />
+          <Skeleton className="h-14 w-full rounded-lg" />
+          <Skeleton className="h-14 w-full rounded-lg" />
+        </div>
       </div>
     );
   }
