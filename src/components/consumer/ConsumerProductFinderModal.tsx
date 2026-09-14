@@ -63,7 +63,7 @@ export function ConsumerProductFinderModal({
     setSelectedRowIndex(0);
   }, [selectedCatId, searchQuery]);
 
-  // Keyboard navigation for F11 and Enter
+  // Keyboard navigation for F11, Enter, and Escape
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -95,39 +95,39 @@ export function ConsumerProductFinderModal({
 
   return (
     <div className="fixed inset-0 z-[90] bg-black/20 flex items-center justify-end p-2 sm:p-4 pointer-events-none font-sans">
-      <div className="bg-[#252526] text-white w-full max-w-4xl rounded-md shadow-2xl overflow-hidden border border-[#3c3c3c] flex flex-col h-[90vh] max-h-[750px] animate-in zoom-in-95 duration-150 pointer-events-auto ml-[180px] sm:ml-[300px]">
+      <div className="bg-card text-card-foreground w-full max-w-4xl rounded-md shadow-2xl overflow-hidden border border-border flex flex-col h-[90vh] max-h-[750px] animate-in zoom-in-95 duration-150 pointer-events-auto ml-[180px] sm:ml-[300px]">
         
         {/* Window Header */}
-        <div className="bg-[#1e1e1e] px-4 py-2 flex justify-between items-center border-b border-[#333333] shrink-0">
-          <span className="text-sm font-semibold text-gray-200">Localizar Produto</span>
+        <div className="bg-muted/70 px-4 py-2 flex justify-between items-center border-b border-border shrink-0">
+          <span className="text-sm font-semibold text-foreground">Localizar Produto</span>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
+            className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Top Control Bar */}
-        <div className="bg-[#2b2b2b] p-3 border-b border-[#383838] flex items-center justify-between gap-3 shrink-0">
+        <div className="bg-muted/30 p-3 border-b border-border flex items-center justify-between gap-3 shrink-0">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Pesquisar..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-sm bg-[#1e1e1e] border-[#444444] text-white placeholder:text-gray-400 focus-visible:ring-blue-500"
+              className="pl-9 h-9 text-sm bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
               autoFocus
             />
           </div>
 
           <div className="flex items-center gap-2">
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-[#1e1e1e] border border-[#444444] rounded p-0.5">
+            <div className="flex items-center bg-background border border-input rounded p-0.5">
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded text-xs ${viewMode === 'table' ? 'bg-[#383838] text-white' : 'text-gray-400 hover:text-white'}`}
+                className={`p-1.5 rounded text-xs transition-colors ${viewMode === 'table' ? 'bg-muted text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}`}
                 title="Visualização em Lista"
               >
                 <List className="h-4 w-4" />
@@ -135,7 +135,7 @@ export function ConsumerProductFinderModal({
               <button
                 type="button"
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded text-xs ${viewMode === 'grid' ? 'bg-[#383838] text-white' : 'text-gray-400 hover:text-white'}`}
+                className={`p-1.5 rounded text-xs transition-colors ${viewMode === 'grid' ? 'bg-muted text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}`}
                 title="Visualização em Grade"
               >
                 <LayoutGrid className="h-4 w-4" />
@@ -147,7 +147,7 @@ export function ConsumerProductFinderModal({
               variant="outline"
               size="sm"
               onClick={() => {}}
-              className="h-9 px-3 text-xs bg-[#1e1e1e] border-[#444444] text-gray-200 hover:bg-[#333333] hover:text-white gap-1.5 font-medium"
+              className="h-9 px-3 text-xs bg-background border-input text-foreground hover:bg-muted gap-1.5 font-medium"
             >
               <RotateCw className="h-3.5 w-3.5" /> Atualizar
             </Button>
@@ -155,16 +155,16 @@ export function ConsumerProductFinderModal({
         </div>
 
         {/* Main Section (Split Categories Sidebar vs Product Catalog Table) */}
-        <div className="flex-1 flex overflow-hidden bg-[#1e1e1e]">
+        <div className="flex-1 flex overflow-hidden bg-background">
           
           {/* Left Categories Vertical Bar */}
-          <div className="w-48 bg-[#252526] border-r border-[#333333] p-2 flex flex-col gap-1.5 overflow-y-auto shrink-0">
+          <div className="w-48 bg-muted/20 border-r border-border p-2 flex flex-col gap-1.5 overflow-y-auto shrink-0">
             <button
               onClick={() => setSelectedCatId('all')}
               className={`w-full py-2.5 px-3 rounded font-bold text-xs text-left transition-all ${
                 selectedCatId === 'all'
-                  ? 'bg-white text-black shadow-md border-l-4 border-blue-600'
-                  : 'bg-[#333333] text-gray-200 hover:bg-[#444444]'
+                  ? 'bg-primary text-primary-foreground shadow-xs border-l-4 border-primary'
+                  : 'bg-muted/50 text-foreground hover:bg-muted'
               }`}
             >
               Todas
@@ -177,9 +177,9 @@ export function ConsumerProductFinderModal({
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCatId(cat.id)}
-                  style={{ backgroundColor: isSelected ? color : color }}
-                  className={`w-full py-2.5 px-3 rounded font-bold text-xs text-left text-white transition-all drop-shadow-sm ${
-                    isSelected ? 'ring-2 ring-white scale-[1.02] brightness-110' : 'opacity-85 hover:opacity-100'
+                  style={{ backgroundColor: color }}
+                  className={`w-full py-2.5 px-3 rounded font-bold text-xs text-left text-white transition-all drop-shadow-xs ${
+                    isSelected ? 'ring-2 ring-foreground scale-[1.02] brightness-110' : 'opacity-85 hover:opacity-100'
                   }`}
                 >
                   {cat.name}
@@ -189,11 +189,11 @@ export function ConsumerProductFinderModal({
           </div>
 
           {/* Right Product Catalog */}
-          <div className="flex-1 flex flex-col overflow-hidden bg-[#181818]">
+          <div className="flex-1 flex flex-col overflow-hidden bg-background">
             {viewMode === 'table' ? (
               <div className="flex-1 overflow-auto">
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead className="sticky top-0 bg-[#252526] text-gray-300 border-b border-[#383838] shadow-sm z-10">
+                  <thead className="sticky top-0 bg-muted/60 text-foreground border-b border-border shadow-xs z-10">
                     <tr>
                       <th className="py-2.5 px-3 font-bold">Categoria</th>
                       <th className="py-2.5 px-2 font-bold w-16 text-center">Cód.</th>
@@ -203,10 +203,10 @@ export function ConsumerProductFinderModal({
                       <th className="py-2.5 px-3 font-bold text-center w-32">Personalizar (Enter)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#2a2a2a] text-gray-200">
+                  <tbody className="divide-y divide-border/60 text-foreground">
                     {filteredProducts.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-12 text-gray-500 italic">
+                        <td colSpan={6} className="text-center py-12 text-muted-foreground italic">
                           Nenhum produto encontrado.
                         </td>
                       </tr>
@@ -221,14 +221,14 @@ export function ConsumerProductFinderModal({
                             onDoubleClick={() => onPersonalize(prod)}
                             className={`cursor-pointer transition-colors ${
                               isSelectedRow
-                                ? 'bg-[#0284c7] text-white font-medium'
+                                ? 'bg-primary text-primary-foreground font-medium'
                                 : idx % 2 === 0
-                                ? 'bg-[#202020] hover:bg-[#2a2a2a]'
-                                : 'bg-[#1a1a1a] hover:bg-[#2a2a2a]'
+                                ? 'bg-card hover:bg-muted/40'
+                                : 'bg-muted/10 hover:bg-muted/40'
                             }`}
                           >
                             <td className="py-2.5 px-3 font-medium">{cat?.name || '-'}</td>
-                            <td className="py-2.5 px-2 text-center text-gray-400 font-mono text-[11px]">
+                            <td className="py-2.5 px-2 text-center opacity-70 font-mono text-[11px]">
                               {prod.id.slice(0, 4)}
                             </td>
                             <td className="py-2.5 px-3 font-semibold">{prod.name}</td>
@@ -244,7 +244,7 @@ export function ConsumerProductFinderModal({
                                   e.stopPropagation();
                                   onAddDirect(prod);
                                 }}
-                                className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-[#0284c7] hover:bg-[#0369a1] text-white shadow-sm transition-transform active:scale-95"
+                                className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-transform active:scale-95"
                                 title="Adicionar diretamente ao pedido (F11)"
                               >
                                 <Plus className="h-4 w-4 stroke-[3]" />
@@ -259,7 +259,7 @@ export function ConsumerProductFinderModal({
                                   e.stopPropagation();
                                   onPersonalize(prod);
                                 }}
-                                className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-[#0284c7] hover:bg-[#0369a1] text-white shadow-sm transition-transform active:scale-95"
+                                className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-transform active:scale-95"
                                 title="Personalizar complementos e observações (Enter)"
                               >
                                 <MoreHorizontal className="h-4 w-4 stroke-[3]" />
@@ -281,17 +281,17 @@ export function ConsumerProductFinderModal({
                     <div
                       key={prod.id}
                       onClick={() => onPersonalize(prod)}
-                      className="bg-[#252526] hover:bg-[#333333] border border-[#383838] p-3 rounded flex flex-col justify-between cursor-pointer transition-all active:scale-95"
+                      className="bg-card hover:bg-muted/40 border border-border p-3 rounded flex flex-col justify-between cursor-pointer transition-all active:scale-95 shadow-xs"
                     >
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
                           {cat?.name || 'Geral'}
                         </span>
-                        <h4 className="font-bold text-sm text-white mt-1 line-clamp-2">{prod.name}</h4>
+                        <h4 className="font-bold text-sm text-foreground mt-1 line-clamp-2">{prod.name}</h4>
                       </div>
 
                       <div className="mt-3 flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-green-400">R$ {fmt(prod.price)}</span>
+                        <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400">R$ {fmt(prod.price)}</span>
                         <div className="flex gap-1">
                           <button
                             type="button"
@@ -309,7 +309,7 @@ export function ConsumerProductFinderModal({
                               e.stopPropagation();
                               onPersonalize(prod);
                             }}
-                            className="p-1.5 rounded-full bg-gray-700 text-white hover:bg-gray-600"
+                            className="p-1.5 rounded-full bg-muted text-foreground hover:bg-muted/80"
                           >
                             <MoreHorizontal className="h-3.5 w-3.5" />
                           </button>
@@ -324,17 +324,17 @@ export function ConsumerProductFinderModal({
         </div>
 
         {/* Footer Bar */}
-        <div className="bg-[#1e1e1e] px-4 py-2.5 border-t border-[#333333] flex justify-between items-center text-xs text-gray-400 shrink-0">
+        <div className="bg-muted/50 px-4 py-2.5 border-t border-border flex justify-between items-center text-xs text-muted-foreground shrink-0">
           <div className="flex items-center gap-2">
             <Switch
               checked={groupByCat}
               onCheckedChange={setGroupByCat}
-              className="data-[state=checked]:bg-blue-600"
+              className="data-[state=checked]:bg-primary"
             />
-            <span className="font-medium text-gray-300">Agrupar Categoria</span>
+            <span className="font-medium text-foreground">Agrupar Categoria</span>
           </div>
 
-          <span className="font-semibold text-gray-300">
+          <span className="font-semibold text-foreground">
             {filteredProducts.length} Produtos encontrados.
           </span>
         </div>

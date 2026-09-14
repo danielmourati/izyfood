@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle, Check, LockKeyhole } from 'lucide-react';
 import { Order, OrderItem, Product, TableInfo } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,7 +50,8 @@ export function ConsumerOrderModal({
   const [isLocked, setIsLocked] = useState(false);
   const [assignedWaiter, setAssignedWaiter] = useState<string>(user?.name || 'Daniel');
 
-  // Modals for Mais Opções and Sub-menus
+  // Modals for Print Options, Mais Opções and Sub-menus
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [changeTypeOpen, setChangeTypeOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -80,13 +81,12 @@ export function ConsumerOrderModal({
       if (onPrintOrder) {
         onPrintOrder(currentOrder);
       }
-      toast.success('Pedido salvo e impresso na cozinha!');
+      toast.success('Pedido salvo e enviado para a cozinha!');
     } else {
-      // Empty order -> completely discard and free table (Requirement 4)
       if (onDiscardEmptyOrder) {
         onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
       }
-      toast.info('Pedido vazio ignorado.');
+      toast.info('Pedido vazio descartado.');
     }
     onClose();
   };
@@ -97,11 +97,11 @@ export function ConsumerOrderModal({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        // If a child modal is open, close the child modal first
         if (customizeOpen) { setCustomizeOpen(false); return; }
         if (finderOpen) { setFinderOpen(false); return; }
         if (customerModalOpen) { setCustomerModalOpen(false); return; }
         if (checkoutOpen) { setCheckoutOpen(false); return; }
+        if (printMenuOpen) { setPrintMenuOpen(false); return; }
         if (changeTypeOpen) { setChangeTypeOpen(false); return; }
         if (deleteConfirmOpen) { setDeleteConfirmOpen(false); return; }
         if (moreOptionsOpen) { setMoreOptionsOpen(false); return; }
@@ -116,7 +116,7 @@ export function ConsumerOrderModal({
   }, [
     open, currentOrder, items, totalAmount,
     finderOpen, customizeOpen, customerModalOpen, checkoutOpen,
-    changeTypeOpen, deleteConfirmOpen, moreOptionsOpen
+    printMenuOpen, changeTypeOpen, deleteConfirmOpen, moreOptionsOpen
   ]);
 
   if (!open || !currentOrder) return null;
@@ -268,6 +268,40 @@ export function ConsumerOrderModal({
     toast.success(`Cliente ${cust.name} vinculado!`);
   };
 
+  // Handlers for Print Menu (Anexo 1)
+  const handlePrintAccount = () => {
+    if (onPrintOrder) onPrintOrder(currentOrder);
+    toast.success('Imprimindo Conta do Cliente...');
+    setPrintMenuOpen(false);
+  };
+
+  const handlePrintAccountAndLock = () => {
+    setIsLocked(true);
+    if (onPrintOrder) onPrintOrder(currentOrder);
+    toast.success('Conta impressa e pedido bloqueado!');
+    setPrintMenuOpen(false);
+  };
+
+  const handlePrintKitchenNew = () => {
+    if (unprintedCount === 0) {
+      toast.info('Não há itens novos para imprimir na Cozinha.');
+      return;
+    }
+    const updatedItems = items.map(i => ({ ...i, printed: true }));
+    const updatedOrder: Order = { ...currentOrder, items: updatedItems };
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    if (onPrintOrder) onPrintOrder(updatedOrder);
+    toast.success('Itens novos enviados e impressos na cozinha!');
+    setPrintMenuOpen(false);
+  };
+
+  const handleReprintKitchen = () => {
+    if (onPrintOrder) onPrintOrder(currentOrder);
+    toast.success('Cozinha: Reimpressão enviada com sucesso!');
+    setPrintMenuOpen(false);
+  };
+
   // Actions for "Mais Opções"
   const handlePrintConsumptionTickets = () => {
     if (items.length === 0) {
@@ -342,19 +376,19 @@ export function ConsumerOrderModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-[80] bg-black/80 flex items-center justify-center p-2 sm:p-4 backdrop-blur-xs font-sans">
-        <div className="bg-[#1e1e1e] text-white w-full max-w-6xl rounded-md shadow-2xl overflow-hidden border border-[#3c3c3c] flex flex-col h-[92vh] max-h-[800px] animate-in zoom-in-95 duration-150">
+      <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 font-sans">
+        <div className="bg-card text-card-foreground w-full max-w-6xl rounded-md shadow-2xl overflow-hidden border border-border flex flex-col h-[92vh] max-h-[800px] animate-in zoom-in-95 duration-150">
           
           {/* Consumer Window Titlebar */}
-          <div className="bg-[#181818] px-4 py-2 flex justify-between items-center border-b border-[#2d2d2d] shrink-0">
-            <span className="text-sm font-semibold text-gray-200">
+          <div className="bg-muted/70 px-4 py-2 flex justify-between items-center border-b border-border shrink-0">
+            <span className="text-sm font-semibold text-foreground">
               {currentOrder.orderType === 'mesa'
                 ? `Comanda: ${displayMesaNum} (Pedido #${shortOrderId})`
                 : `Pedido #${shortOrderId} (${currentOrder.orderType.toUpperCase()})`}
             </span>
             <button
               onClick={handleCloseAndSaveOrDiscard}
-              className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
+              className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors"
               title="Fechar (ESC)"
             >
               <X className="h-4 w-4" />
@@ -362,19 +396,19 @@ export function ConsumerOrderModal({
           </div>
 
           {/* Top Inside Control Bar */}
-          <div className="bg-[#242424] px-4 py-2.5 border-b border-[#333333] flex items-center justify-between gap-4 shrink-0">
+          <div className="bg-muted/30 px-4 py-2.5 border-b border-border flex items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3">
               {/* Green Table/Badge Icon */}
-              <div className="text-2xl font-black text-[#22c55e] px-1">
+              <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 px-1">
                 {String(displayMesaNum).padStart(2, '0')}
               </div>
 
               {/* Status Badge */}
-              <span className="bg-[#15803d] text-white text-xs font-bold px-3 py-1 rounded">
+              <span className="bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded">
                 Em Aberto
               </span>
 
-              <span className="text-sm font-bold text-gray-300">
+              <span className="text-sm font-bold text-foreground opacity-90">
                 Pedido #{shortOrderId}
               </span>
             </div>
@@ -382,41 +416,42 @@ export function ConsumerOrderModal({
             <div className="flex items-center gap-3 flex-1 max-w-md justify-end">
               {/* Search Bar */}
               <div className="relative w-48">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Buscar item..."
                   value={itemSearchQuery}
                   onChange={e => setItemSearchQuery(e.target.value)}
-                  className="pl-8 h-8 text-xs bg-[#181818] border-[#383838] text-white placeholder:text-gray-400 focus-visible:ring-blue-500"
+                  className="pl-8 h-8 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                 />
               </div>
 
               {/* + Produtos Button */}
               <Button
                 onClick={() => setFinderOpen(true)}
-                className="bg-[#2e2e2e] hover:bg-[#383838] text-white border border-[#444444] text-xs h-8 px-3 font-bold flex items-center gap-1.5 shadow-sm active:scale-95"
+                variant="outline"
+                className="bg-card hover:bg-muted text-foreground border-border text-xs h-8 px-3 font-bold flex items-center gap-1.5 shadow-xs active:scale-95"
               >
-                <Plus className="h-4 w-4 text-blue-400" /> Produtos
+                <Plus className="h-4 w-4 text-primary" /> Produtos
               </Button>
             </div>
           </div>
 
           {/* Body Split (Left Info Panel vs Right Order Items Panel) */}
-          <div className="flex-1 flex overflow-hidden bg-[#181818]">
+          <div className="flex-1 flex overflow-hidden bg-background">
             
             {/* Left Info Panel */}
-            <div className="w-72 bg-[#252526] border-r border-[#333333] p-4 flex flex-col justify-between overflow-y-auto shrink-0 text-xs gap-4">
+            <div className="w-72 bg-muted/20 border-r border-border p-4 flex flex-col justify-between overflow-y-auto shrink-0 text-xs gap-4">
               <div className="space-y-4">
                 
                 {/* Time & Creator */}
-                <div className="space-y-1.5 text-gray-300">
+                <div className="space-y-1.5 text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-400">🕒</span>
+                    <span>🕒</span>
                     <span>Iniciado em {formattedDate}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-400">👤</span>
-                    <span>Criado por: <strong className="text-white">{user?.name || 'Edvaldo'}</strong></span>
+                    <span>👤</span>
+                    <span>Criado por: <strong className="text-foreground">{user?.name || 'Edvaldo'}</strong></span>
                   </div>
                 </div>
 
@@ -425,7 +460,7 @@ export function ConsumerOrderModal({
                   <select
                     value={assignedWaiter}
                     onChange={e => setAssignedWaiter(e.target.value)}
-                    className="w-full bg-[#1e1e1e] border border-[#3c3c3c] text-gray-200 text-xs rounded p-2 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-background border border-input text-foreground text-xs rounded p-2 focus:outline-none focus:border-primary"
                   >
                     <option value="Daniel">Daniel</option>
                     <option value="Edvaldo">Edvaldo</option>
@@ -443,27 +478,27 @@ export function ConsumerOrderModal({
                       setGeneralNotes(e.target.value);
                       onSaveOrder({ ...currentOrder, pickupNotes: e.target.value });
                     }}
-                    className="bg-[#1e1e1e] border-[#3c3c3c] text-xs text-white placeholder:text-gray-500 h-9"
+                    className="bg-background border-input text-xs text-foreground placeholder:text-muted-foreground h-9"
                   />
                 </div>
 
-                <hr className="border-[#383838]" />
+                <hr className="border-border" />
 
                 {/* Table Indicator */}
                 <div className="space-y-2">
-                  <label className="text-gray-400 font-medium block">
+                  <label className="text-muted-foreground font-medium block">
                     🪑 Mesa onde a comanda está
                   </label>
                   <Input
                     placeholder="Núm. da Mesa (Opcional)"
                     value={displayMesaNum}
                     readOnly
-                    className="bg-[#1e1e1e] border-[#3c3c3c] text-xs text-gray-300 h-8"
+                    className="bg-background border-input text-xs text-foreground h-8"
                   />
                   <button
                     type="button"
                     onClick={() => toast.info('Funcionalidade de transferência disponível em Mais Opções > Trocar para...')}
-                    className="text-blue-400 hover:underline text-[11px] block mt-1"
+                    className="text-primary hover:underline text-[11px] block mt-1"
                   >
                     Outras comandas nesta mesa
                   </button>
@@ -474,36 +509,36 @@ export function ConsumerOrderModal({
                   <Switch
                     checked={isLocked}
                     onCheckedChange={setIsLocked}
-                    className="data-[state=checked]:bg-blue-600"
+                    className="data-[state=checked]:bg-primary"
                   />
-                  <span className="font-semibold text-gray-300">Bloquear Pedido</span>
+                  <span className="font-semibold text-foreground">Bloquear Pedido</span>
                 </div>
               </div>
 
               {/* Bottom Action Links in Left Panel */}
-              <div className="space-y-2 pt-4 border-t border-[#333333]">
+              <div className="space-y-2 pt-4 border-t border-border">
                 <button
                   type="button"
                   onClick={() => setCustomerModalOpen(true)}
-                  className="w-full flex items-center gap-2 py-2 px-3 rounded hover:bg-[#333333] text-gray-200 transition-colors text-left font-medium"
+                  className="w-full flex items-center gap-2 py-2 px-3 rounded hover:bg-muted text-foreground transition-colors text-left font-medium"
                 >
-                  <User className="h-4 w-4 text-gray-400" />
+                  <User className="h-4 w-4 text-muted-foreground" />
                   <span>{currentOrder.customerName ? `Cliente: ${currentOrder.customerName}` : 'Vincular Cliente'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setMoreOptionsOpen(true)}
-                  className="w-full flex items-center gap-2 py-2 px-3 rounded hover:bg-[#333333] text-gray-200 transition-colors text-left font-medium"
+                  className="w-full flex items-center gap-2 py-2 px-3 rounded hover:bg-muted text-foreground transition-colors text-left font-medium"
                 >
-                  <Menu className="h-4 w-4 text-gray-400" />
+                  <Menu className="h-4 w-4 text-muted-foreground" />
                   <span>Mais Opções</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleCloseAndSaveOrDiscard}
-                  className="w-full flex items-center gap-2 py-2 px-3 rounded hover:bg-[#333333] text-gray-400 hover:text-white transition-colors text-left font-medium"
+                  className="w-full flex items-center gap-2 py-2 px-3 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-left font-medium"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   <span>Voltar</span>
@@ -512,17 +547,17 @@ export function ConsumerOrderModal({
             </div>
 
             {/* Right Panel: Launched Order Items */}
-            <div className="flex-1 flex flex-col justify-between overflow-hidden bg-[#181818]">
+            <div className="flex-1 flex flex-col justify-between overflow-hidden bg-background">
               
               {/* Items List Table / Empty state */}
               <div className="flex-1 overflow-y-auto p-4">
                 {filteredItems.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-gray-500 text-sm italic">
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm italic">
                     Nenhum item lançado.
                   </div>
                 ) : (
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="sticky top-0 bg-[#242424] text-gray-300 border-b border-[#383838] shadow-sm">
+                    <thead className="sticky top-0 bg-muted/60 text-foreground border-b border-border shadow-xs">
                       <tr>
                         <th className="py-2 px-3 font-bold w-12 text-center">Qtd</th>
                         <th className="py-2 px-3 font-bold">Item / Descrição</th>
@@ -531,18 +566,18 @@ export function ConsumerOrderModal({
                         <th className="py-2 px-3 font-bold text-center w-20">Ações</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#282828] text-gray-200">
+                    <tbody className="divide-y divide-border/60 text-foreground">
                       {filteredItems.map(item => (
-                        <tr key={item.id} className="hover:bg-[#222222] transition-colors">
-                          <td className="py-3 px-3 text-center font-bold text-blue-400">
+                        <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-3 px-3 text-center font-bold text-primary">
                             {item.quantity}x
                           </td>
                           <td className="py-3 px-3">
-                            <div className="font-bold text-white text-sm">{item.name}</div>
+                            <div className="font-bold text-foreground text-sm">{item.name}</div>
 
                             {/* Complements & Notes Detail */}
                             {item.selectedComplements && item.selectedComplements.length > 0 && (
-                              <div className="text-[11px] text-gray-400 mt-0.5">
+                              <div className="text-[11px] text-muted-foreground mt-0.5">
                                 {item.selectedComplements.map((c, ci) => (
                                   <span key={ci} className="mr-2">
                                     + {c.quantity}x {c.name} ({fmt(c.price)})
@@ -552,15 +587,15 @@ export function ConsumerOrderModal({
                             )}
 
                             {item.notes && (
-                              <div className="text-[11px] text-amber-400/90 italic mt-0.5">
+                              <div className="text-[11px] text-amber-600 dark:text-amber-400 italic mt-0.5">
                                 Obs: {item.notes}
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-right font-medium text-gray-400">
+                          <td className="py-3 px-3 text-right font-medium text-muted-foreground">
                             R$ {fmt(item.price)}
                           </td>
-                          <td className="py-3 px-3 text-right font-bold text-green-400">
+                          <td className="py-3 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
                             R$ {fmt(item.subtotal)}
                           </td>
 
@@ -570,7 +605,7 @@ export function ConsumerOrderModal({
                               <button
                                 type="button"
                                 onClick={() => handleEditItemCustomization(item)}
-                                className="p-1 rounded text-gray-400 hover:text-blue-400 hover:bg-[#333333]"
+                                className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted"
                                 title="Editar item"
                               >
                                 <Edit3 className="h-3.5 w-3.5" />
@@ -578,7 +613,7 @@ export function ConsumerOrderModal({
                               <button
                                 type="button"
                                 onClick={() => handleRemoveItem(item.id)}
-                                className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-[#333333]"
+                                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted"
                                 title="Remover item"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -593,24 +628,21 @@ export function ConsumerOrderModal({
               </div>
 
               {/* Bottom Right Actions (Imprimir & PAGAMENTO) */}
-              <div className="bg-[#242424] p-4 border-t border-[#333333] flex justify-between items-center shrink-0 gap-4">
+              <div className="bg-muted/40 p-4 border-t border-border flex justify-between items-center shrink-0 gap-4">
                 
                 {/* Total Summary */}
                 <div>
-                  <span className="text-xs text-gray-400 block font-medium">TOTAL DO PEDIDO</span>
-                  <span className="text-2xl font-extrabold text-white">R$ {fmt(totalAmount)}</span>
+                  <span className="text-xs text-muted-foreground block font-medium">TOTAL DO PEDIDO</span>
+                  <span className="text-2xl font-extrabold text-foreground">R$ {fmt(totalAmount)}</span>
                 </div>
 
                 {/* Main Action Buttons */}
                 <div className="flex items-center gap-3">
-                  {/* Imprimir Button */}
+                  {/* Imprimir Button -> Opens Print Menu (Anexo 1) */}
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      if (onPrintOrder) onPrintOrder(currentOrder);
-                      else toast.success('Comanda impressa com sucesso!');
-                    }}
-                    className="bg-[#2e2e2e] border-[#444444] text-gray-200 hover:bg-[#383838] hover:text-white h-11 px-4 text-xs font-bold flex items-center gap-2 shadow-sm"
+                    onClick={() => setPrintMenuOpen(true)}
+                    className="bg-card border-border text-foreground hover:bg-muted h-11 px-4 text-xs font-bold flex items-center gap-2 shadow-xs"
                   >
                     <Printer className="h-4 w-4" /> Imprimir
                   </Button>
@@ -618,7 +650,7 @@ export function ConsumerOrderModal({
                   {/* PAGAMENTO Button */}
                   <Button
                     onClick={() => setCheckoutOpen(true)}
-                    className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white h-11 px-6 text-sm font-extrabold flex items-center gap-2 shadow-lg tracking-wider active:scale-95 transition-all"
+                    className="bg-blue-600 hover:bg-blue-700 text-white h-11 px-6 text-sm font-extrabold flex items-center gap-2 shadow-lg tracking-wider active:scale-95 transition-all"
                   >
                     <CreditCard className="h-5 w-5" /> PAGAMENTO
                   </Button>
@@ -646,27 +678,88 @@ export function ConsumerOrderModal({
         onConfirm={handleConfirmCustomization}
       />
 
+      {/* Print Options Dialog (Matching Anexo 1) */}
+      <Dialog open={printMenuOpen} onOpenChange={setPrintMenuOpen}>
+        <DialogContent className="bg-card text-card-foreground border-border max-w-sm p-4 font-sans shadow-xl">
+          <div className="space-y-1 py-2">
+            {/* Imprimir Conta */}
+            <button
+              type="button"
+              onClick={handlePrintAccount}
+              className="w-full text-center py-3 px-3 rounded bg-muted/60 hover:bg-muted text-sm font-bold text-foreground transition-colors"
+            >
+              Imprimir Conta
+            </button>
+
+            {/* Imprimir Conta e Bloquear */}
+            <button
+              type="button"
+              onClick={handlePrintAccountAndLock}
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors"
+            >
+              Imprimir Conta e Bloquear
+            </button>
+
+            <hr className="border-border my-2" />
+
+            {/* Imprimir na Cozinha */}
+            <button
+              type="button"
+              onClick={handlePrintKitchenNew}
+              disabled={unprintedCount === 0}
+              className={`w-full text-center py-2.5 px-3 rounded text-sm transition-colors ${
+                unprintedCount > 0
+                  ? 'hover:bg-muted text-foreground font-medium'
+                  : 'text-muted-foreground/60 cursor-not-allowed'
+              }`}
+            >
+              {unprintedCount > 0 ? `Imprimir na Cozinha (${unprintedCount} novos)` : 'Não há itens novos para imprimir na Cozinha'}
+            </button>
+
+            {/* Reimprimir na Cozinha */}
+            <button
+              type="button"
+              onClick={handleReprintKitchen}
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors"
+            >
+              Reimprimir na Cozinha
+            </button>
+
+            <hr className="border-border my-2" />
+
+            {/* Cancelar */}
+            <button
+              type="button"
+              onClick={() => setPrintMenuOpen(false)}
+              className="w-full text-center py-2 px-3 rounded hover:bg-muted text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Customer Selector Dialog */}
       <Dialog open={customerModalOpen} onOpenChange={setCustomerModalOpen}>
-        <DialogContent className="bg-[#252526] text-white border-[#383838]">
+        <DialogContent className="bg-card text-card-foreground border-border max-w-md">
           <DialogHeader>
             <DialogTitle>Vincular Cliente</DialogTitle>
           </DialogHeader>
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {customers.length === 0 ? (
-              <p className="text-xs text-gray-400 italic text-center py-4">Nenhum cliente cadastrado.</p>
+              <p className="text-xs text-muted-foreground italic text-center py-4">Nenhum cliente cadastrado.</p>
             ) : (
               customers.map(c => (
                 <div
                   key={c.id}
                   onClick={() => handleSelectCustomer(c)}
-                  className="p-3 bg-[#1e1e1e] hover:bg-[#333333] border border-[#3c3c3c] rounded cursor-pointer transition-colors flex justify-between items-center"
+                  className="p-3 bg-muted/30 hover:bg-muted border border-border rounded cursor-pointer transition-colors flex justify-between items-center"
                 >
                   <div>
-                    <h5 className="font-bold text-sm text-white">{c.name}</h5>
-                    <p className="text-xs text-gray-400">{c.phone || 'Sem telefone'}</p>
+                    <h5 className="font-bold text-sm text-foreground">{c.name}</h5>
+                    <p className="text-xs text-muted-foreground">{c.phone || 'Sem telefone'}</p>
                   </div>
-                  <Button size="sm" variant="ghost" className="text-xs text-blue-400">
+                  <Button size="sm" variant="ghost" className="text-xs text-primary">
                     Selecionar
                   </Button>
                 </div>
@@ -678,12 +771,12 @@ export function ConsumerOrderModal({
 
       {/* Mais Opções Dialog (Matching Anexo 3) */}
       <Dialog open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen}>
-        <DialogContent className="bg-[#2b2b2b] text-white border-[#3c3c3c] max-w-sm p-4 font-sans">
+        <DialogContent className="bg-card text-card-foreground border-border max-w-sm p-4 font-sans shadow-xl">
           <div className="space-y-1 py-2">
             <button
               type="button"
               onClick={() => setChangeTypeOpen(true)}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
             >
               Trocar para...
             </button>
@@ -691,7 +784,7 @@ export function ConsumerOrderModal({
             <button
               type="button"
               onClick={handlePrintConsumptionTickets}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
             >
               Imprimir Fichas de Consumo ({unprintedCount > 0 ? `${unprintedCount} Itens novos` : '0 Itens novos'})
             </button>
@@ -699,7 +792,7 @@ export function ConsumerOrderModal({
             <button
               type="button"
               onClick={handleSendWhatsApp}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
             >
               Enviar para WhatsApp
             </button>
@@ -707,7 +800,7 @@ export function ConsumerOrderModal({
             <button
               type="button"
               onClick={handleRecalculateOrder}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
             >
               Recalcular Pedido
             </button>
@@ -715,17 +808,17 @@ export function ConsumerOrderModal({
             <button
               type="button"
               onClick={() => setDeleteConfirmOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
             >
-              <Trash2 className="h-4 w-4" /> Excluir Pedido
+              <Trash2 className="h-4 w-4 text-destructive" /> Excluir Pedido
             </button>
 
             <div className="pt-2">
-              <hr className="border-[#444444] mb-2" />
+              <hr className="border-border mb-2" />
               <button
                 type="button"
                 onClick={() => setMoreOptionsOpen(false)}
-                className="w-full text-center py-2 px-3 rounded hover:bg-[#383838] text-sm text-gray-300 transition-colors"
+                className="w-full text-center py-2 px-3 rounded hover:bg-muted text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Cancelar
               </button>
@@ -736,12 +829,12 @@ export function ConsumerOrderModal({
 
       {/* Trocar Para... Sub-Menu Dialog (Matching Anexo 4) */}
       <Dialog open={changeTypeOpen} onOpenChange={setChangeTypeOpen}>
-        <DialogContent className="bg-[#2b2b2b] text-white border-[#3c3c3c] max-w-sm p-4 font-sans">
+        <DialogContent className="bg-card text-card-foreground border-border max-w-sm p-4 font-sans shadow-xl">
           <div className="space-y-1 py-2">
             <button
               type="button"
               onClick={() => handleChangeOrderType('mesa')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm transition-colors ${currentOrder.orderType === 'mesa' ? 'text-gray-400 cursor-default' : 'text-gray-200'}`}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'mesa' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
             >
               Mesa/Comanda {currentOrder.orderType === 'mesa' ? '(Atual)' : ''}
             </button>
@@ -749,7 +842,7 @@ export function ConsumerOrderModal({
             <button
               type="button"
               onClick={() => handleChangeOrderType('balcao')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm transition-colors ${currentOrder.orderType === 'balcao' ? 'text-gray-400 cursor-default' : 'text-gray-200'}`}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'balcao' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
             >
               Balcão {currentOrder.orderType === 'balcao' ? '(Atual)' : ''}
             </button>
@@ -757,7 +850,7 @@ export function ConsumerOrderModal({
             <button
               type="button"
               onClick={() => handleChangeOrderType('caixa')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm transition-colors ${currentOrder.orderType === 'caixa' ? 'text-gray-400 cursor-default' : 'text-gray-200'}`}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'caixa' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
             >
               Pedido no Caixa
             </button>
@@ -765,17 +858,17 @@ export function ConsumerOrderModal({
             <button
               type="button"
               onClick={() => handleChangeOrderType('delivery')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm transition-colors ${currentOrder.orderType === 'delivery' ? 'text-gray-400 cursor-default' : 'text-gray-200'}`}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'delivery' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
             >
               Delivery {currentOrder.orderType === 'delivery' ? '(Atual)' : ''}
             </button>
 
             <div className="pt-2">
-              <hr className="border-[#444444] mb-2" />
+              <hr className="border-border mb-2" />
               <button
                 type="button"
                 onClick={() => setChangeTypeOpen(false)}
-                className="w-full text-center py-2 px-3 rounded hover:bg-[#383838] text-sm text-gray-300 transition-colors"
+                className="w-full text-center py-2 px-3 rounded hover:bg-muted text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Cancelar (ESC)
               </button>
@@ -786,12 +879,12 @@ export function ConsumerOrderModal({
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="bg-[#2b2b2b] text-white border-[#3c3c3c] max-w-md p-5 font-sans">
+        <DialogContent className="bg-card text-card-foreground border-border max-w-md p-5 font-sans">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-400">
+            <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" /> Excluir Pedido #{shortOrderId}
             </DialogTitle>
-            <DialogDescription className="text-gray-300 text-xs mt-2">
+            <DialogDescription className="text-muted-foreground text-xs mt-2">
               Tem certeza que deseja excluir este pedido? A comanda/mesa será liberada e esta ação não poderá ser desfeita.
             </DialogDescription>
           </DialogHeader>
@@ -800,14 +893,14 @@ export function ConsumerOrderModal({
             <Button
               variant="outline"
               onClick={() => setDeleteConfirmOpen(false)}
-              className="bg-[#383838] border-[#444444] text-gray-200 hover:bg-[#444444] hover:text-white text-xs"
+              className="border-border text-foreground hover:bg-muted text-xs"
             >
               Cancelar
             </Button>
             <Button
               variant="destructive"
               onClick={handleConfirmDeleteOrder}
-              className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold"
+              className="text-xs font-bold"
             >
               Sim, Excluir Pedido
             </Button>
