@@ -94,8 +94,8 @@ export function ConsumerProductFinderModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] bg-black/80 flex items-center justify-center p-2 sm:p-4 backdrop-blur-xs font-sans">
-      <div className="bg-[#252526] text-white w-full max-w-5xl rounded-md shadow-2xl overflow-hidden border border-[#3c3c3c] flex flex-col h-[90vh] max-h-[750px] animate-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-[90] bg-black/20 flex items-center justify-end p-2 sm:p-4 pointer-events-none font-sans">
+      <div className="bg-[#252526] text-white w-full max-w-4xl rounded-md shadow-2xl overflow-hidden border border-[#3c3c3c] flex flex-col h-[90vh] max-h-[750px] animate-in zoom-in-95 duration-150 pointer-events-auto ml-[180px] sm:ml-[300px]">
         
         {/* Window Header */}
         <div className="bg-[#1e1e1e] px-4 py-2 flex justify-between items-center border-b border-[#333333] shrink-0">

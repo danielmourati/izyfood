@@ -1,12 +1,24 @@
-import { useEffect, useCallback } from 'react';
+import { useTheme as useNextTheme } from 'next-themes';
 
-// Modo escuro desativado: forçamos tema claro em todas as sessões.
 export function useTheme() {
-  useEffect(() => {
-    document.documentElement.classList.remove('dark');
-    try { localStorage.removeItem('theme'); } catch { /* noop */ }
-  }, []);
+  const { theme, setTheme, resolvedTheme } = useNextTheme();
 
-  const toggleTheme = useCallback(() => { /* noop */ }, []);
-  return { theme: 'light' as const, toggleTheme };
+  const currentTheme = (theme || 'light') as 'light' | 'dark' | 'system';
+  const isDark = resolvedTheme === 'dark';
+
+  const toggleTheme = () => {
+    if (resolvedTheme === 'dark') {
+      setTheme('light');
+    } else {
+      setTheme('dark');
+    }
+  };
+
+  return {
+    theme: currentTheme,
+    setTheme: (newTheme: 'light' | 'dark' | 'system') => setTheme(newTheme),
+    isDark,
+    resolvedTheme: (resolvedTheme || 'light') as 'light' | 'dark',
+    toggleTheme,
+  };
 }

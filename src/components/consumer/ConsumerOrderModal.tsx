@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock } from 'lucide-react';
+import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Order, OrderItem, Product, TableInfo } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ConsumerProductFinderModal } from './ConsumerProductFinderModal';
 import { ConsumerItemCustomizeModal } from './ConsumerItemCustomizeModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { fmt } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -21,6 +21,8 @@ interface ConsumerOrderModalProps {
   order: Order | null;
   onSaveOrder: (updatedOrder: Order) => void;
   onPrintOrder?: (order: Order) => void;
+  onDiscardEmptyOrder?: (orderId: string, tableNumber?: number) => void;
+  onDeleteOrder?: (orderId: string, tableNumber?: number) => void;
 }
 
 export function ConsumerOrderModal({
@@ -30,6 +32,8 @@ export function ConsumerOrderModal({
   order,
   onSaveOrder,
   onPrintOrder,
+  onDiscardEmptyOrder,
+  onDeleteOrder,
 }: ConsumerOrderModalProps) {
   const { products, customers, tables, setTables } = useStore();
   const { user } = useAuth();
@@ -46,6 +50,11 @@ export function ConsumerOrderModal({
   const [isLocked, setIsLocked] = useState(false);
   const [assignedWaiter, setAssignedWaiter] = useState<string>(user?.name || 'Daniel');
 
+  // Modals for Mais Opções and Sub-menus
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [changeTypeOpen, setChangeTypeOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
   useEffect(() => {
     if (open && order) {
       setCurrentOrder(order);
@@ -54,14 +63,69 @@ export function ConsumerOrderModal({
     }
   }, [open, order, user]);
 
+  const items = currentOrder?.items || [];
+  const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
+
+  // Centralized close handler: Auto-saves & prints to kitchen if items exist, or discards if empty
+  const handleCloseAndSaveOrDiscard = () => {
+    if (!currentOrder) {
+      onClose();
+      return;
+    }
+
+    const hasItems = items.length > 0 && totalAmount > 0;
+
+    if (hasItems) {
+      onSaveOrder(currentOrder);
+      if (onPrintOrder) {
+        onPrintOrder(currentOrder);
+      }
+      toast.success('Pedido salvo e impresso na cozinha!');
+    } else {
+      // Empty order -> completely discard and free table (Requirement 4)
+      if (onDiscardEmptyOrder) {
+        onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+      }
+      toast.info('Pedido vazio ignorado.');
+    }
+    onClose();
+  };
+
+  // Keyboard shortcut handler for ESC key
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // If a child modal is open, close the child modal first
+        if (customizeOpen) { setCustomizeOpen(false); return; }
+        if (finderOpen) { setFinderOpen(false); return; }
+        if (customerModalOpen) { setCustomerModalOpen(false); return; }
+        if (checkoutOpen) { setCheckoutOpen(false); return; }
+        if (changeTypeOpen) { setChangeTypeOpen(false); return; }
+        if (deleteConfirmOpen) { setDeleteConfirmOpen(false); return; }
+        if (moreOptionsOpen) { setMoreOptionsOpen(false); return; }
+
+        e.preventDefault();
+        handleCloseAndSaveOrDiscard();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    open, currentOrder, items, totalAmount,
+    finderOpen, customizeOpen, customerModalOpen, checkoutOpen,
+    changeTypeOpen, deleteConfirmOpen, moreOptionsOpen
+  ]);
+
   if (!open || !currentOrder) return null;
 
-  const items = currentOrder.items || [];
   const filteredItems = items.filter(i =>
     i.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
   );
 
-  const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
+  const unprintedCount = items.filter(i => !i.printed).length;
 
   // Helper to add item directly without customization
   const handleAddDirect = (prod: Product) => {
@@ -204,6 +268,71 @@ export function ConsumerOrderModal({
     toast.success(`Cliente ${cust.name} vinculado!`);
   };
 
+  // Actions for "Mais Opções"
+  const handlePrintConsumptionTickets = () => {
+    if (items.length === 0) {
+      toast.error('Nenhum item no pedido para imprimir.');
+      return;
+    }
+    const updatedItems = items.map(i => ({ ...i, printed: true }));
+    const updatedOrder: Order = { ...currentOrder, items: updatedItems };
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    if (onPrintOrder) onPrintOrder(updatedOrder);
+    toast.success('Fichas de consumo impressas com sucesso!');
+    setMoreOptionsOpen(false);
+  };
+
+  const handleSendWhatsApp = () => {
+    const phone = currentOrder.customerPhone || '5500000000000';
+    let text = `*PEDIDO #${currentOrder.id.slice(0, 4)}*\n`;
+    text += `Mesa/Comanda: ${currentOrder.tableNumber || tableNumber || 1}\n\n`;
+    text += `*ITENS:*\n`;
+    items.forEach(i => {
+      text += `• ${i.quantity}x ${i.name} - R$ ${fmt(i.subtotal)}\n`;
+    });
+    text += `\n*TOTAL: R$ ${fmt(totalAmount)}*`;
+
+    const encoded = encodeURIComponent(text);
+    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`, '_blank');
+    toast.success('Abrindo WhatsApp...');
+    setMoreOptionsOpen(false);
+  };
+
+  const handleRecalculateOrder = () => {
+    const updatedItems = items.map(i => ({
+      ...i,
+      subtotal: i.price * i.quantity,
+    }));
+    const newTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
+    const updatedOrder: Order = { ...currentOrder, items: updatedItems, total: newTotal };
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    toast.success('Pedido recalculado com sucesso!');
+    setMoreOptionsOpen(false);
+  };
+
+  const handleChangeOrderType = (newType: 'mesa' | 'balcao' | 'caixa' | 'delivery') => {
+    const updatedOrder: Order = { ...currentOrder, orderType: newType };
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    setChangeTypeOpen(false);
+    setMoreOptionsOpen(false);
+    toast.success(`Tipo de pedido alterado para: ${newType.toUpperCase()}`);
+  };
+
+  const handleConfirmDeleteOrder = () => {
+    if (onDeleteOrder) {
+      onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
+    } else if (onDiscardEmptyOrder) {
+      onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+    }
+    toast.success('Pedido excluído com sucesso!');
+    setDeleteConfirmOpen(false);
+    setMoreOptionsOpen(false);
+    onClose();
+  };
+
   const formattedDate = currentOrder.createdAt
     ? format(new Date(currentOrder.createdAt), "dd-MM 'às' HH:mm")
     : format(new Date(), "dd-MM 'às' HH:mm");
@@ -224,8 +353,9 @@ export function ConsumerOrderModal({
                 : `Pedido #${shortOrderId} (${currentOrder.orderType.toUpperCase()})`}
             </span>
             <button
-              onClick={onClose}
+              onClick={handleCloseAndSaveOrDiscard}
               className="text-gray-400 hover:text-white p-1 rounded hover:bg-[#333333] transition-colors"
+              title="Fechar (ESC)"
             >
               <X className="h-4 w-4" />
             </button>
@@ -286,7 +416,7 @@ export function ConsumerOrderModal({
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-gray-400">👤</span>
-                    <span>Criado por: <strong className="text-white">{user?.name || 'Daniel'}</strong></span>
+                    <span>Criado por: <strong className="text-white">{user?.name || 'Edvaldo'}</strong></span>
                   </div>
                 </div>
 
@@ -298,6 +428,7 @@ export function ConsumerOrderModal({
                     className="w-full bg-[#1e1e1e] border border-[#3c3c3c] text-gray-200 text-xs rounded p-2 focus:outline-none focus:border-blue-500"
                   >
                     <option value="Daniel">Daniel</option>
+                    <option value="Edvaldo">Edvaldo</option>
                     <option value="Atendente 1">Atendente 1</option>
                     <option value="Caixa">Caixa</option>
                   </select>
@@ -331,7 +462,7 @@ export function ConsumerOrderModal({
                   />
                   <button
                     type="button"
-                    onClick={() => toast.info('Funcionalidade de transferência disponível no menu principal')}
+                    onClick={() => toast.info('Funcionalidade de transferência disponível em Mais Opções > Trocar para...')}
                     className="text-blue-400 hover:underline text-[11px] block mt-1"
                   >
                     Outras comandas nesta mesa
@@ -362,7 +493,7 @@ export function ConsumerOrderModal({
 
                 <button
                   type="button"
-                  onClick={() => toast.info('Opções adicionais')}
+                  onClick={() => setMoreOptionsOpen(true)}
                   className="w-full flex items-center gap-2 py-2 px-3 rounded hover:bg-[#333333] text-gray-200 transition-colors text-left font-medium"
                 >
                   <Menu className="h-4 w-4 text-gray-400" />
@@ -371,7 +502,7 @@ export function ConsumerOrderModal({
 
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleCloseAndSaveOrDiscard}
                   className="w-full flex items-center gap-2 py-2 px-3 rounded hover:bg-[#333333] text-gray-400 hover:text-white transition-colors text-left font-medium"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -542,6 +673,145 @@ export function ConsumerOrderModal({
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mais Opções Dialog (Matching Anexo 3) */}
+      <Dialog open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen}>
+        <DialogContent className="bg-[#2b2b2b] text-white border-[#3c3c3c] max-w-sm p-4 font-sans">
+          <div className="space-y-1 py-2">
+            <button
+              type="button"
+              onClick={() => setChangeTypeOpen(true)}
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+            >
+              Trocar para...
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrintConsumptionTickets}
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+            >
+              Imprimir Fichas de Consumo ({unprintedCount > 0 ? `${unprintedCount} Itens novos` : '0 Itens novos'})
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSendWhatsApp}
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+            >
+              Enviar para WhatsApp
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRecalculateOrder}
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+            >
+              Recalcular Pedido
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded hover:bg-[#383838] text-sm text-gray-200 transition-colors font-normal"
+            >
+              <Trash2 className="h-4 w-4" /> Excluir Pedido
+            </button>
+
+            <div className="pt-2">
+              <hr className="border-[#444444] mb-2" />
+              <button
+                type="button"
+                onClick={() => setMoreOptionsOpen(false)}
+                className="w-full text-center py-2 px-3 rounded hover:bg-[#383838] text-sm text-gray-300 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Trocar Para... Sub-Menu Dialog (Matching Anexo 4) */}
+      <Dialog open={changeTypeOpen} onOpenChange={setChangeTypeOpen}>
+        <DialogContent className="bg-[#2b2b2b] text-white border-[#3c3c3c] max-w-sm p-4 font-sans">
+          <div className="space-y-1 py-2">
+            <button
+              type="button"
+              onClick={() => handleChangeOrderType('mesa')}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm transition-colors ${currentOrder.orderType === 'mesa' ? 'text-gray-400 cursor-default' : 'text-gray-200'}`}
+            >
+              Mesa/Comanda {currentOrder.orderType === 'mesa' ? '(Atual)' : ''}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleChangeOrderType('balcao')}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm transition-colors ${currentOrder.orderType === 'balcao' ? 'text-gray-400 cursor-default' : 'text-gray-200'}`}
+            >
+              Balcão {currentOrder.orderType === 'balcao' ? '(Atual)' : ''}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleChangeOrderType('caixa')}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm transition-colors ${currentOrder.orderType === 'caixa' ? 'text-gray-400 cursor-default' : 'text-gray-200'}`}
+            >
+              Pedido no Caixa
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleChangeOrderType('delivery')}
+              className={`w-full text-center py-2.5 px-3 rounded hover:bg-[#383838] text-sm transition-colors ${currentOrder.orderType === 'delivery' ? 'text-gray-400 cursor-default' : 'text-gray-200'}`}
+            >
+              Delivery {currentOrder.orderType === 'delivery' ? '(Atual)' : ''}
+            </button>
+
+            <div className="pt-2">
+              <hr className="border-[#444444] mb-2" />
+              <button
+                type="button"
+                onClick={() => setChangeTypeOpen(false)}
+                className="w-full text-center py-2 px-3 rounded hover:bg-[#383838] text-sm text-gray-300 transition-colors"
+              >
+                Cancelar (ESC)
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="bg-[#2b2b2b] text-white border-[#3c3c3c] max-w-md p-5 font-sans">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-400">
+              <AlertTriangle className="h-5 w-5" /> Excluir Pedido #{shortOrderId}
+            </DialogTitle>
+            <DialogDescription className="text-gray-300 text-xs mt-2">
+              Tem certeza que deseja excluir este pedido? A comanda/mesa será liberada e esta ação não poderá ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-4 flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(false)}
+              className="bg-[#383838] border-[#444444] text-gray-200 hover:bg-[#444444] hover:text-white text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteOrder}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold"
+            >
+              Sim, Excluir Pedido
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

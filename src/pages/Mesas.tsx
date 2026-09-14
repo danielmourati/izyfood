@@ -69,6 +69,24 @@ const Mesas = () => {
     setOrders(prev => prev.map(o => (o.id === updatedOrder.id ? updatedOrder : o)));
   };
 
+  const handleDiscardEmptyOrder = (orderId: string, tableNum?: number) => {
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+    if (tableNum) {
+      setTables(prev => prev.map(t =>
+        t.number === tableNum ? { ...t, status: 'available', orderId: undefined } : t
+      ));
+    }
+  };
+
+  const handleDeleteConsumerOrder = (orderId: string, tableNum?: number) => {
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+    if (tableNum) {
+      setTables(prev => prev.map(t =>
+        t.number === tableNum ? { ...t, status: 'available', orderId: undefined } : t
+      ));
+    }
+  };
+
   const handlePrintConsumerOrder = async (orderToPrint: Order) => {
     try {
       await printOrder(orderToPrint);
@@ -306,6 +324,8 @@ const Mesas = () => {
         order={consumerOrderModal.order}
         onSaveOrder={handleSaveConsumerOrder}
         onPrintOrder={handlePrintConsumerOrder}
+        onDiscardEmptyOrder={handleDiscardEmptyOrder}
+        onDeleteOrder={handleDeleteConsumerOrder}
       />
     </div>
   );

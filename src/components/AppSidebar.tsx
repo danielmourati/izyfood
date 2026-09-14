@@ -1,5 +1,6 @@
+import { ThemeToggle } from '@/components/ThemeToggle';
 import {
-  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield, Menu
+  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, Truck, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield, Menu, Sun, Moon
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -171,6 +172,10 @@ export function AppSidebar() {
             <DropdownMenuContent side="right" align="start" className="w-56">
               <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><UserIcon className="h-4 w-4 mr-2" /> Meu Perfil</DropdownMenuItem>
               <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><Settings className="h-4 w-4 mr-2" /> Configurações</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5">
+                <ThemeToggle variant="compact" className="w-full justify-center" />
+              </div>
               {user?.role === 'superadmin' && (
                 <>
                   <DropdownMenuSeparator />
@@ -197,6 +202,10 @@ export function AppSidebar() {
                 <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
               </div>
             </button>
+
+            <div className="pt-1 pb-0.5">
+              <ThemeToggle variant="compact" className="w-full justify-center" />
+            </div>
 
             <div className="flex flex-col gap-2">
               <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => { navigate('/configuracoes'); handleItemClick(); }}>

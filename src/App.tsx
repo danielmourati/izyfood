@@ -1,3 +1,4 @@
+import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, HashRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
 import { isDesktopApp } from "@/lib/printer-desktop";
@@ -115,17 +116,19 @@ const isFileProtocol = typeof window !== 'undefined' && window.location.protocol
 const RouterComponent = isDesktopApp() || isFileProtocol ? HashRouter : BrowserRouter;
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <RouterComponent>
-        <AuthProvider>
-          <StoreProvider>
-            <AppRoutes />
-          </StoreProvider>
-        </AuthProvider>
-      </RouterComponent>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="izyfood-theme">
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <RouterComponent>
+          <AuthProvider>
+            <StoreProvider>
+              <AppRoutes />
+            </StoreProvider>
+          </AuthProvider>
+        </RouterComponent>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;
