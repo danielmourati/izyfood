@@ -81,6 +81,7 @@ export interface Order {
   pickupTime?: string;
   pickupNotes?: string;
   serviceFee?: number;
+  isLocked?: boolean;
 }
 
 export interface Customer {

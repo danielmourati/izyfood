@@ -208,7 +208,8 @@ const Mesas = () => {
                     }
                   } catch { }
                 }
-                const bgColor = minutesOpen > 45 ? 'bg-[#d9a036]' : 'bg-[#2e8c56]';
+                const isBlocked = order?.isLocked === true;
+                const bgColor = isBlocked ? 'bg-[#d9a036]' : 'bg-[#2e8c56]';
                 const customer = order?.customerId ? customers.find(c => c.id === order.customerId) : null;
                 const custName = customer?.name || order?.customerName || '';
 
@@ -219,7 +220,11 @@ const Mesas = () => {
                     className={`relative w-full aspect-square flex flex-col justify-between p-1.5 sm:p-2 rounded-sm text-primary-foreground shadow-sm hover:brightness-110 active:scale-95 transition-all text-left overflow-hidden ${bgColor}`}
                   >
                     <div className="flex justify-between items-start w-full">
-                      <Lock className="h-4 w-4 shrink-0 opacity-80" />
+                      {isBlocked ? (
+                        <Lock className="h-4 w-4 shrink-0 opacity-90" />
+                      ) : (
+                        <div className="h-4 w-4" />
+                      )}
                       <span className="text-[10px] sm:text-[11px] font-bold opacity-90 drop-shadow-sm shadow-black whitespace-nowrap">
                         {Math.floor(minutesOpen / 1440) > 0 ? `${Math.floor(minutesOpen / 1440)} dias` : `${minutesOpen} min`}
                       </span>

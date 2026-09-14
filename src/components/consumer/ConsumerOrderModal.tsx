@@ -66,6 +66,7 @@ export function ConsumerOrderModal({
       setCurrentOrder(order);
       setGeneralNotes(order.pickupNotes || '');
       setAssignedWaiter(order.customerName || user?.name || 'Daniel');
+      setIsLocked(order.isLocked ?? false);
     }
   }, [open, order, user]);
 
@@ -291,10 +292,15 @@ export function ConsumerOrderModal({
 
   const handlePrintAccountAndLock = () => {
     setIsLocked(true);
-    if (onPrintBill) {
-      onPrintBill(currentOrder);
-    } else if (onPrintOrder) {
-      onPrintOrder(currentOrder);
+    if (currentOrder) {
+      const updatedOrder: Order = { ...currentOrder, isLocked: true };
+      setCurrentOrder(updatedOrder);
+      onSaveOrder(updatedOrder);
+      if (onPrintBill) {
+        onPrintBill(updatedOrder);
+      } else if (onPrintOrder) {
+        onPrintOrder(updatedOrder);
+      }
     }
     toast.success('Conta impressa e pedido bloqueado!');
     setPrintMenuOpen(false);
@@ -537,7 +543,15 @@ export function ConsumerOrderModal({
                 <div className="flex items-center gap-3 pt-2">
                   <Switch
                     checked={isLocked}
-                    onCheckedChange={setIsLocked}
+                    onCheckedChange={(checked) => {
+                      setIsLocked(checked);
+                      if (currentOrder) {
+                        const updated = { ...currentOrder, isLocked: checked };
+                        setCurrentOrder(updated);
+                        onSaveOrder(updated);
+                        toast.info(checked ? 'Pedido bloqueado' : 'Pedido desbloqueado');
+                      }
+                    }}
                     className="data-[state=checked]:bg-primary"
                   />
                   <span className="font-semibold text-foreground">Bloquear Pedido</span>

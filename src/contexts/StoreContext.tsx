@@ -84,6 +84,7 @@ function dbToOrder(r: any): Order {
     pickupTime: r.pickup_time || undefined,
     pickupNotes: r.pickup_notes || undefined,
     serviceFee: r.service_fee ? Number(r.service_fee) : undefined,
+    isLocked: r.is_locked ?? false,
   };
 }
 function dbToSale(r: any): Sale {
@@ -704,7 +705,8 @@ async function syncOrders(prev: Order[], next: Order[]) {
       loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
       pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
       pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
-    });
+      is_locked: o.isLocked ?? false,
+    } as any);
   }
   for (const o of updated) {
     await supabase.from('orders').update({
@@ -720,7 +722,8 @@ async function syncOrders(prev: Order[], next: Order[]) {
       completed_at: o.completedAt || null,
       pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
       pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
-    }).eq('id', o.id);
+      is_locked: o.isLocked ?? false,
+    } as any).eq('id', o.id);
   }
   for (const o of removed) await supabase.from('orders').delete().eq('id', o.id);
 }
