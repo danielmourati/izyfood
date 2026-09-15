@@ -287,41 +287,34 @@ export function usePrinter() {
   };
 
   const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string) => {
-    // 0. Prioridade Bluetooth deste aparelho (mobile) — sobrepõe qualquer padrão do banco.
-    if (btPriorityDefault && (isBluetoothConnected() || getLastPairedDeviceName())) {
+    // 1. Bluetooth (ESC/POS) - Prioridade se o Bluetooth estiver conectado ou se houver dispositivo pareado
+    if (isBluetoothConnected() || getLastPairedDeviceName() || btPriorityDefault) {
       try {
-        if (!isBluetoothConnected()) await ensureBluetoothConnected();
+        if (!isBluetoothConnected()) {
+          await ensureBluetoothConnected();
+        }
         if (isBluetoothConnected()) {
+          console.log('[sendToPrinter] Enviando comando ESC/POS via Bluetooth...');
           await printViaBluetooth(data);
-          return;
+          return; // Sucesso, imprimiu via Bluetooth!
         }
       } catch (err) {
-        console.warn('[print] BT prioritário falhou, seguindo pipeline padrão:', err);
+        console.warn('[sendToPrinter] Tentativa Bluetooth falhou, verificando canais alternativos:', err);
       }
     }
 
-    // 1. Bluetooth (ESC/POS) - Prioridade se estiver conectado e for a impressora padrão (ou se não houver padrão)
-    if (isBluetoothConnected() && (!defaultPrinter || defaultPrinter.connection_type === 'bluetooth')) {
-      try {
-        await printViaBluetooth(data);
-        return; // Sucesso, finaliza aqui
-      } catch (err) {
-        console.error('Erro na impressão Bluetooth, caindo para HTML...', err);
-      }
-    }
-
-
-    // 2. QZ Tray (USB/Rede)
+    // 2. QZ Tray (USB/Rede em desktop)
     if ((defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && isQzConnected()) {
       try {
         await printViaQzTray(data, defaultPrinter.address);
-        return; // Sucesso, finaliza aqui
+        return; // Sucesso, imprimiu via QZ Tray!
       } catch (err) {
-        console.error('QZ Tray print error, falling back to HTML:', err);
+        console.error('[sendToPrinter] Erro no QZ Tray, caindo para fallback HTML:', err);
       }
     }
 
-    // 3. Fallback para HTML (Abre a janela nativa do Android/Windows)
+    // 3. Fallback apenas se NENHUMA impressora direta (Bluetooth / QZ) funcionou
+    console.info('[sendToPrinter] Nenhuma impressora direta conectada ou ativa. Abrindo janela de visualização HTML...');
     printViaHtmlFallback(htmlFallback, title, paperWidth);
   };
 
@@ -391,11 +384,6 @@ export function usePrinter() {
   const printBill = async (bill: any) => {
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printBill] printSettings usados:', JSON.stringify(ps));
-    const blockReason = validateBillPrintSettingsCache(user?.tenantId, ps);
-    if (blockReason) {
-      console.warn('[printBill] bloqueado por configuração incompleta:', blockReason);
-      throw new Error(blockReason);
-    }
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta');
