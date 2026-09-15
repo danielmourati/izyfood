@@ -43,11 +43,23 @@ export function ConsumerOrderModal({
 }: ConsumerOrderModalProps) {
   const { products, categories, customers, tables, setTables } = useStore();
   const { user, isAdmin } = useAuth();
-  const { printOrder } = usePrinter();
+  const {
+    printOrder,
+    btConnected,
+    btDeviceName,
+    lastPairedName,
+    btPriorityDefault,
+    toggleBluetoothPriorityDefault,
+    pairBluetooth,
+    reconnectPrinter,
+    forgetPrinter,
+    printTest,
+  } = usePrinter();
   const isMobile = useIsMobile();
 
   const [currentOrder, setCurrentOrder] = useState<Order | null>(order);
   const [mobileStep, setMobileStep] = useState<'review' | 'categories' | 'products'>('review');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [mobileSearchQuery, setMobileSearchQuery] = useState('');
   const [finderOpen, setFinderOpen] = useState(false);
@@ -110,8 +122,10 @@ export function ConsumerOrderModal({
     } else {
       if (onDiscardEmptyOrder) {
         onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+      } else if (onDeleteOrder) {
+        onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
       }
-      toast.info('Pedido vazio descartado.');
+      toast.info('Pedido sem itens foi descartado.');
     }
     onClose();
   };
@@ -135,6 +149,18 @@ export function ConsumerOrderModal({
       return;
     }
 
+    // If order has no items, FECHAR discards/deletes the empty order and releases table
+    if (!items || items.length === 0 || totalAmount <= 0) {
+      if (onDiscardEmptyOrder) {
+        onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+      } else if (onDeleteOrder) {
+        onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
+      }
+      toast.info('Mesa sem itens foi descartada e liberada.');
+      onClose();
+      return;
+    }
+
     const updatedOrder: Order = {
       ...currentOrder,
       isLocked: true,
@@ -145,7 +171,6 @@ export function ConsumerOrderModal({
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
 
-    const mesaNum = currentOrder.tableNumber || tableNumber;
     if (mesaNum && setTables) {
       setTables(prev => prev.map(t =>
         t.number === Number(mesaNum)
@@ -578,7 +603,12 @@ export function ConsumerOrderModal({
               {/* Blue Header */}
               <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
                 <span className="text-lg font-bold">Novo Pedido - Mesa {displayMesaNum}</span>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="text-white hover:bg-white/10"
+                >
                   <Menu className="h-6 w-6" />
                 </Button>
               </div>
@@ -623,11 +653,11 @@ export function ConsumerOrderModal({
                 </div>
               </div>
 
-              {/* Bottom Footer Action Bar */}
+              {/* Bottom Footer Action Bar - VOLTAR returns to Mesas (Requirement 1) */}
               <div className="p-3 bg-card border-t border-border flex gap-3 shrink-0">
                 <Button
                   variant="outline"
-                  onClick={() => setMobileStep('review')}
+                  onClick={handleCloseAndSaveOrDiscard}
                   className="flex-1 h-12 text-xs font-bold flex items-center justify-center gap-2 border-border"
                 >
                   <ChevronLeft className="h-4 w-4" /> VOLTAR
@@ -648,7 +678,12 @@ export function ConsumerOrderModal({
               {/* Blue Header */}
               <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
                 <span className="text-lg font-bold">Novo Pedido - Mesa {displayMesaNum}</span>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="text-white hover:bg-white/10"
+                >
                   <Menu className="h-6 w-6" />
                 </Button>
               </div>
@@ -780,7 +815,12 @@ export function ConsumerOrderModal({
               {/* Blue Header */}
               <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
                 <span className="text-lg font-bold">Mesa {displayMesaNum}</span>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="text-white hover:bg-white/10"
+                >
                   <Menu className="h-6 w-6" />
                 </Button>
               </div>
@@ -898,6 +938,215 @@ export function ConsumerOrderModal({
               }}
             />
           )}
+
+          {/* Hamburger Menu Dialog (Requirement 3: Funções Básicas + Módulo Bluetooth) */}
+          <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <DialogContent className="bg-card text-card-foreground border-border max-w-md p-4 font-sans shadow-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="border-b border-border pb-2">
+                <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                  <Menu className="h-5 w-5 text-primary" /> Menu do Pedido - Mesa {displayMesaNum}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Comanda #{shortOrderId} ({currentOrder.orderType.toUpperCase()})
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2 text-xs">
+                {/* SEÇÃO 1: OPÇÕES E FUNÇÕES BÁSICAS */}
+                <div className="space-y-2">
+                  <span className="font-extrabold uppercase tracking-wider text-[11px] text-muted-foreground block border-b border-border pb-1">
+                    Opções & Funções Básicas
+                  </span>
+
+                  {/* Vincular Cliente */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setCustomerModalOpen(true);
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-md bg-muted/40 hover:bg-muted text-foreground transition-colors font-semibold"
+                  >
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-primary" />
+                      <span>{custName ? `Cliente: ${custName}` : 'Vincular Cliente'}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground font-bold">Alterar</span>
+                  </button>
+
+                  {/* Observações do Pedido */}
+                  <div className="space-y-1 pt-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground">Observações Gerais do Pedido</label>
+                    <Input
+                      placeholder="Ex: Sem gelo, mesa externa..."
+                      value={generalNotes}
+                      onChange={e => {
+                        setGeneralNotes(e.target.value);
+                        onSaveOrder({ ...currentOrder, pickupNotes: e.target.value });
+                      }}
+                      className="bg-background border-input text-xs text-foreground h-9"
+                    />
+                  </div>
+
+                  {/* Bloquear / Desbloquear Pedido */}
+                  <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/40 text-foreground pt-2">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <Lock className="h-4 w-4 text-amber-500" />
+                      <span>Bloquear Pedido</span>
+                    </div>
+                    <Switch
+                      checked={isLocked}
+                      onCheckedChange={(checked) => {
+                        setIsLocked(checked);
+                        if (currentOrder) {
+                          const updated = { ...currentOrder, isLocked: checked };
+                          setCurrentOrder(updated);
+                          onSaveOrder(updated);
+                          toast.info(checked ? 'Pedido bloqueado' : 'Pedido desbloqueado');
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {/* Trocar Tipo de Pedido / Mesa */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setChangeTypeOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 p-2.5 rounded-md bg-muted/40 hover:bg-muted text-foreground transition-colors font-semibold"
+                  >
+                    <RefreshCw className="h-4 w-4 text-primary" />
+                    <span>Trocar Tipo de Pedido / Mesa</span>
+                  </button>
+
+                  {/* Excluir Pedido Vazio */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setDeleteConfirmOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors font-bold"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Descartar / Excluir Pedido</span>
+                  </button>
+                </div>
+
+                {/* SEÇÃO 2: MÓDULO CONEXÃO IMPRESSORA BLUETOOTH */}
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <span className="font-extrabold uppercase tracking-wider text-[11px] text-primary flex items-center gap-1.5 border-b border-border pb-1">
+                    <Printer className="h-4 w-4" /> Conexão Impressora Bluetooth
+                  </span>
+
+                  {/* Printer Status Card */}
+                  <div className="p-3 rounded-md bg-muted/50 border border-border space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-foreground">Status do Bluetooth:</span>
+                      <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded flex items-center gap-1 ${
+                        btConnected
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                          : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
+                      }`}>
+                        <span className={`h-2 w-2 rounded-full ${btConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                        {btConnected ? 'Conectado' : 'Desconectado'}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground truncate">
+                      Dispositivo: <strong className="text-foreground">{btDeviceName || lastPairedName || 'Nenhum pareado'}</strong>
+                    </div>
+
+                    {/* Action buttons for Bluetooth */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const name = await pairBluetooth();
+                            toast.success(`Conectado a ${name}!`);
+                          } catch (err) {
+                            toast.error('Não foi possível conectar ao Bluetooth.');
+                          }
+                        }}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold h-9 flex items-center justify-center gap-1"
+                      >
+                        <Search className="h-3.5 w-3.5" /> Parear / Buscar
+                      </Button>
+
+                      {btConnected ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            forgetPrinter();
+                            toast.info('Impressora desconectada.');
+                          }}
+                          className="text-xs font-bold h-9 border-destructive/40 text-destructive hover:bg-destructive/10"
+                        >
+                          Desconectar
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            const ok = await reconnectPrinter();
+                            if (ok) toast.success('Reconectado com sucesso!');
+                            else toast.warning('Nenhuma impressora pareada previamente.');
+                          }}
+                          className="text-xs font-bold h-9 border-border"
+                        >
+                          Reconectar
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Test print button */}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={async () => {
+                        try {
+                          await printTest();
+                          toast.success('Comanda de teste impressa!');
+                        } catch (err) {
+                          toast.error('Erro ao imprimir teste.');
+                        }
+                      }}
+                      className="w-full text-xs font-bold h-9 mt-1 flex items-center justify-center gap-1.5"
+                    >
+                      <Printer className="h-3.5 w-3.5" /> Imprimir Comanda de Teste
+                    </Button>
+
+                    {/* Default Local Priority Toggle */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border/60">
+                      <span className="text-[11px] font-semibold text-foreground">Usar Bluetooth como Padrão Local</span>
+                      <Switch
+                        checked={btPriorityDefault}
+                        onCheckedChange={(checked) => {
+                          toggleBluetoothPriorityDefault(checked);
+                          toast.info(checked ? 'Prioridade Bluetooth ativada!' : 'Prioridade Bluetooth desativada.');
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-2 border-t border-border">
+                <Button
+                  variant="outline"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-xs font-bold h-9"
+                >
+                  Fechar Menu
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </>
     );
