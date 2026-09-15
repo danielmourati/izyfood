@@ -97,7 +97,10 @@ export function ConsumerOrderModal({
 
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
-  const hasUnsentItems = items.length === 0 || items.some(i => !i.printed);
+
+  // Unsent items tracking: hasNewUnsentItems is true ONLY when there is at least 1 unprinted item launched
+  const hasNewUnsentItems = items.length > 0 && items.some(i => !i.printed);
+  const hasUnsentItems = items.length === 0 || hasNewUnsentItems;
 
   // Centralized close handler: Prompts user if there are unsent/unprinted items before exiting
   const handleCloseAndSaveOrDiscard = () => {
@@ -109,9 +112,7 @@ export function ConsumerOrderModal({
     const hasItems = items.length > 0 && totalAmount > 0;
 
     if (hasItems) {
-      const unprintedItems = items.filter(i => !i.printed);
-
-      if (unprintedItems.length > 0) {
+      if (hasNewUnsentItems) {
         setUnsentAlertOpen(true);
         return;
       }
@@ -131,7 +132,7 @@ export function ConsumerOrderModal({
 
   const [sendingOrder, setSendingOrder] = useState(false);
 
-  // Helper to save order when clicking REVISAR (Requirement 3)
+  // Helper to save order when clicking REVISAR
   const handleRevisar = () => {
     if (currentOrder && items.length > 0) {
       onSaveOrder(currentOrder);
@@ -141,19 +142,21 @@ export function ConsumerOrderModal({
     setMobileStep('review');
   };
 
-  // Helper to lock order and table status when FECHAR is clicked (Requirement 5)
-  const handleFecharOrder = () => {
+  // Helper to lock order and table status when FECHAR is clicked (Prints account coupon & redirects to Mesas)
+  const handleFecharOrder = async () => {
     if (!currentOrder) {
       onClose();
       return;
     }
 
+    const mesaNum = currentOrder.tableNumber || tableNumber;
+
     // If order has no items, FECHAR discards/deletes the empty order and releases table
     if (!items || items.length === 0 || totalAmount <= 0) {
       if (onDiscardEmptyOrder) {
-        onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+        onDiscardEmptyOrder(currentOrder.id, mesaNum);
       } else if (onDeleteOrder) {
-        onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
+        onDeleteOrder(currentOrder.id, mesaNum);
       }
       toast.info('Mesa sem itens foi descartada e liberada.');
       onClose();
@@ -170,37 +173,6 @@ export function ConsumerOrderModal({
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
 
-    if (mesaNum && setTables) {
-      setTables(prev => prev.map(t =>
-        t.number === Number(mesaNum)
-          ? { ...t, status: 'occupied', orderId: updatedOrder.id }
-          : t
-      ));
-    }
-
-    toast.success(`Mesa ${mesaNum || ''} / Pedido fechado e bloqueado!`);
-    onClose();
-  };
-
-  // Helper to send and print order automatically via local Bluetooth printer
-  const handleEnviarOrder = async () => {
-    if (!currentOrder || items.length === 0) {
-      toast.error('Adicione itens antes de enviar o pedido.');
-      return;
-    }
-
-    setSendingOrder(true);
-    const mesaNum = currentOrder.tableNumber || tableNumber;
-
-    // 1. Marcar itens como enviados/impressos e salvar pedido
-    const unprintedItems = items.filter(i => !i.printed);
-    const updatedItems = items.map(i => ({ ...i, printed: true }));
-    const updatedOrder: Order = { ...currentOrder, items: updatedItems };
-
-    setCurrentOrder(updatedOrder);
-    onSaveOrder(updatedOrder);
-
-    // 2. Mudar obrigatoriamente o status da mesa para 'occupied' no estado e no banco de dados Supabase
     if (mesaNum) {
       const numMesa = Number(mesaNum);
       if (setTables) {
@@ -220,9 +192,66 @@ export function ConsumerOrderModal({
       }
     }
 
-    toast.success(`Pedido da Mesa ${mesaNum || ''} enviado! Status atualizado para Ocupada.`);
+    // Imprimir cupom da conta automaticamente ao fechar a mesa
+    try {
+      if (onPrintBill) {
+        await onPrintBill(updatedOrder);
+      } else {
+        await printBill(updatedOrder);
+      }
+      toast.success(`Mesa ${mesaNum || ''} / Conta impressa e mesa bloqueada!`);
+    } catch (err: any) {
+      toast.error('Erro ao imprimir conta: ' + (err?.message || 'Verifique a impressora'));
+    }
 
-    // 3. Tentar impressão em bloco isolado (mesmo que não encontre impressora ou feche a janela sem imprimir)
+    // Redireciona o usuário para a tela de Mesas
+    onClose();
+  };
+
+  // Helper to send and print order automatically via local Bluetooth printer & redirect to Mesas
+  const handleEnviarOrder = async () => {
+    if (!currentOrder || items.length === 0) {
+      toast.error('Adicione itens antes de enviar o pedido.');
+      return;
+    }
+
+    const unprintedItems = items.filter(i => !i.printed);
+    if (unprintedItems.length === 0) {
+      toast.info('Não há novos itens para enviar.');
+      return;
+    }
+
+    setSendingOrder(true);
+    const mesaNum = currentOrder.tableNumber || tableNumber;
+
+    // 1. Marcar itens novos como impressos e salvar pedido
+    const updatedItems = items.map(i => ({ ...i, printed: true }));
+    const updatedOrder: Order = { ...currentOrder, items: updatedItems };
+
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+
+    // 2. Mudar obrigatoriamente o status da mesa para 'occupied' no estado e no Supabase
+    if (mesaNum) {
+      const numMesa = Number(mesaNum);
+      if (setTables) {
+        setTables(prev => prev.map(t =>
+          t.number === numMesa
+            ? { ...t, status: 'occupied', orderId: updatedOrder.id }
+            : t
+        ));
+      }
+      try {
+        await supabase
+          .from('store_tables')
+          .update({ status: 'occupied', order_id: updatedOrder.id })
+          .eq('number', numMesa);
+      } catch (dbErr) {
+        console.warn('Aviso ao sincronizar mesa no banco:', dbErr);
+      }
+    }
+
+    // 3. Tentar impressão em bloco isolado (sem interromper salvamento/mudança de status)
     try {
       const orderToPrint = unprintedItems.length > 0
         ? { ...updatedOrder, items: unprintedItems }
@@ -233,10 +262,13 @@ export function ConsumerOrderModal({
       } else {
         await printOrder(orderToPrint);
       }
+      toast.success(`Pedido da Mesa ${mesaNum || ''} enviado e impresso!`);
     } catch (printErr: any) {
       console.warn('[handleEnviarOrder] Tentativa de impressão concluída ou ignorada (status mantido Ocupado):', printErr);
+      toast.success(`Pedido da Mesa ${mesaNum || ''} enviado!`);
     } finally {
       setSendingOrder(false);
+      onClose(); // Redireciona o usuário para as mesas
     }
   };
 
@@ -573,13 +605,34 @@ export function ConsumerOrderModal({
     toast.success(`Tipo de pedido alterado para: ${newType.toUpperCase()}`);
   };
 
-  const handleConfirmDeleteOrder = () => {
-    if (onDeleteOrder) {
-      onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
-    } else if (onDiscardEmptyOrder) {
-      onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+  const handleConfirmDeleteOrder = async () => {
+    const mesaNum = currentOrder?.tableNumber || tableNumber;
+    const orderId = currentOrder?.id;
+
+    if (orderId) {
+      if (onDeleteOrder) {
+        onDeleteOrder(orderId, mesaNum);
+      } else if (onDiscardEmptyOrder) {
+        onDiscardEmptyOrder(orderId, mesaNum);
+      }
     }
-    toast.success('Pedido excluído com sucesso!');
+
+    if (mesaNum && setTables) {
+      const numMesa = Number(mesaNum);
+      setTables(prev => prev.map(t =>
+        t.number === numMesa ? { ...t, status: 'available', orderId: undefined } : t
+      ));
+      try {
+        await supabase
+          .from('store_tables')
+          .update({ status: 'available', order_id: null })
+          .eq('number', numMesa);
+      } catch (err) {
+        console.warn('Aviso ao liberar mesa no banco:', err);
+      }
+    }
+
+    toast.success(`Pedido da Mesa ${mesaNum || ''} excluído e mesa liberada!`);
     setDeleteConfirmOpen(false);
     setMoreOptionsOpen(false);
     onClose();
@@ -939,8 +992,13 @@ export function ConsumerOrderModal({
                 {/* Orange Enviar Button -> Automatically prints on local Bluetooth printer */}
                 <Button
                   onClick={handleEnviarOrder}
-                  disabled={sendingOrder || items.length === 0}
-                  className="h-12 text-[10px] font-black bg-[#ff9400] hover:bg-[#e08300] text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm"
+                  disabled={sendingOrder || !hasNewUnsentItems || isLocked}
+                  className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
+                    sendingOrder || !hasNewUnsentItems || isLocked
+                      ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
+                      : 'bg-[#ff9400] hover:bg-[#e08300] cursor-pointer'
+                  }`}
+                  title={!hasNewUnsentItems ? 'Lance um novo item para habilitar o envio' : 'Enviar pedido'}
                 >
                   <Send className="h-4 w-4 mb-0.5" /> ENVIAR
                 </Button>
@@ -1077,106 +1135,6 @@ export function ConsumerOrderModal({
                     <Trash2 className="h-4 w-4" />
                     <span>Descartar / Excluir Pedido</span>
                   </button>
-                </div>
-
-                {/* SEÇÃO 2: MÓDULO CONEXÃO IMPRESSORA BLUETOOTH */}
-                <div className="space-y-2 pt-2 border-t border-border">
-                  <span className="font-extrabold uppercase tracking-wider text-[11px] text-primary flex items-center gap-1.5 border-b border-border pb-1">
-                    <Printer className="h-4 w-4" /> Conexão Impressora Bluetooth
-                  </span>
-
-                  {/* Printer Status Card */}
-                  <div className="p-3 rounded-md bg-muted/50 border border-border space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-foreground">Status do Bluetooth:</span>
-                      <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded flex items-center gap-1 ${
-                        btConnected
-                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
-                          : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
-                      }`}>
-                        <span className={`h-2 w-2 rounded-full ${btConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                        {btConnected ? 'Conectado' : 'Desconectado'}
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-muted-foreground truncate">
-                      Dispositivo: <strong className="text-foreground">{btDeviceName || lastPairedName || 'Nenhum pareado'}</strong>
-                    </div>
-
-                    {/* Action buttons for Bluetooth */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            const name = await pairBluetooth();
-                            toast.success(`Conectado a ${name}!`);
-                          } catch (err) {
-                            toast.error('Não foi possível conectar ao Bluetooth.');
-                          }
-                        }}
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold h-9 flex items-center justify-center gap-1"
-                      >
-                        <Search className="h-3.5 w-3.5" /> Parear / Buscar
-                      </Button>
-
-                      {btConnected ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            forgetPrinter();
-                            toast.info('Impressora desconectada.');
-                          }}
-                          className="text-xs font-bold h-9 border-destructive/40 text-destructive hover:bg-destructive/10"
-                        >
-                          Desconectar
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async () => {
-                            const ok = await reconnectPrinter();
-                            if (ok) toast.success('Reconectado com sucesso!');
-                            else toast.warning('Nenhuma impressora pareada previamente.');
-                          }}
-                          className="text-xs font-bold h-9 border-border"
-                        >
-                          Reconectar
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Test print button */}
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={async () => {
-                        try {
-                          await printTest();
-                          toast.success('Comanda de teste impressa!');
-                        } catch (err) {
-                          toast.error('Erro ao imprimir teste.');
-                        }
-                      }}
-                      className="w-full text-xs font-bold h-9 mt-1 flex items-center justify-center gap-1.5"
-                    >
-                      <Printer className="h-3.5 w-3.5" /> Imprimir Comanda de Teste
-                    </Button>
-
-                    {/* Default Local Priority Toggle */}
-                    <div className="flex items-center justify-between pt-2 border-t border-border/60">
-                      <span className="text-[11px] font-semibold text-foreground">Usar Bluetooth como Padrão Local</span>
-                      <Switch
-                        checked={btPriorityDefault}
-                        onCheckedChange={(checked) => {
-                          toggleBluetoothPriorityDefault(checked);
-                          toast.info(checked ? 'Prioridade Bluetooth ativada!' : 'Prioridade Bluetooth desativada.');
-                        }}
-                      />
-                    </div>
-                  </div>
                 </div>
               </div>
 

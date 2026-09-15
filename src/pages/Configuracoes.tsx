@@ -32,18 +32,19 @@ import { AuditLogsTab } from '@/components/AuditLogsTab';
 import { ImpressoraTab } from '@/components/ImpressoraTab';
 import { PlanoTab } from '@/components/PlanoTab';
 import { useAttendantPermissions, type AttendantPermissions } from '@/hooks/use-attendant-permissions';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora' | 'logs' | 'plano';
 
-const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean; permissionKey?: keyof AttendantPermissions }[] = [
-  { key: 'perfil', label: 'Meu Perfil', icon: User, adminOnly: false },
-  { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true },
-  { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true },
-  { key: 'permissoes', label: 'Permissões', icon: KeyRound, adminOnly: true },
-  { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true },
-  { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true, permissionKey: 'manage_printers' },
-  { key: 'logs', label: 'Auditoria', icon: FileText, adminOnly: true },
-  { key: 'plano', label: 'Plano', icon: CreditCard, adminOnly: true },
+const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean; permissionKey?: keyof AttendantPermissions; mobileAllowed?: boolean }[] = [
+  { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true, permissionKey: 'manage_printers', mobileAllowed: true },
+  { key: 'perfil', label: 'Meu Perfil', icon: User, adminOnly: false, mobileAllowed: true },
+  { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true, mobileAllowed: true },
+  { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true, mobileAllowed: false },
+  { key: 'permissoes', label: 'Permissões', icon: KeyRound, adminOnly: true, mobileAllowed: false },
+  { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true, mobileAllowed: false },
+  { key: 'logs', label: 'Auditoria', icon: FileText, adminOnly: true, mobileAllowed: false },
+  { key: 'plano', label: 'Plano', icon: CreditCard, adminOnly: true, mobileAllowed: false },
 ];
 
 const roleLabels: Record<AppRole, string> = {
@@ -56,19 +57,25 @@ const roleLabels: Record<AppRole, string> = {
 const Configuracoes = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAdmin } = useAuth();
+  const isMobile = useIsMobile();
   const { permissions } = useAttendantPermissions();
-  const tabs = allTabs.filter(t => !t.adminOnly || isAdmin || (t.permissionKey && permissions[t.permissionKey]));
-  const validKeys = allTabs.map(t => t.key);
+
+  const tabs = allTabs.filter(t => {
+    if (isMobile && !t.mobileAllowed) return false;
+    return !t.adminOnly || isAdmin || (t.permissionKey && permissions[t.permissionKey]);
+  });
+
+  const validKeys = tabs.map(t => t.key);
   const paramTab = searchParams.get('tab') as Tab | null;
-  const initialTab: Tab = paramTab && validKeys.includes(paramTab) ? paramTab : 'perfil';
+  const defaultTab: Tab = isMobile ? 'impressora' : 'perfil';
+  const initialTab: Tab = paramTab && validKeys.includes(paramTab) ? paramTab : (validKeys.includes(defaultTab) ? defaultTab : validKeys[0] || 'impressora');
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
   useEffect(() => {
     if (paramTab && validKeys.includes(paramTab) && paramTab !== activeTab) {
       setActiveTab(paramTab);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paramTab]);
+  }, [paramTab, validKeys, activeTab]);
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
