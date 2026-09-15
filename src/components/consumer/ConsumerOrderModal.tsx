@@ -15,6 +15,8 @@ import { fmt } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
+import { useIsMobile } from '@/hooks/use-mobile';
+
 interface ConsumerOrderModalProps {
   open: boolean;
   onClose: () => void;
@@ -38,10 +40,14 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, customers, tables, setTables } = useStore();
+  const { products, categories, customers, tables, setTables } = useStore();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   const [currentOrder, setCurrentOrder] = useState<Order | null>(order);
+  const [mobileStep, setMobileStep] = useState<'review' | 'categories' | 'products'>('review');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [mobileSearchQuery, setMobileSearchQuery] = useState('');
   const [finderOpen, setFinderOpen] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -406,6 +412,282 @@ export function ConsumerOrderModal({
   const shortOrderId = currentOrder?.id ? currentOrder.id.slice(0, 4) : '0000';
 
   if (!open || !currentOrder) return null;
+
+  if (isMobile) {
+    const customerObj = currentOrder.customerId ? customers.find(c => c.id === currentOrder.customerId) : null;
+    const custName = customerObj?.name || currentOrder.customerName || '';
+    const custPhone = customerObj?.phone || currentOrder.customerPhone || '';
+    const activeCatName = categories.find(c => c.id === selectedCategory)?.name || 'Todas Categorias';
+
+    const categoryProducts = selectedCategory
+      ? products.filter(p => p.categoryId === selectedCategory)
+      : products;
+
+    const filteredCategoryProducts = categoryProducts.filter(p =>
+      p.name.toLowerCase().includes(mobileSearchQuery.toLowerCase())
+    );
+
+    return (
+      <>
+        <div className="fixed inset-0 z-[80] bg-background flex flex-col h-full overflow-hidden font-sans">
+          
+          {/* Mobile Step 1: Categories Selector (Attachment 3) */}
+          {mobileStep === 'categories' && (
+            <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+              {/* Blue Header */}
+              <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
+                <span className="text-lg font-bold">Novo Pedido - Mesa {displayMesaNum}</span>
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="p-3 bg-muted/20 border-b border-border flex items-center gap-2 shrink-0">
+                <Input
+                  placeholder="Buscar em todas categorias por código..."
+                  value={mobileSearchQuery}
+                  onChange={e => setMobileSearchQuery(e.target.value)}
+                  className="bg-background text-xs h-9 text-foreground"
+                />
+                <Button size="icon" className="bg-muted text-foreground hover:bg-muted/80 h-9 w-9 shrink-0">
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Category Cards Grid */}
+              <div className="flex-1 overflow-y-auto p-3">
+                <div className="grid grid-cols-2 gap-3">
+                  {categories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setSelectedCategory(cat.id);
+                        setMobileStep('products');
+                      }}
+                      className="bg-[#ff9400] hover:bg-[#e08300] active:scale-95 text-white font-black text-sm uppercase py-7 px-3 rounded-md shadow-md text-center flex items-center justify-center transition-transform"
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setSelectedCategory(null);
+                      setMobileStep('products');
+                    }}
+                    className="bg-muted hover:bg-muted/80 active:scale-95 text-foreground font-black text-sm uppercase py-7 px-3 rounded-md shadow-md text-center flex items-center justify-center border border-border"
+                  >
+                    TODOS PRODUTOS
+                  </button>
+                </div>
+              </div>
+
+              {/* Bottom Footer Action Bar */}
+              <div className="p-3 bg-card border-t border-border flex gap-3 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => setMobileStep('review')}
+                  className="flex-1 h-12 text-xs font-bold flex items-center justify-center gap-2 border-border"
+                >
+                  <ChevronLeft className="h-4 w-4" /> VOLTAR
+                </Button>
+                <Button
+                  onClick={() => setMobileStep('review')}
+                  className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
+                >
+                  <Check className="h-4 w-4" /> REVISAR
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Step 2: Products in Category Selector (Attachment 2) */}
+          {mobileStep === 'products' && (
+            <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+              {/* Blue Header */}
+              <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
+                <span className="text-lg font-bold">Novo Pedido - Mesa {displayMesaNum}</span>
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="p-3 bg-muted/20 border-b border-border flex items-center gap-2 shrink-0">
+                <Input
+                  placeholder="Buscar em todas categorias por código..."
+                  value={mobileSearchQuery}
+                  onChange={e => setMobileSearchQuery(e.target.value)}
+                  className="bg-background text-xs h-9 text-foreground"
+                />
+                <Button size="icon" className="bg-muted text-foreground hover:bg-muted/80 h-9 w-9 shrink-0">
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Category Title */}
+              <div className="px-4 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                {activeCatName}
+              </div>
+
+              {/* Product Cards Grid */}
+              <div className="flex-1 overflow-y-auto p-3">
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredCategoryProducts.map(prod => (
+                    <button
+                      key={prod.id}
+                      onClick={() => handleAddDirect(prod)}
+                      className="bg-[#d926b5] hover:bg-[#c01da0] active:scale-95 text-white font-bold p-3 rounded-md shadow-md text-left flex flex-col justify-between h-28 relative transition-transform"
+                    >
+                      <span className="text-xs leading-snug line-clamp-3">{prod.name}</span>
+                      <div className="flex justify-between items-end w-full">
+                        <span className="text-xs font-extrabold">R$ {fmt(prod.price)}</span>
+                        <span className="bg-[#00b050] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded">
+                          Vários
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bottom Footer Action Bar */}
+              <div className="p-3 bg-card border-t border-border flex gap-3 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => setMobileStep('categories')}
+                  className="flex-1 h-12 text-xs font-bold flex items-center justify-center gap-2 border-border"
+                >
+                  <ChevronLeft className="h-4 w-4" /> VOLTAR
+                </Button>
+                <Button
+                  onClick={() => setMobileStep('review')}
+                  className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
+                >
+                  <Check className="h-4 w-4" /> REVISAR
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Step 3: Order Review (Attachment 4) */}
+          {mobileStep === 'review' && (
+            <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+              {/* Blue Header */}
+              <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
+                <span className="text-lg font-bold">Mesa {displayMesaNum}</span>
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </div>
+
+              {/* Info Block */}
+              <div className="p-3 bg-muted/20 border-b border-border space-y-1 text-xs text-foreground shrink-0">
+                <div>Cliente: <span className="font-semibold">{custName ? `${custName} (${custPhone})` : 'Não informado'}</span></div>
+                <div>Observações: <span className="font-semibold">{generalNotes || 'Nenhuma'}</span></div>
+                <div>Qtd. Pessoas: <span className="font-semibold">1</span></div>
+              </div>
+
+              {/* Items Section Header */}
+              <div className="px-4 py-2 text-xs font-bold text-muted-foreground uppercase border-b border-border shrink-0">
+                Itens ({items.length})
+              </div>
+
+              {/* Items List */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {items.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-muted-foreground italic">
+                    Nenhum item adicionado ao pedido.
+                  </div>
+                ) : (
+                  items.map(item => (
+                    <div key={item.id} className="bg-card border border-border p-2.5 rounded shadow-xs flex justify-between items-center text-xs">
+                      <div>
+                        <div className="font-bold text-foreground">{item.name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {item.quantity}x R$ {fmt(item.price)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-extrabold text-foreground">R$ {fmt(item.subtotal)}</span>
+                        <button onClick={() => handleRemoveItem(item.id)} className="text-destructive p-1">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {/* Yellow Summary Box matching Anexo 4 */}
+                <div className="bg-[#fff3d6] border border-[#ffe099] p-3 rounded text-xs font-mono font-bold text-[#553a00] space-y-1 mt-4">
+                  <div className="flex justify-between">
+                    <span>(+) Subtotal</span>
+                    <span>R$ {fmt(totalAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm border-t border-[#ffe099] pt-1 mt-1">
+                    <span>(=) Total</span>
+                    <span>R$ {fmt(totalAmount)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom 4-Button Footer Action Bar matching Anexo 4 */}
+              <div className="p-2 bg-card border-t border-border grid grid-cols-4 gap-1.5 shrink-0">
+                {/* White Voltar Button */}
+                <Button
+                  variant="outline"
+                  onClick={handleCloseAndSaveOrDiscard}
+                  className="h-12 text-[10px] font-bold flex flex-col items-center justify-center p-1 border-border"
+                >
+                  <ChevronLeft className="h-4 w-4 mb-0.5" /> VOLTAR
+                </Button>
+                {/* Green Fechar Button */}
+                <Button
+                  onClick={handleCloseAndSaveOrDiscard}
+                  className="h-12 text-[10px] font-bold bg-[#00b050] hover:bg-[#009544] text-white flex flex-col items-center justify-center p-1"
+                >
+                  <Check className="h-4 w-4 mb-0.5" /> FECHAR
+                </Button>
+                {/* Purple Pagar Button */}
+                <Button
+                  onClick={() => {
+                    if (items.length === 0 || totalAmount <= 0) {
+                      toast.error('Adicione produtos ao pedido antes de efetuar o pagamento.');
+                      return;
+                    }
+                    setCheckoutOpen(true);
+                  }}
+                  className="h-12 text-[10px] font-bold bg-[#800080] hover:bg-[#6a006a] text-white flex flex-col items-center justify-center p-1"
+                >
+                  <CreditCard className="h-4 w-4 mb-0.5" /> PAGAR
+                </Button>
+                {/* Blue Novo Button */}
+                <Button
+                  onClick={() => setMobileStep('categories')}
+                  className="h-12 text-[10px] font-bold bg-[#0099ff] hover:bg-[#0080df] text-white flex flex-col items-center justify-center p-1"
+                >
+                  <Plus className="h-4 w-4 mb-0.5" /> NOVO
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Embedded Modals / Submenus */}
+          {checkoutOpen && (
+            <CheckoutModal
+              open={checkoutOpen}
+              onClose={() => setCheckoutOpen(false)}
+              order={currentOrder}
+              onComplete={() => {
+                setCheckoutOpen(false);
+                onClose();
+              }}
+            />
+          )}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

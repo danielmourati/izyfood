@@ -13,9 +13,10 @@ import { generatePixPayload } from '@/lib/qrcode';
 import {
   CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign,
   Ticket, Star, AlertTriangle, ExternalLink, ChevronDown, ChevronUp, Printer,
-  Info, CheckCircle2, ChevronLeft, ShoppingBag, X, Check, Copy, Search, Brush, UserPlus
+  Info, CheckCircle2, ChevronLeft, ShoppingBag, X, Check, Copy, Search, Brush, UserPlus, Menu
 } from 'lucide-react';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 
 interface CheckoutModalProps {
@@ -337,10 +338,176 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const pixKey = printSettings?.pixKey || '';
   const pixPayload = pixKey ? generatePixPayload(pixKey, remaining > 0 ? remaining : finalTotal, printSettings.storeName || 'IZYFOOD') : '';
 
+  const isMobile = useIsMobile();
+
   const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(fiadoSearch.toLowerCase()) ||
     (c.phone && c.phone.includes(fiadoSearch))
   );
+
+  if (!open || !order) return null;
+
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-[95] bg-background flex flex-col h-full overflow-hidden font-sans">
+        {/* Blue Header matching Anexo 5 */}
+        <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
+          <span className="text-lg font-bold">Pagar Pedido - Mesa {order.tableNumber || 1}</span>
+          <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10">
+            <Menu className="h-6 w-6" />
+          </Button>
+        </div>
+
+        {/* Content Container */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {/* Yellow Summary Block (Anexo 5) */}
+          <div className="bg-[#fff3d6] border border-[#ffe099] p-3 rounded text-xs font-mono font-bold text-[#553a00] space-y-1">
+            <div className="flex justify-between">
+              <span>+ Total Itens:</span>
+              <span>R$ {fmt(subtotal)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>+ Total Serviço:</span>
+              <span>R$ {fmt(serviceFeeAmount)}</span>
+            </div>
+            <div className="flex justify-between text-emerald-700">
+              <span>- Desconto:</span>
+              <span>R$ {fmt(discountAmount)}</span>
+            </div>
+            <div className="flex justify-between text-sm border-t border-[#ffe099] pt-1.5 mt-1">
+              <span>= Total a Pagar:</span>
+              <span>R$ {fmt(finalTotal)}</span>
+            </div>
+          </div>
+
+          {/* Pink Summary Block (Anexo 5) */}
+          <div className="bg-[#f5d0f5] border border-[#f0b0f0] p-3 rounded text-xs font-mono font-bold text-[#600060] space-y-1">
+            <div className="flex justify-between">
+              <span>Total Pago:</span>
+              <span>R$ {fmt(totalAssigned)}</span>
+            </div>
+            <div className="flex justify-between text-sm border-t border-[#f0b0f0] pt-1 mt-1 text-purple-900">
+              <span>Falta Pagar:</span>
+              <span>R$ {fmt(remaining > 0 ? remaining : 0)}</span>
+            </div>
+          </div>
+
+          {/* Orange Warning Banner (Anexo 5) */}
+          {splits.length === 0 ? (
+            <div className="bg-[#ff9400] text-white font-bold p-3 rounded text-xs flex items-center gap-2 shadow-xs">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>Não há pagamentos efetuados.</span>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {splits.map((s, idx) => (
+                <div key={idx} className="bg-muted p-2 rounded text-xs flex justify-between items-center">
+                  <span>{s.method.toUpperCase()} - R$ {fmt(s.amount)}</span>
+                  <button onClick={() => setSplits(prev => prev.filter((_, i) => i !== idx))} className="text-destructive p-1">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Payment Method Grid 3x2 (Anexo 5) */}
+          <div className="pt-2">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => {
+                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'dinheiro', amount: remaining > 0 ? remaining : finalTotal };
+                  setSplits(prev => [...prev, split]);
+                  toast.success('Pagamento em Dinheiro adicionado!');
+                }}
+                className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
+              >
+                <Banknote className="h-6 w-6 text-foreground mb-1" />
+                <span className="text-[11px] font-bold text-foreground">DINHEIRO</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'cartao', amount: remaining > 0 ? remaining : finalTotal };
+                  setSplits(prev => [...prev, split]);
+                  toast.success('Pagamento no Débito adicionado!');
+                }}
+                className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
+              >
+                <CreditCard className="h-6 w-6 text-foreground mb-1" />
+                <span className="text-[11px] font-bold text-foreground">DÉBITO</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'cartao', amount: remaining > 0 ? remaining : finalTotal };
+                  setSplits(prev => [...prev, split]);
+                  toast.success('Pagamento no Crédito adicionado!');
+                }}
+                className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
+              >
+                <CreditCard className="h-6 w-6 text-foreground mb-1" />
+                <span className="text-[11px] font-bold text-foreground">CRÉDITO</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'fiado', amount: remaining > 0 ? remaining : finalTotal };
+                  setSplits(prev => [...prev, split]);
+                  toast.success('Pagamento em Cheque/Fiado adicionado!');
+                }}
+                className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
+              >
+                <Wallet className="h-6 w-6 text-foreground mb-1" />
+                <span className="text-[11px] font-bold text-foreground">CHEQUE</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'cartao', amount: remaining > 0 ? remaining : finalTotal };
+                  setSplits(prev => [...prev, split]);
+                  toast.success('Pagamento Vale Alim. adicionado!');
+                }}
+                className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
+              >
+                <ShoppingBag className="h-6 w-6 text-foreground mb-1" />
+                <span className="text-[11px] font-bold text-foreground">VALE ALIM.</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'cartao', amount: remaining > 0 ? remaining : finalTotal };
+                  setSplits(prev => [...prev, split]);
+                  toast.success('Pagamento Vale Ref. adicionado!');
+                }}
+                className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
+              >
+                <ShoppingBag className="h-6 w-6 text-foreground mb-1" />
+                <span className="text-[11px] font-bold text-foreground">VALE REF.</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Footer Action Bar matching Anexo 5 */}
+        <div className="p-3 bg-card border-t border-border flex gap-3 shrink-0">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="flex-1 h-12 text-xs font-bold flex items-center justify-center gap-2 border-border"
+          >
+            <ChevronLeft className="h-4 w-4" /> VOLTAR
+          </Button>
+          <Button
+            onClick={handleFinalizePayment}
+            className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
+          >
+            <Plus className="h-4 w-4" /> ADICIONAR PAGAMENTO
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
