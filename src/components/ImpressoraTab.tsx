@@ -34,8 +34,12 @@ const DEFAULT_SECTORS: SectorItem[] = [
   { key: 'balcao', name: 'Balcão', description: 'Impressora de atendimento no Balcão.' },
 ];
 
+import { useIsMobile } from '@/hooks/use-mobile';
+
 export function ImpressoraTab() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const isMobile = useIsMobile();
+  const isAttendantMobile = !isAdmin || isMobile;
   const navigate = useNavigate();
 
   const {
@@ -343,186 +347,188 @@ export function ImpressoraTab() {
         </div>
       </Card>
 
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Skeleton className="h-96 rounded-2xl md:col-span-1" />
-          <Skeleton className="h-96 rounded-2xl md:col-span-2" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          {/* Left Column: ONDE IMPRIMIR */}
-          <div className="md:col-span-1 space-y-4">
-            <div className="px-1">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">ONDE IMPRIMIR</h2>
+      {!isAttendantMobile ? (
+        <div className="space-y-6">
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Skeleton className="h-96 rounded-2xl md:col-span-1" />
+              <Skeleton className="h-96 rounded-2xl md:col-span-2" />
             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+              {/* Left Column: ONDE IMPRIMIR */}
+              <div className="md:col-span-1 space-y-4">
+                <div className="px-1">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">ONDE IMPRIMIR</h2>
+                </div>
 
-            <div className="space-y-2.5">
-              {allSectors.map((sec) => {
-                const isSelected = selectedSector === sec.key;
-                const boundPrinter = printers.find(p => (p as any).sector === sec.key);
-                const hasConfig = !!boundPrinter;
+                <div className="space-y-2.5">
+                  {allSectors.map((sec) => {
+                    const isSelected = selectedSector === sec.key;
+                    const boundPrinter = printers.find(p => (p as any).sector === sec.key);
+                    const hasConfig = !!boundPrinter;
 
-                return (
-                  <button
-                    key={sec.key}
-                    type="button"
-                    onClick={() => setSelectedSector(sec.key)}
-                    className={`w-full text-left p-4 rounded-2xl transition-all duration-200 border ${
-                      isSelected
-                        ? 'bg-card border-primary ring-2 ring-primary/20 shadow-md'
-                        : 'bg-card/60 hover:bg-card border-border/80 text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-xl ${isSelected ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                          <Monitor className="h-5 w-5" />
+                    return (
+                      <button
+                        key={sec.key}
+                        type="button"
+                        onClick={() => setSelectedSector(sec.key)}
+                        className={`w-full text-left p-4 rounded-2xl transition-all duration-200 border ${
+                          isSelected
+                            ? 'bg-card border-primary ring-2 ring-primary/20 shadow-md'
+                            : 'bg-card/60 hover:bg-card border-border/80 text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${isSelected ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                              <Monitor className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className={`font-semibold text-sm ${isSelected ? 'text-foreground font-bold' : 'text-foreground'}`}>
+                                {sec.name}
+                              </p>
+                              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mt-0.5">
+                                {boundPrinter ? boundPrinter.name : sec.key.toUpperCase()}
+                              </p>
+                            </div>
+                          </div>
+
+                          {hasConfig && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              Ativa
+                            </span>
+                          )}
                         </div>
-                        <div>
-                          <p className={`font-semibold text-sm ${isSelected ? 'text-foreground font-bold' : 'text-foreground'}`}>
-                            {sec.name}
-                          </p>
-                          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mt-0.5">
-                            {boundPrinter ? boundPrinter.name : sec.key.toUpperCase()}
-                          </p>
-                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAddLocalModal(true)}
+                  className="w-full rounded-2xl border-dashed border-border text-foreground hover:bg-muted/50 py-5 font-semibold text-xs gap-2"
+                >
+                  <Plus className="h-4 w-4" /> Adicionar local
+                </Button>
+              </div>
+
+              {/* Right Column: Configurações do Local Selecionado */}
+              <div className="md:col-span-2">
+                <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden">
+                  <CardHeader className="border-b border-border bg-muted/20 pb-4">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <CardTitle className="text-xl font-bold text-foreground">
+                          {activeSectorObj.name}
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {activeSectorObj.description}
+                        </p>
                       </div>
 
-                      {hasConfig && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          Ativa
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={() => setShowAddLocalModal(true)}
-              className="w-full rounded-2xl border-dashed border-border text-foreground hover:bg-muted/50 py-5 font-semibold text-xs gap-2"
-            >
-              <Plus className="h-4 w-4" /> Adicionar local
-            </Button>
-          </div>
-
-          {/* Right Column: Configurações do Local Selecionado */}
-          <div className="md:col-span-2">
-            <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden">
-              <CardHeader className="border-b border-border bg-muted/20 pb-4">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
-                    <CardTitle className="text-xl font-bold text-foreground">
-                      {activeSectorObj.name}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {activeSectorObj.description}
-                    </p>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleUnlinkPrinter}
-                    className="rounded-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive text-xs font-semibold gap-2"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Desvincular impressora
-                  </Button>
-                </div>
-              </CardHeader>
-
-              <CardContent className="p-6 space-y-6">
-                {/* Form Field 1: Escolha a impressora */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-bold text-foreground">Escolha a impressora</Label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleRefreshPrintersList}
-                      disabled={fetchingQzPrinters}
-                      className="text-primary hover:text-primary/90 text-xs font-semibold gap-1.5 h-auto p-0"
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 ${fetchingQzPrinters ? 'animate-spin' : ''}`} />
-                      Procurar impressoras
-                    </Button>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Select
-                      value={form.address}
-                      onValueChange={(val) => setForm(f => ({ ...f, address: val }))}
-                    >
-                      <SelectTrigger className="w-full rounded-xl bg-background border-border text-foreground h-11">
-                        <SelectValue placeholder="Selecione a impressora do sistema..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {qzPrintersList.length === 0 ? (
-                          <SelectItem value="DEFAULT_PRINTER" disabled>
-                            Nenhuma impressora encontrada (Clique em Procurar)
-                          </SelectItem>
-                        ) : (
-                          qzPrintersList.map((pName) => (
-                            <SelectItem key={pName} value={pName}>
-                              {pName}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-
-                    {form.address && (
                       <Button
                         variant="outline"
-                        size="icon"
-                        onClick={() => setForm(f => ({ ...f, address: '' }))}
-                        className="rounded-xl border-border shrink-0 h-11 w-11 text-muted-foreground hover:text-destructive"
+                        size="sm"
+                        onClick={handleUnlinkPrinter}
+                        className="rounded-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive text-xs font-semibold gap-2"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" /> Desvincular impressora
                       </Button>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  </CardHeader>
 
-                {/* Form Field 2: Tamanho do papel */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold text-foreground">Tamanho do papel</Label>
-                  <Select
-                    value={String(form.paper_width)}
-                    onValueChange={(val) => setForm(f => ({ ...f, paper_width: Number(val) }))}
-                  >
-                    <SelectTrigger className="w-full rounded-xl bg-background border-border text-foreground h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="80">80mm (bobina comum)</SelectItem>
-                      <SelectItem value="58">58mm (bobina estreita)</SelectItem>
-                      <SelectItem value="210">A4 / Folha inteira (impressora padrão)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <CardContent className="p-6 space-y-6">
+                    {/* Form Field 1: Escolha a impressora */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-bold text-foreground">Escolha a impressora</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRefreshPrintersList}
+                          disabled={fetchingQzPrinters}
+                          className="text-primary hover:text-primary/90 text-xs font-semibold gap-1.5 h-auto p-0"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${fetchingQzPrinters ? 'animate-spin' : ''}`} />
+                          Procurar impressoras
+                        </Button>
+                      </div>
 
-                {/* Form Field 3: Imprimir e aceitar pedidos automaticamente */}
-                <div className="rounded-2xl border border-border p-4 bg-muted/10 flex items-center justify-between gap-4">
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-bold text-foreground cursor-pointer" htmlFor="auto-print-switch">
-                      Imprimir e aceitar pedidos automaticamente
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      O pedido é aceito assim que chega e o cupom sai na hora.
-                    </p>
-                  </div>
-                  <Switch
-                    id="auto-print-switch"
-                    checked={form.auto_connect_qz}
-                    onCheckedChange={(val) => setForm(f => ({ ...f, auto_connect_qz: val }))}
-                  />
-                </div>
+                      <div className="flex gap-2">
+                        <Select
+                          value={form.address}
+                          onValueChange={(val) => setForm(f => ({ ...f, address: val }))}
+                        >
+                          <SelectTrigger className="w-full rounded-xl bg-background border-border text-foreground h-11">
+                            <SelectValue placeholder="Selecione a impressora do sistema..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {qzPrintersList.length === 0 ? (
+                              <SelectItem value="DEFAULT_PRINTER" disabled>
+                                Nenhuma impressora encontrada (Clique em Procurar)
+                              </SelectItem>
+                            ) : (
+                              qzPrintersList.map((pName) => (
+                                <SelectItem key={pName} value={pName}>
+                                  {pName}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
 
-                {/* Form Field 4: Opções avançadas Accordion */}
+                        {form.address && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setForm(f => ({ ...f, address: '' }))}
+                            className="rounded-xl border-border shrink-0 h-11 w-11 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Form Field 2: Tamanho do papel */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-bold text-foreground">Tamanho do papel</Label>
+                      <Select
+                        value={String(form.paper_width)}
+                        onValueChange={(val) => setForm(f => ({ ...f, paper_width: Number(val) }))}
+                      >
+                        <SelectTrigger className="w-full rounded-xl bg-background border-border text-foreground h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="80">80mm (bobina comum)</SelectItem>
+                          <SelectItem value="58">58mm / 55mm (mini bobina)</SelectItem>
+                          <SelectItem value="210">A4 / Folha inteira (impressora padrão)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Form Field 3: Imprimir e aceitar pedidos automaticamente */}
+                    <div className="rounded-2xl border border-border p-4 bg-muted/10 flex items-center justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-bold text-foreground cursor-pointer" htmlFor="auto-print-switch">
+                          Imprimir e aceitar pedidos automaticamente
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          O pedido é aceito assim que chega e o cupom sai na hora.
+                        </p>
+                      </div>
+                      <Switch
+                        id="auto-print-switch"
+                        checked={form.auto_connect_qz}
+                        onCheckedChange={(val) => setForm(f => ({ ...f, auto_connect_qz: val }))}
+                      />
+                    </div>
+
+                    {/* Form Field 4: Opções avançadas Accordion */}
                 <Accordion type="single" collapsible className="w-full border border-border rounded-2xl">
                   <AccordionItem value="advanced-opts" className="border-none px-4">
                     <AccordionTrigger className="text-sm font-bold text-foreground py-3 hover:no-underline">
@@ -570,6 +576,8 @@ export function ImpressoraTab() {
           </div>
         </div>
       )}
+    </div>
+  ) : null}
 
       {/* Footer Controls Bar */}
       <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">

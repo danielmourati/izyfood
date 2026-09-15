@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePrinter } from '@/hooks/use-printer';
+import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -43,6 +44,10 @@ export function ConsumerOrderModal({
 }: ConsumerOrderModalProps) {
   const { products, categories, customers, tables, setTables } = useStore();
   const { user, isAdmin } = useAuth();
+  const { permissions } = useAttendantPermissions();
+  const canManageMesa = isAdmin || permissions.manage_tables || permissions.cancel_orders;
+  const canCancelOrDeleteMesa = isAdmin || permissions.cancel_orders;
+
   const {
     printOrder,
     btConnected,
@@ -90,10 +95,18 @@ export function ConsumerOrderModal({
       setGeneralNotes(order.pickupNotes || '');
       setAssignedWaiter(order.customerName || user?.name || 'Daniel');
       setIsLocked(order.isLocked ?? false);
-      setMobileStep(order.items && order.items.length > 0 ? 'review' : 'categories');
+
+      const tableObj = tableNumber ? tables.find(t => t.number === tableNumber) : null;
+      const isOccupied = tableObj?.status === 'occupied' || (order.items && order.items.length > 0);
+
+      if (isOccupied) {
+        setMobileStep('review');
+      } else {
+        setMobileStep('categories');
+      }
       setSelectedMobileProduct(null);
     }
-  }, [open, order, user]);
+  }, [open, order, user, tableNumber, tables]);
 
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -144,6 +157,11 @@ export function ConsumerOrderModal({
 
   // Helper to lock order and table status when FECHAR is clicked (Prints account coupon & redirects to Mesas)
   const handleFecharOrder = async () => {
+    if (!canManageMesa) {
+      toast.error('Permissão negada. Somente administradores ou atendentes autorizados podem fechar a mesa.');
+      return;
+    }
+
     if (!currentOrder) {
       onClose();
       return;
@@ -606,6 +624,12 @@ export function ConsumerOrderModal({
   };
 
   const handleConfirmDeleteOrder = async () => {
+    if (!canCancelOrDeleteMesa) {
+      toast.error('Permissão negada. Apenas administradores ou supervisores podem excluir ou cancelar mesas.');
+      setDeleteConfirmOpen(false);
+      return;
+    }
+
     const mesaNum = currentOrder?.tableNumber || tableNumber;
     const orderId = currentOrder?.id;
 
