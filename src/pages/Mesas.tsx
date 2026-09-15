@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowRightLeft, Merge, Lock, Utensils, Store, Bike, ShoppingBag } from 'lucide-react';
+import { ArrowRightLeft, Merge, Lock, Utensils, Store, Bike, ShoppingBag, Menu } from 'lucide-react';
 import { toast } from 'sonner';
 import { fmt } from '@/lib/utils';
 import { differenceInMinutes } from 'date-fns';
@@ -21,10 +21,17 @@ const Mesas = () => {
   const [mergeModal, setMergeModal] = useState<{ open: boolean; sourceTable: number | null }>({ open: false, sourceTable: null });
   const [consumerOrderModal, setConsumerOrderModal] = useState<{ open: boolean; order: Order | null; tableNumber?: number }>({ open: false, order: null });
 
+  const [searchQuery, setSearchQuery] = useState('');
+
   const isQuintalDeCasa = user?.tenantSlug === 'quintal-de-casa';
 
-  const occupiedTables = useMemo(() => tables.filter(t => t.status === 'occupied'), [tables]);
-  const availableTables = useMemo(() => tables.filter(t => t.status === 'available'), [tables]);
+  const filteredTables = useMemo(() => {
+    if (!searchQuery.trim()) return tables;
+    return tables.filter(t => String(t.number).includes(searchQuery.trim()));
+  }, [tables, searchQuery]);
+
+  const occupiedTables = useMemo(() => filteredTables.filter(t => t.status === 'occupied'), [filteredTables]);
+  const availableTables = useMemo(() => filteredTables.filter(t => t.status === 'available'), [filteredTables]);
 
   const handleTableClick = (tableNum: number) => {
     const table = tables.find(t => t.number === tableNum);
@@ -109,12 +116,10 @@ const Mesas = () => {
 
     const orderId = fromTable.orderId;
 
-    // Update order table number
     setOrders(prev => prev.map(o =>
       o.id === orderId ? { ...o, tableNumber: toTableNum } : o
     ));
 
-    // Free old table, occupy new one
     setTables(prev => prev.map(t => {
       if (t.number === fromNum) return { ...t, status: 'available' as const, orderId: undefined };
       if (t.number === toTableNum) return { ...t, status: 'occupied' as const, orderId };
@@ -136,7 +141,6 @@ const Mesas = () => {
     const targetOrder = orders.find(o => o.id === targetTable.orderId);
     if (!sourceOrder || !targetOrder) return;
 
-    // Merge items: combine items, summing quantities for same products
     const mergedItems = [...targetOrder.items];
     for (const item of sourceOrder.items) {
       const existing = mergedItems.find(i => i.productId === item.productId && !i.weight && !item.weight);
@@ -149,13 +153,11 @@ const Mesas = () => {
     }
     const newTotal = mergedItems.reduce((s, i) => s + i.subtotal, 0);
 
-    // Update target order with merged items
     setOrders(prev => prev
       .map(o => o.id === targetTable.orderId ? { ...o, items: mergedItems, total: newTotal } : o)
       .filter(o => o.id !== sourceTable.orderId)
     );
 
-    // Free source table
     setTables(prev => prev.map(t => {
       if (t.number === sourceNum) return { ...t, status: 'available' as const, orderId: undefined };
       return t;
@@ -171,24 +173,27 @@ const Mesas = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const quickActions = [
-    { key: 'mesa', label: 'Mesa', icon: Utensils, onClick: () => {
-        const firstFree = availableTables[0];
-        if (firstFree) handleTableClick(firstFree.number);
-        else toast.error('Nenhuma mesa disponível');
-      } },
-    { key: 'balcao', label: 'Balcão', icon: Store, onClick: () => navigate('/pdv?tipo=balcao') },
-    { key: 'delivery', label: 'Delivery', icon: Bike, onClick: () => navigate('/pdv?tipo=delivery') },
-    { key: 'retirada', label: 'Retirada', icon: ShoppingBag, onClick: () => navigate('/pdv?tipo=retirada') },
-  ];
-
   return (
-    <div className="h-full overflow-y-auto p-4 sm:p-6 pb-24 max-w-5xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Mesas</h1>
+    <div className="h-full overflow-y-auto pb-24 max-w-5xl mx-auto">
+      {/* Mobile Blue Header matching Anexo 1 */}
+      <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-md">
+        <h1 className="text-xl font-bold tracking-tight">Mesas</h1>
+        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+          <Menu className="h-6 w-6" />
+        </Button>
       </div>
 
-      <div className="space-y-8">
+      <div className="p-4 space-y-6">
+        {/* Search Bar matching Anexo 1 */}
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Digite o nº da mesa/comanda..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full bg-background border-b border-border py-2 px-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:border-[#0099ff]"
+          />
+        </div>
 
         {/* Pedidos em Andamento */}
         {occupiedTables.length > 0 && (

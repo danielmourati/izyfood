@@ -118,9 +118,7 @@ export function ConsumerOrderModal({
         if (changeTypeOpen) { setChangeTypeOpen(false); return; }
         if (deleteConfirmOpen) { setDeleteConfirmOpen(false); return; }
         if (moreOptionsOpen) { setMoreOptionsOpen(false); return; }
-
-        e.preventDefault();
-        handleCloseAndSaveOrDiscard();
+        if (reprintModalOpen) { setReprintModalOpen(false); return; }
       }
     };
 
@@ -129,7 +127,7 @@ export function ConsumerOrderModal({
   }, [
     open, currentOrder, items, totalAmount,
     finderOpen, customizeOpen, customerModalOpen, checkoutOpen,
-    printMenuOpen, changeTypeOpen, deleteConfirmOpen, moreOptionsOpen
+    printMenuOpen, changeTypeOpen, deleteConfirmOpen, moreOptionsOpen, reprintModalOpen
   ]);
 
   const filteredItems = items.filter(i =>

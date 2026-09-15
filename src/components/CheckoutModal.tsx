@@ -89,6 +89,20 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     };
   }, []);
 
+  // ESC key handler for CheckoutModal
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showTaxDiscountModal) { setShowTaxDiscountModal(false); return; }
+        if (activeSubModal !== 'list') { setActiveSubModal('list'); return; }
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, activeSubModal, showTaxDiscountModal, onClose]);
+
   useEffect(() => {
     if (open) {
       supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
