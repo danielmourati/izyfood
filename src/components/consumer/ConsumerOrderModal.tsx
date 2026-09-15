@@ -259,12 +259,29 @@ export function ConsumerOrderModal({
         ));
       }
       try {
-        await supabase
-          .from('store_tables')
-          .update({ status: 'occupied', order_id: updatedOrder.id })
-          .eq('number', numMesa);
+        await Promise.all([
+          supabase
+            .from('store_tables')
+            .update({ status: 'occupied', order_id: updatedOrder.id })
+            .eq('number', numMesa),
+          supabase
+            .from('orders')
+            .upsert({
+              id: updatedOrder.id,
+              items: updatedItems as any,
+              total: updatedOrder.total,
+              order_type: updatedOrder.orderType,
+              status: updatedOrder.status,
+              table_number: numMesa,
+              customer_id: updatedOrder.customerId || null,
+              customer_name: updatedOrder.customerName || null,
+              customer_phone: updatedOrder.customerPhone || null,
+              pickup_notes: updatedOrder.pickupNotes || null,
+              is_locked: updatedOrder.isLocked ?? false,
+            } as any),
+        ]);
       } catch (dbErr) {
-        console.warn('Aviso ao sincronizar mesa no banco:', dbErr);
+        console.warn('Aviso ao sincronizar mesa e pedido no banco:', dbErr);
       }
     }
 
@@ -1146,18 +1163,20 @@ export function ConsumerOrderModal({
                     <span>Trocar Tipo de Pedido / Mesa</span>
                   </button>
 
-                  {/* Excluir Pedido Vazio */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      setDeleteConfirmOpen(true);
-                    }}
-                    className="w-full flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors font-bold"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Descartar / Excluir Pedido</span>
-                  </button>
+                  {/* Excluir Pedido Vazio (Exibido apenas com permissão ativada) */}
+                  {canCancelOrDeleteMesa && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setDeleteConfirmOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors font-bold"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Descartar / Excluir Pedido</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1846,7 +1865,7 @@ export function ConsumerOrderModal({
               <AlertTriangle className="h-5 w-5 text-amber-500" /> Itens Não Enviados!
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground pt-1 leading-relaxed">
-              Existem itens lançados no pedido que ainda não foram enviados para a cozinha. Deseja enviar agora ou sair sem enviar?
+              Existem novos itens pré-gravados que ainda não foram enviados para a cozinha. O que deseja fazer?
             </DialogDescription>
           </DialogHeader>
 
@@ -1855,35 +1874,44 @@ export function ConsumerOrderModal({
               onClick={async () => {
                 setUnsentAlertOpen(false);
                 await handleEnviarOrder();
-                onClose();
               }}
               className="w-full bg-[#ff9400] hover:bg-[#e08300] text-white font-bold text-xs h-11 flex items-center justify-center gap-2 shadow-md"
             >
-              <Send className="h-4 w-4" /> Enviar e Sair
+              <Send className="h-4 w-4" /> Enviar Pedido
             </Button>
 
             <Button
               variant="outline"
               onClick={() => {
                 setUnsentAlertOpen(false);
-                if (items.length === 0 && onDiscardEmptyOrder) {
-                  onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+                const previouslyPrintedItems = items.filter(i => i.printed);
+                if (previouslyPrintedItems.length === 0) {
+                  if (onDiscardEmptyOrder) {
+                    onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+                  } else if (onDeleteOrder) {
+                    onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
+                  }
+                  toast.info('Alterações descartadas e pedido liberado.');
                 } else {
-                  onSaveOrder(currentOrder);
+                  const updatedTotal = previouslyPrintedItems.reduce((s, i) => s + i.subtotal, 0);
+                  const updatedOrder = { ...currentOrder, items: previouslyPrintedItems, total: updatedTotal };
+                  setCurrentOrder(updatedOrder);
+                  onSaveOrder(updatedOrder);
+                  toast.info('Novos itens não enviados foram descartados.');
                 }
                 onClose();
               }}
               className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 font-bold text-xs h-11"
             >
-              Abandonar sem Enviar
+              Descartar Itens Não Enviados
             </Button>
 
             <Button
               variant="ghost"
               onClick={() => setUnsentAlertOpen(false)}
-              className="w-full text-xs font-bold h-9 text-muted-foreground"
+              className="w-full text-xs font-bold h-10 text-muted-foreground hover:bg-muted"
             >
-              Cancelar
+              Permanecer no Pedido
             </Button>
           </div>
         </DialogContent>
