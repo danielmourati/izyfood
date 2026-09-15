@@ -501,8 +501,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSettings(prev => ({ ...prev, tableCount: validCount }));
     // Note: store_settings DB write is handled by the caller (Configuracoes.tsx handleSaveAll)
     // Here we only manage the physical store_tables rows
-    const currentTables = await supabase.from('store_tables').select('number').order('number');
-    const currentNumbers = (currentTables.data || []).map(t => t.number);
+    const currentTables = await supabase.from('store_tables').select('number, status').order('number');
+    const currentData = currentTables.data || [];
+    const currentNumbers = currentData.map(t => t.number);
     const maxNumber = currentNumbers.length > 0 ? Math.max(...currentNumbers) : 0;
 
     if (validCount > currentNumbers.length) {
@@ -512,7 +513,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }));
       await supabase.from('store_tables').insert(newTables);
     } else if (validCount < currentNumbers.length) {
-      const toDelete = currentNumbers.sort((a, b) => b - a).slice(0, currentNumbers.length - validCount);
+      // NEVER delete occupied tables! Filter candidates to available tables only.
+      const occupiedNumbers = new Set(currentData.filter(t => t.status === 'occupied').map(t => t.number));
+      const availableToDelete = currentNumbers
+        .filter(num => !occupiedNumbers.has(num))
+        .sort((a, b) => b - a);
+      const deleteCount = Math.min(availableToDelete.length, currentNumbers.length - validCount);
+      const toDelete = availableToDelete.slice(0, deleteCount);
       if (toDelete.length > 0) {
         await supabase.from('store_tables').delete().in('number', toDelete);
       }

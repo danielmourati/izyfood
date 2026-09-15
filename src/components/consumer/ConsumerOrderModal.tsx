@@ -121,6 +121,11 @@ export function ConsumerOrderModal({
       return;
     }
 
+    const mesaNum = currentOrder.tableNumber || tableNumber;
+    const isTableOccupiedInStore = mesaNum ? tables.some(t => t.number === Number(mesaNum) && t.status === 'occupied') : false;
+    const isOrderOccupied = currentOrder.status === 'occupied' || currentOrder.status === 'segurado';
+    const isOccupied = isTableOccupiedInStore || isOrderOccupied;
+
     const hasItems = items.length > 0 && totalAmount > 0;
 
     if (hasItems) {
@@ -132,12 +137,16 @@ export function ConsumerOrderModal({
       onSaveOrder(currentOrder);
       toast.success('Pedido salvo com sucesso!');
     } else {
-      if (onDiscardEmptyOrder) {
-        onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
-      } else if (onDeleteOrder) {
-        onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
+      if (!isOccupied) {
+        if (onDiscardEmptyOrder) {
+          onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+        } else if (onDeleteOrder) {
+          onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
+        }
+        toast.info('Rascunho de pedido sem itens descartado.');
+      } else {
+        toast.info('Mesa permanece ocupada.');
       }
-      toast.info('Pedido sem itens foi descartado.');
     }
     onClose();
   };
@@ -167,15 +176,22 @@ export function ConsumerOrderModal({
     }
 
     const mesaNum = currentOrder.tableNumber || tableNumber;
+    const isTableOccupiedInStore = mesaNum ? tables.some(t => t.number === Number(mesaNum) && t.status === 'occupied') : false;
+    const isOrderOccupied = currentOrder.status === 'occupied' || currentOrder.status === 'segurado';
+    const isOccupied = isTableOccupiedInStore || isOrderOccupied;
 
-    // If order has no items, FECHAR discards/deletes the empty order and releases table
+    // If order has no items
     if (!items || items.length === 0 || totalAmount <= 0) {
-      if (onDiscardEmptyOrder) {
-        onDiscardEmptyOrder(currentOrder.id, mesaNum);
-      } else if (onDeleteOrder) {
-        onDeleteOrder(currentOrder.id, mesaNum);
+      if (!isOccupied) {
+        if (onDiscardEmptyOrder) {
+          onDiscardEmptyOrder(currentOrder.id, mesaNum);
+        } else if (onDeleteOrder) {
+          onDeleteOrder(currentOrder.id, mesaNum);
+        }
+        toast.info('Mesa sem itens foi descartada e liberada.');
+      } else {
+        toast.info('Mesa permanece ocupada.');
       }
-      toast.info('Mesa sem itens foi descartada e liberada.');
       onClose();
       return;
     }

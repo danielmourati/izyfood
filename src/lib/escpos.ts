@@ -501,6 +501,67 @@ const orderTypeLabels: Record<string, string> = {
 };
 
 /**
+ * Key-Value row for header/metadata lines (NO right-aligned price zone).
+ * Formats `Label: Value`. If total length fits in `cols`, prints on 1 line.
+ * Otherwise, wraps `Value` cleanly on next line(s) without splitting single words or right-side gaps.
+ */
+function kvRow(label: string, value: string, cols: number): Uint8Array {
+  const cleanLabel = label.trim();
+  const cleanVal = value.trim();
+  if (!cleanVal) return text(cleanLabel + '\n');
+
+  const full = `${cleanLabel} ${cleanVal}`;
+  if (full.length <= cols) {
+    return text(full + '\n');
+  }
+
+  const lines: string[] = [];
+  const words = cleanVal.split(/\s+/).filter(Boolean);
+
+  if (cleanLabel.length + 1 + (words[0]?.length || 0) <= cols) {
+    let current = cleanLabel + ' ';
+    for (const w of words) {
+      if ((current + (current.endsWith(' ') ? '' : ' ') + w).length <= cols) {
+        current += (current.endsWith(' ') ? '' : ' ') + w;
+      } else {
+        lines.push(current);
+        current = '  ' + w;
+      }
+    }
+    if (current.trim()) lines.push(current);
+  } else {
+    lines.push(cleanLabel);
+    let current = '  ';
+    for (const w of words) {
+      if ((current + (current === '  ' ? '' : ' ') + w).length <= cols) {
+        current += (current === '  ' ? '' : ' ') + w;
+      } else {
+        lines.push(current);
+        current = '  ' + w;
+      }
+    }
+    if (current.trim()) lines.push(current);
+  }
+  return text(lines.join('\n') + '\n');
+}
+
+function fmtDateCompact(iso: string): string {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = String(d.getFullYear()).slice(-2);
+    const hrs = String(d.getHours()).padStart(2, '0');
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hrs}:${mins}`;
+  } catch {
+    return String(iso);
+  }
+}
+
+/**
  * Build a COMANDA (order ticket for kitchen / production).
  */
 export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
@@ -510,21 +571,20 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
     CMD_CODEPAGE_PC860,
   ];
 
-  // Comanda da cozinha: sem cabeçalho de loja (nome, endereço, CNPJ, WhatsApp).
+  // Header Title: Bold & Double Height "COZINHA"
   parts.push(
-    CMD_ALIGN_LEFT,
+    CMD_ALIGN_CENTER,
     CMD_BOLD_ON,
-    center('Cozinha Principal', cols),
+    CMD_DOUBLE_ON,
+    text('*** COZINHA ***\n'),
+    CMD_DOUBLE_OFF,
     CMD_BOLD_OFF,
-    text('\n'),
+    normalTextMode(),
+    CMD_ALIGN_LEFT,
+    lineOf('-', cols)
   );
 
-  const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
-  parts.push(row('Pedido Nº:', orderNo, cols));
-  parts.push(rowWrap('Data:', fmtDate(order.createdAt), cols));
-  parts.push(text('\n'));
-
-  parts.push(center(`* Cod. Pers./Senha: ${orderNo} *`, cols));
+  const orderNo = order.id ? order.id.slice(0, 6).toUpperCase() : '0000';
 
   let tipoPedido = 'BALCÃO';
   if (order.orderType === 'delivery') {
@@ -532,44 +592,65 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   } else if (order.orderType === 'retirada') {
     tipoPedido = 'RETIRADA';
   } else if (order.tableNumber) {
-    tipoPedido = `MESA: ${String(order.tableNumber).padStart(3, '0')}`;
+    tipoPedido = `MESA: ${String(order.tableNumber).padStart(2, '0')}`;
   } else if (order.orderType && orderTypeLabels[order.orderType]) {
     tipoPedido = orderTypeLabels[order.orderType].toUpperCase();
   }
 
-  parts.push(CMD_BOLD_ON, center(tipoPedido, cols), CMD_BOLD_OFF, text('\n'));
+  // Row 1: PEDIDO #38CC            MESA: 01
+  const pedLabel = `PEDIDO: #${orderNo}`;
+  parts.push(CMD_BOLD_ON, leftRightAlign(pedLabel, tipoPedido, cols), CMD_BOLD_OFF);
 
-  const customerName = order.customerName || 'Sem Nome';
-  parts.push(CMD_BOLD_ON, rowWrap('Cliente:', customerName, cols), CMD_BOLD_OFF);
-  if (order.orderType === 'delivery' && order.customerAddress) {
-    parts.push(rowWrap('Endereço:', order.customerAddress, cols));
-  } else if (order.orderType === 'retirada' && order.customerPhone) {
-    parts.push(rowWrap('Telefone:', order.customerPhone, cols));
+  // Row 2: Data
+  const dateFormatted = fmtDateCompact(order.createdAt);
+  if (dateFormatted) {
+    parts.push(kvRow('Data:', dateFormatted, cols));
   }
-  parts.push(text('\n'));
 
+  // Row 3: Cliente
+  const customerName = order.customerName || 'Sem Nome';
+  parts.push(kvRow('Cliente:', customerName, cols));
 
-  // Items
+  if (order.orderType === 'delivery' && order.customerAddress) {
+    parts.push(kvRow('Endereço:', order.customerAddress, cols));
+  } else if (order.orderType === 'retirada' && order.customerPhone) {
+    parts.push(kvRow('Telefone:', order.customerPhone, cols));
+  }
+
+  const operator = order.operatorName || 'Não informado';
+  parts.push(kvRow('Atendente:', operator, cols));
+
+  // Divider
+  parts.push(lineOf('-', cols));
+
+  // Items List Header
+  parts.push(CMD_BOLD_ON, text('ITENS DO PEDIDO:\n'), CMD_BOLD_OFF);
+
+  let totalItemsCount = 0;
   for (const item of order.items) {
-    const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}`;
-    parts.push(CMD_ALIGN_LEFT, CMD_BOLD_ON, textOnlyWrap(`${qty} ${item.name}`, cols), CMD_BOLD_OFF, CMD_PRINT_MODE_NORMAL, CMD_ALIGN_LEFT);
+    totalItemsCount += item.quantity || 1;
+    const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
+    parts.push(
+      CMD_ALIGN_LEFT,
+      CMD_BOLD_ON,
+      textOnlyWrap(`${qty} ${item.name.toUpperCase()}`, cols),
+      CMD_BOLD_OFF,
+      normalTextMode()
+    );
     const noteLines = getItemNoteLines(item);
     for (const n of noteLines) {
-      parts.push(CMD_PRINT_MODE_NORMAL, CMD_ALIGN_LEFT, textOnlyWrap(`  * ${n}`, cols));
+      parts.push(CMD_BOLD_ON, textOnlyWrap(`   * OBS: ${n.toUpperCase()}`, cols), CMD_BOLD_OFF);
     }
     if (item.selectedComplements && item.selectedComplements.length > 0) {
       for (const comp of item.selectedComplements) {
-        parts.push(CMD_PRINT_MODE_NORMAL, CMD_ALIGN_LEFT, textOnlyWrap(`  + ${comp.quantity}x ${comp.name}`, cols));
+        parts.push(textOnlyWrap(`   + ${comp.quantity}x ${comp.name}`, cols));
       }
     }
   }
 
-  parts.push(text('\n'));
-  parts.push(rowWrap('Atendente:', order.operatorName || 'Não informado', cols));
-
-
-  // Comanda da cozinha: sem rodapé promocional (PIX, Instagram, mensagem de agradecimento).
-
+  parts.push(lineOf('-', cols));
+  parts.push(CMD_BOLD_ON, leftRightAlign('QTD. TOTAL ITENS:', `${totalItemsCount}`, cols), CMD_BOLD_OFF);
+  parts.push(lineOf('-', cols));
 
   parts.push(feedAndCut(Math.max(3, ps.feedLines ?? 4)));
 
@@ -640,12 +721,12 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const rawOrderType = bill.orderType?.toLowerCase().trim() || '';
   const orderTypeVal = (orderTypeLabels[rawOrderType] || bill.orderType || 'Mesa').trim();
   const formattedOrderType = orderTypeVal.charAt(0).toUpperCase() + orderTypeVal.slice(1);
-  parts.push(CMD_ALIGN_LEFT, row('Tipo:', formattedOrderType, cols));
+  parts.push(CMD_ALIGN_LEFT, kvRow('Tipo:', formattedOrderType, cols));
   if (bill.tableNumber || rawOrderType === 'mesa') {
-    parts.push(row('Mesa:', String(bill.tableNumber || 'N/A'), cols));
+    parts.push(kvRow('Mesa:', String(bill.tableNumber || 'N/A'), cols));
   }
-  parts.push(row('Cliente:', bill.customerName?.trim() || 'Consumidor', cols));
-  parts.push(row('Data:', fmtDate(bill.createdAt), cols));
+  parts.push(kvRow('Cliente:', bill.customerName?.trim() || 'Consumidor', cols));
+  parts.push(kvRow('Data:', fmtDateCompact(bill.createdAt), cols));
   parts.push(lineOf('-', cols));
 
   // Items with price — each item as a rowWrap() so long names break into multiple lines.

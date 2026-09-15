@@ -118,26 +118,6 @@ const PDV = () => {
     }
   }, [existingOrder, tableNumber, initialized, pedidoParam]);
 
-  // Clean ghost tables: occupied status but no items in order
-  useEffect(() => {
-    if (initialized) {
-      setTables(prev => {
-        let changed = false;
-        const next = prev.map(t => {
-          if (t.status === 'occupied' && t.orderId) {
-            const order = orders.find(o => o.id === t.orderId);
-            if (!order || order.items.length === 0) {
-              changed = true;
-              return { ...t, status: 'available' as const, orderId: undefined };
-            }
-          }
-          return t;
-        });
-        return changed ? next : prev;
-      });
-    }
-  }, [initialized, orders, setTables]);
-
   const { customers } = useStore();
   const resolveCustomer = useCallback((custId: string | null | undefined) => {
     if (!custId) return {};
