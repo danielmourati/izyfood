@@ -165,10 +165,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : Promise.resolve({ data: null, error: null }),
       ]);
 
-      if (cats) setCategories(cats.map(dbToCategory));
-      if (prods) setProducts(prods.map(dbToProduct));
-      if (custs) setCustomers(custs.map(dbToCustomer));
-      if (supps) setSuppliers(supps.map(dbToSupplier));
+      if (cats) {
+        setCategories(prev => {
+          const dbCats = cats.map(dbToCategory);
+          const dbIds = new Set(dbCats.map(c => c.id));
+          const localOnly = prev.filter(c => !dbIds.has(c.id));
+          return [...dbCats, ...localOnly];
+        });
+      }
+      if (prods) {
+        setProducts(prev => {
+          const dbProds = prods.map(dbToProduct);
+          const dbIds = new Set(dbProds.map(p => p.id));
+          const localOnly = prev.filter(p => !dbIds.has(p.id));
+          return [...dbProds, ...localOnly];
+        });
+      }
+      if (custs) {
+        setCustomers(prev => {
+          const dbCusts = custs.map(dbToCustomer);
+          const dbIds = new Set(dbCusts.map(c => c.id));
+          const localOnly = prev.filter(c => !dbIds.has(c.id));
+          return [...dbCusts, ...localOnly];
+        });
+      }
+      if (supps) {
+        setSuppliers(prev => {
+          const dbSupps = supps.map(dbToSupplier);
+          const dbIds = new Set(dbSupps.map(s => s.id));
+          const localOnly = prev.filter(s => !dbIds.has(s.id));
+          return [...dbSupps, ...localOnly];
+        });
+      }
       if (ords) setOrders(ords.map(dbToOrder));
       if (sls) setSales(sls.map(dbToSale));
       if (stks) setStockEntries(stks.map(dbToStockEntry));
@@ -189,7 +217,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         })));
       }
       if (cpns) setCoupons(cpns.map(dbToCoupon));
-      if (opts) setNoteOptions(opts.map(dbToNoteOption));
+      if (opts) {
+        setNoteOptions(prev => {
+          const dbOpts = opts.map(dbToNoteOption);
+          const dbIds = new Set(dbOpts.map(o => o.id));
+          const localOnly = prev.filter(o => !dbIds.has(o.id));
+          return [...dbOpts, ...localOnly];
+        });
+      }
       if (setts && setts.length > 0) {
         setSettings({
           tableCount: setts[0].table_count,
@@ -430,80 +465,70 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = productsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setProducts(next); // optimistic
-    syncProducts(prev, next);
-    notifyCrossTabSync();
+    syncProducts(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncProducts]', e));
   }, [notifyCrossTabSync]);
 
   const setCategoriesWrapped: typeof setCategories = useCallback((updater) => {
     const prev = categoriesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setCategories(next);
-    syncCategories(prev, next);
-    notifyCrossTabSync();
+    syncCategories(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCategories]', e));
   }, [notifyCrossTabSync]);
 
   const setCustomersWrapped: typeof setCustomers = useCallback((updater) => {
     const prev = customersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setCustomers(next);
-    syncCustomers(prev, next);
-    notifyCrossTabSync();
+    syncCustomers(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCustomers]', e));
   }, [notifyCrossTabSync]);
 
   const setSuppliersWrapped: typeof setSuppliers = useCallback((updater) => {
     const prev = suppliersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setSuppliers(next);
-    syncSuppliers(prev, next);
-    notifyCrossTabSync();
+    syncSuppliers(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncSuppliers]', e));
   }, [notifyCrossTabSync]);
 
   const setOrdersWrapped: typeof setOrders = useCallback((updater) => {
     const prev = ordersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setOrders(next);
-    syncOrders(prev, next);
-    notifyCrossTabSync();
+    syncOrders(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncOrders]', e));
   }, [notifyCrossTabSync]);
 
   const setSalesWrapped: typeof setSales = useCallback((updater) => {
     const prev = salesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setSales(next);
-    syncSales(prev, next);
-    notifyCrossTabSync();
+    syncSales(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncSales]', e));
   }, [notifyCrossTabSync]);
 
   const setStockEntriesWrapped: typeof setStockEntries = useCallback((updater) => {
     const prev = stockEntriesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setStockEntries(next);
-    syncStockEntries(prev, next);
-    notifyCrossTabSync();
+    syncStockEntries(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncStockEntries]', e));
   }, [notifyCrossTabSync]);
 
   const setTablesWrapped: typeof setTables = useCallback((updater) => {
     const prev = tablesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setTables(next);
-    syncTables(prev, next);
-    notifyCrossTabSync();
+    syncTables(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncTables]', e));
   }, [notifyCrossTabSync]);
 
   const setCouponsWrapped: typeof setCoupons = useCallback((updater) => {
     const prev = couponsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setCoupons(next);
-    syncCoupons(prev, next);
-    notifyCrossTabSync();
+    syncCoupons(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCoupons]', e));
   }, [notifyCrossTabSync]);
 
   const setNoteOptionsWrapped: typeof setNoteOptions = useCallback((updater) => {
     const prev = noteOptionsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setNoteOptions(next);
-    syncNoteOptions(prev, next);
-    notifyCrossTabSync();
+    syncNoteOptions(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncNoteOptions]', e));
   }, [notifyCrossTabSync]);
 
   const updateTableCount = useCallback(async (count: number) => {

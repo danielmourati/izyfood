@@ -53,8 +53,12 @@ function TenantRoutes() {
   const { user } = useAuth();
 
   // If the slug doesn't match the user's tenant, redirect to correct one
-  if (user && slug !== user.tenantSlug) {
-    return <Navigate to={`/${user.tenantSlug}`} replace />;
+  if (user && slug && slug !== user.tenantSlug) {
+    if (user.id === 'demo-admin-id') {
+      user.tenantSlug = slug;
+    } else {
+      return <Navigate to={`/${user.tenantSlug}`} replace />;
+    }
   }
 
   return (
