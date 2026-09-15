@@ -182,7 +182,7 @@ export function ConsumerOrderModal({
     onClose();
   };
 
-  // Helper to send and print order automatically via local Bluetooth printer (Requirement 6)
+  // Helper to send and print order automatically via local Bluetooth printer
   const handleEnviarOrder = async () => {
     if (!currentOrder || items.length === 0) {
       toast.error('Adicione itens antes de enviar o pedido.');
@@ -190,23 +190,40 @@ export function ConsumerOrderModal({
     }
 
     setSendingOrder(true);
-    try {
-      const unprintedItems = items.filter(i => !i.printed);
-      const updatedItems = items.map(i => ({ ...i, printed: true }));
-      const updatedOrder: Order = { ...currentOrder, items: updatedItems };
+    const mesaNum = currentOrder.tableNumber || tableNumber;
 
-      setCurrentOrder(updatedOrder);
-      onSaveOrder(updatedOrder);
+    // 1. Marcar itens como enviados/impressos e salvar pedido
+    const unprintedItems = items.filter(i => !i.printed);
+    const updatedItems = items.map(i => ({ ...i, printed: true }));
+    const updatedOrder: Order = { ...currentOrder, items: updatedItems };
 
-      const mesaNum = updatedOrder.tableNumber || tableNumber;
-      if (mesaNum && setTables) {
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+
+    // 2. Mudar obrigatoriamente o status da mesa para 'occupied' no estado e no banco de dados Supabase
+    if (mesaNum) {
+      const numMesa = Number(mesaNum);
+      if (setTables) {
         setTables(prev => prev.map(t =>
-          t.number === Number(mesaNum)
+          t.number === numMesa
             ? { ...t, status: 'occupied', orderId: updatedOrder.id }
             : t
         ));
       }
+      try {
+        await supabase
+          .from('store_tables')
+          .update({ status: 'occupied', order_id: updatedOrder.id })
+          .eq('number', numMesa);
+      } catch (dbErr) {
+        console.warn('Aviso ao sincronizar mesa no banco:', dbErr);
+      }
+    }
 
+    toast.success(`Pedido da Mesa ${mesaNum || ''} enviado! Status atualizado para Ocupada.`);
+
+    // 3. Tentar impressão em bloco isolado (mesmo que não encontre impressora ou feche a janela sem imprimir)
+    try {
       const orderToPrint = unprintedItems.length > 0
         ? { ...updatedOrder, items: unprintedItems }
         : updatedOrder;
@@ -216,11 +233,8 @@ export function ConsumerOrderModal({
       } else {
         await printOrder(orderToPrint);
       }
-
-      toast.success('Pedido enviado e mesa atualizada para Ocupada!');
-    } catch (err: any) {
-      console.error('Erro ao enviar e imprimir:', err);
-      toast.error('Erro ao imprimir pedido na impressora bluetooth.');
+    } catch (printErr: any) {
+      console.warn('[handleEnviarOrder] Tentativa de impressão concluída ou ignorada (status mantido Ocupado):', printErr);
     } finally {
       setSendingOrder(false);
     }

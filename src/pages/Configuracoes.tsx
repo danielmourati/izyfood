@@ -9,6 +9,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { useAuth, AppRole } from '@/contexts/AuthContext';
 import { DiscountCoupon } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -709,42 +710,62 @@ function UsuariosTab() {
       } catch (err: any) {
         console.warn('[UserSave] Edge function falhou, executando rota direta de salvamento:', err);
         try {
-          const { data: signUpData } = await supabase.auth.signUp({
-            email: form.email,
+          const tempAuthClient = createClient(
+            import.meta.env.VITE_SUPABASE_URL,
+            import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            { auth: { persistSession: false, autoRefreshToken: false } }
+          );
+
+          const { data: signUpData, error: signUpError } = await tempAuthClient.auth.signUp({
+            email: form.email.trim(),
             password: form.password,
             options: {
               data: {
-                name: form.name,
+                name: form.name.trim(),
                 role: form.role,
                 tenant_id: user?.tenantId
               }
             }
           });
 
-          const createdUserId = signUpData?.user?.id || crypto.randomUUID();
+          if (signUpError) {
+            if (signUpError.message.includes('already registered') || signUpError.message.includes('already exists')) {
+              throw new Error('Este e-mail já está cadastrado no sistema.');
+            }
+            throw signUpError;
+          }
 
-          await supabase.from('profiles').upsert({
+          const createdUserId = signUpData?.user?.id;
+          if (!createdUserId) {
+            throw new Error('Não foi possível cadastrar a conta do usuário.');
+          }
+
+          const { error: profErr } = await supabase.from('profiles').upsert({
             id: createdUserId,
-            name: form.name,
-            email: form.email
+            name: form.name.trim(),
+            email: form.email.trim()
           } as any);
+          if (profErr) console.warn('[UserSave] Upsert profiles warning:', profErr);
 
-          await supabase.from('user_roles').upsert({
+          const { error: roleErr } = await supabase.from('user_roles').upsert({
             user_id: createdUserId,
             role: form.role
           } as any);
+          if (roleErr) console.warn('[UserSave] Upsert user_roles warning:', roleErr);
 
           if (user?.tenantId) {
-            await supabase.from('tenant_members').upsert({
+            const { error: memberErr } = await supabase.from('tenant_members').upsert({
               user_id: createdUserId,
               tenant_id: user.tenantId,
               role: form.role,
               commission_percentage: commissionVal
             } as any);
+            if (memberErr) console.warn('[UserSave] Upsert tenant_members warning:', memberErr);
           }
 
           toast.success('Usuário criado e salvo com sucesso!');
         } catch (fallbackErr: any) {
+          console.error('[UserSave] Erro ao criar usuário:', fallbackErr);
           toast.error(fallbackErr.message || err.message || 'Erro ao criar usuário');
           return;
         }

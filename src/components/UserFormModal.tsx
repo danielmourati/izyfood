@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -89,7 +90,14 @@ export function UserFormModal({ open, mode, initial, tenants, onClose, onSaved }
       console.warn('[UserFormModal] Edge function falhou, tentando salvamento direto:', e);
       try {
         if (mode === 'create') {
-          const { data: signUpData } = await supabase.auth.signUp({
+          // Cliente temporário para não alterar o token do admin logado
+          const tempAuthClient = createClient(
+            import.meta.env.VITE_SUPABASE_URL,
+            import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            { auth: { persistSession: false, autoRefreshToken: false } }
+          );
+
+          const { data: signUpData, error: signUpError } = await tempAuthClient.auth.signUp({
             email: form.email.trim(),
             password: form.password || '123456',
             options: {
@@ -101,31 +109,47 @@ export function UserFormModal({ open, mode, initial, tenants, onClose, onSaved }
             }
           });
 
-          const createdId = signUpData?.user?.id || crypto.randomUUID();
+          if (signUpError) {
+            if (signUpError.message.includes('already registered') || signUpError.message.includes('already exists')) {
+              throw new Error('Este e-mail já está cadastrado no sistema.');
+            }
+            throw signUpError;
+          }
 
-          await supabase.from('profiles').upsert({
+          const createdId = signUpData?.user?.id;
+          if (!createdId) {
+            throw new Error('Não foi possível cadastrar a conta de acesso do usuário.');
+          }
+
+          const { error: profErr } = await supabase.from('profiles').upsert({
             id: createdId,
             name: form.name.trim(),
             email: form.email.trim(),
+            phone: form.phone || '',
           } as any);
+          if (profErr) console.warn('[UserFormModal] Upsert profiles warning:', profErr);
 
-          await supabase.from('user_roles').upsert({
+          const { error: roleErr } = await supabase.from('user_roles').upsert({
             user_id: createdId,
             role: form.role,
           } as any);
+          if (roleErr) console.warn('[UserFormModal] Upsert user_roles warning:', roleErr);
 
           if (form.tenant_id) {
-            await supabase.from('tenant_members').upsert({
+            const { error: memberErr } = await supabase.from('tenant_members').upsert({
               user_id: createdId,
               tenant_id: form.tenant_id,
               role: form.role,
             } as any);
+            if (memberErr) console.warn('[UserFormModal] Upsert tenant_members warning:', memberErr);
           }
+
           toast.success('Usuário criado com sucesso!');
         } else if (form.id) {
           await supabase.from('profiles').update({
             name: form.name.trim(),
             email: form.email.trim(),
+            phone: form.phone || '',
           } as any).eq('id', form.id);
 
           await supabase.from('user_roles').upsert({
@@ -133,11 +157,20 @@ export function UserFormModal({ open, mode, initial, tenants, onClose, onSaved }
             role: form.role,
           } as any);
 
+          if (form.tenant_id) {
+            await supabase.from('tenant_members').upsert({
+              user_id: form.id,
+              tenant_id: form.tenant_id,
+              role: form.role,
+            } as any);
+          }
+
           toast.success('Usuário atualizado com sucesso!');
         }
         onSaved();
         onClose();
       } catch (fallbackErr: any) {
+        console.error('[UserFormModal] Erro ao salvar usuário:', fallbackErr);
         toast.error(fallbackErr.message || e.message || 'Erro ao salvar usuário');
       }
     } finally {

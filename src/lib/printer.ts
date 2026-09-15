@@ -37,6 +37,30 @@ const AUTO_RECONNECT_INTERVAL_MS = 30000; // tenta a cada 30s enquanto desconect
 const LS_LAST_NAME = 'bt_last_device_name';
 const LS_LAST_ID = 'bt_last_device_id';
 const LS_BT_PRIORITY = 'bt_priority_default';
+const LS_DEVICE_PRINTER = 'izyfood_device_printer_config';
+
+export interface DevicePrinterConfig {
+  name?: string;
+  address?: string;
+  paperWidth?: number;
+  connectionType?: 'bluetooth' | 'network' | 'system';
+  autoConnectQz?: boolean;
+}
+
+export function getDevicePrinterConfig(): DevicePrinterConfig | null {
+  try {
+    const raw = localStorage.getItem(LS_DEVICE_PRINTER);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setDevicePrinterConfig(config: DevicePrinterConfig): void {
+  try {
+    localStorage.setItem(LS_DEVICE_PRINTER, JSON.stringify(config));
+  } catch { /* ignore */ }
+}
 
 export function getBluetoothPriorityDefault(): boolean {
   try { return localStorage.getItem(LS_BT_PRIORITY) === '1'; } catch { return false; }
@@ -65,6 +89,7 @@ export function forgetBluetoothDevice() {
     localStorage.removeItem(LS_LAST_NAME);
     localStorage.removeItem(LS_LAST_ID);
     localStorage.removeItem(LS_BT_PRIORITY);
+    localStorage.removeItem(LS_DEVICE_PRINTER);
   } catch { /* ignore */ }
   disconnectBluetooth();
 }
@@ -148,24 +173,24 @@ export async function connectBluetooth(options: { forcePairing?: boolean } = {})
     const devices = await bt.getDevices();
     if (devices.length > 0) {
       // Use the first one or try to match by name if we stored it
-      const device = devices[0];
+      const savedName = getLastPairedDeviceName();
+      const match = devices.find((d: any) => d.name === savedName) || devices[0];
       try {
-        const name = await _connectToDevice(device);
+        const name = await _connectToDevice(match);
         return name;
-      } catch (err) {
-        console.warn('Reconnection to authorized device failed:', err);
+      } catch (e) {
+        console.warn('Falha ao reconectar dispositivo conhecido, abrindo seletor...', e);
       }
     }
   }
 
-  // We use acceptAllDevices because thermal printers often don't advertise 
-  // their services in a standard way that filters correctly in all browsers.
   const device = await bt.requestDevice({
     acceptAllDevices: true,
     optionalServices: PRINTER_SERVICE_UUIDS,
   });
 
-  return _connectToDevice(device);
+  const name = await _connectToDevice(device);
+  return name;
 }
 
 /**

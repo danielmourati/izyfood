@@ -70,6 +70,14 @@ const Mesas = () => {
 
   const handleSaveConsumerOrder = (updatedOrder: Order) => {
     setOrders(prev => prev.map(o => (o.id === updatedOrder.id ? updatedOrder : o)));
+    if (updatedOrder.tableNumber && updatedOrder.items && updatedOrder.items.length > 0) {
+      const numMesa = Number(updatedOrder.tableNumber);
+      setTables(prev => prev.map(t =>
+        t.number === numMesa
+          ? { ...t, status: 'occupied', orderId: updatedOrder.id }
+          : t
+      ));
+    }
   };
 
   const handleDiscardEmptyOrder = (orderId: string, tableNum?: number) => {
