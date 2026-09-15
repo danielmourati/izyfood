@@ -340,7 +340,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         else if (payload.eventType === 'DELETE') {
           const old = payload.old as any;
           if (old.status === 'occupied') return;
-          setTables(prev => prev.filter(t => t.number !== old.number));
+          setTables(prev => {
+            const local = prev.find(t => t.number === old.number);
+            // NEVER remove a table that is occupied locally (order in progress)
+            if (local && local.status === 'occupied') {
+              console.warn(`[realtime] Blocked removal of occupied table ${old.number}.`);
+              return prev;
+            }
+            return prev.filter(t => t.number !== old.number);
+          });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons' }, (payload) => {
