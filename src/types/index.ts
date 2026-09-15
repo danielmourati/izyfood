@@ -134,6 +134,7 @@ export interface User {
 }
 
 export interface PaymentSplit {
+  id?: string;
   method: PaymentMethod;
   amount: number;
   notes?: string;

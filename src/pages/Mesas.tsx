@@ -13,7 +13,7 @@ import { usePrinter } from '@/hooks/use-printer';
 import { Order } from '@/types';
 
 const Mesas = () => {
-  const { tables, setTables, orders, setOrders, customers } = useStore();
+  const { tables, setTables, orders, setOrders, customers, freeTable } = useStore();
   const { user } = useAuth();
   const { printOrder, printBill } = usePrinter();
   const navigate = useTenantNavigate();

@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePrinter } from '@/hooks/use-printer';
+import { supabase } from '@/integrations/supabase/client';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
 
 interface ConsumerOrderModalProps {

@@ -39,6 +39,7 @@ interface StoreContextType {
   setSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
   /** Consolidated print configuration for this tenant — always in memory, never stale */
   printSettings: PrintSettings;
+  setPrintSettings: React.Dispatch<React.SetStateAction<PrintSettings>>;
   occupyTable: (tableNumber: number, orderId: string) => Promise<void>;
   freeTable: (tableNumber: number) => Promise<void>;
   completeSale: (order: Order) => void;
