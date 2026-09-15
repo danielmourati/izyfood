@@ -39,6 +39,7 @@ interface StoreContextType {
   setSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
   /** Consolidated print configuration for this tenant — always in memory, never stale */
   printSettings: PrintSettings;
+  setPrintSettings: React.Dispatch<React.SetStateAction<PrintSettings>>;
   occupyTable: (tableNumber: number, orderId: string) => Promise<void>;
   freeTable: (tableNumber: number) => Promise<void>;
   completeSale: (order: Order) => void;
@@ -340,7 +341,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         else if (payload.eventType === 'DELETE') {
           const old = payload.old as any;
           if (old.status === 'occupied') return;
-          setTables(prev => prev.filter(t => t.number !== old.number));
+          setTables(prev => {
+            const local = prev.find(t => t.number === old.number);
+            // NEVER remove a table that is occupied locally (order in progress)
+            if (local && local.status === 'occupied') {
+              console.warn(`[realtime] Blocked removal of occupied table ${old.number}.`);
+              return prev;
+            }
+            return prev.filter(t => t.number !== old.number);
+          });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons' }, (payload) => {

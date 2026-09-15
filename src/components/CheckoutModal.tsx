@@ -499,7 +499,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
             <ChevronLeft className="h-4 w-4" /> VOLTAR
           </Button>
           <Button
-            onClick={handleFinalizePayment}
+            onClick={handleFinalize}
             className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
           >
             <Plus className="h-4 w-4" /> ADICIONAR PAGAMENTO

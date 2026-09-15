@@ -13,7 +13,7 @@ import { usePrinter } from '@/hooks/use-printer';
 import { Order } from '@/types';
 
 const Mesas = () => {
-  const { tables, setTables, orders, setOrders, customers } = useStore();
+  const { tables, setTables, orders, setOrders, customers, freeTable } = useStore();
   const { user } = useAuth();
   const { printOrder, printBill } = usePrinter();
   const navigate = useTenantNavigate();
@@ -83,22 +83,22 @@ const Mesas = () => {
     }
   };
 
-  const handleDiscardEmptyOrder = (orderId: string, tableNum?: number) => {
-    setOrders(prev => prev.filter(o => o.id !== orderId));
-    if (tableNum) {
-      setTables(prev => prev.map(t =>
-        t.number === tableNum ? { ...t, status: 'available', orderId: undefined } : t
-      ));
+  // Only discards drafts that are truly empty. An occupied table with items/value
+  // must stay occupied until the user explicitly finalizes, deletes or transfers it.
+  const handleDiscardEmptyOrder = async (orderId: string, tableNum?: number) => {
+    const existing = orders.find(o => o.id === orderId);
+    if (existing && ((existing.items?.length || 0) > 0 || (existing.total || 0) > 0)) {
+      console.warn(`[Mesas] Blocked discard of order ${orderId}: it still has items/value.`);
+      return;
     }
+
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+    if (tableNum) await freeTable(Number(tableNum));
   };
 
-  const handleDeleteConsumerOrder = (orderId: string, tableNum?: number) => {
+  const handleDeleteConsumerOrder = async (orderId: string, tableNum?: number) => {
     setOrders(prev => prev.filter(o => o.id !== orderId));
-    if (tableNum) {
-      setTables(prev => prev.map(t =>
-        t.number === tableNum ? { ...t, status: 'available', orderId: undefined } : t
-      ));
-    }
+    if (tableNum) await freeTable(Number(tableNum));
   };
 
   const handlePrintConsumerKitchen = async (orderToPrint: Order) => {
