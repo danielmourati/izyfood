@@ -39,7 +39,8 @@ interface StoreContextType {
   setSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
   /** Consolidated print configuration for this tenant — always in memory, never stale */
   printSettings: PrintSettings;
-  setPrintSettings: React.Dispatch<React.SetStateAction<PrintSettings>>;
+  occupyTable: (tableNumber: number, orderId: string) => Promise<void>;
+  freeTable: (tableNumber: number) => Promise<void>;
   completeSale: (order: Order) => void;
   deductStock: (items: OrderItem[]) => void;
   getCategoryById: (id: string) => ProductCategory | undefined;
@@ -537,6 +538,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTables(uniqueTbls.map(dbToTable));
   }, []);
 
+  const occupyTable = useCallback(async (tableNumber: number, orderId: string) => {
+    setTables(prev => prev.map(t => t.number === tableNumber ? { ...t, status: 'occupied', orderId } : t));
+    try {
+      await supabase.from('store_tables').update({ status: 'occupied', order_id: orderId }).eq('number', tableNumber);
+    } catch (err) {
+      console.error('[occupyTable] DB update error:', err);
+    }
+  }, []);
+
+  const freeTable = useCallback(async (tableNumber: number) => {
+    setTables(prev => prev.map(t => t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t));
+    try {
+      await supabase.from('store_tables').update({ status: 'available', order_id: null }).eq('number', tableNumber);
+    } catch (err) {
+      console.error('[freeTable] DB update error:', err);
+    }
+  }, []);
+
   const deductStock = useCallback(async (items: OrderItem[]) => {
     for (const item of items) {
       const qty = item.weight || item.quantity;
@@ -588,8 +607,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     // Free table
     if (order.tableNumber != null) {
-      const { error: tableError } = await supabase.from('store_tables').update({ status: 'available', order_id: null }).eq('number', order.tableNumber);
-      if (tableError) console.error('Error freeing table:', tableError);
+      await freeTable(order.tableNumber);
     }
 
     // Update order status
@@ -611,7 +629,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orderUpdate.delivery_status = 'finalizado';
     }
     await supabase.from('orders').update(orderUpdate as any).eq('id', order.id);
-  }, [deductStock, products, categories]);
+  }, [deductStock, products, categories, freeTable]);
 
   return (
     <StoreContext.Provider value={{
@@ -622,6 +640,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       coupons, setCoupons: setCouponsWrapped, noteOptions, setNoteOptions: setNoteOptionsWrapped,
       settings, setSettings,
       printSettings, setPrintSettings,
+      occupyTable, freeTable,
       completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
     }}>
       {children}
@@ -753,7 +772,16 @@ async function syncStockEntries(prev: StockEntry[], next: StockEntry[]) {
 }
 
 async function syncTables(prev: TableInfo[], next: TableInfo[]) {
-  const updated = next.filter(n => { const p = prev.find(pp => pp.number === n.number); return p && JSON.stringify(p) !== JSON.stringify(n); });
+  const updated = next.filter(n => {
+    const p = prev.find(pp => pp.number === n.number);
+    if (!p) return false;
+    // CRITICAL SECURITY SHIELD: Block automatic array sync from ever un-occupying an active occupied table!
+    if (p.status === 'occupied' && n.status === 'available') {
+      console.warn(`[syncTables] Intercepted and blocked un-occupy for table ${n.number}. Occupied tables must be released explicitly via freeTable().`);
+      return false;
+    }
+    return JSON.stringify(p) !== JSON.stringify(n);
+  });
   for (const t of updated) {
     await supabase.from('store_tables').update({ status: t.status, order_id: t.orderId || null }).eq('number', t.number);
   }

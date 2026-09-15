@@ -42,7 +42,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const canManageMesa = isAdmin || permissions.manage_tables || permissions.cancel_orders;
@@ -208,20 +208,8 @@ export function ConsumerOrderModal({
 
     if (mesaNum) {
       const numMesa = Number(mesaNum);
-      if (setTables) {
-        setTables(prev => prev.map(t =>
-          t.number === numMesa
-            ? { ...t, status: 'occupied', orderId: updatedOrder.id }
-            : t
-        ));
-      }
-      try {
-        await supabase
-          .from('store_tables')
-          .update({ status: 'occupied', order_id: updatedOrder.id })
-          .eq('number', numMesa);
-      } catch (dbErr) {
-        console.warn('Aviso ao sincronizar mesa no banco:', dbErr);
+      if (occupyTable) {
+        await occupyTable(numMesa, updatedOrder.id);
       }
     }
 
@@ -267,37 +255,27 @@ export function ConsumerOrderModal({
     // 2. Mudar obrigatoriamente o status da mesa para 'occupied' no estado e no Supabase
     if (mesaNum) {
       const numMesa = Number(mesaNum);
-      if (setTables) {
-        setTables(prev => prev.map(t =>
-          t.number === numMesa
-            ? { ...t, status: 'occupied', orderId: updatedOrder.id }
-            : t
-        ));
+      if (occupyTable) {
+        await occupyTable(numMesa, updatedOrder.id);
       }
       try {
-        await Promise.all([
-          supabase
-            .from('store_tables')
-            .update({ status: 'occupied', order_id: updatedOrder.id })
-            .eq('number', numMesa),
-          supabase
-            .from('orders')
-            .upsert({
-              id: updatedOrder.id,
-              items: updatedItems as any,
-              total: updatedOrder.total,
-              order_type: updatedOrder.orderType,
-              status: updatedOrder.status,
-              table_number: numMesa,
-              customer_id: updatedOrder.customerId || null,
-              customer_name: updatedOrder.customerName || null,
-              customer_phone: updatedOrder.customerPhone || null,
-              pickup_notes: updatedOrder.pickupNotes || null,
-              is_locked: updatedOrder.isLocked ?? false,
-            } as any),
-        ]);
+        await supabase
+          .from('orders')
+          .upsert({
+            id: updatedOrder.id,
+            items: updatedItems as any,
+            total: updatedOrder.total,
+            order_type: updatedOrder.orderType,
+            status: updatedOrder.status,
+            table_number: numMesa,
+            customer_id: updatedOrder.customerId || null,
+            customer_name: updatedOrder.customerName || null,
+            customer_phone: updatedOrder.customerPhone || null,
+            pickup_notes: updatedOrder.pickupNotes || null,
+            is_locked: updatedOrder.isLocked ?? false,
+          } as any);
       } catch (dbErr) {
-        console.warn('Aviso ao sincronizar mesa e pedido no banco:', dbErr);
+        console.warn('Aviso ao sincronizar pedido no banco:', dbErr);
       }
     }
 
@@ -673,19 +651,9 @@ export function ConsumerOrderModal({
       }
     }
 
-    if (mesaNum && setTables) {
+    if (mesaNum && freeTable) {
       const numMesa = Number(mesaNum);
-      setTables(prev => prev.map(t =>
-        t.number === numMesa ? { ...t, status: 'available', orderId: undefined } : t
-      ));
-      try {
-        await supabase
-          .from('store_tables')
-          .update({ status: 'available', order_id: null })
-          .eq('number', numMesa);
-      } catch (err) {
-        console.warn('Aviso ao liberar mesa no banco:', err);
-      }
+      await freeTable(numMesa);
     }
 
     toast.success(`Pedido da Mesa ${mesaNum || ''} excluído e mesa liberada!`);
