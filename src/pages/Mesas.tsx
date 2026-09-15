@@ -59,10 +59,6 @@ const Mesas = () => {
         tableNumber: tableNum,
         createdAt: new Date().toISOString(),
       };
-      setOrders(prev => [...prev, targetOrder]);
-      setTables(prev => prev.map(t =>
-        t.number === tableNum ? { ...t, status: 'occupied', orderId: targetOrder.id } : t
-      ));
     }
 
     setConsumerOrderModal({ open: true, order: targetOrder, tableNumber: tableNum });

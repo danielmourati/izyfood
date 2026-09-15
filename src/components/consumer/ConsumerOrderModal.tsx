@@ -96,17 +96,16 @@ export function ConsumerOrderModal({
       setAssignedWaiter(order.customerName || user?.name || 'Daniel');
       setIsLocked(order.isLocked ?? false);
 
-      const tableObj = tableNumber ? tables.find(t => t.number === tableNumber) : null;
-      const isOccupied = tableObj?.status === 'occupied' || (order.items && order.items.length > 0);
+      const hasExistingItems = order.items && order.items.length > 0;
 
-      if (isOccupied) {
+      if (hasExistingItems) {
         setMobileStep('review');
       } else {
         setMobileStep('categories');
       }
       setSelectedMobileProduct(null);
     }
-  }, [open, order, user, tableNumber, tables]);
+  }, [open, order, user]);
 
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
