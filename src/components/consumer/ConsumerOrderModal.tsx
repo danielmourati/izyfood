@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePrinter } from '@/hooks/use-printer';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -41,7 +42,8 @@ export function ConsumerOrderModal({
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
   const { products, categories, customers, tables, setTables } = useStore();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const { printOrder } = usePrinter();
   const isMobile = useIsMobile();
 
   const [currentOrder, setCurrentOrder] = useState<Order | null>(order);
@@ -112,6 +114,83 @@ export function ConsumerOrderModal({
       toast.info('Pedido vazio descartado.');
     }
     onClose();
+  };
+
+  const [sendingOrder, setSendingOrder] = useState(false);
+
+  // Helper to save order when clicking REVISAR (Requirement 3)
+  const handleRevisar = () => {
+    if (currentOrder && items.length > 0) {
+      onSaveOrder(currentOrder);
+      toast.success('Pedido da mesa salvo!');
+    }
+    setSelectedMobileProduct(null);
+    setMobileStep('review');
+  };
+
+  // Helper to lock order and table status when FECHAR is clicked (Requirement 5)
+  const handleFecharOrder = () => {
+    if (!currentOrder) {
+      onClose();
+      return;
+    }
+
+    const updatedOrder: Order = {
+      ...currentOrder,
+      isLocked: true,
+      items: items.map(i => ({ ...i, printed: true })),
+    };
+
+    setIsLocked(true);
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+
+    const mesaNum = currentOrder.tableNumber || tableNumber;
+    if (mesaNum && setTables) {
+      setTables(prev => prev.map(t =>
+        t.number === Number(mesaNum)
+          ? { ...t, status: 'occupied', orderId: updatedOrder.id }
+          : t
+      ));
+    }
+
+    toast.success(`Mesa ${mesaNum || ''} / Pedido fechado e bloqueado!`);
+    onClose();
+  };
+
+  // Helper to send and print order automatically via local Bluetooth printer (Requirement 6)
+  const handleEnviarOrder = async () => {
+    if (!currentOrder || items.length === 0) {
+      toast.error('Adicione itens antes de enviar o pedido.');
+      return;
+    }
+
+    setSendingOrder(true);
+    try {
+      const unprintedItems = items.filter(i => !i.printed);
+      const updatedItems = items.map(i => ({ ...i, printed: true }));
+      const updatedOrder: Order = { ...currentOrder, items: updatedItems };
+
+      setCurrentOrder(updatedOrder);
+      onSaveOrder(updatedOrder);
+
+      const orderToPrint = unprintedItems.length > 0
+        ? { ...updatedOrder, items: unprintedItems }
+        : updatedOrder;
+
+      if (onPrintOrder) {
+        await onPrintOrder(orderToPrint);
+      } else {
+        await printOrder(orderToPrint);
+      }
+
+      toast.success('Pedido enviado e impresso com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao enviar e imprimir:', err);
+      toast.error('Erro ao imprimir pedido na impressora bluetooth.');
+    } finally {
+      setSendingOrder(false);
+    }
   };
 
   // Keyboard shortcut handler for ESC key
@@ -554,8 +633,8 @@ export function ConsumerOrderModal({
                   <ChevronLeft className="h-4 w-4" /> VOLTAR
                 </Button>
                 <Button
-                  onClick={() => setMobileStep('review')}
-                  className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
+                  onClick={handleRevisar}
+                  className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
                 >
                   <Check className="h-4 w-4" /> REVISAR
                 </Button>
@@ -668,13 +747,10 @@ export function ConsumerOrderModal({
                       <ChevronLeft className="h-4 w-4" /> VOLTAR
                     </Button>
                     <Button
-                      onClick={() => {
-                        setSelectedMobileProduct(null);
-                        setMobileStep('review');
-                      }}
-                      className="flex-1 h-11 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white border border-white/40 flex items-center justify-center gap-2 shadow-md"
+                      onClick={handleRevisar}
+                      className="flex-1 h-11 text-xs font-black bg-amber-400 text-slate-950 hover:bg-amber-500 border border-amber-300 flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
                     >
-                      <Check className="h-4 w-4" /> REVISAR
+                      <Check className="h-4 w-4 text-slate-950" /> REVISAR
                     </Button>
                   </div>
                 </div>
@@ -688,8 +764,8 @@ export function ConsumerOrderModal({
                     <ChevronLeft className="h-4 w-4" /> VOLTAR
                   </Button>
                   <Button
-                    onClick={() => setMobileStep('review')}
-                    className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
+                    onClick={handleRevisar}
+                    className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
                   >
                     <Check className="h-4 w-4" /> REVISAR
                   </Button>
@@ -759,37 +835,47 @@ export function ConsumerOrderModal({
                 </div>
               </div>
 
-              {/* Bottom 4-Button Footer Action Bar matching Anexo 4 */}
-              <div className="p-2 bg-card border-t border-border grid grid-cols-4 gap-1.5 shrink-0">
-                {/* White Voltar Button */}
+              {/* Bottom Footer Action Bar matching Anexo 2 */}
+              <div className={`p-2 bg-card border-t border-border grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 shrink-0`}>
+                {/* White Voltar Button -> Returns to categories (Requirement 4) */}
                 <Button
                   variant="outline"
-                  onClick={handleCloseAndSaveOrDiscard}
+                  onClick={() => setMobileStep('categories')}
                   className="h-12 text-[10px] font-bold flex flex-col items-center justify-center p-1 border-border"
                 >
                   <ChevronLeft className="h-4 w-4 mb-0.5" /> VOLTAR
                 </Button>
-                {/* Green Fechar Button */}
+                {/* Green Fechar Button -> Locks order/table status to bloqueado (Requirement 5) */}
                 <Button
-                  onClick={handleCloseAndSaveOrDiscard}
+                  onClick={handleFecharOrder}
                   className="h-12 text-[10px] font-bold bg-[#00b050] hover:bg-[#009544] text-white flex flex-col items-center justify-center p-1"
                 >
-                  <Check className="h-4 w-4 mb-0.5" /> FECHAR
+                  <Lock className="h-4 w-4 mb-0.5" /> FECHAR
                 </Button>
-                {/* Purple Pagar Button */}
+                {/* Orange Enviar Button -> Automatically prints on local Bluetooth printer (Requirement 6) */}
                 <Button
-                  onClick={() => {
-                    if (items.length === 0 || totalAmount <= 0) {
-                      toast.error('Adicione produtos ao pedido antes de efetuar o pagamento.');
-                      return;
-                    }
-                    setCheckoutOpen(true);
-                  }}
-                  className="h-12 text-[10px] font-bold bg-[#800080] hover:bg-[#6a006a] text-white flex flex-col items-center justify-center p-1"
+                  onClick={handleEnviarOrder}
+                  disabled={sendingOrder || items.length === 0}
+                  className="h-12 text-[10px] font-bold bg-[#ff9400] hover:bg-[#e08300] text-white flex flex-col items-center justify-center p-1"
                 >
-                  <CreditCard className="h-4 w-4 mb-0.5" /> PAGAR
+                  <Send className="h-4 w-4 mb-0.5" /> ENVIAR
                 </Button>
-                {/* Blue Novo Button */}
+                {/* Purple Pagar Button -> Shown ONLY to Admin users (Requirement 2) */}
+                {isAdmin && (
+                  <Button
+                    onClick={() => {
+                      if (items.length === 0 || totalAmount <= 0) {
+                        toast.error('Adicione produtos ao pedido antes de efetuar o pagamento.');
+                        return;
+                      }
+                      setCheckoutOpen(true);
+                    }}
+                    className="h-12 text-[10px] font-bold bg-[#800080] hover:bg-[#6a006a] text-white flex flex-col items-center justify-center p-1"
+                  >
+                    <CreditCard className="h-4 w-4 mb-0.5" /> PAGAR
+                  </Button>
+                )}
+                {/* Blue Novo Button -> Returns to categories */}
                 <Button
                   onClick={() => setMobileStep('categories')}
                   className="h-12 text-[10px] font-bold bg-[#0099ff] hover:bg-[#0080df] text-white flex flex-col items-center justify-center p-1"
