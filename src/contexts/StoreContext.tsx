@@ -102,19 +102,36 @@ function dbToCoupon(r: any): DiscountCoupon {
   return { id: r.id, code: r.code, type: r.type, value: Number(r.value), active: r.active, minOrder: r.min_order ? Number(r.min_order) : undefined, expiresAt: r.expires_at || undefined };
 }
 
+function loadLS<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveLS(key: string, value: any) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [tables, setTables] = useState<TableInfo[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
-  const [coupons, setCoupons] = useState<DiscountCoupon[]>([]);
-  const [noteOptions, setNoteOptions] = useState<ProductNoteOption[]>([]);
+  const [products, setProducts] = useState<Product[]>(() => loadLS('izy_products', []));
+  const [categories, setCategories] = useState<ProductCategory[]>(() => loadLS('izy_categories', []));
+  const [orders, setOrders] = useState<Order[]>(() => loadLS('izy_orders', []));
+  const [customers, setCustomers] = useState<Customer[]>(() => loadLS('izy_customers', []));
+  const [tables, setTables] = useState<TableInfo[]>(() => loadLS('izy_tables', []));
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadLS('izy_suppliers', []));
+  const [sales, setSales] = useState<Sale[]>(() => loadLS('izy_sales', []));
+  const [stockEntries, setStockEntries] = useState<StockEntry[]>(() => loadLS('izy_stock_entries', []));
+  const [coupons, setCoupons] = useState<DiscountCoupon[]>(() => loadLS('izy_coupons', []));
+  const [noteOptions, setNoteOptions] = useState<ProductNoteOption[]>(() => loadLS('izy_note_options', []));
   const [settings, setSettings] = useState<StoreSettings>({ tableCount: 20 });
   const [printSettings, setPrintSettings] = useState<PrintSettings>({ ...EMPTY_PRINT_SETTINGS });
   const [isCashRegisterOpen, setIsCashRegisterOpen] = useState(false);
@@ -170,7 +187,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const dbCats = cats.map(dbToCategory);
           const dbIds = new Set(dbCats.map(c => c.id));
           const localOnly = prev.filter(c => !dbIds.has(c.id));
-          return [...dbCats, ...localOnly];
+          const merged = [...dbCats, ...localOnly];
+          saveLS('izy_categories', merged);
+          return merged;
         });
       }
       if (prods) {
@@ -178,7 +197,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const dbProds = prods.map(dbToProduct);
           const dbIds = new Set(dbProds.map(p => p.id));
           const localOnly = prev.filter(p => !dbIds.has(p.id));
-          return [...dbProds, ...localOnly];
+          const merged = [...dbProds, ...localOnly];
+          saveLS('izy_products', merged);
+          return merged;
         });
       }
       if (custs) {
@@ -186,7 +207,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const dbCusts = custs.map(dbToCustomer);
           const dbIds = new Set(dbCusts.map(c => c.id));
           const localOnly = prev.filter(c => !dbIds.has(c.id));
-          return [...dbCusts, ...localOnly];
+          const merged = [...dbCusts, ...localOnly];
+          saveLS('izy_customers', merged);
+          return merged;
         });
       }
       if (supps) {
@@ -194,35 +217,91 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const dbSupps = supps.map(dbToSupplier);
           const dbIds = new Set(dbSupps.map(s => s.id));
           const localOnly = prev.filter(s => !dbIds.has(s.id));
-          return [...dbSupps, ...localOnly];
+          const merged = [...dbSupps, ...localOnly];
+          saveLS('izy_suppliers', merged);
+          return merged;
         });
       }
-      if (ords) setOrders(ords.map(dbToOrder));
-      if (sls) setSales(sls.map(dbToSale));
-      if (stks) setStockEntries(stks.map(dbToStockEntry));
-      if (tbls && tbls.length > 0) {
-        const uniqueTbls = [];
-        const seen = new Set();
-        for (const t of tbls) {
-          if (!seen.has(t.number)) {
-            seen.add(t.number);
-            uniqueTbls.push(t);
-          }
-        }
-        setTables(uniqueTbls.map(dbToTable));
-      } else {
-        setTables(Array.from({ length: 20 }, (_, i) => ({
-          number: i + 1,
-          status: 'available' as const,
-        })));
+      if (ords) {
+        const parsedOrds = ords.map(dbToOrder);
+        setOrders(prev => {
+          const dbIds = new Set(parsedOrds.map(o => o.id));
+          const localOnly = prev.filter(o => !dbIds.has(o.id));
+          const merged = [...parsedOrds, ...localOnly];
+          saveLS('izy_orders', merged);
+          return merged;
+        });
       }
-      if (cpns) setCoupons(cpns.map(dbToCoupon));
+      if (sls) {
+        const parsedSls = sls.map(dbToSale);
+        setSales(parsedSls);
+        saveLS('izy_sales', parsedSls);
+      }
+      if (stks) {
+        const parsedStks = stks.map(dbToStockEntry);
+        setStockEntries(parsedStks);
+        saveLS('izy_stock_entries', parsedStks);
+      }
+
+      // Parse active orders to identify occupied tables from order data
+      const activeOrdersList = (ords || []).map(dbToOrder);
+      const tableOrderMap = new Map<number, string>();
+      activeOrdersList.forEach(o => {
+        if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado') {
+          tableOrderMap.set(Number(o.tableNumber), o.id);
+        }
+      });
+
+      setTables(prev => {
+        const tableMap = new Map<number, TableInfo>();
+
+        // 1. Initialize default 20 tables
+        for (let i = 1; i <= 20; i++) {
+          tableMap.set(i, { number: i, status: 'available' });
+        }
+
+        // 2. Overlay DB tbls
+        if (tbls && tbls.length > 0) {
+          tbls.forEach(t => {
+            const tableObj = dbToTable(t);
+            tableMap.set(tableObj.number, tableObj);
+          });
+        }
+
+        // 3. Overlay memory occupied state from prev (Shield: never revert occupied table in memory)
+        prev.forEach(t => {
+          if (t.status === 'occupied') {
+            tableMap.set(t.number, t);
+          }
+        });
+
+        // 4. Overlay active orders (Shield: if table has an active order, it MUST be occupied)
+        tableOrderMap.forEach((orderId, tableNum) => {
+          const existing = tableMap.get(tableNum);
+          tableMap.set(tableNum, {
+            number: tableNum,
+            status: 'occupied',
+            orderId: orderId || existing?.orderId,
+          });
+        });
+
+        const merged = Array.from(tableMap.values()).sort((a, b) => a.number - b.number);
+        saveLS('izy_tables', merged);
+        return merged;
+      });
+      if (cpns) {
+        const parsedCpns = cpns.map(dbToCoupon);
+        setCoupons(parsedCpns);
+        saveLS('izy_coupons', parsedCpns);
+      }
       if (opts) {
         setNoteOptions(prev => {
           const dbOpts = opts.map(dbToNoteOption);
           const dbIds = new Set(dbOpts.map(o => o.id));
           const localOnly = prev.filter(o => !dbIds.has(o.id));
-          return [...dbOpts, ...localOnly];
+          const merged = [...dbOpts, ...localOnly];
+          saveLS('izy_note_options', merged);
+          return merged;
         });
       }
       if (setts && setts.length > 0) {
@@ -465,6 +544,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = productsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setProducts(next); // optimistic
+    saveLS('izy_products', next);
     syncProducts(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncProducts]', e));
   }, [notifyCrossTabSync]);
 
@@ -472,6 +552,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = categoriesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setCategories(next);
+    saveLS('izy_categories', next);
     syncCategories(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCategories]', e));
   }, [notifyCrossTabSync]);
 
@@ -479,6 +560,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = customersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setCustomers(next);
+    saveLS('izy_customers', next);
     syncCustomers(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCustomers]', e));
   }, [notifyCrossTabSync]);
 
@@ -486,6 +568,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = suppliersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setSuppliers(next);
+    saveLS('izy_suppliers', next);
     syncSuppliers(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncSuppliers]', e));
   }, [notifyCrossTabSync]);
 
@@ -493,6 +576,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = ordersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setOrders(next);
+    saveLS('izy_orders', next);
     syncOrders(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncOrders]', e));
   }, [notifyCrossTabSync]);
 
@@ -500,6 +584,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = salesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setSales(next);
+    saveLS('izy_sales', next);
     syncSales(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncSales]', e));
   }, [notifyCrossTabSync]);
 
@@ -507,6 +592,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = stockEntriesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setStockEntries(next);
+    saveLS('izy_stock_entries', next);
     syncStockEntries(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncStockEntries]', e));
   }, [notifyCrossTabSync]);
 
@@ -514,6 +600,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = tablesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setTables(next);
+    saveLS('izy_tables', next);
     syncTables(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncTables]', e));
   }, [notifyCrossTabSync]);
 
@@ -521,6 +608,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = couponsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setCoupons(next);
+    saveLS('izy_coupons', next);
     syncCoupons(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCoupons]', e));
   }, [notifyCrossTabSync]);
 
@@ -528,6 +616,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = noteOptionsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
     setNoteOptions(next);
+    saveLS('izy_note_options', next);
     syncNoteOptions(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncNoteOptions]', e));
   }, [notifyCrossTabSync]);
 
@@ -573,20 +662,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const occupyTable = useCallback(async (tableNumber: number, orderId: string) => {
-    setTables(prev => prev.map(t => t.number === tableNumber ? { ...t, status: 'occupied', orderId } : t));
+    setTables(prev => {
+      const next = prev.map(t => t.number === tableNumber ? { ...t, status: 'occupied' as const, orderId } : t);
+      saveLS('izy_tables', next);
+      return next;
+    });
     try {
-      await supabase.from('store_tables').update({ status: 'occupied', order_id: orderId }).eq('number', tableNumber);
+      await supabase.from('store_tables').upsert(
+        { number: tableNumber, status: 'occupied', order_id: orderId },
+        { onConflict: 'number' }
+      );
     } catch (err) {
-      console.error('[occupyTable] DB update error:', err);
+      console.error('[occupyTable] DB upsert error:', err);
     }
   }, []);
 
   const freeTable = useCallback(async (tableNumber: number) => {
-    setTables(prev => prev.map(t => t.number === tableNumber ? { ...t, status: 'available', orderId: undefined } : t));
+    setTables(prev => {
+      const next = prev.map(t => t.number === tableNumber ? { ...t, status: 'available' as const, orderId: undefined } : t);
+      saveLS('izy_tables', next);
+      return next;
+    });
     try {
-      await supabase.from('store_tables').update({ status: 'available', order_id: null }).eq('number', tableNumber);
+      await supabase.from('store_tables').upsert(
+        { number: tableNumber, status: 'available', order_id: null },
+        { onConflict: 'number' }
+      );
     } catch (err) {
-      console.error('[freeTable] DB update error:', err);
+      console.error('[freeTable] DB upsert error:', err);
     }
   }, []);
 
