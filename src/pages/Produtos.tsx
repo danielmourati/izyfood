@@ -385,9 +385,18 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
     reader.readAsDataURL(file);
   };
 
-  const save = () => {
-    if (!form.name.trim() || !form.price || !form.categoryId) {
+  const save = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!form.name.trim()) {
+      toast.error('Informe o nome do produto.');
       return;
+    }
+    if (!form.price || isNaN(parseFloat(form.price)) || parseFloat(form.price) < 0) {
+      toast.error('Informe um preço válido.');
+      return;
+    }
+    if (!form.categoryId) {
+      toast.error('Selecione uma categoria para o produto.');
       return;
     }
     const product: Product = {
@@ -406,18 +415,20 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
     };
     if (editingId) {
       setProducts(prev => prev.map(p => p.id === editingId ? product : p));
-      
+      toast.success(`Produto "${product.name}" atualizado com sucesso!`);
     } else {
       setProducts(prev => [...prev, product]);
-      
+      toast.success(`Produto "${product.name}" cadastrado com sucesso!`);
     }
+    setForm(emptyProductForm);
+    setEditingId(null);
     setDialogOpen(false);
   };
 
   const confirmDelete = () => {
     if (!deleteId) return;
     setProducts(prev => prev.filter(p => p.id !== deleteId));
-    
+    toast.success('Produto excluído com sucesso!');
     setDeleteOpen(false);
     setDeleteId(null);
   };
@@ -437,22 +448,26 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
 
   const openDeleteCat = (id: string) => { setDeleteCatId(id); setCatDeleteOpen(true); };
 
-  const saveCat = () => {
+  const saveCat = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!catForm.name.trim()) {
-      return;
+      toast.error('Informe o nome da categoria.');
       return;
     }
+    const catName = catForm.name.trim();
     const cat: ProductCategory = {
       id: editingCatId || crypto.randomUUID(),
-      name: catForm.name.trim(),
+      name: catName,
     };
     if (editingCatId) {
       setCategories(prev => prev.map(c => c.id === editingCatId ? cat : c));
-      
+      toast.success(`Categoria "${catName}" atualizada com sucesso!`);
     } else {
       setCategories(prev => [...prev, cat]);
-      
+      toast.success(`Categoria "${catName}" cadastrada com sucesso!`);
     }
+    setCatForm(emptyCategoryForm);
+    setEditingCatId(null);
     setCatDialogOpen(false);
   };
 
@@ -648,14 +663,14 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={save} className="space-y-4">
             <div>
               <Label>Foto do Produto</Label>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
               {form.image ? (
                 <div className="relative mt-2 rounded-lg overflow-hidden aspect-video bg-slate-50 dark:bg-zinc-900/60 p-2 flex items-center justify-center">
                   <img src={form.image} alt="Preview" className="w-full h-full object-contain object-center" />
-                  <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={() => setForm(f => ({ ...f, image: '' }))}>
+                  <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={() => setForm(f => ({ ...f, image: '' }))}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -669,7 +684,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
             </div>
             <div>
               <Label>Nome *</Label>
-              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <Input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div>
               <Label>Descrição</Label>
@@ -756,10 +771,10 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
               </select>
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={save}>{editingId ? 'Salvar' : 'Cadastrar'}</Button>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit">{editingId ? 'Salvar' : 'Cadastrar'}</Button>
             </div>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -769,8 +784,8 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
           <DialogHeader><DialogTitle>Excluir Produto</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita.</p>
           <div className="flex gap-2 justify-end pt-2">
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={confirmDelete}>Excluir</Button>
+            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete}>Excluir</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -781,21 +796,21 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
           <DialogHeader>
             <DialogTitle>{editingCatId ? 'Editar Categoria' : 'Nova Categoria'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={saveCat} className="space-y-4">
             <div>
               <Label>Nome *</Label>
-              <Input value={catForm.name} onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Pizzas" />
+              <Input autoFocus value={catForm.name} onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Refri" />
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <Button variant="outline" onClick={() => setCatDialogOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => setCatDialogOpen(false)}>Cancelar</Button>
               {editingCatId && (
-                <Button variant="destructive" onClick={() => { setCatDialogOpen(false); openDeleteCat(editingCatId); }}>
+                <Button type="button" variant="destructive" onClick={() => { setCatDialogOpen(false); openDeleteCat(editingCatId); }}>
                   Excluir
                 </Button>
               )}
-              <Button onClick={saveCat}>{editingCatId ? 'Salvar' : 'Cadastrar'}</Button>
+              <Button type="submit">{editingCatId ? 'Salvar' : 'Cadastrar'}</Button>
             </div>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
 

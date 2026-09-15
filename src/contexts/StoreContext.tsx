@@ -673,22 +673,34 @@ async function syncProducts(prev: Product[], next: Product[]) {
     return p && JSON.stringify(p) !== JSON.stringify(n);
   });
 
+  const tenantId = tenantIdRef.current;
+
   for (const p of added) {
-    await supabase.from('products').insert({
+    const item: any = {
       id: p.id, name: p.name, description: p.description || null, price: p.price,
       category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
       loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
-    });
+    };
+    if (tenantId) item.tenant_id = tenantId;
+    const { error } = await supabase.from('products').insert(item);
+    if (error) {
+      console.warn('Initial product insert with tenant_id failed, fallback without tenant_id:', error.message);
+      delete item.tenant_id;
+      const { error: err2 } = await supabase.from('products').insert(item);
+      if (err2) console.error('Error inserting product into Supabase:', err2);
+    }
   }
   for (const p of updated) {
-    await supabase.from('products').update({
+    const { error } = await supabase.from('products').update({
       name: p.name, description: p.description || null, price: p.price,
       category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
       loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
     }).eq('id', p.id);
+    if (error) console.error('Error updating product in Supabase:', error);
   }
   for (const p of removed) {
-    await supabase.from('products').delete().eq('id', p.id);
+    const { error } = await supabase.from('products').delete().eq('id', p.id);
+    if (error) console.error('Error deleting product from Supabase:', error);
   }
 }
 
@@ -697,9 +709,26 @@ async function syncCategories(prev: ProductCategory[], next: ProductCategory[]) 
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && p.name !== n.name; });
 
-  for (const c of added) await supabase.from('categories').insert({ id: c.id, name: c.name });
-  for (const c of updated) await supabase.from('categories').update({ name: c.name }).eq('id', c.id);
-  for (const c of removed) await supabase.from('categories').delete().eq('id', c.id);
+  const tenantId = tenantIdRef.current;
+
+  for (const c of added) {
+    const item: any = { id: c.id, name: c.name };
+    if (tenantId) item.tenant_id = tenantId;
+    const { error } = await supabase.from('categories').insert(item);
+    if (error) {
+      console.warn('Initial category insert failed, retrying without tenant_id:', error.message);
+      const { error: err2 } = await supabase.from('categories').insert({ id: c.id, name: c.name });
+      if (err2) console.error('Error inserting category into Supabase:', err2);
+    }
+  }
+  for (const c of updated) {
+    const { error } = await supabase.from('categories').update({ name: c.name }).eq('id', c.id);
+    if (error) console.error('Error updating category in Supabase:', error);
+  }
+  for (const c of removed) {
+    const { error } = await supabase.from('categories').delete().eq('id', c.id);
+    if (error) console.error('Error deleting category in Supabase:', error);
+  }
 }
 
 async function syncCustomers(prev: Customer[], next: Customer[]) {
@@ -760,7 +789,6 @@ async function syncOrders(prev: Order[], next: Order[]) {
       is_locked: o.isLocked ?? false,
     } as any).eq('id', o.id);
   }
-  for (const o of removed) await supabase.from('orders').delete().eq('id', o.id);
 }
 
 async function syncSales(prev: Sale[], next: Sale[]) {
