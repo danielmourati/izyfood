@@ -178,9 +178,6 @@ const Mesas = () => {
       {/* Mobile Blue Header matching Anexo 1 */}
       <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-md">
         <h1 className="text-xl font-bold tracking-tight">Mesas</h1>
-        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
-          <Menu className="h-6 w-6" />
-        </Button>
       </div>
 
       <div className="p-4 space-y-6">

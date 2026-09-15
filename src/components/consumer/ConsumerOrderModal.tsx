@@ -97,6 +97,7 @@ export function ConsumerOrderModal({
 
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
+  const hasUnsentItems = items.length === 0 || items.some(i => !i.printed);
 
   // Centralized close handler: Prompts user if there are unsent/unprinted items before exiting
   const handleCloseAndSaveOrDiscard = () => {
@@ -197,6 +198,15 @@ export function ConsumerOrderModal({
       setCurrentOrder(updatedOrder);
       onSaveOrder(updatedOrder);
 
+      const mesaNum = updatedOrder.tableNumber || tableNumber;
+      if (mesaNum && setTables) {
+        setTables(prev => prev.map(t =>
+          t.number === Number(mesaNum)
+            ? { ...t, status: 'occupied', orderId: updatedOrder.id }
+            : t
+        ));
+      }
+
       const orderToPrint = unprintedItems.length > 0
         ? { ...updatedOrder, items: unprintedItems }
         : updatedOrder;
@@ -207,7 +217,7 @@ export function ConsumerOrderModal({
         await printOrder(orderToPrint);
       }
 
-      toast.success('Pedido enviado e impresso com sucesso!');
+      toast.success('Pedido enviado e mesa atualizada para Ocupada!');
     } catch (err: any) {
       console.error('Erro ao enviar e imprimir:', err);
       toast.error('Erro ao imprimir pedido na impressora bluetooth.');
@@ -593,14 +603,14 @@ export function ConsumerOrderModal({
 
     return (
       <>
-        <div className="fixed inset-0 z-[80] bg-background flex flex-col h-full overflow-hidden font-sans">
+        <div className="fixed inset-0 z-[80] bg-[#faf8f5] flex flex-col h-full overflow-hidden font-sans">
           
           {/* Mobile Step 1: Categories Selector (Attachment 3) */}
           {mobileStep === 'categories' && (
-            <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+            <div className="flex-1 flex flex-col h-full bg-[#faf8f5] overflow-hidden">
               {/* Blue Header */}
               <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
-                <span className="text-lg font-bold">Novo Pedido - Mesa {displayMesaNum}</span>
+                <span className="text-lg font-black tracking-tight">Novo Pedido - Mesa {displayMesaNum}</span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -612,14 +622,14 @@ export function ConsumerOrderModal({
               </div>
 
               {/* Search Bar */}
-              <div className="p-3 bg-muted/20 border-b border-border flex items-center gap-2 shrink-0">
+              <div className="p-3 bg-[#faf8f5] border-b border-[#e8e4dc] flex items-center gap-2 shrink-0">
                 <Input
                   placeholder="Buscar em todas categorias por código..."
                   value={mobileSearchQuery}
                   onChange={e => setMobileSearchQuery(e.target.value)}
-                  className="bg-background text-xs h-9 text-foreground"
+                  className="bg-white border-[#d8d3c8] text-xs h-9 text-[#3e2b20] placeholder:text-[#8e857b] focus-visible:ring-1 focus-visible:ring-[#0099ff]"
                 />
-                <Button size="icon" className="bg-muted text-foreground hover:bg-muted/80 h-9 w-9 shrink-0">
+                <Button size="icon" className="bg-[#f4efdf] text-[#4a3b32] hover:bg-[#eae4d2] border border-[#d8d3c8] h-9 w-9 shrink-0">
                   <Search className="h-4 w-4" />
                 </Button>
               </div>
@@ -634,7 +644,7 @@ export function ConsumerOrderModal({
                         setSelectedCategory(cat.id);
                         setMobileStep('products');
                       }}
-                      className="bg-[#ff9400] hover:bg-[#e08300] active:scale-95 text-white font-black text-sm uppercase py-7 px-3 rounded-md shadow-md text-center flex items-center justify-center transition-transform"
+                      className="bg-[#ff9400] hover:bg-[#e08300] active:scale-95 text-white font-black text-sm uppercase py-7 px-3 rounded-lg shadow-md text-center flex items-center justify-center transition-transform tracking-wide"
                     >
                       {cat.name}
                     </button>
@@ -644,25 +654,25 @@ export function ConsumerOrderModal({
                       setSelectedCategory(null);
                       setMobileStep('products');
                     }}
-                    className="bg-muted hover:bg-muted/80 active:scale-95 text-foreground font-black text-sm uppercase py-7 px-3 rounded-md shadow-md text-center flex items-center justify-center border border-border"
+                    className="bg-[#f4efdf] hover:bg-[#eae4d2] active:scale-95 text-[#4a3b32] font-black text-sm uppercase py-7 px-3 rounded-lg shadow-md text-center flex items-center justify-center border border-[#d8d3c8] tracking-wide"
                   >
                     TODOS PRODUTOS
                   </button>
                 </div>
               </div>
 
-              {/* Bottom Footer Action Bar - VOLTAR returns to Mesas (Requirement 1) */}
-              <div className="p-3 bg-card border-t border-border flex gap-3 shrink-0">
+              {/* Bottom Footer Action Bar - VOLTAR returns to Mesas */}
+              <div className="p-3 bg-white border-t border-[#e8e4dc] flex gap-3 shrink-0">
                 <Button
                   variant="outline"
                   onClick={handleCloseAndSaveOrDiscard}
-                  className="flex-1 h-12 text-xs font-bold flex items-center justify-center gap-2 border-border"
+                  className="flex-1 h-12 text-xs font-black bg-white hover:bg-[#f9f8f5] text-[#4a3b32] border-[#d8d3c8] flex items-center justify-center gap-2 rounded-lg shadow-sm"
                 >
                   <ChevronLeft className="h-4 w-4" /> VOLTAR
                 </Button>
                 <Button
                   onClick={handleRevisar}
-                  className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
+                  className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
                 >
                   <Check className="h-4 w-4" /> REVISAR
                 </Button>
@@ -670,12 +680,12 @@ export function ConsumerOrderModal({
             </div>
           )}
 
-          {/* Mobile Step 2: Products in Category Selector (Attachment 2) */}
+          {/* Mobile Step 2: Products in Category Selector (Attachment 2 & 3) */}
           {mobileStep === 'products' && (
-            <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+            <div className="flex-1 flex flex-col h-full bg-[#faf8f5] overflow-hidden">
               {/* Blue Header */}
               <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
-                <span className="text-lg font-bold">Novo Pedido - Mesa {displayMesaNum}</span>
+                <span className="text-lg font-black tracking-tight">Novo Pedido - Mesa {displayMesaNum}</span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -687,20 +697,20 @@ export function ConsumerOrderModal({
               </div>
 
               {/* Search Bar */}
-              <div className="p-3 bg-muted/20 border-b border-border flex items-center gap-2 shrink-0">
+              <div className="p-3 bg-[#faf8f5] border-b border-[#e8e4dc] flex items-center gap-2 shrink-0">
                 <Input
                   placeholder="Buscar em todas categorias por código..."
                   value={mobileSearchQuery}
                   onChange={e => setMobileSearchQuery(e.target.value)}
-                  className="bg-background text-xs h-9 text-foreground"
+                  className="bg-white border-[#d8d3c8] text-xs h-9 text-[#3e2b20] placeholder:text-[#8e857b] focus-visible:ring-1 focus-visible:ring-[#0099ff]"
                 />
-                <Button size="icon" className="bg-muted text-foreground hover:bg-muted/80 h-9 w-9 shrink-0">
+                <Button size="icon" className="bg-[#f4efdf] text-[#4a3b32] hover:bg-[#eae4d2] border border-[#d8d3c8] h-9 w-9 shrink-0">
                   <Search className="h-4 w-4" />
                 </Button>
               </div>
 
               {/* Category Title */}
-              <div className="px-4 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              <div className="px-4 pt-3 pb-1 text-xs font-black text-[#554a42] uppercase tracking-wider">
                 {activeCatName}
               </div>
 
@@ -710,19 +720,22 @@ export function ConsumerOrderModal({
                   {filteredCategoryProducts.map(prod => {
                     const catObj = categories.find(c => c.id === prod.categoryId);
                     const catName = catObj?.name || 'GERAL';
+                    const isSelected = selectedMobileProduct?.id === prod.id;
 
                     return (
                       <button
                         key={prod.id}
                         onClick={() => handleAddDirect(prod)}
-                        className="bg-[#d926b5] hover:bg-[#c01da0] active:scale-95 text-white font-bold p-3 rounded-md shadow-md text-left flex flex-col justify-between h-30 relative transition-transform"
+                        className={`bg-[#d926b5] hover:bg-[#c01da0] active:scale-95 text-white font-bold p-3 rounded-lg shadow-md text-left flex flex-col justify-between h-28 relative transition-transform ${
+                          isSelected ? 'border-2 border-black ring-2 ring-black/20' : 'border border-transparent'
+                        }`}
                       >
-                        <span className="text-sm sm:text-base font-extrabold leading-tight line-clamp-3 drop-shadow-xs">
+                        <span className="text-sm sm:text-base font-extrabold leading-tight line-clamp-3 drop-shadow-xs text-white">
                           {prod.name}
                         </span>
                         <div className="flex justify-between items-end w-full pt-1">
-                          <span className="text-xs sm:text-sm font-black drop-shadow-xs">R$ {fmt(prod.price)}</span>
-                          <span className="bg-[#00b050] text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase max-w-[55%] truncate shadow-xs">
+                          <span className="text-xs sm:text-sm font-black drop-shadow-xs text-white">R$ {fmt(prod.price)}</span>
+                          <span className="bg-[#00b050] text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase max-w-[55%] truncate shadow-xs tracking-wider">
                             {catName}
                           </span>
                         </div>
@@ -732,16 +745,16 @@ export function ConsumerOrderModal({
                 </div>
               </div>
 
-              {/* Bottom Quantity Control Panel matching Image 2 */}
+              {/* Bottom Quantity Control Panel matching Image 3 */}
               {selectedMobileProduct ? (
-                <div className="bg-[#00b050] text-white p-3 rounded-t-xl shadow-2xl border-t border-emerald-400 font-sans space-y-3 shrink-0 animate-in slide-in-from-bottom duration-200">
+                <div className="bg-[#00b050] text-white p-3 rounded-t-xl shadow-2xl border-t border-[#00c85b] font-sans space-y-3 shrink-0 animate-in slide-in-from-bottom duration-200">
                   {/* Green Header Strip */}
                   <div className="flex justify-between items-center text-sm font-extrabold px-1">
                     <div className="flex items-center gap-1.5 truncate">
                       <Check className="h-4 w-4 shrink-0 text-white" />
                       <span className="truncate">{selectedMobileProduct.name} R$ {fmt(selectedMobileProduct.price)}</span>
                     </div>
-                    <span className="bg-[#0099ff] text-white text-xs font-black px-2.5 py-1 rounded shadow-xs shrink-0">
+                    <span className="bg-[#0099ff] text-white text-xs font-black px-2.5 py-1 rounded-md shadow-xs shrink-0">
                       x{items.find(i => i.productId === selectedMobileProduct.id)?.quantity || 1}
                     </span>
                   </div>
@@ -750,25 +763,25 @@ export function ConsumerOrderModal({
                   <div className="grid grid-cols-4 gap-2">
                     <button
                       onClick={() => handleAddDirect(selectedMobileProduct)}
-                      className="bg-white hover:bg-slate-100 text-slate-800 font-extrabold h-11 rounded-md shadow flex items-center justify-center text-base active:scale-95"
+                      className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
                     >
                       + 1
                     </button>
                     <button
                       onClick={() => handleDecrementDirect(selectedMobileProduct)}
-                      className="bg-white hover:bg-slate-100 text-slate-800 font-extrabold h-11 rounded-md shadow flex items-center justify-center text-base active:scale-95"
+                      className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
                     >
                       - 1
                     </button>
                     <button
                       onClick={() => handleRemoveDirect(selectedMobileProduct)}
-                      className="bg-white hover:bg-slate-100 text-destructive font-extrabold h-11 rounded-md shadow flex items-center justify-center text-base active:scale-95"
+                      className="bg-white hover:bg-slate-100 text-red-600 font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
                     >
                       <Trash2 className="h-5 w-5" />
                     </button>
                     <button
                       onClick={() => setSelectedMobileProduct(null)}
-                      className="bg-white hover:bg-slate-100 text-slate-800 font-extrabold h-11 rounded-md shadow flex items-center justify-center text-base active:scale-95"
+                      className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
                     >
                       +
                     </button>
@@ -782,30 +795,30 @@ export function ConsumerOrderModal({
                         setSelectedMobileProduct(null);
                         setMobileStep('categories');
                       }}
-                      className="flex-1 h-11 text-xs font-bold bg-white text-slate-800 hover:bg-slate-100 border-none flex items-center justify-center gap-2"
+                      className="flex-1 h-11 text-xs font-black bg-white hover:bg-slate-100 text-[#4a3b32] border border-[#e0dcd3] flex items-center justify-center gap-2 rounded-lg shadow-sm"
                     >
                       <ChevronLeft className="h-4 w-4" /> VOLTAR
                     </Button>
                     <Button
                       onClick={handleRevisar}
-                      className="flex-1 h-11 text-xs font-black bg-amber-400 text-slate-950 hover:bg-amber-500 border border-amber-300 flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+                      className="flex-1 h-11 text-xs font-black bg-[#ffc107] hover:bg-[#e0a800] text-[#1a1a1a] border border-[#e0a800] flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
                     >
-                      <Check className="h-4 w-4 text-slate-950" /> REVISAR
+                      <Check className="h-4 w-4 text-[#1a1a1a]" /> REVISAR
                     </Button>
                   </div>
                 </div>
               ) : (
-                <div className="p-3 bg-card border-t border-border flex gap-3 shrink-0">
+                <div className="p-3 bg-white border-t border-[#e8e4dc] flex gap-3 shrink-0">
                   <Button
                     variant="outline"
                     onClick={() => setMobileStep('categories')}
-                    className="flex-1 h-12 text-xs font-bold flex items-center justify-center gap-2 border-border"
+                    className="flex-1 h-12 text-xs font-black bg-white hover:bg-[#f9f8f5] text-[#4a3b32] border-[#d8d3c8] flex items-center justify-center gap-2 rounded-lg shadow-sm"
                   >
                     <ChevronLeft className="h-4 w-4" /> VOLTAR
                   </Button>
                   <Button
                     onClick={handleRevisar}
-                    className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
+                    className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
                   >
                     <Check className="h-4 w-4" /> REVISAR
                   </Button>
@@ -816,10 +829,10 @@ export function ConsumerOrderModal({
 
           {/* Mobile Step 3: Order Review (Attachment 4) */}
           {mobileStep === 'review' && (
-            <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+            <div className="flex-1 flex flex-col h-full bg-[#faf8f5] overflow-hidden">
               {/* Blue Header */}
               <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
-                <span className="text-lg font-bold">Mesa {displayMesaNum}</span>
+                <span className="text-lg font-black tracking-tight">Mesa {displayMesaNum}</span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -831,14 +844,14 @@ export function ConsumerOrderModal({
               </div>
 
               {/* Info Block */}
-              <div className="p-3 bg-muted/20 border-b border-border space-y-1 text-xs text-foreground shrink-0">
-                <div>Cliente: <span className="font-semibold">{custName ? `${custName} (${custPhone})` : 'Não informado'}</span></div>
-                <div>Observações: <span className="font-semibold">{generalNotes || 'Nenhuma'}</span></div>
-                <div>Qtd. Pessoas: <span className="font-semibold">1</span></div>
+              <div className="p-3 bg-white border-b border-[#e8e4dc] space-y-1 text-xs text-[#4a3b32] shrink-0">
+                <div>Cliente: <span className="font-bold">{custName ? `${custName} (${custPhone})` : 'Não informado'}</span></div>
+                <div>Observações: <span className="font-bold">{generalNotes || 'Nenhuma'}</span></div>
+                <div>Qtd. Pessoas: <span className="font-bold">1</span></div>
               </div>
 
               {/* Items Section Header */}
-              <div className="px-4 py-2 text-xs font-bold text-muted-foreground uppercase border-b border-border shrink-0">
+              <div className="px-4 py-2 text-xs font-bold text-[#554a42] uppercase tracking-wider border-b border-[#e8e4dc] shrink-0">
                 Itens ({items.length})
               </div>
 
@@ -850,15 +863,15 @@ export function ConsumerOrderModal({
                   </div>
                 ) : (
                   items.map(item => (
-                    <div key={item.id} className="bg-card border border-border p-2.5 rounded shadow-xs flex justify-between items-center text-xs">
+                    <div key={item.id} className="bg-white border border-[#e8e4dc] p-2.5 rounded-lg shadow-xs flex justify-between items-center text-xs">
                       <div>
-                        <div className="font-bold text-foreground">{item.name}</div>
+                        <div className="font-bold text-[#3e2b20]">{item.name}</div>
                         <div className="text-[11px] text-muted-foreground">
                           {item.quantity}x R$ {fmt(item.price)}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="font-extrabold text-foreground">R$ {fmt(item.subtotal)}</span>
+                        <span className="font-extrabold text-[#3e2b20]">R$ {fmt(item.subtotal)}</span>
                         <button onClick={() => handleRemoveItem(item.id)} className="text-destructive p-1">
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -868,7 +881,7 @@ export function ConsumerOrderModal({
                 )}
 
                 {/* Yellow Summary Box matching Anexo 4 */}
-                <div className="bg-[#fff3d6] border border-[#ffe099] p-3 rounded text-xs font-mono font-bold text-[#553a00] space-y-1 mt-4">
+                <div className="bg-[#fff3d6] border border-[#ffe099] p-3 rounded-lg text-xs font-mono font-bold text-[#553a00] space-y-1 mt-4 shadow-sm">
                   <div className="flex justify-between">
                     <span>(+) Subtotal</span>
                     <span>R$ {fmt(totalAmount)}</span>
@@ -881,31 +894,43 @@ export function ConsumerOrderModal({
               </div>
 
               {/* Bottom Footer Action Bar matching Anexo 2 */}
-              <div className={`p-2 bg-card border-t border-border grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 shrink-0`}>
-                {/* White Voltar Button -> Returns to categories (Requirement 4) */}
+              <div className={`p-2 bg-white border-t border-[#e8e4dc] grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 shrink-0`}>
+                {/* White Voltar Button -> Returns to categories */}
                 <Button
                   variant="outline"
                   onClick={() => setMobileStep('categories')}
-                  className="h-12 text-[10px] font-bold flex flex-col items-center justify-center p-1 border-border"
+                  className="h-12 text-[10px] font-black bg-white hover:bg-[#f9f8f5] text-[#4a3b32] border-[#d8d3c8] flex flex-col items-center justify-center p-1 rounded-lg shadow-sm"
                 >
                   <ChevronLeft className="h-4 w-4 mb-0.5" /> VOLTAR
                 </Button>
-                {/* Green Fechar Button -> Locks order/table status to bloqueado (Requirement 5) */}
+                {/* Green Fechar Button -> Blocked until order has been sent */}
                 <Button
-                  onClick={handleFecharOrder}
-                  className="h-12 text-[10px] font-bold bg-[#00b050] hover:bg-[#009544] text-white flex flex-col items-center justify-center p-1"
+                  onClick={() => {
+                    if (hasUnsentItems) {
+                      toast.warning('Envie o pedido para a cozinha antes de fechar a mesa!');
+                      return;
+                    }
+                    handleFecharOrder();
+                  }}
+                  disabled={hasUnsentItems}
+                  className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
+                    hasUnsentItems
+                      ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
+                      : 'bg-[#00b050] hover:bg-[#009544] cursor-pointer'
+                  }`}
+                  title={hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear mesa'}
                 >
                   <Lock className="h-4 w-4 mb-0.5" /> FECHAR
                 </Button>
-                {/* Orange Enviar Button -> Automatically prints on local Bluetooth printer (Requirement 6) */}
+                {/* Orange Enviar Button -> Automatically prints on local Bluetooth printer */}
                 <Button
                   onClick={handleEnviarOrder}
                   disabled={sendingOrder || items.length === 0}
-                  className="h-12 text-[10px] font-bold bg-[#ff9400] hover:bg-[#e08300] text-white flex flex-col items-center justify-center p-1"
+                  className="h-12 text-[10px] font-black bg-[#ff9400] hover:bg-[#e08300] text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm"
                 >
                   <Send className="h-4 w-4 mb-0.5" /> ENVIAR
                 </Button>
-                {/* Purple Pagar Button -> Shown ONLY to Admin users (Requirement 2) */}
+                {/* Purple Pagar Button -> Shown ONLY to Admin users */}
                 {isAdmin && (
                   <Button
                     onClick={() => {
@@ -915,7 +940,7 @@ export function ConsumerOrderModal({
                       }
                       setCheckoutOpen(true);
                     }}
-                    className="h-12 text-[10px] font-bold bg-[#800080] hover:bg-[#6a006a] text-white flex flex-col items-center justify-center p-1"
+                    className="h-12 text-[10px] font-black bg-[#800080] hover:bg-[#6a006a] text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm"
                   >
                     <CreditCard className="h-4 w-4 mb-0.5" /> PAGAR
                   </Button>
@@ -923,7 +948,7 @@ export function ConsumerOrderModal({
                 {/* Blue Novo Button -> Returns to categories */}
                 <Button
                   onClick={() => setMobileStep('categories')}
-                  className="h-12 text-[10px] font-bold bg-[#0099ff] hover:bg-[#0080df] text-white flex flex-col items-center justify-center p-1"
+                  className="h-12 text-[10px] font-black bg-[#0099ff] hover:bg-[#0080df] text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm"
                 >
                   <Plus className="h-4 w-4 mb-0.5" /> NOVO
                 </Button>

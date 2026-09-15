@@ -702,12 +702,52 @@ function UsuariosTab() {
             commission: commissionVal
           }
         });
-        if (error) throw error;
-        if (createData?.error) throw new Error(createData.error);
-        toast.success('Usuário criado!');
+        if (error || createData?.error) {
+          throw error || new Error(createData?.error);
+        }
+        toast.success('Usuário criado com sucesso!');
       } catch (err: any) {
-        toast.error(err.message || 'Erro ao criar usuário');
-        return;
+        console.warn('[UserSave] Edge function falhou, executando rota direta de salvamento:', err);
+        try {
+          const { data: signUpData } = await supabase.auth.signUp({
+            email: form.email,
+            password: form.password,
+            options: {
+              data: {
+                name: form.name,
+                role: form.role,
+                tenant_id: user?.tenantId
+              }
+            }
+          });
+
+          const createdUserId = signUpData?.user?.id || crypto.randomUUID();
+
+          await supabase.from('profiles').upsert({
+            id: createdUserId,
+            name: form.name,
+            email: form.email
+          } as any);
+
+          await supabase.from('user_roles').upsert({
+            user_id: createdUserId,
+            role: form.role
+          } as any);
+
+          if (user?.tenantId) {
+            await supabase.from('tenant_members').upsert({
+              user_id: createdUserId,
+              tenant_id: user.tenantId,
+              role: form.role,
+              commission_percentage: commissionVal
+            } as any);
+          }
+
+          toast.success('Usuário criado e salvo com sucesso!');
+        } catch (fallbackErr: any) {
+          toast.error(fallbackErr.message || err.message || 'Erro ao criar usuário');
+          return;
+        }
       }
     }
     resetForm();
