@@ -51,6 +51,7 @@ export function ConsumerOrderModal({
 
   const {
     printOrder,
+    printBill,
     btConnected,
     btDeviceName,
     lastPairedName,
@@ -124,10 +125,10 @@ export function ConsumerOrderModal({
 
     const mesaNum = currentOrder.tableNumber || tableNumber;
     const isTableOccupiedInStore = mesaNum ? tables.some(t => t.number === Number(mesaNum) && t.status === 'occupied') : false;
-    const isOrderOccupied = currentOrder.status === 'occupied' || currentOrder.status === 'segurado';
+    const isOrderOccupied = currentOrder.status === 'segurado';
     const isOccupied = isTableOccupiedInStore || isOrderOccupied;
 
-    const hasItems = items.length > 0 && totalAmount > 0;
+    const hasItems = items.length > 0 || totalAmount > 0;
 
     if (hasItems) {
       if (hasNewUnsentItems) {
@@ -138,6 +139,7 @@ export function ConsumerOrderModal({
       onSaveOrder(currentOrder);
       toast.success('Pedido salvo com sucesso!');
     } else {
+      // Only a truly empty draft on a table that was not occupied can be discarded
       if (!isOccupied) {
         if (onDiscardEmptyOrder) {
           onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
@@ -178,11 +180,11 @@ export function ConsumerOrderModal({
 
     const mesaNum = currentOrder.tableNumber || tableNumber;
     const isTableOccupiedInStore = mesaNum ? tables.some(t => t.number === Number(mesaNum) && t.status === 'occupied') : false;
-    const isOrderOccupied = currentOrder.status === 'occupied' || currentOrder.status === 'segurado';
+    const isOrderOccupied = currentOrder.status === 'segurado';
     const isOccupied = isTableOccupiedInStore || isOrderOccupied;
 
     // If order has no items
-    if (!items || items.length === 0 || totalAmount <= 0) {
+    if (!items || items.length === 0) {
       if (!isOccupied) {
         if (onDiscardEmptyOrder) {
           onDiscardEmptyOrder(currentOrder.id, mesaNum);
@@ -1869,21 +1871,14 @@ export function ConsumerOrderModal({
               variant="outline"
               onClick={() => {
                 setUnsentAlertOpen(false);
+                // Only the unsent items are removed. The order and the table stay active
+                // until the user explicitly finalizes, deletes or transfers the table.
                 const previouslyPrintedItems = items.filter(i => i.printed);
-                if (previouslyPrintedItems.length === 0) {
-                  if (onDiscardEmptyOrder) {
-                    onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
-                  } else if (onDeleteOrder) {
-                    onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
-                  }
-                  toast.info('Alterações descartadas e pedido liberado.');
-                } else {
-                  const updatedTotal = previouslyPrintedItems.reduce((s, i) => s + i.subtotal, 0);
-                  const updatedOrder = { ...currentOrder, items: previouslyPrintedItems, total: updatedTotal };
-                  setCurrentOrder(updatedOrder);
-                  onSaveOrder(updatedOrder);
-                  toast.info('Novos itens não enviados foram descartados.');
-                }
+                const updatedTotal = previouslyPrintedItems.reduce((s, i) => s + i.subtotal, 0);
+                const updatedOrder = { ...currentOrder, items: previouslyPrintedItems, total: updatedTotal };
+                setCurrentOrder(updatedOrder);
+                onSaveOrder(updatedOrder);
+                toast.info('Novos itens não enviados foram descartados. A mesa permanece ativa.');
                 onClose();
               }}
               className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 font-bold text-xs h-11"
