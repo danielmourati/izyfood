@@ -68,6 +68,7 @@ export function ConsumerOrderModal({
   const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [unsentAlertOpen, setUnsentAlertOpen] = useState(false);
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
   const [isLocked, setIsLocked] = useState(false);
@@ -97,7 +98,7 @@ export function ConsumerOrderModal({
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
 
-  // Centralized close handler: Auto-saves & prints ONLY NEW ITEMS to kitchen if items exist, or discards if empty
+  // Centralized close handler: Prompts user if there are unsent/unprinted items before exiting
   const handleCloseAndSaveOrDiscard = () => {
     if (!currentOrder) {
       onClose();
@@ -108,17 +109,14 @@ export function ConsumerOrderModal({
 
     if (hasItems) {
       const unprintedItems = items.filter(i => !i.printed);
-      const updatedItems = items.map(i => ({ ...i, printed: true }));
-      const updatedOrder: Order = { ...currentOrder, items: updatedItems };
 
-      onSaveOrder(updatedOrder);
-
-      if (onPrintOrder && unprintedItems.length > 0) {
-        onPrintOrder({ ...updatedOrder, items: unprintedItems });
-        toast.success(`${unprintedItems.length} item(ns) novo(s) impresso(s) na cozinha!`);
-      } else {
-        toast.success('Pedido salvo com sucesso!');
+      if (unprintedItems.length > 0) {
+        setUnsentAlertOpen(true);
+        return;
       }
+
+      onSaveOrder(currentOrder);
+      toast.success('Pedido salvo com sucesso!');
     } else {
       if (onDiscardEmptyOrder) {
         onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
@@ -709,21 +707,28 @@ export function ConsumerOrderModal({
               {/* Product Cards Grid */}
               <div className="flex-1 overflow-y-auto p-3">
                 <div className="grid grid-cols-2 gap-3">
-                  {filteredCategoryProducts.map(prod => (
-                    <button
-                      key={prod.id}
-                      onClick={() => handleAddDirect(prod)}
-                      className="bg-[#d926b5] hover:bg-[#c01da0] active:scale-95 text-white font-bold p-3 rounded-md shadow-md text-left flex flex-col justify-between h-28 relative transition-transform"
-                    >
-                      <span className="text-xs leading-snug line-clamp-3">{prod.name}</span>
-                      <div className="flex justify-between items-end w-full">
-                        <span className="text-xs font-extrabold">R$ {fmt(prod.price)}</span>
-                        <span className="bg-[#00b050] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded">
-                          Vários
+                  {filteredCategoryProducts.map(prod => {
+                    const catObj = categories.find(c => c.id === prod.categoryId);
+                    const catName = catObj?.name || 'GERAL';
+
+                    return (
+                      <button
+                        key={prod.id}
+                        onClick={() => handleAddDirect(prod)}
+                        className="bg-[#d926b5] hover:bg-[#c01da0] active:scale-95 text-white font-bold p-3 rounded-md shadow-md text-left flex flex-col justify-between h-30 relative transition-transform"
+                      >
+                        <span className="text-sm sm:text-base font-extrabold leading-tight line-clamp-3 drop-shadow-xs">
+                          {prod.name}
                         </span>
-                      </div>
-                    </button>
-                  ))}
+                        <div className="flex justify-between items-end w-full pt-1">
+                          <span className="text-xs sm:text-sm font-black drop-shadow-xs">R$ {fmt(prod.price)}</span>
+                          <span className="bg-[#00b050] text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase max-w-[55%] truncate shadow-xs">
+                            {catName}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1809,6 +1814,57 @@ export function ConsumerOrderModal({
                 <Printer className="h-3.5 w-3.5" /> Reimprimir ({reprintSelectedIds.length})
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Warning Dialog for Unsent Items when user tries to exit */}
+      <Dialog open={unsentAlertOpen} onOpenChange={setUnsentAlertOpen}>
+        <DialogContent className="bg-card text-card-foreground border-border max-w-sm p-4 font-sans shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" /> Itens Não Enviados!
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground pt-1 leading-relaxed">
+              Existem itens lançados no pedido que ainda não foram enviados para a cozinha. Deseja enviar agora ou sair sem enviar?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-3">
+            <Button
+              onClick={async () => {
+                setUnsentAlertOpen(false);
+                await handleEnviarOrder();
+                onClose();
+              }}
+              className="w-full bg-[#ff9400] hover:bg-[#e08300] text-white font-bold text-xs h-11 flex items-center justify-center gap-2 shadow-md"
+            >
+              <Send className="h-4 w-4" /> Enviar e Sair
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUnsentAlertOpen(false);
+                if (items.length === 0 && onDiscardEmptyOrder) {
+                  onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
+                } else {
+                  onSaveOrder(currentOrder);
+                }
+                onClose();
+              }}
+              className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 font-bold text-xs h-11"
+            >
+              Abandonar sem Enviar
+            </Button>
+
+            <Button
+              variant="ghost"
+              onClick={() => setUnsentAlertOpen(false)}
+              className="w-full text-xs font-bold h-9 text-muted-foreground"
+            >
+              Cancelar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
