@@ -108,7 +108,7 @@ function lineOf(char: string, cols: number): Uint8Array {
  *  58mm (32 useful cols): 22 for name + 9 for price.
  *  80mm (48 useful cols): 36 for name + 12 for price. */
 function priceZone(cols: number): number {
-  return cols <= 32 ? 9 : 12;
+  return cols <= 28 ? 9 : 12;
 }
 
 /** Two-column row: left-aligned label, right-aligned value.
@@ -385,10 +385,10 @@ interface CashCloseData {
 }
 
 /** Useful column width for the given paper size.
- *  58mm: 30 columns (fits budget 58mm POS thermal printers with 30 printable character limits).
+ *  58mm: 28 columns (fits budget 58mm POS thermal printers with 28 printable character limits without wrapping).
  *  80mm: 44 columns (standard 80mm POS thermal printers). */
 function colsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 30 : 44;
+  return paperWidth <= 58 ? 28 : 44;
 }
 
 /** Kept for backward-compat callers; safe margin is already baked into colsForWidth. */
