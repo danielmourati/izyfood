@@ -67,12 +67,16 @@ export function ConsumerOrderModal({
   const [reprintModalOpen, setReprintModalOpen] = useState(false);
   const [reprintSelectedIds, setReprintSelectedIds] = useState<string[]>([]);
 
+  const [selectedMobileProduct, setSelectedMobileProduct] = useState<Product | null>(null);
+
   useEffect(() => {
     if (open && order) {
       setCurrentOrder(order);
       setGeneralNotes(order.pickupNotes || '');
       setAssignedWaiter(order.customerName || user?.name || 'Daniel');
       setIsLocked(order.isLocked ?? false);
+      setMobileStep(order.items && order.items.length > 0 ? 'review' : 'categories');
+      setSelectedMobileProduct(null);
     }
   }, [open, order, user]);
 
@@ -144,21 +148,34 @@ export function ConsumerOrderModal({
 
   // Helper to add item directly without customization
   const handleAddDirect = (prod: Product) => {
-    const newId = crypto.randomUUID();
-    const newItem: OrderItem = {
-      id: newId,
-      productId: prod.id,
-      name: prod.name,
-      price: prod.price,
-      quantity: 1,
-      subtotal: prod.price,
-      addedBy: user?.id,
-      addedByName: user?.name,
-    };
+    setSelectedMobileProduct(prod);
+    const existingIndex = items.findIndex(i => i.productId === prod.id && !i.selectedNotes?.length && !i.selectedComplements?.length);
+    let updatedItems: OrderItem[];
 
-    const updatedItems = [...items, newItem];
+    if (existingIndex >= 0) {
+      updatedItems = items.map((item, idx) => {
+        if (idx === existingIndex) {
+          const newQty = item.quantity + 1;
+          return { ...item, quantity: newQty, subtotal: newQty * item.price };
+        }
+        return item;
+      });
+    } else {
+      const newId = crypto.randomUUID();
+      const newItem: OrderItem = {
+        id: newId,
+        productId: prod.id,
+        name: prod.name,
+        price: prod.price,
+        quantity: 1,
+        subtotal: prod.price,
+        addedBy: user?.id,
+        addedByName: user?.name,
+      };
+      updatedItems = [...items, newItem];
+    }
+
     const updatedTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
-
     const updatedOrder: Order = {
       ...currentOrder,
       items: updatedItems,
@@ -168,6 +185,51 @@ export function ConsumerOrderModal({
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
     toast.success(`Adicionado: ${prod.name}`);
+  };
+
+  const handleDecrementDirect = (prod: Product) => {
+    const existingIndex = items.findIndex(i => i.productId === prod.id && !i.selectedNotes?.length && !i.selectedComplements?.length);
+    if (existingIndex < 0) return;
+
+    const existing = items[existingIndex];
+    let updatedItems: OrderItem[];
+
+    if (existing.quantity > 1) {
+      updatedItems = items.map((item, idx) => {
+        if (idx === existingIndex) {
+          const newQty = item.quantity - 1;
+          return { ...item, quantity: newQty, subtotal: newQty * item.price };
+        }
+        return item;
+      });
+    } else {
+      updatedItems = items.filter((_, idx) => idx !== existingIndex);
+      setSelectedMobileProduct(null);
+    }
+
+    const updatedTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
+    const updatedOrder: Order = {
+      ...currentOrder,
+      items: updatedItems,
+      total: updatedTotal,
+    };
+
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+  };
+
+  const handleRemoveDirect = (prod: Product) => {
+    const updatedItems = items.filter(i => i.productId !== prod.id);
+    const updatedTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
+    const updatedOrder: Order = {
+      ...currentOrder,
+      items: updatedItems,
+      total: updatedTotal,
+    };
+
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    setSelectedMobileProduct(null);
   };
 
   // Open customization modal
@@ -551,22 +613,88 @@ export function ConsumerOrderModal({
                 </div>
               </div>
 
-              {/* Bottom Footer Action Bar */}
-              <div className="p-3 bg-card border-t border-border flex gap-3 shrink-0">
-                <Button
-                  variant="outline"
-                  onClick={() => setMobileStep('categories')}
-                  className="flex-1 h-12 text-xs font-bold flex items-center justify-center gap-2 border-border"
-                >
-                  <ChevronLeft className="h-4 w-4" /> VOLTAR
-                </Button>
-                <Button
-                  onClick={() => setMobileStep('review')}
-                  className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
-                >
-                  <Check className="h-4 w-4" /> REVISAR
-                </Button>
-              </div>
+              {/* Bottom Quantity Control Panel matching Image 2 */}
+              {selectedMobileProduct ? (
+                <div className="bg-[#00b050] text-white p-3 rounded-t-xl shadow-2xl border-t border-emerald-400 font-sans space-y-3 shrink-0 animate-in slide-in-from-bottom duration-200">
+                  {/* Green Header Strip */}
+                  <div className="flex justify-between items-center text-sm font-extrabold px-1">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <Check className="h-4 w-4 shrink-0 text-white" />
+                      <span className="truncate">{selectedMobileProduct.name} R$ {fmt(selectedMobileProduct.price)}</span>
+                    </div>
+                    <span className="bg-[#0099ff] text-white text-xs font-black px-2.5 py-1 rounded shadow-xs shrink-0">
+                      x{items.find(i => i.productId === selectedMobileProduct.id)?.quantity || 1}
+                    </span>
+                  </div>
+
+                  {/* Quantity Controls Row */}
+                  <div className="grid grid-cols-4 gap-2">
+                    <button
+                      onClick={() => handleAddDirect(selectedMobileProduct)}
+                      className="bg-white hover:bg-slate-100 text-slate-800 font-extrabold h-11 rounded-md shadow flex items-center justify-center text-base active:scale-95"
+                    >
+                      + 1
+                    </button>
+                    <button
+                      onClick={() => handleDecrementDirect(selectedMobileProduct)}
+                      className="bg-white hover:bg-slate-100 text-slate-800 font-extrabold h-11 rounded-md shadow flex items-center justify-center text-base active:scale-95"
+                    >
+                      - 1
+                    </button>
+                    <button
+                      onClick={() => handleRemoveDirect(selectedMobileProduct)}
+                      className="bg-white hover:bg-slate-100 text-destructive font-extrabold h-11 rounded-md shadow flex items-center justify-center text-base active:scale-95"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => setSelectedMobileProduct(null)}
+                      className="bg-white hover:bg-slate-100 text-slate-800 font-extrabold h-11 rounded-md shadow flex items-center justify-center text-base active:scale-95"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  {/* Control Action Buttons */}
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedMobileProduct(null);
+                        setMobileStep('categories');
+                      }}
+                      className="flex-1 h-11 text-xs font-bold bg-white text-slate-800 hover:bg-slate-100 border-none flex items-center justify-center gap-2"
+                    >
+                      <ChevronLeft className="h-4 w-4" /> VOLTAR
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setSelectedMobileProduct(null);
+                        setMobileStep('review');
+                      }}
+                      className="flex-1 h-11 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white border border-white/40 flex items-center justify-center gap-2 shadow-md"
+                    >
+                      <Check className="h-4 w-4" /> REVISAR
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-card border-t border-border flex gap-3 shrink-0">
+                  <Button
+                    variant="outline"
+                    onClick={() => setMobileStep('categories')}
+                    className="flex-1 h-12 text-xs font-bold flex items-center justify-center gap-2 border-border"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> VOLTAR
+                  </Button>
+                  <Button
+                    onClick={() => setMobileStep('review')}
+                    className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
+                  >
+                    <Check className="h-4 w-4" /> REVISAR
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
