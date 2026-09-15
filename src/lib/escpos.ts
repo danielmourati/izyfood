@@ -385,10 +385,10 @@ interface CashCloseData {
 }
 
 /** Useful column width for the given paper size.
- *  58mm: 32 columns (standard 58mm POS thermal printers).
+ *  58mm: 30 columns (fits budget 58mm POS thermal printers with 30 printable character limits).
  *  80mm: 44 columns (standard 80mm POS thermal printers). */
 function colsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 32 : 44;
+  return paperWidth <= 58 ? 30 : 44;
 }
 
 /** Kept for backward-compat callers; safe margin is already baked into colsForWidth. */
@@ -617,7 +617,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
     parts.push(kvRow('Telefone:', order.customerPhone, cols));
   }
 
-  const operator = order.operatorName || 'Não informado';
+  const operator = order.operatorName || 'Nao informado';
   parts.push(kvRow('Atendente:', operator, cols));
 
   // Divider
