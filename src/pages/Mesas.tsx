@@ -32,10 +32,13 @@ const Mesas = () => {
     return tables.filter(t => String(t.number).includes(searchQuery.trim()));
   }, [tables, searchQuery]);
 
+  const isFinishedOrder = (o: Order) =>
+    o.status === 'cancelado' || o.status === 'concluido' || o.status === 'finalizado' || !!o.completedAt;
+
   const activeMesaOrders = useMemo(() => {
     const map = new Map<number, Order>();
     orders.forEach(o => {
-      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+      if (o.orderType === 'mesa' && o.tableNumber && !isFinishedOrder(o)) {
         if ((o.items && o.items.length > 0) || o.isLocked || o.status === 'segurado') {
           map.set(Number(o.tableNumber), o);
         }
@@ -44,18 +47,38 @@ const Mesas = () => {
     return map;
   }, [orders]);
 
+  const finishedTableNumbers = useMemo(() => {
+    const set = new Set<number>();
+    orders.forEach(o => {
+      if (o.orderType === 'mesa' && o.tableNumber && isFinishedOrder(o)) {
+        set.add(Number(o.tableNumber));
+      }
+    });
+    return set;
+  }, [orders]);
+
   const occupiedTables = useMemo(() => {
-    return filteredTables.filter(t => t.status === 'occupied' || activeMesaOrders.has(t.number));
-  }, [filteredTables, activeMesaOrders]);
+    return filteredTables.filter(t => {
+      if (activeMesaOrders.has(t.number)) return true;
+      if (t.status !== 'occupied') return false;
+      // Mesa marcada como ocupada, mas cujo pedido já foi finalizado/cancelado: tratar como livre
+      const linked = t.orderId ? orders.find(o => o.id === t.orderId) : undefined;
+      if (linked && isFinishedOrder(linked)) return false;
+      if (!linked && finishedTableNumbers.has(t.number)) return false;
+      return true;
+    });
+  }, [filteredTables, activeMesaOrders, finishedTableNumbers, orders]);
+
+  const occupiedNumbers = useMemo(() => new Set(occupiedTables.map(t => t.number)), [occupiedTables]);
 
   const availableTables = useMemo(() => {
-    return filteredTables.filter(t => t.status !== 'occupied' && !activeMesaOrders.has(t.number));
-  }, [filteredTables, activeMesaOrders]);
+    return filteredTables.filter(t => !occupiedNumbers.has(t.number));
+  }, [filteredTables, occupiedNumbers]);
 
   const handleTableClick = (tableNum: number) => {
     const table = tables.find(t => t.number === tableNum);
-    const activeOrderForTable = activeMesaOrders.get(tableNum) || orders.find(o => Number(o.tableNumber) === tableNum && o.status !== 'cancelado' && o.status !== 'concluido');
-    const isOccupied = (table && table.status === 'occupied') || !!activeOrderForTable;
+    const activeOrderForTable = activeMesaOrders.get(tableNum) || orders.find(o => Number(o.tableNumber) === tableNum && o.orderType === 'mesa' && !isFinishedOrder(o));
+    const isOccupied = occupiedNumbers.has(tableNum) || !!activeOrderForTable;
 
     let targetOrder: Order;
 
