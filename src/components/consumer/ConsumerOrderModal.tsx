@@ -43,7 +43,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const canManageMesa = isAdmin || permissions.manage_tables || permissions.cancel_orders;
@@ -108,6 +108,20 @@ export function ConsumerOrderModal({
       setSelectedMobileProduct(null);
     }
   }, [open, order, user]);
+
+  // Reflete em tempo real o bloqueio/desbloqueio feito em outro dispositivo
+  useEffect(() => {
+    if (!open || !currentOrder) return;
+    const remote = storeOrders.find(o => o.id === currentOrder.id);
+    if (!remote) return;
+    const remoteLocked = remote.isLocked === true || remote.status === 'segurado';
+    if (remoteLocked !== isLocked) {
+      setIsLocked(remoteLocked);
+      setCurrentOrder(prev => (prev ? { ...prev, isLocked: remoteLocked, status: remote.status } : prev));
+    }
+  }, [open, storeOrders, currentOrder?.id, isLocked]);
+
+
 
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -198,6 +212,8 @@ export function ConsumerOrderModal({
     const updatedOrder: Order = {
       ...currentOrder,
       isLocked: true,
+      status: 'segurado',
+      heldAt: currentOrder.heldAt || new Date().toISOString(),
       items: items.map(i => ({ ...i, printed: true })),
     };
 
@@ -220,6 +236,29 @@ export function ConsumerOrderModal({
     // Redireciona o usuário para a tela de Mesas
     onClose();
   };
+
+  // Reabre a mesa bloqueada (reflete em todos os dispositivos)
+  const handleReabrirOrder = () => {
+    if (!canManageMesa) {
+      toast.error('Permissão negada. Somente administradores ou atendentes autorizados podem reabrir a mesa.');
+      return;
+    }
+    if (!currentOrder) return;
+
+    const updatedOrder: Order = {
+      ...currentOrder,
+      isLocked: false,
+      status: 'aberto',
+      heldAt: undefined,
+    };
+
+    setIsLocked(false);
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    toast.success(`Mesa ${currentOrder.tableNumber || tableNumber || ''} reaberta!`);
+  };
+
+
 
   // Helper to send and print order automatically via local Bluetooth printer & redirect to Mesas
   const handleEnviarOrder = async () => {
@@ -1041,29 +1080,40 @@ export function ConsumerOrderModal({
                     }
                     handleFecharOrder();
                   }}
-                  disabled={hasUnsentItems}
+                  disabled={hasUnsentItems || isLocked}
                   className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                    hasUnsentItems
+                    hasUnsentItems || isLocked
                       ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
                       : 'bg-[#00b050] hover:bg-[#009544] cursor-pointer'
                   }`}
-                  title={hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear mesa'}
+                  title={isLocked ? 'Mesa já está bloqueada' : (hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear mesa')}
                 >
                   <Lock className="h-4 w-4 mb-0.5" /> FECHAR
                 </Button>
-                {/* Orange Enviar Button -> Automatically prints on local Bluetooth printer */}
-                <Button
-                  onClick={handleEnviarOrder}
-                  disabled={sendingOrder || !hasNewUnsentItems}
-                  className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                    sendingOrder || !hasNewUnsentItems
-                      ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
-                      : 'bg-[#ff9400] hover:bg-[#e08300] cursor-pointer'
-                  }`}
-                  title={!hasNewUnsentItems ? 'Lance um novo item para habilitar o envio' : 'Enviar pedido'}
-                >
-                  <Send className="h-4 w-4 mb-0.5" /> ENVIAR
-                </Button>
+                {/* Orange Enviar Button -> becomes REABRIR when the table is locked */}
+                {isLocked ? (
+                  <Button
+                    onClick={handleReabrirOrder}
+                    className="h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all bg-[#d9a036] hover:bg-[#c08f2c] cursor-pointer"
+                    title="Reabrir mesa para novos lançamentos"
+                  >
+                    <RefreshCw className="h-4 w-4 mb-0.5" /> REABRIR
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleEnviarOrder}
+                    disabled={sendingOrder || !hasNewUnsentItems}
+                    className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
+                      sendingOrder || !hasNewUnsentItems
+                        ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
+                        : 'bg-[#ff9400] hover:bg-[#e08300] cursor-pointer'
+                    }`}
+                    title={!hasNewUnsentItems ? 'Lance um novo item para habilitar o envio' : 'Enviar pedido'}
+                  >
+                    <Send className="h-4 w-4 mb-0.5" /> ENVIAR
+                  </Button>
+                )}
+
                 {/* Purple Pagar Button -> Shown ONLY to Admin users */}
                 {isAdmin && (
                   <Button
@@ -1163,7 +1213,7 @@ export function ConsumerOrderModal({
                       onCheckedChange={(checked) => {
                         setIsLocked(checked);
                         if (currentOrder) {
-                          const updated = { ...currentOrder, isLocked: checked };
+                          const updated: Order = { ...currentOrder, isLocked: checked, status: checked ? 'segurado' : 'aberto', heldAt: checked ? (currentOrder.heldAt || new Date().toISOString()) : undefined };
                           setCurrentOrder(updated);
                           onSaveOrder(updated);
                           toast.info(checked ? 'Pedido bloqueado' : 'Pedido desbloqueado');
@@ -1355,7 +1405,7 @@ export function ConsumerOrderModal({
                     onCheckedChange={(checked) => {
                       setIsLocked(checked);
                       if (currentOrder) {
-                        const updated = { ...currentOrder, isLocked: checked };
+                        const updated: Order = { ...currentOrder, isLocked: checked, status: checked ? 'segurado' : 'aberto', heldAt: checked ? (currentOrder.heldAt || new Date().toISOString()) : undefined };
                         setCurrentOrder(updated);
                         onSaveOrder(updated);
                         toast.info(checked ? 'Pedido bloqueado' : 'Pedido desbloqueado');
