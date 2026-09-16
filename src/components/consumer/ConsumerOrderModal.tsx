@@ -19,6 +19,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { usePrinter } from '@/hooks/use-printer';
 import { supabase } from '@/integrations/supabase/client';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
+import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -1250,6 +1251,9 @@ export function ConsumerOrderModal({
                     </button>
                   )}
                 </div>
+
+                {/* SEÇÃO 2: IMPRESSORA BLUETOOTH (LOCAL) */}
+                <BluetoothPrinterSection />
               </div>
 
               <DialogFooter className="pt-2 border-t border-border">
