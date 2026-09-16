@@ -78,7 +78,7 @@ const Mesas = () => {
   const handleTableClick = (tableNum: number) => {
     const table = tables.find(t => t.number === tableNum);
     const activeOrderForTable = activeMesaOrders.get(tableNum) || orders.find(o => Number(o.tableNumber) === tableNum && o.orderType === 'mesa' && !isFinishedOrder(o));
-    const isOccupied = (table && table.status === 'occupied') || !!activeOrderForTable;
+    const isOccupied = occupiedNumbers.has(tableNum) || !!activeOrderForTable;
 
     let targetOrder: Order;
 
