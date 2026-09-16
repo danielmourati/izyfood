@@ -43,7 +43,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const canManageMesa = isAdmin || permissions.manage_tables || permissions.cancel_orders;
