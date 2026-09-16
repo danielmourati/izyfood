@@ -109,6 +109,20 @@ export function ConsumerOrderModal({
     }
   }, [open, order, user]);
 
+  // Reflete em tempo real o bloqueio/desbloqueio feito em outro dispositivo
+  useEffect(() => {
+    if (!open || !currentOrder) return;
+    const remote = storeOrders.find(o => o.id === currentOrder.id);
+    if (!remote) return;
+    const remoteLocked = remote.isLocked === true || remote.status === 'segurado';
+    if (remoteLocked !== isLocked) {
+      setIsLocked(remoteLocked);
+      setCurrentOrder(prev => (prev ? { ...prev, isLocked: remoteLocked, status: remote.status } : prev));
+    }
+  }, [open, storeOrders, currentOrder?.id, isLocked]);
+
+
+
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
 
