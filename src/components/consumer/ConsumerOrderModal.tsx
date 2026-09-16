@@ -371,8 +371,10 @@ export function ConsumerOrderModal({
       ...currentOrder,
       items: updatedItems,
       total: updatedTotal,
+      isLocked: false,
     };
 
+    setIsLocked(false);
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
     const mesaNum = currentOrder?.tableNumber || tableNumber;
@@ -511,8 +513,10 @@ export function ConsumerOrderModal({
       ...currentOrder,
       items: updatedItems,
       total: updatedTotal,
+      isLocked: false,
     };
 
+    setIsLocked(false);
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
     const mesaNum = currentOrder?.tableNumber || tableNumber;
@@ -1089,9 +1093,9 @@ export function ConsumerOrderModal({
                 {/* Orange Enviar Button -> Automatically prints on local Bluetooth printer */}
                 <Button
                   onClick={handleEnviarOrder}
-                  disabled={sendingOrder || !hasNewUnsentItems || isLocked}
+                  disabled={sendingOrder || !hasNewUnsentItems}
                   className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                    sendingOrder || !hasNewUnsentItems || isLocked
+                    sendingOrder || !hasNewUnsentItems
                       ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
                       : 'bg-[#ff9400] hover:bg-[#e08300] cursor-pointer'
                   }`}
