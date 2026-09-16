@@ -1071,48 +1071,48 @@ export function ConsumerOrderModal({
                 >
                   <ChevronLeft className="h-4 w-4 mb-0.5" /> VOLTAR
                 </Button>
-                {/* Green Fechar Button -> Blocked until order has been sent */}
-                <Button
-                  onClick={() => {
-                    if (hasUnsentItems) {
-                      toast.warning('Envie o pedido para a cozinha antes de fechar a mesa!');
-                      return;
-                    }
-                    handleFecharOrder();
-                  }}
-                  disabled={hasUnsentItems || isLocked}
-                  className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                    hasUnsentItems || isLocked
-                      ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
-                      : 'bg-[#00b050] hover:bg-[#009544] cursor-pointer'
-                  }`}
-                  title={isLocked ? 'Mesa já está bloqueada' : (hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear mesa')}
-                >
-                  <Lock className="h-4 w-4 mb-0.5" /> FECHAR
-                </Button>
-                {/* Orange Enviar Button -> becomes REABRIR when the table is locked */}
+                {/* Green Fechar Button -> becomes REABRIR when the table is locked */}
                 {isLocked ? (
                   <Button
                     onClick={handleReabrirOrder}
-                    className="h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all bg-[#d9a036] hover:bg-[#c08f2c] cursor-pointer"
+                    className="h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all bg-[#00b050] hover:bg-[#009544] cursor-pointer"
                     title="Reabrir mesa para novos lançamentos"
                   >
                     <RefreshCw className="h-4 w-4 mb-0.5" /> REABRIR
                   </Button>
                 ) : (
                   <Button
-                    onClick={handleEnviarOrder}
-                    disabled={sendingOrder || !hasNewUnsentItems}
+                    onClick={() => {
+                      if (hasUnsentItems) {
+                        toast.warning('Envie o pedido para a cozinha antes de fechar a mesa!');
+                        return;
+                      }
+                      handleFecharOrder();
+                    }}
+                    disabled={hasUnsentItems}
                     className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                      sendingOrder || !hasNewUnsentItems
+                      hasUnsentItems
                         ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
-                        : 'bg-[#ff9400] hover:bg-[#e08300] cursor-pointer'
+                        : 'bg-[#00b050] hover:bg-[#009544] cursor-pointer'
                     }`}
-                    title={!hasNewUnsentItems ? 'Lance um novo item para habilitar o envio' : 'Enviar pedido'}
+                    title={hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear mesa'}
                   >
-                    <Send className="h-4 w-4 mb-0.5" /> ENVIAR
+                    <Lock className="h-4 w-4 mb-0.5" /> FECHAR
                   </Button>
                 )}
+                {/* Orange Enviar Button -> stays ENVIAR regardless of lock state */}
+                <Button
+                  onClick={handleEnviarOrder}
+                  disabled={sendingOrder || !hasNewUnsentItems}
+                  className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
+                    sendingOrder || !hasNewUnsentItems
+                      ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
+                      : 'bg-[#ff9400] hover:bg-[#e08300] cursor-pointer'
+                  }`}
+                  title={!hasNewUnsentItems ? 'Lance um novo item para habilitar o envio' : 'Enviar pedido'}
+                >
+                  <Send className="h-4 w-4 mb-0.5" /> ENVIAR
+                </Button>
 
                 {/* Purple Pagar Button -> Shown ONLY to Admin users */}
                 {isAdmin && (
