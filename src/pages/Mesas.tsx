@@ -311,10 +311,10 @@ const Mesas = () => {
                 <button
                   key={table.number}
                   onClick={() => handleTableClick(table.number)}
-                  className="w-full aspect-square bg-card hover:bg-muted/80 text-card-foreground border border-border/80 active:scale-95 transition-all flex flex-col items-center justify-center rounded-xl shadow-2xs hover:shadow-xs"
+                  className="w-full aspect-square bg-slate-200/70 dark:bg-slate-800/80 hover:bg-slate-300/80 dark:hover:bg-slate-700/90 text-slate-900 dark:text-slate-100 border border-slate-300/90 dark:border-slate-700 active:scale-95 transition-all flex flex-col items-center justify-center rounded-xl shadow-xs"
                 >
-                  <span className="text-[9px] sm:text-[10px] font-bold mb-0.5 tracking-wider text-primary opacity-90">ABRIR</span>
-                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tighter text-foreground drop-shadow-2xs">
+                  <span className="text-[9px] sm:text-[10px] font-extrabold mb-0.5 tracking-wider text-red-600 dark:text-red-400">ABRIR</span>
+                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-100">
                     {String(table.number).padStart(2, '0')}
                   </p>
                 </button>

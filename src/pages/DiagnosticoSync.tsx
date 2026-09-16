@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { RefreshCw, Copy, Zap, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { useStore } from '@/contexts/StoreContext';
+import { RefreshCw, Copy, Zap, CheckCircle2, AlertCircle, Loader2, Radio } from 'lucide-react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type ChannelStatus = 'connecting' | 'ok' | 'error' | 'timeout';
@@ -79,6 +80,8 @@ const PS_TEXT_KEYS = ['storeName', 'address', 'document', 'whatsapp', 'pixKey', 
 
 export default function DiagnosticoSync() {
   const { user } = useAuth();
+  const { realtimeStatus, lastRealtimeEventTime, realtimeEventCounts, fetchAll } = useStore();
+  const [manualSyncing, setManualSyncing] = useState(false);
   const [states, setStates] = useState<Record<string, TableState>>(() => {
     const init: Record<string, TableState> = {};
     MONITORED_TABLES.forEach(t => {
@@ -150,6 +153,12 @@ export default function DiagnosticoSync() {
       channelsRef.current = [];
     };
   }, []);
+
+  const handleManualSync = useCallback(async () => {
+    setManualSyncing(true);
+    await fetchAll();
+    setManualSyncing(false);
+  }, [fetchAll]);
 
   const sendPing = useCallback(async () => {
     if (!user?.tenantId) return;
@@ -235,6 +244,9 @@ export default function DiagnosticoSync() {
       generatedAt: new Date().toISOString(),
       tenantId: user?.tenantId,
       tenantSlug: user?.tenantSlug,
+      realtimeStatus,
+      lastRealtimeEventTime: lastRealtimeEventTime ? new Date(lastRealtimeEventTime).toISOString() : null,
+      realtimeEventCounts,
       lastPing,
       tables: Object.entries(states).map(([table, s]) => ({
         table,
@@ -245,7 +257,7 @@ export default function DiagnosticoSync() {
       })),
     };
     navigator.clipboard.writeText(JSON.stringify(report, null, 2));
-  }, [states, lastPing, user]);
+  }, [states, lastPing, user, realtimeStatus, lastRealtimeEventTime, realtimeEventCounts]);
 
   const okCount = Object.values(states).filter(s => s.status === 'ok').length;
   const totalCount = MONITORED_TABLES.length;
@@ -259,6 +271,36 @@ export default function DiagnosticoSync() {
           Verifica em tempo real se as alterações feitas em outro dispositivo chegam até este.
         </p>
       </div>
+
+      {/* Global Realtime Connection Status Card */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Radio className={`h-8 w-8 ${realtimeStatus === 'SUBSCRIBED' ? 'text-success animate-pulse' : 'text-warning'}`} />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold">Canal Principal de Sincronização:</span>
+                <Badge className={
+                  realtimeStatus === 'SUBSCRIBED' ? 'bg-success text-success-foreground' :
+                  realtimeStatus === 'RECONNECTING' ? 'bg-warning text-warning-foreground animate-pulse' :
+                  'bg-destructive text-destructive-foreground'
+                }>
+                  {realtimeStatus}
+                </Badge>
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Última atualização recebida via Realtime: <span className="font-mono text-foreground font-medium">{formatRelative(lastRealtimeEventTime)}</span>
+              </div>
+            </div>
+          </div>
+
+          <Button onClick={handleManualSync} disabled={manualSyncing} variant="default" size="sm">
+            {manualSyncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Forçar Recarga Completa
+          </Button>
+        </CardContent>
+      </Card>
+
 
       {/* Summary */}
       <Card>
