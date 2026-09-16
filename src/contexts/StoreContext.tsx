@@ -325,9 +325,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const currentSeqTables = ++seqRef.current.tables;
     const currentSeqOrders = ++seqRef.current.orders;
 
+    const tenantId = user?.tenantId || tenantIdRef.current;
+
+    let tableQuery = supabase.from('store_tables').select('*').order('number');
+    let orderQuery = supabase.from('orders').select('*').order('created_at', { ascending: false });
+
+    if (tenantId) {
+      tableQuery = tableQuery.eq('tenant_id', tenantId);
+      orderQuery = orderQuery.eq('tenant_id', tenantId);
+    }
+
     const [{ data: tbls }, { data: ords }] = await Promise.all([
-      supabase.from('store_tables').select('*').order('number'),
-      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+      tableQuery,
+      orderQuery,
     ]);
 
     if (seqRef.current.tables !== currentSeqTables || seqRef.current.orders !== currentSeqOrders) return;
@@ -341,8 +351,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const activeLocalOrds = prev.filter(o => 
         o.status !== 'cancelado' && 
         o.status !== 'concluido' && 
+        o.status !== 'finalizado' &&
         !dbIds.has(o.id) && 
-        isPendingLocalChange(o.id)
+        (isPendingLocalChange(o.id) || (o.items && o.items.length > 0) || (o.total && o.total > 0) || o.isLocked || o.status === 'segurado')
       );
       nextOrders = [...parsedDbOrds, ...activeLocalOrds];
       saveLS('izy_orders', nextOrders);
@@ -352,7 +363,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // 2. Process Tables based on DB tables & nextOrders
     const tableOrderMap = new Map<number, string>();
     nextOrders.forEach(o => {
-      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido' && o.status !== 'finalizado') {
         const hasContent = (o.items && o.items.length > 0) || (o.total && o.total > 0) || o.isLocked || o.status === 'segurado';
         if (hasContent) {
           tableOrderMap.set(Number(o.tableNumber), o.id);
@@ -401,7 +412,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveLS('izy_tables', merged);
       return merged;
     });
-  }, [isPendingLocalChange]);
+  }, [isPendingLocalChange, user?.tenantId]);
 
   const fetchOrders = fetchTablesAndOrders;
   const fetchTables = fetchTablesAndOrders;
