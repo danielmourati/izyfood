@@ -472,10 +472,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('storage', handleStorage);
 
-    // 3. Silent background heartbeat every 5 seconds for multi-device data parity
+    // 3. Safety-net polling: only when the realtime websocket is not healthy
     const heartbeatId = setInterval(() => {
-      silentFetchAll();
-    }, 5000);
+      if (syncStatusRef.current !== 'connected') silentFetchAll();
+    }, 20000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
