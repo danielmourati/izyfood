@@ -380,64 +380,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         saveLS('izy_stock_entries', parsedStks);
       }
 
-      // Parse active orders to identify occupied tables from DB order data
-      const parsedDbOrds = (ords || []).map(dbToOrder);
-      const currentLocalOrds = ordersRef.current || [];
-      const allActiveOrds = [...parsedDbOrds];
-      currentLocalOrds.forEach(l => {
-        if (!allActiveOrds.some(o => o.id === l.id) && l.status !== 'cancelado' && l.status !== 'concluido') {
-          allActiveOrds.push(l);
-        }
-      });
-
-      const tableOrderMap = new Map<number, string>();
-      allActiveOrds.forEach(o => {
-        if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
-          tableOrderMap.set(Number(o.tableNumber), o.id);
-        }
-      });
-
-      setTables(prev => {
-        const tableMap = new Map<number, TableInfo>();
-
-        // 1. Initialize default 20 tables as available
-        for (let i = 1; i <= 20; i++) {
-          tableMap.set(i, { number: i, status: 'available' });
-        }
-
-        // 2. Overlay DB tbls
-        if (tbls && tbls.length > 0) {
-          tbls.forEach(t => {
-            const tableObj = dbToTable(t);
-            tableMap.set(tableObj.number, tableObj);
-          });
-        }
-
-        // 3. Overlay active orders map
-        tableOrderMap.forEach((orderId, tableNum) => {
-          const existing = tableMap.get(tableNum);
-          tableMap.set(tableNum, {
-            number: tableNum,
-            status: 'occupied',
-            orderId: orderId || existing?.orderId,
-          });
-        });
-
-        // 4. Preserve occupied status if store_tables DB has occupied OR active order exists
-        prev.forEach(t => {
-          if (t.status === 'occupied') {
-            const isDbOccupied = tbls?.some(dbt => dbt.number === t.number && dbt.status === 'occupied');
-            const hasActiveOrder = allActiveOrds.some(o => Number(o.tableNumber) === t.number && o.status !== 'cancelado' && o.status !== 'concluido');
-            if (isDbOccupied || hasActiveOrder) {
-              tableMap.set(t.number, t);
-            }
-          }
-        });
-
-        const merged = Array.from(tableMap.values()).sort((a, b) => a.number - b.number);
-        saveLS('izy_tables', merged);
-        return merged;
-      });
+      // Orders + tables are reconciled together (occupancy derives from active orders)
+      applyOrdersAndTables(ords, tbls);
       if (cpns) {
         const parsedCpns = cpns.map(dbToCoupon);
         setCoupons(parsedCpns);
@@ -445,10 +389,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       if (opts) {
         setNoteOptions(prev => {
-          const dbOpts = opts.map(dbToNoteOption);
-          const dbIds = new Set(dbOpts.map(o => o.id));
-          const localOnly = prev.filter(o => !dbIds.has(o.id));
-          const merged = [...dbOpts, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'noteOptions', opts.map(dbToNoteOption), prev);
           saveLS('izy_note_options', merged);
           return merged;
         });
