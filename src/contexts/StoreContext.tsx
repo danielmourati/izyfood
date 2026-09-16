@@ -48,6 +48,10 @@ interface StoreContextType {
   updateTableCount: (count: number) => void;
   isCashRegisterOpen: boolean;
   loading: boolean;
+  /** Realtime websocket health for cross-device sync diagnostics */
+  syncStatus: 'connecting' | 'connected' | 'disconnected';
+  lastSyncAt: number | null;
+  realtimeEventCount: number;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -119,6 +123,52 @@ function saveLS(key: string, value: any) {
   } catch {}
 }
 
+// ============ Pending local changes (grace window) ============
+// The database is the source of truth. A local row only survives a refresh while
+// its own write is still in flight (short grace window), so deletions and status
+// changes made on another device always propagate.
+const PENDING_TTL_MS = 8000;
+type PendingMap = Map<string, number>;
+
+function markPendingIn(map: PendingMap, entity: string, ids: (string | number)[]) {
+  const now = Date.now();
+  ids.forEach(id => map.set(`${entity}:${id}`, now));
+}
+
+function isPendingIn(map: PendingMap, entity: string, id: string | number) {
+  const key = `${entity}:${id}`;
+  const t = map.get(key);
+  if (!t) return false;
+  if (Date.now() - t > PENDING_TTL_MS) {
+    map.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function changedIds<T extends { id: string }>(prev: T[], next: T[]): string[] {
+  const ids = new Set<string>();
+  next.forEach(n => {
+    const p = prev.find(pp => pp.id === n.id);
+    if (!p || JSON.stringify(p) !== JSON.stringify(n)) ids.add(n.id);
+  });
+  prev.forEach(p => { if (!next.find(n => n.id === p.id)) ids.add(p.id); });
+  return Array.from(ids);
+}
+
+function reconcileById<T extends { id: string }>(map: PendingMap, entity: string, dbRows: T[], prev: T[]): T[] {
+  const result = dbRows.map(row => {
+    if (isPendingIn(map, entity, row.id)) {
+      const local = prev.find(p => p.id === row.id);
+      if (local) return local;
+    }
+    return row;
+  });
+  const dbIds = new Set(dbRows.map(r => r.id));
+  const pendingLocal = prev.filter(p => !dbIds.has(p.id) && isPendingIn(map, entity, p.id));
+  return [...result, ...pendingLocal];
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -139,6 +189,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const tenantIdRef = useRef<string | undefined>(undefined);
   const tabIdRef = useRef<string>(Math.random().toString(36).slice(2));
   const broadcastRef = useRef<BroadcastChannel | null>(null);
+  const pendingRef = useRef<PendingMap>(new Map());
+  const [syncStatus, setSyncStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const syncStatusRef = useRef<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [realtimeEventCount, setRealtimeEventCount] = useState(0);
+  const ordersSeqRef = useRef(0);
+  const ordersTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fullTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const markPending = useCallback((entity: string, ids: (string | number)[]) => {
+    markPendingIn(pendingRef.current, entity, ids);
+  }, []);
 
   const notifyCrossTabSync = useCallback(() => {
     try {
@@ -158,6 +220,91 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     } catch {}
   }, []);
+
+  // Applies orders + tables coming from the DB, deriving occupancy from active orders.
+  const applyOrdersAndTables = useCallback((ords: any[] | null, tbls: any[] | null) => {
+    const parsedOrds = (ords || []).map(dbToOrder);
+    if (ords) {
+      setOrders(prev => {
+        const merged = reconcileById(pendingRef.current, 'orders', parsedOrds, prev);
+        saveLS('izy_orders', merged);
+        return merged;
+      });
+    }
+
+    const localOrds = ordersRef.current || [];
+    const activeOrds = [...parsedOrds];
+    localOrds.forEach(l => {
+      if (
+        !activeOrds.some(o => o.id === l.id) &&
+        isPendingIn(pendingRef.current, 'orders', l.id) &&
+        l.status !== 'cancelado' && l.status !== 'concluido'
+      ) {
+        activeOrds.push(l);
+      }
+    });
+
+    const tableOrderMap = new Map<number, string>();
+    activeOrds.forEach(o => {
+      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+        tableOrderMap.set(Number(o.tableNumber), o.id);
+      }
+    });
+
+    setTables(prev => {
+      const tableMap = new Map<number, TableInfo>();
+      const baseCount = Math.max(20, tbls?.length || 0);
+      for (let i = 1; i <= baseCount; i++) tableMap.set(i, { number: i, status: 'available' });
+
+      (tbls || []).forEach(t => {
+        const tableObj = dbToTable(t);
+        tableMap.set(tableObj.number, tableObj);
+      });
+
+      tableOrderMap.forEach((orderId, tableNum) => {
+        const existing = tableMap.get(tableNum);
+        tableMap.set(tableNum, {
+          number: tableNum,
+          status: 'occupied',
+          orderId: orderId || existing?.orderId,
+        });
+      });
+
+      // Keep the local state only while this device's own change is still in flight.
+      prev.forEach(t => {
+        if (isPendingIn(pendingRef.current, 'tables', t.number)) tableMap.set(t.number, t);
+      });
+
+      const merged = Array.from(tableMap.values()).sort((a, b) => a.number - b.number);
+      saveLS('izy_tables', merged);
+      return merged;
+    });
+  }, []);
+
+  // Targeted refresh for the hot path (orders + tables), with stale-response guard.
+  const refreshOrdersAndTables = useCallback(async () => {
+    if (!user?.id) return;
+    const seq = ++ordersSeqRef.current;
+    try {
+      const [{ data: ords }, { data: tbls }] = await Promise.all([
+        supabase.from('orders').select('*').order('created_at', { ascending: false }),
+        supabase.from('store_tables').select('*').order('number'),
+      ]);
+      if (seq !== ordersSeqRef.current) return; // a newer refresh already ran
+      applyOrdersAndTables(ords, tbls);
+      setLastSyncAt(Date.now());
+    } catch (err) {
+      console.warn('[StoreContext] Orders/tables refresh error:', err);
+    }
+  }, [user?.id, applyOrdersAndTables]);
+
+  const scheduleOrdersRefresh = useCallback(() => {
+    if (ordersTimerRef.current) return;
+    ordersTimerRef.current = setTimeout(() => {
+      ordersTimerRef.current = null;
+      refreshOrdersAndTables();
+    }, 300);
+  }, [refreshOrdersAndTables]);
 
   const silentFetchAll = useCallback(async () => {
     if (!user?.id) return;
