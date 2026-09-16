@@ -727,18 +727,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('storage', handleStorage);
 
-    // Heartbeat every 20 seconds, executing ONLY when Realtime is NOT SUBSCRIBED
-    const heartbeatId = setInterval(() => {
-      if (realtimeStatusRef.current !== 'SUBSCRIBED') {
-        fetchAll();
+    // Sync silencioso de alta frequência a cada 2 segundos (2000ms) para sincronização instantânea entre dispositivos (Desktop <-> Mobile)
+    const silentSyncIntervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchTablesAndOrders();
       }
-    }, 20000);
+    }, 2000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('storage', handleStorage);
-      clearInterval(heartbeatId);
+      clearInterval(silentSyncIntervalId);
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (broadcastRef.current) {
         broadcastRef.current.close();
@@ -753,7 +753,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         dbChannelRef.current = null;
       }
     };
-  }, [userId, setupRealtimeSubscriptions, fetchAll]);
+  }, [userId, setupRealtimeSubscriptions, fetchAll, fetchTablesAndOrders]);
 
   const getCategoryById = useCallback((id: string) => categories.find(c => c.id === id), [categories]);
 
