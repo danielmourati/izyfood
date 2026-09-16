@@ -5,7 +5,7 @@ export interface ProductCategory {
   name: string;
 }
 export type OrderType = 'balcao' | 'mesa' | 'delivery' | 'retirada';
-export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | 'pronto';
+export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | 'pronto' | 'concluido';
 export type DeliveryStatus = 'pendente' | 'pronto' | 'finalizado';
 export type PaymentMethod = 'pix' | 'cartao' | 'fiado' | 'dinheiro';
 export type OrderSource = 'ifood' | 'aiqfome' | 'whatsapp' | 'instagram' | 'telefone' | 'loja' | 'outro';

@@ -14,6 +14,9 @@ const EMPTY_PRINT_SETTINGS: PrintSettings = {
   storeName: '',
 };
 
+/** Module-level tenant id holder shared with the sync helpers below */
+const tenantIdRef: { current: string | undefined } = { current: undefined };
+
 interface StoreContextType {
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
@@ -186,7 +189,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [printSettings, setPrintSettings] = useState<PrintSettings>({ ...EMPTY_PRINT_SETTINGS });
   const [isCashRegisterOpen, setIsCashRegisterOpen] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const tenantIdRef = useRef<string | undefined>(undefined);
+  
   const tabIdRef = useRef<string>(Math.random().toString(36).slice(2));
   const broadcastRef = useRef<BroadcastChannel | null>(null);
   const pendingRef = useRef<PendingMap>(new Map());
