@@ -1037,9 +1037,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (order.orderType === 'delivery' || order.orderType === 'retirada') {
       orderUpdate.delivery_status = 'finalizado';
     }
-    const { error: orderError } = await queueOrderWrite(order.id, async () => {
-      return await supabase.from('orders').update(orderUpdate as any).eq('id', order.id);
-    });
+    let orderError: unknown = null;
+    try {
+      await queueOrderWrite(order.id, async () => {
+        const { error } = await supabase.from('orders').update(orderUpdate as any).eq('id', order.id);
+        if (error) throw error;
+      });
+    } catch (err) {
+      orderError = err;
+    }
     if (orderError) {
       console.error('[completeSale] order finalize error:', orderError);
       clearPending(order.id);
