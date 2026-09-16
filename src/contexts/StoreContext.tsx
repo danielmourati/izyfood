@@ -243,19 +243,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         saveLS('izy_stock_entries', parsedStks);
       }
 
-      // Parse active orders to identify occupied tables from order data
-      const activeOrdersList = (ords || []).map(dbToOrder);
+      // Parse active orders to identify occupied tables from order data (including DB & local memory state)
+      const parsedDbOrds = (ords || []).map(dbToOrder);
+      const currentLocalOrds = ordersRef.current || [];
+      const allActiveOrds = [...parsedDbOrds];
+      currentLocalOrds.forEach(l => {
+        if (!allActiveOrds.some(o => o.id === l.id)) {
+          allActiveOrds.push(l);
+        }
+      });
+
       const tableOrderMap = new Map<number, string>();
-      activeOrdersList.forEach(o => {
-        if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado') {
-          tableOrderMap.set(Number(o.tableNumber), o.id);
+      allActiveOrds.forEach(o => {
+        if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+          if ((o.items && o.items.length > 0) || o.status === 'segurado' || o.isLocked) {
+            tableOrderMap.set(Number(o.tableNumber), o.id);
+          }
         }
       });
 
       setTables(prev => {
         const tableMap = new Map<number, TableInfo>();
 
-        // 1. Initialize default 20 tables
+        // 1. Initialize default 20 tables as available
         for (let i = 1; i <= 20; i++) {
           tableMap.set(i, { number: i, status: 'available' });
         }
@@ -268,7 +278,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        // 3. Overlay active orders (if an active order exists for a table, ensure it is occupied)
+        // 3. Overlay memory occupied state from prev (Shield: keep occupied if table has an active order or items)
+        prev.forEach(t => {
+          if (t.status === 'occupied') {
+            const hasOrder = allActiveOrds.some(o => (o.id === t.orderId || Number(o.tableNumber) === t.number) && ((o.items && o.items.length > 0) || o.status === 'segurado' || o.isLocked));
+            if (hasOrder) {
+              tableMap.set(t.number, t);
+            }
+          }
+        });
+
+        // 4. Overlay active orders map
         tableOrderMap.forEach((orderId, tableNum) => {
           const existing = tableMap.get(tableNum);
           tableMap.set(tableNum, {

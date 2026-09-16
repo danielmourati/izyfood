@@ -15,7 +15,7 @@ import { Order } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 
 const Mesas = () => {
-  const { tables, setTables, orders, setOrders, customers, freeTable } = useStore();
+  const { tables, setTables, orders, setOrders, customers, freeTable, occupyTable } = useStore();
   const { user } = useAuth();
   const { printOrder, printBill } = usePrinter();
   const navigate = useTenantNavigate();
@@ -82,6 +82,9 @@ const Mesas = () => {
           ? { ...t, status: 'occupied', orderId: updatedOrder.id }
           : t
       ));
+      if (freeTable) {
+        occupyTable(numMesa, updatedOrder.id);
+      }
     }
   };
 

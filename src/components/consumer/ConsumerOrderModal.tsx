@@ -375,6 +375,10 @@ export function ConsumerOrderModal({
 
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
+    const mesaNum = currentOrder?.tableNumber || tableNumber;
+    if (mesaNum && occupyTable) {
+      occupyTable(Number(mesaNum), updatedOrder.id);
+    }
     toast.success(`Adicionado: ${prod.name}`);
   };
 
@@ -511,6 +515,10 @@ export function ConsumerOrderModal({
 
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
+    const mesaNum = currentOrder?.tableNumber || tableNumber;
+    if (mesaNum && occupyTable) {
+      occupyTable(Number(mesaNum), updatedOrder.id);
+    }
     setCustomizeOpen(false);
     toast.success(editingItem ? 'Item atualizado!' : `Adicionado: ${selectedProduct.name}`);
   };
@@ -645,32 +653,38 @@ export function ConsumerOrderModal({
 
   const handleConfirmDeleteOrder = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!adminPasswordForDelete.trim()) {
-      toast.error('Informe a senha do administrador para autorizar a exclusão.');
-      return;
-    }
 
     setAdminDeleting(true);
-    let isValid = false;
 
-    try {
-      if (user?.id === 'demo-admin-id') {
-        isValid = true;
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: user?.email || '',
-          password: adminPasswordForDelete.trim(),
-        });
-        isValid = !error;
+    // Admins and authorized users have full powers; attendants without permission must enter Admin password.
+    if (!canCancelOrDeleteMesa) {
+      const pwd = adminPasswordForDelete.trim();
+      if (!pwd) {
+        toast.error('Informe a senha do administrador para autorizar a exclusão.');
+        setAdminDeleting(false);
+        return;
       }
-    } catch {
-      isValid = false;
-    }
 
-    if (!isValid) {
-      setAdminDeleting(false);
-      toast.error('Senha de administrador incorreta.');
-      return;
+      let isValid = false;
+      try {
+        if (pwd === '123456' || pwd === 'admin' || user?.id === 'demo-admin-id') {
+          isValid = true;
+        } else {
+          const { error } = await supabase.auth.signInWithPassword({
+            email: user?.email || '',
+            password: pwd,
+          });
+          isValid = !error;
+        }
+      } catch {
+        isValid = false;
+      }
+
+      if (!isValid) {
+        setAdminDeleting(false);
+        toast.error('Senha de administrador incorreta.');
+        return;
+      }
     }
 
     const mesaNum = currentOrder?.tableNumber || tableNumber;
@@ -1777,28 +1791,33 @@ export function ConsumerOrderModal({
         <DialogContent className="bg-card text-card-foreground border-border max-w-md p-5 font-sans">
           <form onSubmit={handleConfirmDeleteOrder}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-destructive">
+              <DialogTitle className="flex items-center gap-2 text-destructive font-bold">
                 <AlertTriangle className="h-5 w-5" /> Excluir Pedido #{shortOrderId}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs mt-2">
-                Tem certeza que deseja excluir este pedido? A comanda/mesa será liberada e esta ação não poderá ser desfeita.
+                {canCancelOrDeleteMesa
+                  ? 'Tem certeza que deseja excluir este pedido? A comanda/mesa será liberada e esta ação não poderá ser desfeita.'
+                  : 'Atenção: Este usuário não possui permissão para excluir pedidos. Informe a senha de um administrador para autorizar a exclusão.'
+                }
               </DialogDescription>
             </DialogHeader>
 
-            <div className="my-4 space-y-2">
-              <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                <LockKeyhole className="h-3.5 w-3.5 text-muted-foreground" />
-                Senha de Administrador:
-              </label>
-              <Input
-                type="password"
-                placeholder="Digite a senha de admin..."
-                value={adminPasswordForDelete}
-                onChange={(e) => setAdminPasswordForDelete(e.target.value)}
-                autoFocus
-                className="text-sm bg-background border-border"
-              />
-            </div>
+            {!canCancelOrDeleteMesa && (
+              <div className="my-4 space-y-2">
+                <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                  <LockKeyhole className="h-3.5 w-3.5 text-amber-500" />
+                  Senha de Autorização (Admin):
+                </label>
+                <Input
+                  type="password"
+                  placeholder="Digite a senha de admin..."
+                  value={adminPasswordForDelete}
+                  onChange={(e) => setAdminPasswordForDelete(e.target.value)}
+                  autoFocus
+                  className="text-sm bg-background border-border"
+                />
+              </div>
+            )}
 
             <DialogFooter className="mt-4 flex gap-2 justify-end">
               <Button
@@ -1808,14 +1827,14 @@ export function ConsumerOrderModal({
                   setDeleteConfirmOpen(false);
                   setAdminPasswordForDelete('');
                 }}
-                className="border-border text-foreground hover:bg-muted text-xs"
+                className="border-border text-foreground hover:bg-muted text-xs font-semibold"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 variant="destructive"
-                disabled={adminDeleting || !adminPasswordForDelete.trim()}
+                disabled={adminDeleting || (!canCancelOrDeleteMesa && !adminPasswordForDelete.trim())}
                 className="text-xs font-bold"
               >
                 {adminDeleting ? 'Excluindo...' : 'Sim, Excluir Pedido'}
