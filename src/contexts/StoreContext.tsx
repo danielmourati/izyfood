@@ -1235,7 +1235,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
         if (error) throw error;
       });
 
-      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido' && o.status !== 'finalizado' && persistedStatus !== 'finalizado') {
         const tablePayload: any = { number: Number(o.tableNumber), status: 'occupied', order_id: o.id };
         if (tenantId) tablePayload.tenant_id = tenantId;
 
