@@ -235,8 +235,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const parsedOrds = ords.map(dbToOrder);
         setOrders(prev => {
           const dbIds = new Set(parsedOrds.map(o => o.id));
-          const localOnly = prev.filter(o => !dbIds.has(o.id));
-          const merged = [...parsedOrds, ...localOnly];
+          const localDrafts = prev.filter(o => (o as any).isOfflineDraft && !dbIds.has(o.id));
+          const merged = [...parsedOrds, ...localDrafts];
           saveLS('izy_orders', merged);
           return merged;
         });
@@ -252,12 +252,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         saveLS('izy_stock_entries', parsedStks);
       }
 
-      // Parse active orders to identify occupied tables from order data (including DB & local memory state)
+      // Parse active orders to identify occupied tables from DB order data
       const parsedDbOrds = (ords || []).map(dbToOrder);
       const currentLocalOrds = ordersRef.current || [];
       const allActiveOrds = [...parsedDbOrds];
       currentLocalOrds.forEach(l => {
-        if (!allActiveOrds.some(o => o.id === l.id)) {
+        if ((l as any).isOfflineDraft && !allActiveOrds.some(o => o.id === l.id)) {
           allActiveOrds.push(l);
         }
       });
@@ -287,17 +287,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        // 3. Overlay memory occupied state from prev (Shield: keep occupied if table has an active order or items)
-        prev.forEach(t => {
-          if (t.status === 'occupied') {
-            const hasOrder = allActiveOrds.some(o => (o.id === t.orderId || Number(o.tableNumber) === t.number) && ((o.items && o.items.length > 0) || o.status === 'segurado' || o.isLocked));
-            if (hasOrder) {
-              tableMap.set(t.number, t);
-            }
-          }
-        });
-
-        // 4. Overlay active orders map
+        // 3. Overlay active orders map
         tableOrderMap.forEach((orderId, tableNum) => {
           const existing = tableMap.get(tableNum);
           tableMap.set(tableNum, {
@@ -305,6 +295,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             status: 'occupied',
             orderId: orderId || existing?.orderId,
           });
+        });
+
+        // 4. Reset table status to available if NO active order exists for this table
+        tableMap.forEach((t, num) => {
+          if (!tableOrderMap.has(num)) {
+            const hasActiveOrder = allActiveOrds.some(o => Number(o.tableNumber) === num && o.status !== 'cancelado' && o.status !== 'concluido');
+            if (!hasActiveOrder) {
+              tableMap.set(num, { number: num, status: 'available', orderId: undefined });
+            }
+          }
         });
 
         const merged = Array.from(tableMap.values()).sort((a, b) => a.number - b.number);
@@ -705,7 +705,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('[occupyTable] DB upsert error:', err);
     }
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const freeTable = useCallback(async (tableNumber: number) => {
     setTables(prev => {
@@ -721,7 +722,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('[freeTable] DB upsert error:', err);
     }
-  }, []);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const deductStock = useCallback(async (items: OrderItem[]) => {
     for (const item of items) {
@@ -922,7 +924,7 @@ async function syncOrders(prev: Order[], next: Order[]) {
     }
   }
   for (const o of added) {
-    await supabase.from('orders').insert({
+    await supabase.from('orders').upsert({
       id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: o.status,
       table_number: o.tableNumber || null, customer_id: o.customerId || null,
       customer_name: o.customerName || null, customer_phone: o.customerPhone || null,
@@ -935,7 +937,7 @@ async function syncOrders(prev: Order[], next: Order[]) {
       pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
       pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
       is_locked: o.isLocked ?? false,
-    } as any);
+    } as any, { onConflict: 'id' });
   }
   for (const o of updated) {
     await supabase.from('orders').update({
