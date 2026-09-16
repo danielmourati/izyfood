@@ -116,7 +116,7 @@ export function ConsumerOrderModal({
   const hasNewUnsentItems = items.length > 0 && items.some(i => !i.printed);
   const hasUnsentItems = items.length === 0 || hasNewUnsentItems;
 
-  // Centralized close handler: Prompts user if there are unsent/unprinted items before exiting
+  // Centralized close handler: Saves the order and keeps table occupied whenever there are items
   const handleCloseAndSaveOrDiscard = () => {
     if (!currentOrder) {
       onClose();
@@ -124,20 +124,20 @@ export function ConsumerOrderModal({
     }
 
     const mesaNum = currentOrder.tableNumber || tableNumber;
-    const isTableOccupiedInStore = mesaNum ? tables.some(t => t.number === Number(mesaNum) && t.status === 'occupied') : false;
-    const isOrderOccupied = currentOrder.status === 'segurado';
-    const isOccupied = isTableOccupiedInStore || isOrderOccupied;
-
     const hasItems = items.length > 0 || totalAmount > 0;
 
     if (hasItems) {
-      if (hasNewUnsentItems) {
-        setUnsentAlertOpen(true);
-        return;
+      const updatedOrder: Order = {
+        ...currentOrder,
+        items,
+        total: totalAmount,
+      };
+      setCurrentOrder(updatedOrder);
+      onSaveOrder(updatedOrder);
+      if (mesaNum && occupyTable) {
+        occupyTable(Number(mesaNum), updatedOrder.id);
       }
-
-      onSaveOrder(currentOrder);
-      toast.success('Pedido salvo com sucesso!');
+      toast.success(`Mesa ${mesaNum || ''} salva com sucesso!`);
     } else {
       // Se não possui itens nem valor (R$0,00), libera obrigatoriamente a mesa
       const numMesa = currentOrder.tableNumber || tableNumber;
