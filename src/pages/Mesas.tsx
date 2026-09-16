@@ -94,14 +94,14 @@ const Mesas = () => {
       return [updatedOrder, ...prev];
     });
 
-    if (updatedOrder.tableNumber && updatedOrder.items && updatedOrder.items.length > 0) {
+    if (updatedOrder.tableNumber) {
       const numMesa = Number(updatedOrder.tableNumber);
       setTables(prev => prev.map(t =>
         t.number === numMesa
           ? { ...t, status: 'occupied', orderId: updatedOrder.id }
           : t
       ));
-      if (freeTable) {
+      if (occupyTable) {
         occupyTable(numMesa, updatedOrder.id);
       }
     }

@@ -922,38 +922,35 @@ async function syncOrders(prev: Order[], next: Order[]) {
       console.error('[syncOrders] DB delete error:', err);
     }
   }
-  for (const o of added) {
-    await supabase.from('orders').upsert({
-      id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: o.status,
-      table_number: o.tableNumber || null, customer_id: o.customerId || null,
-      customer_name: o.customerName || null, customer_phone: o.customerPhone || null,
-      customer_address: o.customerAddress || null, delivery_fee: o.deliveryFee || null,
-      delivery_status: o.deliveryStatus || null, order_source: o.orderSource || null,
-      motoboy_name: o.motoboyName || null, payment_method: o.paymentMethod || null,
-      payment_splits: o.paymentSplits as any || null, discount: o.discount || null,
-      discount_type: o.discountType || null, coupon_id: o.couponId || null,
-      loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
-      pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
-      pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
-      is_locked: o.isLocked ?? false,
-    } as any, { onConflict: 'id' });
-  }
-  for (const o of updated) {
-    await supabase.from('orders').update({
-      items: o.items as any, total: o.total, order_type: o.orderType, status: o.status,
-      table_number: o.tableNumber || null, customer_id: o.customerId || null,
-      customer_name: o.customerName || null, customer_phone: o.customerPhone || null,
-      customer_address: o.customerAddress || null, delivery_fee: o.deliveryFee || null,
-      delivery_status: o.deliveryStatus || null, order_source: o.orderSource || null,
-      motoboy_name: o.motoboyName || null, payment_method: o.paymentMethod || null,
-      payment_splits: o.paymentSplits as any || null, discount: o.discount || null,
-      discount_type: o.discountType || null, coupon_id: o.couponId || null,
-      loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
-      completed_at: o.completedAt || null,
-      pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
-      pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
-      is_locked: o.isLocked ?? false,
-    } as any).eq('id', o.id);
+
+  const toUpsert = [...added, ...updated];
+  for (const o of toUpsert) {
+    try {
+      await supabase.from('orders').upsert({
+        id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: o.status,
+        table_number: o.tableNumber || null, customer_id: o.customerId || null,
+        customer_name: o.customerName || null, customer_phone: o.customerPhone || null,
+        customer_address: o.customerAddress || null, delivery_fee: o.deliveryFee || null,
+        delivery_status: o.deliveryStatus || null, order_source: o.orderSource || null,
+        motoboy_name: o.motoboyName || null, payment_method: o.paymentMethod || null,
+        payment_splits: o.paymentSplits as any || null, discount: o.discount || null,
+        discount_type: o.discountType || null, coupon_id: o.couponId || null,
+        loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
+        completed_at: o.completedAt || null,
+        pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
+        pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
+        is_locked: o.isLocked ?? false,
+      } as any, { onConflict: 'id' });
+
+      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+        await supabase.from('store_tables').upsert(
+          { number: Number(o.tableNumber), status: 'occupied', order_id: o.id },
+          { onConflict: 'number' }
+        );
+      }
+    } catch (err) {
+      console.error('[syncOrders] DB upsert error:', err);
+    }
   }
 }
 
