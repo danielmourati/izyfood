@@ -165,6 +165,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     pendingIdsRef.current.set(String(id), Date.now());
   }, []);
 
+  const clearPending = useCallback((id: string | number) => {
+    if (!id) return;
+    pendingIdsRef.current.delete(String(id));
+  }, []);
+
   const isPendingLocalChange = useCallback((id: string | number) => {
     if (!id) return false;
     const ts = pendingIdsRef.current.get(String(id));
@@ -288,27 +293,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [isPendingLocalChange]);
 
-  const fetchOrders = useCallback(async () => {
-    const currentSeq = ++seqRef.current.orders;
-    const { data: ords } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-    if (seqRef.current.orders !== currentSeq) return;
-    if (ords) {
-      const parsedOrds = ords.map(dbToOrder);
-      setOrders(prev => {
-        const dbIds = new Set(parsedOrds.map(o => o.id));
-        const activeLocalOrds = prev.filter(o => 
-          o.status !== 'cancelado' && 
-          o.status !== 'concluido' && 
-          !dbIds.has(o.id) && 
-          isPendingLocalChange(o.id)
-        );
-        const merged = [...parsedOrds, ...activeLocalOrds];
-        saveLS('izy_orders', merged);
-        return merged;
-      });
-    }
-  }, [isPendingLocalChange]);
-
   const fetchSales = useCallback(async () => {
     const currentSeq = ++seqRef.current.sales;
     const { data: sls } = await supabase.from('sales').select('*').order('date', { ascending: false });
@@ -334,25 +318,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
 
-  const fetchTables = useCallback(async () => {
-    const currentSeq = ++seqRef.current.tables;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  const fetchTablesAndOrders = useCallback(async () => {
+    const currentSeqTables = ++seqRef.current.tables;
+    const currentSeqOrders = ++seqRef.current.orders;
+
     const [{ data: tbls }, { data: ords }] = await Promise.all([
       supabase.from('store_tables').select('*').order('number'),
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
     ]);
-    if (seqRef.current.tables !== currentSeq) return;
 
+    if (seqRef.current.tables !== currentSeqTables || seqRef.current.orders !== currentSeqOrders) return;
+
+    // 1. Process Orders
     const parsedDbOrds = (ords || []).map(dbToOrder);
-    const currentLocalOrds = ordersRef.current || [];
-    const allActiveOrds = [...parsedDbOrds];
-    currentLocalOrds.forEach(l => {
-      if (!allActiveOrds.some(o => o.id === l.id) && l.status !== 'cancelado' && l.status !== 'concluido' && isPendingLocalChange(l.id)) {
-        allActiveOrds.push(l);
-      }
+    let nextOrders: Order[] = parsedDbOrds;
+
+    setOrders(prev => {
+      const dbIds = new Set(parsedDbOrds.map(o => o.id));
+      const activeLocalOrds = prev.filter(o => 
+        o.status !== 'cancelado' && 
+        o.status !== 'concluido' && 
+        !dbIds.has(o.id) && 
+        isPendingLocalChange(o.id)
+      );
+      nextOrders = [...parsedDbOrds, ...activeLocalOrds];
+      saveLS('izy_orders', nextOrders);
+      return nextOrders;
     });
 
+    // 2. Process Tables based on DB tables & nextOrders
     const tableOrderMap = new Map<number, string>();
-    allActiveOrds.forEach(o => {
+    nextOrders.forEach(o => {
       if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
         tableOrderMap.set(Number(o.tableNumber), o.id);
       }
@@ -360,36 +359,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     setTables(prev => {
       const tableMap = new Map<number, TableInfo>();
+      const maxTableCount = Math.max(5, settingsRef.current?.tableCount || 20);
 
-      // 1. Default 20 tables as available
-      for (let i = 1; i <= 20; i++) {
-        tableMap.set(i, { number: i, status: 'available' });
-      }
-
-      // 2. Overlay DB tables
       if (tbls && tbls.length > 0) {
         tbls.forEach(t => {
           const tableObj = dbToTable(t);
-          tableMap.set(tableObj.number, tableObj);
+          if (tableObj.number <= maxTableCount) {
+            tableMap.set(tableObj.number, tableObj);
+          }
         });
+      } else {
+        for (let i = 1; i <= maxTableCount; i++) {
+          tableMap.set(i, { number: i, status: 'available' });
+        }
       }
 
-      // 3. Overlay active orders map
       tableOrderMap.forEach((orderId, tableNum) => {
-        const existing = tableMap.get(tableNum);
-        tableMap.set(tableNum, {
-          number: tableNum,
-          status: 'occupied',
-          orderId: orderId || existing?.orderId,
-        });
+        if (tableNum <= maxTableCount) {
+          const existing = tableMap.get(tableNum);
+          tableMap.set(tableNum, {
+            number: tableNum,
+            status: 'occupied',
+            orderId: orderId || existing?.orderId,
+          });
+        }
       });
 
-      // 4. Preserve occupied status ONLY if a local change was registered within grace window
-      prev.forEach(t => {
-        if (t.status === 'occupied') {
-          const hasPendingChange = isPendingLocalChange(t.number) || (t.orderId && isPendingLocalChange(t.orderId));
-          if (hasPendingChange) {
-            tableMap.set(t.number, t);
+      tableMap.forEach((table, num) => {
+        if (table.status === 'occupied' && !tableOrderMap.has(num)) {
+          const hasPendingChange = isPendingLocalChange(num) || (table.orderId && isPendingLocalChange(table.orderId));
+          if (!hasPendingChange) {
+            tableMap.set(num, { ...table, status: 'available', orderId: undefined });
           }
         }
       });
@@ -399,6 +399,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return merged;
     });
   }, [isPendingLocalChange]);
+
+  const fetchOrders = fetchTablesAndOrders;
+  const fetchTables = fetchTablesAndOrders;
 
   const fetchCoupons = useCallback(async () => {
     const currentSeq = ++seqRef.current.coupons;
@@ -509,7 +512,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setupRealtimeSubscriptions = useCallback(() => {
     if (!userId) return;
 
-    const tenantKey = user?.tenantId || (user as any)?.tenantSlug || 'default';
+    const tenantKey = user?.tenantId || (user as any)?.tenantSlug || tenantIdRef.current || 'default';
 
     // Broadcast channel
     const broadcastChannelName = `store-tenant-broadcast-${tenantKey}`;
@@ -540,17 +543,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const dbChannel = supabase.channel(dbChannelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
         recordRealtimeEvent('orders');
-        debounceFetch('orders', fetchOrders, 300);
+        debounceFetch('orders', fetchTablesAndOrders, 300);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, (payload) => {
         recordRealtimeEvent('store_tables');
         if (payload.eventType === 'DELETE') {
           const deletedNumber = payload.old?.number;
-          if (deletedNumber && isPendingLocalChange(deletedNumber)) {
-            return;
+          if (deletedNumber) {
+            clearPending(deletedNumber);
           }
         }
-        debounceFetch('tables', fetchTables, 300);
+        debounceFetch('tables', fetchTablesAndOrders, 300);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
         recordRealtimeEvent('products');
@@ -854,6 +857,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateTableCount = useCallback(async (count: number) => {
     const validCount = Math.max(5, count);
     setSettings(prev => ({ ...prev, tableCount: validCount }));
+    const tenantId = user?.tenantId || tenantIdRef.current;
     const currentTables = await supabase.from('store_tables').select('number, status').order('number');
     const currentData = currentTables.data || [];
     const currentNumbers = currentData.map(t => t.number);
@@ -863,8 +867,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const newTables = Array.from({ length: validCount - currentNumbers.length }, (_, i) => ({
         number: maxNumber + i + 1,
         status: 'available' as const,
+        ...(tenantId ? { tenant_id: tenantId } : {}),
       }));
-      await supabase.from('store_tables').insert(newTables);
+      await supabase.from('store_tables').insert(newTables as any);
     } else if (validCount < currentNumbers.length) {
       const occupiedNumbers = new Set(currentData.filter(t => t.status === 'occupied').map(t => t.number));
       const availableToDelete = currentNumbers
@@ -873,6 +878,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const deleteCount = Math.min(availableToDelete.length, currentNumbers.length - validCount);
       const toDelete = availableToDelete.slice(0, deleteCount);
       if (toDelete.length > 0) {
+        toDelete.forEach(num => clearPending(num));
         await supabase.from('store_tables').delete().in('number', toDelete);
       }
     }
@@ -880,13 +886,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const uniqueTbls = [];
     const seen = new Set();
     for (const t of (tbls || [])) {
-      if (!seen.has(t.number)) {
+      if (!seen.has(t.number) && t.number <= validCount) {
         seen.add(t.number);
         uniqueTbls.push(t);
       }
     }
-    setTables(uniqueTbls.map(dbToTable));
-  }, []);
+    const mappedTables = uniqueTbls.map(dbToTable);
+    setTables(mappedTables);
+    saveLS('izy_tables', mappedTables);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync, clearPending, user?.tenantId]);
 
   const occupyTable = useCallback(async (tableNumber: number, orderId: string) => {
     markPending(tableNumber);
@@ -897,33 +906,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return next;
     });
     try {
+      const tenantId = user?.tenantId || tenantIdRef.current;
+      const item: any = { number: tableNumber, status: 'occupied', order_id: orderId };
+      if (tenantId) item.tenant_id = tenantId;
       await supabase.from('store_tables').upsert(
-        { number: tableNumber, status: 'occupied', order_id: orderId },
+        item,
         { onConflict: 'number' }
       );
     } catch (err) {
       console.error('[occupyTable] DB upsert error:', err);
     }
     notifyCrossTabSync();
-  }, [notifyCrossTabSync, markPending]);
+  }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   const freeTable = useCallback(async (tableNumber: number) => {
-    markPending(tableNumber);
+    clearPending(tableNumber);
     setTables(prev => {
       const next = prev.map(t => t.number === tableNumber ? { ...t, status: 'available' as const, orderId: undefined } : t);
       saveLS('izy_tables', next);
       return next;
     });
     try {
+      const tenantId = user?.tenantId || tenantIdRef.current;
+      const item: any = { number: tableNumber, status: 'available', order_id: null };
+      if (tenantId) item.tenant_id = tenantId;
       await supabase.from('store_tables').upsert(
-        { number: tableNumber, status: 'available', order_id: null },
+        item,
         { onConflict: 'number' }
       );
     } catch (err) {
       console.error('[freeTable] DB upsert error:', err);
     }
     notifyCrossTabSync();
-  }, [notifyCrossTabSync, markPending]);
+  }, [notifyCrossTabSync, clearPending, user?.tenantId]);
 
   const deductStock = useCallback(async (items: OrderItem[]) => {
     for (const item of items) {
@@ -1116,6 +1131,8 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && JSON.stringify(p) !== JSON.stringify(n); });
 
+  const tenantId = tenantIdRef.current;
+
   for (const o of removed) {
     markPending(o.id);
     if (o.tableNumber) markPending(o.tableNumber);
@@ -1131,7 +1148,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
     markPending(o.id);
     if (o.tableNumber) markPending(o.tableNumber);
     try {
-      await supabase.from('orders').upsert({
+      const orderPayload: any = {
         id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: o.status,
         table_number: o.tableNumber || null, customer_id: o.customerId || null,
         customer_name: o.customerName || null, customer_phone: o.customerPhone || null,
@@ -1145,11 +1162,17 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
         pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
         pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
         is_locked: o.isLocked ?? false,
-      } as any, { onConflict: 'id' });
+      };
+      if (tenantId) orderPayload.tenant_id = tenantId;
+
+      await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' });
 
       if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+        const tablePayload: any = { number: Number(o.tableNumber), status: 'occupied', order_id: o.id };
+        if (tenantId) tablePayload.tenant_id = tenantId;
+
         await supabase.from('store_tables').upsert(
-          { number: Number(o.tableNumber), status: 'occupied', order_id: o.id },
+          tablePayload,
           { onConflict: 'number' }
         );
       }
@@ -1182,13 +1205,17 @@ async function syncTables(prev: TableInfo[], next: TableInfo[], markPending: (id
     if (!p) return false;
     return JSON.stringify(p) !== JSON.stringify(n);
   });
+  const tenantId = tenantIdRef.current;
   for (const t of updated) {
     markPending(t.number);
-    await supabase.from('store_tables').upsert({
+    const tablePayload: any = {
       number: t.number,
       status: t.status,
       order_id: t.status === 'occupied' ? t.orderId || null : null,
-    }, { onConflict: 'number' });
+    };
+    if (tenantId) tablePayload.tenant_id = tenantId;
+
+    await supabase.from('store_tables').upsert(tablePayload, { onConflict: 'number' });
   }
 }
 
