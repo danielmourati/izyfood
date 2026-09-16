@@ -46,6 +46,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [cashRegisterChecked, setCashRegisterChecked] = useState(false);
   const [localCashOpen, setLocalCashOpen] = useState(false);
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
+  const [finalizing, setFinalizing] = useState(false);
   const [activeSubModal, setActiveSubModal] = useState<SubModalType>('list');
   const [cardSubtype, setCardSubtype] = useState<'credito' | 'debito' | 'refeicao'>('credito');
 
