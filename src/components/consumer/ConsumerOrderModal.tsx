@@ -223,6 +223,29 @@ export function ConsumerOrderModal({
     onClose();
   };
 
+  // Reabre a mesa bloqueada (reflete em todos os dispositivos)
+  const handleReabrirOrder = () => {
+    if (!canManageMesa) {
+      toast.error('Permissão negada. Somente administradores ou atendentes autorizados podem reabrir a mesa.');
+      return;
+    }
+    if (!currentOrder) return;
+
+    const updatedOrder: Order = {
+      ...currentOrder,
+      isLocked: false,
+      status: 'aberto',
+      heldAt: undefined,
+    };
+
+    setIsLocked(false);
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    toast.success(`Mesa ${currentOrder.tableNumber || tableNumber || ''} reaberta!`);
+  };
+
+
+
   // Helper to send and print order automatically via local Bluetooth printer & redirect to Mesas
   const handleEnviarOrder = async () => {
     if (!currentOrder || items.length === 0) {
