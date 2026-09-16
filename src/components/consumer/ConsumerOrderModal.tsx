@@ -338,14 +338,15 @@ export function ConsumerOrderModal({
   // Helper to add item directly without customization
   const handleAddDirect = (prod: Product) => {
     setSelectedMobileProduct(prod);
-    const existingIndex = items.findIndex(i => i.productId === prod.id && !i.selectedNotes?.length && !i.selectedComplements?.length);
+    // Search specifically for an UNPRINTED item to increment, so printed items remain separate
+    const unprintedIndex = items.findIndex(i => i.productId === prod.id && !i.printed && !i.selectedNotes?.length && !i.selectedComplements?.length);
     let updatedItems: OrderItem[];
 
-    if (existingIndex >= 0) {
+    if (unprintedIndex >= 0) {
       updatedItems = items.map((item, idx) => {
-        if (idx === existingIndex) {
+        if (idx === unprintedIndex) {
           const newQty = item.quantity + 1;
-          return { ...item, quantity: newQty, subtotal: newQty * item.price };
+          return { ...item, quantity: newQty, subtotal: newQty * item.price, printed: false };
         }
         return item;
       });
@@ -360,6 +361,7 @@ export function ConsumerOrderModal({
         subtotal: prod.price,
         addedBy: user?.id,
         addedByName: user?.name,
+        printed: false,
       };
       updatedItems = [...items, newItem];
     }
@@ -476,6 +478,7 @@ export function ConsumerOrderModal({
             selectedComplements: payload.selectedComplements,
             notes: formattedNotes,
             subtotal: itemSubtotal,
+            printed: false,
           };
         }
         return i;
@@ -494,6 +497,7 @@ export function ConsumerOrderModal({
         subtotal: itemSubtotal,
         addedBy: user?.id,
         addedByName: user?.name,
+        printed: false,
       };
       updatedItems = [...items, newItem];
     }
@@ -636,10 +640,36 @@ export function ConsumerOrderModal({
     toast.success(`Tipo de pedido alterado para: ${newType.toUpperCase()}`);
   };
 
-  const handleConfirmDeleteOrder = async () => {
-    if (!canCancelOrDeleteMesa) {
-      toast.error('Permissão negada. Apenas administradores ou supervisores podem excluir ou cancelar mesas.');
-      setDeleteConfirmOpen(false);
+  const [adminPasswordForDelete, setAdminPasswordForDelete] = useState('');
+  const [adminDeleting, setAdminDeleting] = useState(false);
+
+  const handleConfirmDeleteOrder = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!adminPasswordForDelete.trim()) {
+      toast.error('Informe a senha do administrador para autorizar a exclusão.');
+      return;
+    }
+
+    setAdminDeleting(true);
+    let isValid = false;
+
+    try {
+      if (user?.id === 'demo-admin-id') {
+        isValid = true;
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: user?.email || '',
+          password: adminPasswordForDelete.trim(),
+        });
+        isValid = !error;
+      }
+    } catch {
+      isValid = false;
+    }
+
+    if (!isValid) {
+      setAdminDeleting(false);
+      toast.error('Senha de administrador incorreta.');
       return;
     }
 
@@ -648,18 +678,33 @@ export function ConsumerOrderModal({
 
     if (orderId) {
       if (onDeleteOrder) {
-        onDeleteOrder(orderId, mesaNum);
+        await onDeleteOrder(orderId, mesaNum);
       } else if (onDiscardEmptyOrder) {
-        onDiscardEmptyOrder(orderId, mesaNum);
+        await onDiscardEmptyOrder(orderId, mesaNum);
+      }
+      try {
+        await supabase.from('orders').delete().eq('id', orderId);
+      } catch (dbErr) {
+        console.error('[deleteOrder] DB delete error:', dbErr);
       }
     }
 
-    if (mesaNum && freeTable) {
+    if (mesaNum) {
       const numMesa = Number(mesaNum);
-      await freeTable(numMesa);
+      if (freeTable) {
+        await freeTable(numMesa);
+      }
+      try {
+        await supabase.from('store_tables').upsert(
+          { number: numMesa, status: 'available', order_id: null },
+          { onConflict: 'number' }
+        );
+      } catch {}
     }
 
-    toast.success(`Pedido da Mesa ${mesaNum || ''} excluído e mesa liberada!`);
+    setAdminDeleting(false);
+    toast.success(`Pedido da Mesa ${mesaNum || ''} excluído com sucesso!`);
+    setAdminPasswordForDelete('');
     setDeleteConfirmOpen(false);
     setMoreOptionsOpen(false);
     onClose();
@@ -959,7 +1004,18 @@ export function ConsumerOrderModal({
                   items.map(item => (
                     <div key={item.id} className="bg-white border border-[#e8e4dc] p-2.5 rounded-lg shadow-xs flex justify-between items-center text-xs">
                       <div>
-                        <div className="font-bold text-[#3e2b20]">{item.name}</div>
+                        <div className="font-bold text-[#3e2b20] flex items-center gap-1.5">
+                          <span>{item.name}</span>
+                          {item.printed ? (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 px-1 py-0.2 rounded font-bold">
+                              <Printer className="h-2.5 w-2.5 text-emerald-600" /> Impresso
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-amber-500/15 text-amber-700 border border-amber-500/30 px-1 py-0.2 rounded font-bold">
+                              Novo
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-muted-foreground">
                           {item.quantity}x R$ {fmt(item.price)}
                         </div>
@@ -1392,9 +1448,13 @@ export function ConsumerOrderModal({
                           <td className="py-3 px-3">
                             <div className="font-bold text-foreground text-sm flex items-center gap-1.5">
                               <span>{item.name}</span>
-                              {item.printed && (
+                              {item.printed ? (
                                 <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold shadow-2xs">
                                   <Printer className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> Impresso
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold shadow-2xs">
+                                  Novo
                                 </span>
                               )}
                             </div>
@@ -1713,33 +1773,55 @@ export function ConsumerOrderModal({
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <Dialog open={deleteConfirmOpen} onOpenChange={(val) => { setDeleteConfirmOpen(val); if (!val) setAdminPasswordForDelete(''); }}>
         <DialogContent className="bg-card text-card-foreground border-border max-w-md p-5 font-sans">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" /> Excluir Pedido #{shortOrderId}
-            </DialogTitle>
-            <DialogDescription className="text-muted-foreground text-xs mt-2">
-              Tem certeza que deseja excluir este pedido? A comanda/mesa será liberada e esta ação não poderá ser desfeita.
-            </DialogDescription>
-          </DialogHeader>
+          <form onSubmit={handleConfirmDeleteOrder}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" /> Excluir Pedido #{shortOrderId}
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground text-xs mt-2">
+                Tem certeza que deseja excluir este pedido? A comanda/mesa será liberada e esta ação não poderá ser desfeita.
+              </DialogDescription>
+            </DialogHeader>
 
-          <DialogFooter className="mt-4 flex gap-2 justify-end">
-            <Button
-              variant="outline"
-              onClick={() => setDeleteConfirmOpen(false)}
-              className="border-border text-foreground hover:bg-muted text-xs"
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmDeleteOrder}
-              className="text-xs font-bold"
-            >
-              Sim, Excluir Pedido
-            </Button>
-          </DialogFooter>
+            <div className="my-4 space-y-2">
+              <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                <LockKeyhole className="h-3.5 w-3.5 text-muted-foreground" />
+                Senha de Administrador:
+              </label>
+              <Input
+                type="password"
+                placeholder="Digite a senha de admin..."
+                value={adminPasswordForDelete}
+                onChange={(e) => setAdminPasswordForDelete(e.target.value)}
+                autoFocus
+                className="text-sm bg-background border-border"
+              />
+            </div>
+
+            <DialogFooter className="mt-4 flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDeleteConfirmOpen(false);
+                  setAdminPasswordForDelete('');
+                }}
+                className="border-border text-foreground hover:bg-muted text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={adminDeleting || !adminPasswordForDelete.trim()}
+                className="text-xs font-bold"
+              >
+                {adminDeleting ? 'Excluindo...' : 'Sim, Excluir Pedido'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

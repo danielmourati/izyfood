@@ -101,14 +101,15 @@ export function feedAndCut(lines = 4): Uint8Array {
 // ---------- text formatting helpers ----------
 
 function lineOf(char: string, cols: number): Uint8Array {
-  return text(char.repeat(cols) + '\n');
+  const lineCols = Math.min(cols, 27);
+  return text(char.repeat(lineCols) + '\n');
 }
 
 /** Reserved price zone (right) inside a wrapped row.
- *  58mm (32 useful cols): 22 for name + 9 for price.
- *  80mm (48 useful cols): 36 for name + 12 for price. */
+ *  58mm (27 useful cols): 17 for name + 9 for price.
+ *  80mm (44 useful cols): 32 for name + 11 for price. */
 function priceZone(cols: number): number {
-  return cols <= 28 ? 9 : 12;
+  return cols <= 27 ? 9 : 12;
 }
 
 /** Two-column row: left-aligned label, right-aligned value.
@@ -240,26 +241,21 @@ function textOnlyWrap(label: string, cols: number): Uint8Array {
   return text(lines.join('\n') + '\n');
 }
 
+/** Format text for hardware centered printing (ESC a 1) without adding manual leading spaces */
 function center(s: string, cols: number): Uint8Array {
-  if (s.length <= cols) {
-    const pad = Math.max(0, Math.floor((cols - s.length) / 2));
-    return text(' '.repeat(pad) + s + '\n');
-  }
-  return centerWrap(s, cols);
-}
+  const clean = String(s || '').trim();
+  if (!clean) return new Uint8Array(0);
 
-/** Center a string with word-wrap so no line exceeds `cols`. */
-function centerWrap(s: string, cols: number): Uint8Array {
-  const words = s.split(/\s+/).filter(Boolean);
+  const words = clean.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = '';
+
   for (const w of words) {
     const candidate = current ? current + ' ' + w : w;
     if (candidate.length <= cols) {
       current = candidate;
     } else {
       if (current) lines.push(current);
-      // Word alone too long — hard-split
       let piece = w;
       while (piece.length > cols) {
         lines.push(piece.slice(0, cols));
@@ -269,11 +265,7 @@ function centerWrap(s: string, cols: number): Uint8Array {
     }
   }
   if (current) lines.push(current);
-  return text(
-    lines
-      .map(l => ' '.repeat(Math.max(0, Math.floor((cols - l.length) / 2))) + l)
-      .join('\n') + '\n',
-  );
+  return text(lines.join('\n') + '\n');
 }
 
 function fmtBRL(v: number): string {
@@ -385,10 +377,10 @@ interface CashCloseData {
 }
 
 /** Useful column width for the given paper size.
- *  58mm: 28 columns (fits budget 58mm POS thermal printers with 28 printable character limits without wrapping).
+ *  58mm: 27 columns (strictly limited to 27 printable character limit per line for 58mm printers).
  *  80mm: 44 columns (standard 80mm POS thermal printers). */
 function colsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 28 : 44;
+  return paperWidth <= 58 ? 27 : 44;
 }
 
 /** Kept for backward-compat callers; safe margin is already baked into colsForWidth. */
@@ -571,7 +563,6 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
     CMD_CODEPAGE_PC860,
   ];
 
-  // Header Title: Bold & Double Height "COZINHA"
   parts.push(
     CMD_ALIGN_CENTER,
     CMD_BOLD_ON,
@@ -666,7 +657,6 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     CMD_INIT,
     CMD_CODEPAGE_PC860,
     normalTextMode(),
-    CMD_ALIGN_CENTER,
   ];
 
   // Dynamic header — each field evaluated independently.
@@ -677,7 +667,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasAnyHeader = hasStoreName || hasAddress || hasDocument || hasWhatsapp;
 
   if (hasAnyHeader) {
-    parts.push(CMD_ALIGN_LEFT);
+    parts.push(CMD_ALIGN_CENTER);
     if (hasStoreName) {
       parts.push(CMD_BOLD_ON, center(ps.storeName!.trim().toUpperCase(), cols), CMD_BOLD_OFF);
     }
@@ -690,7 +680,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     if (hasWhatsapp) {
       parts.push(center(`WhatsApp: ${ps.whatsapp}`, cols));
     }
-    parts.push(lineOf('-', cols));
+    parts.push(CMD_ALIGN_LEFT, lineOf('-', cols));
   }
 
   // Print "CONTA"
@@ -701,20 +691,9 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
     text('CONTA\n'),
     CMD_DOUBLE_OFF,
     CMD_BOLD_OFF,
-  );
-
-  // Separador abaixo do título CONTA em fonte normal
-  parts.push(
     normalTextMode(),
     CMD_ALIGN_LEFT,
-    lineOf('-', cols),
-    CMD_LF
-  );
-
-  // Garante que o próximo bloco volte para fonte normal e alinhamento à esquerda
-  parts.push(
-    normalTextMode(),
-    CMD_ALIGN_LEFT
+    lineOf('-', cols)
   );
 
   // Each detail field as a row(): label left, value right.
@@ -769,12 +748,21 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   }
   parts.push(lineOf('-', cols));
 
-  // TOTAL
-  parts.push(CMD_BOLD_ON, CMD_DOUBLE_ON);
+  // TOTAL Line - single line formatting guaranteed
+  parts.push(CMD_ALIGN_LEFT, CMD_BOLD_ON);
+  const totalValStr = fmtBRL(totalBilled);
+  const totalLabelStr = 'TOTAL';
   const doubleCols = Math.floor(cols / 2);
-  parts.push(row('TOTAL', fmtBRL(totalBilled), doubleCols));
-  parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF);
-  parts.push(normalTextMode(), CMD_ALIGN_LEFT, lineOf('-', cols));
+  if (totalLabelStr.length + totalValStr.length + 1 <= doubleCols) {
+    parts.push(CMD_DOUBLE_ON);
+    const gap = doubleCols - totalLabelStr.length - totalValStr.length;
+    parts.push(text(totalLabelStr + ' '.repeat(gap) + totalValStr + '\n'));
+    parts.push(CMD_DOUBLE_OFF);
+  } else {
+    const gap = Math.max(1, cols - totalLabelStr.length - totalValStr.length);
+    parts.push(text(totalLabelStr + ' '.repeat(gap) + totalValStr + '\n'));
+  }
+  parts.push(CMD_BOLD_OFF, lineOf('-', cols));
 
   // Payment
   const hasPayment = (bill.paymentSplits && bill.paymentSplits.length > 0) || !!bill.paymentMethod;
@@ -801,7 +789,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const hasFooter = footerPixKey || footerInstagram || !!footerThankMsg;
 
   if (hasFooter) {
-    parts.push(CMD_ALIGN_LEFT);
+    parts.push(CMD_ALIGN_CENTER);
     if (footerPixKey) parts.push(center(`PIX: ${ps.pixKey}`, cols));
     if (footerInstagram) {
       const cleanInsta = ps.instagram!.startsWith('@') ? ps.instagram! : `@${ps.instagram!}`;
