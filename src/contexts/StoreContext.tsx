@@ -1204,7 +1204,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
     if (o.tableNumber) markPending(o.tableNumber);
     try {
       // O bloqueio da mesa é persistido no status: 'segurado' = bloqueado.
-      const lockAware = o.orderType === 'mesa' && o.status !== 'cancelado' && o.status !== 'finalizado';
+      const lockAware = o.orderType === 'mesa' && o.status !== 'cancelado' && o.status !== 'finalizado' && o.status !== 'concluido';
       const persistedStatus = lockAware
         ? (o.isLocked ? 'segurado' : (o.status === 'segurado' ? 'aberto' : o.status))
         : o.status;

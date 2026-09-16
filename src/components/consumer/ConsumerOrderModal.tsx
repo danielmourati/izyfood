@@ -198,6 +198,8 @@ export function ConsumerOrderModal({
     const updatedOrder: Order = {
       ...currentOrder,
       isLocked: true,
+      status: 'segurado',
+      heldAt: currentOrder.heldAt || new Date().toISOString(),
       items: items.map(i => ({ ...i, printed: true })),
     };
 
