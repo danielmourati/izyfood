@@ -134,9 +134,6 @@ export function ConsumerOrderModal({
       };
       setCurrentOrder(updatedOrder);
       onSaveOrder(updatedOrder);
-      if (mesaNum && occupyTable) {
-        occupyTable(Number(mesaNum), updatedOrder.id);
-      }
       toast.success(`Mesa ${mesaNum || ''} salva com sucesso!`);
     } else {
       // Se não possui itens nem valor (R$0,00), libera obrigatoriamente a mesa
@@ -208,13 +205,6 @@ export function ConsumerOrderModal({
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
 
-    if (mesaNum) {
-      const numMesa = Number(mesaNum);
-      if (occupyTable) {
-        await occupyTable(numMesa, updatedOrder.id);
-      }
-    }
-
     // Imprimir cupom da conta automaticamente ao fechar a mesa
     try {
       if (onPrintBill) {
@@ -254,33 +244,7 @@ export function ConsumerOrderModal({
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
 
-    // 2. Mudar obrigatoriamente o status da mesa para 'occupied' no estado e no Supabase
-    if (mesaNum) {
-      const numMesa = Number(mesaNum);
-      if (occupyTable) {
-        await occupyTable(numMesa, updatedOrder.id);
-      }
-      try {
-        await supabase
-          .from('orders')
-          .upsert({
-            id: updatedOrder.id,
-            items: updatedItems as any,
-            total: updatedOrder.total,
-            order_type: updatedOrder.orderType,
-            status: updatedOrder.status,
-            table_number: numMesa,
-            customer_id: updatedOrder.customerId || null,
-            customer_name: updatedOrder.customerName || null,
-            customer_phone: updatedOrder.customerPhone || null,
-            pickup_notes: updatedOrder.pickupNotes || null,
-            is_locked: updatedOrder.isLocked ?? false,
-          } as any);
-      } catch (dbErr) {
-        console.warn('Aviso ao sincronizar pedido no banco:', dbErr);
-      }
-    }
-
+    // 2. O fluxo central salva o pedido e vincula a mesa de forma ordenada.
     // 3. Tentar impressão em bloco isolado (sem interromper salvamento/mudança de status)
     try {
       const orderToPrint = unprintedItems.length > 0
@@ -388,10 +352,6 @@ export function ConsumerOrderModal({
     setIsLocked(false);
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
-    const mesaNum = currentOrder?.tableNumber || tableNumber;
-    if (mesaNum && occupyTable) {
-      occupyTable(Number(mesaNum), updatedOrder.id);
-    }
     toast.success(`Adicionado: ${prod.name}`);
   };
 
@@ -530,10 +490,6 @@ export function ConsumerOrderModal({
     setIsLocked(false);
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
-    const mesaNum = currentOrder?.tableNumber || tableNumber;
-    if (mesaNum && occupyTable) {
-      occupyTable(Number(mesaNum), updatedOrder.id);
-    }
     setCustomizeOpen(false);
     toast.success(editingItem ? 'Item atualizado!' : `Adicionado: ${selectedProduct.name}`);
   };
@@ -723,12 +679,6 @@ export function ConsumerOrderModal({
       if (freeTable) {
         await freeTable(numMesa);
       }
-      try {
-        await supabase.from('store_tables').upsert(
-          { number: numMesa, status: 'available', order_id: null },
-          { onConflict: 'number' }
-        );
-      } catch {}
     }
 
     setAdminDeleting(false);
