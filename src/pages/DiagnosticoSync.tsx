@@ -80,7 +80,7 @@ const PS_TEXT_KEYS = ['storeName', 'address', 'document', 'whatsapp', 'pixKey', 
 
 export default function DiagnosticoSync() {
   const { user } = useAuth();
-  const { realtimeStatus, lastRealtimeEventTime, realtimeEventCounts, fetchAll } = useStore();
+  const { realtimeStatus, lastRealtimeEventTime, realtimeEventCounts, lastSyncError, fetchAll } = useStore();
   const [manualSyncing, setManualSyncing] = useState(false);
   const [states, setStates] = useState<Record<string, TableState>>(() => {
     const init: Record<string, TableState> = {};
@@ -300,6 +300,12 @@ export default function DiagnosticoSync() {
           </Button>
         </CardContent>
       </Card>
+
+      {lastSyncError && (
+        <div role="alert" className="border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+          Última gravação de pedido: {lastSyncError}
+        </div>
+      )}
 
 
       {/* Summary */}

@@ -15,7 +15,7 @@ import { Order } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 
 const Mesas = () => {
-  const { tables, setTables, orders, setOrders, customers, freeTable, occupyTable } = useStore();
+  const { tables, setTables, orders, setOrders, customers, freeTable, occupyTable, lastSyncError } = useStore();
   const { user } = useAuth();
   const { printOrder, printBill } = usePrinter();
   const navigate = useTenantNavigate();
@@ -105,17 +105,7 @@ const Mesas = () => {
       return [updatedOrder, ...prev];
     });
 
-    if (updatedOrder.tableNumber) {
-      const numMesa = Number(updatedOrder.tableNumber);
-      setTables(prev => prev.map(t =>
-        t.number === numMesa
-          ? { ...t, status: 'occupied', orderId: updatedOrder.id }
-          : t
-      ));
-      if (occupyTable) {
-        occupyTable(numMesa, updatedOrder.id);
-      }
-    }
+    // A própria gravação do pedido vincula a mesa depois que o pedido foi confirmado no banco.
   };
 
   // Only discards drafts that are truly empty. An occupied table with items/value
@@ -232,6 +222,12 @@ const Mesas = () => {
           Gerencie o atendimento, comanda e ocupação das mesas em tempo real
         </p>
       </header>
+
+      {lastSyncError && (
+        <div role="alert" className="mb-4 border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+          {lastSyncError}
+        </div>
+      )}
 
       {/* Search Input Bar matching Anexo 1 */}
       <div className="relative mb-6">
