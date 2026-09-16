@@ -3,14 +3,16 @@ import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowRightLeft, Merge, Lock, Utensils, Store, Bike, ShoppingBag, Menu } from 'lucide-react';
+import { ArrowRightLeft, Merge, Lock, Utensils, Store, Bike, ShoppingBag, Menu, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { fmt } from '@/lib/utils';
 import { differenceInMinutes } from 'date-fns';
 import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 import { usePrinter } from '@/hooks/use-printer';
 import { Order } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
 
 const Mesas = () => {
   const { tables, setTables, orders, setOrders, customers, freeTable } = useStore();
@@ -187,31 +189,37 @@ const Mesas = () => {
   }, []);
 
   return (
-    <div className="h-full overflow-y-auto pb-24 max-w-5xl mx-auto">
-      {/* Mobile Blue Header matching Anexo 1 */}
-      <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-md">
-        <h1 className="text-xl font-bold tracking-tight">Mesas</h1>
+    <div className="h-full overflow-y-auto p-4 sm:p-6 pb-24 max-w-6xl mx-auto">
+      {/* Header matching Anexo 1 design system */}
+      <header className="mb-5">
+        <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground leading-tight">
+          Mesas e Comandas
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Gerencie o atendimento, comanda e ocupação das mesas em tempo real
+        </p>
+      </header>
+
+      {/* Search Input Bar matching Anexo 1 */}
+      <div className="relative mb-6">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="text"
+          placeholder="Digite o nº da mesa/comanda..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="pl-10 h-11 bg-card border-border rounded-xl text-sm shadow-2xs focus-visible:ring-primary"
+        />
       </div>
 
-      <div className="p-4 space-y-6">
-        {/* Search Bar matching Anexo 1 */}
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Digite o nº da mesa/comanda..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-background border-b border-border py-2 px-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:border-[#0099ff]"
-          />
-        </div>
-
+      <div className="space-y-6">
         {/* Pedidos em Andamento */}
         {occupiedTables.length > 0 && (
           <div>
-            <h2 className="text-xl font-bold text-foreground mb-4 drop-shadow-sm truncate">
-              Pedidos em andamento ({occupiedTables.length})
+            <h2 className="text-xs font-bold tracking-wider text-section-vendas uppercase flex items-center gap-1.5 mb-3">
+              <span className="text-base">•</span> Pedidos em andamento ({occupiedTables.length})
             </h2>
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
               {occupiedTables.map(table => {
                 const order = orders.find(o => o.id === table.orderId);
                 let minutesOpen = 0;
@@ -224,7 +232,9 @@ const Mesas = () => {
                   } catch { }
                 }
                 const isBlocked = order?.isLocked === true;
-                const bgColor = isBlocked ? 'bg-[#d9a036]' : 'bg-[#2e8c56]';
+                const cardBg = isBlocked
+                  ? 'bg-amber-600 dark:bg-amber-700 text-white border-amber-500/30'
+                  : 'bg-emerald-600 dark:bg-emerald-700 text-white border-emerald-500/30';
                 const customer = order?.customerId ? customers.find(c => c.id === order.customerId) : null;
                 const custName = customer?.name || order?.customerName || '';
 
@@ -232,32 +242,32 @@ const Mesas = () => {
                   <button
                     key={table.number}
                     onClick={() => handleTableClick(table.number)}
-                    className={`relative w-full aspect-square flex flex-col justify-between p-1.5 sm:p-2 rounded-sm text-primary-foreground shadow-sm hover:brightness-110 active:scale-95 transition-all text-left overflow-hidden ${bgColor}`}
+                    className={`relative w-full aspect-square flex flex-col justify-between p-2 rounded-xl shadow-xs hover:shadow-md hover:brightness-105 active:scale-95 transition-all text-left overflow-hidden border ${cardBg}`}
                   >
                     <div className="flex justify-between items-start w-full">
                       {isBlocked ? (
-                        <Lock className="h-4 w-4 shrink-0 opacity-90" />
+                        <Lock className="h-3.5 w-3.5 shrink-0 opacity-90" />
                       ) : (
-                        <div className="h-4 w-4" />
+                        <div className="h-3.5 w-3.5" />
                       )}
-                      <span className="text-[10px] sm:text-[11px] font-bold opacity-90 drop-shadow-sm shadow-black whitespace-nowrap">
+                      <span className="text-[10px] sm:text-[11px] font-bold opacity-90 whitespace-nowrap">
                         {Math.floor(minutesOpen / 1440) > 0 ? `${Math.floor(minutesOpen / 1440)} dias` : `${minutesOpen} min`}
                       </span>
                     </div>
 
                     <div className="flex-1 flex flex-col items-center justify-center -mt-0.5 sm:-mt-1">
-                      <p className="text-2xl sm:text-3xl font-extrabold tracking-tighter drop-shadow-md">
+                      <p className="text-2xl sm:text-3xl font-extrabold tracking-tighter drop-shadow-xs">
                         {String(table.number).padStart(2, '0')}
                       </p>
                       {custName && (
-                        <p className="text-[10px] sm:text-xs font-semibold mt-1 truncate w-[110%] px-1 text-center opacity-95">
+                        <p className="text-[10px] sm:text-xs font-semibold mt-0.5 truncate w-[110%] px-1 text-center opacity-95">
                           {custName}
                         </p>
                       )}
                     </div>
 
                     <div className="w-full pt-1">
-                      <p className="text-[11px] sm:text-[13px] font-extrabold drop-shadow-sm">
+                      <p className="text-[11px] sm:text-[13px] font-extrabold drop-shadow-xs">
                         R$ {fmt(order?.total || 0)}
                       </p>
                     </div>
@@ -271,18 +281,18 @@ const Mesas = () => {
         {/* Mesas Livres */}
         {availableTables.length > 0 && (
           <div>
-            <h2 className="text-xl font-bold text-foreground mb-4 drop-shadow-sm">
-              Mesas/Comandas livres ({availableTables.length})
+            <h2 className="text-xs font-bold tracking-wider text-muted-foreground uppercase flex items-center gap-1.5 mb-3">
+              <span className="text-base">•</span> Mesas/Comandas livres ({availableTables.length})
             </h2>
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2 shrink-0">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2.5 shrink-0">
               {availableTables.map(table => (
                 <button
                   key={table.number}
                   onClick={() => handleTableClick(table.number)}
-                  className="w-full aspect-square bg-[#666666] hover:bg-[#555555] active:scale-95 transition-all flex flex-col items-center justify-center rounded-sm text-primary-foreground shadow-sm"
+                  className="w-full aspect-square bg-card hover:bg-muted/80 text-card-foreground border border-border/80 active:scale-95 transition-all flex flex-col items-center justify-center rounded-xl shadow-2xs hover:shadow-xs"
                 >
-                  <span className="text-[9px] sm:text-[10px] font-bold mb-0.5 tracking-wider">ABRIR</span>
-                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tighter shadow-black drop-shadow-md">
+                  <span className="text-[9px] sm:text-[10px] font-bold mb-0.5 tracking-wider text-primary opacity-90">ABRIR</span>
+                  <p className="text-2xl sm:text-3xl font-extrabold tracking-tighter text-foreground drop-shadow-2xs">
                     {String(table.number).padStart(2, '0')}
                   </p>
                 </button>
