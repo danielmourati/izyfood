@@ -86,6 +86,17 @@ const Mesas = () => {
   };
 
   const handleSaveConsumerOrder = (updatedOrder: Order) => {
+    const hasItems = (updatedOrder.items && updatedOrder.items.length > 0) || (updatedOrder.total || 0) > 0 || updatedOrder.isLocked || updatedOrder.status === 'segurado';
+
+    if (!hasItems) {
+      setOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
+      if (updatedOrder.tableNumber) {
+        freeTable(Number(updatedOrder.tableNumber));
+      }
+      try { supabase.from('orders').delete().eq('id', updatedOrder.id); } catch {}
+      return;
+    }
+
     setOrders(prev => {
       const exists = prev.some(o => o.id === updatedOrder.id);
       if (exists) {

@@ -139,17 +139,16 @@ export function ConsumerOrderModal({
       onSaveOrder(currentOrder);
       toast.success('Pedido salvo com sucesso!');
     } else {
-      // Only a truly empty draft on a table that was not occupied can be discarded
-      if (!isOccupied) {
-        if (onDiscardEmptyOrder) {
-          onDiscardEmptyOrder(currentOrder.id, currentOrder.tableNumber);
-        } else if (onDeleteOrder) {
-          onDeleteOrder(currentOrder.id, currentOrder.tableNumber);
-        }
-        toast.info('Rascunho de pedido sem itens descartado.');
-      } else {
-        toast.info('Mesa permanece ocupada.');
+      // Se não possui itens nem valor (R$0,00), libera obrigatoriamente a mesa
+      const numMesa = currentOrder.tableNumber || tableNumber;
+      if (onDiscardEmptyOrder) {
+        onDiscardEmptyOrder(currentOrder.id, numMesa);
+      } else if (onDeleteOrder) {
+        onDeleteOrder(currentOrder.id, numMesa);
+      } else if (numMesa) {
+        freeTable(Number(numMesa));
       }
+      toast.info('Comanda sem itens foi liberada.');
     }
     onClose();
   };
@@ -303,7 +302,7 @@ export function ConsumerOrderModal({
     }
   };
 
-  // Keyboard shortcut handler for ESC key
+  // Keyboard shortcut handler for ESC key (salva, imprime lançamentos novos e sai)
   useEffect(() => {
     if (!open) return;
 
@@ -318,6 +317,17 @@ export function ConsumerOrderModal({
         if (deleteConfirmOpen) { setDeleteConfirmOpen(false); return; }
         if (moreOptionsOpen) { setMoreOptionsOpen(false); return; }
         if (reprintModalOpen) { setReprintModalOpen(false); return; }
+        if (unsentAlertOpen) { setUnsentAlertOpen(false); return; }
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const unprintedItems = items.filter(i => !i.printed);
+        if (unprintedItems.length > 0 && currentOrder) {
+          handleEnviarOrder();
+        } else {
+          handleCloseAndSaveOrDiscard();
+        }
       }
     };
 
@@ -326,7 +336,8 @@ export function ConsumerOrderModal({
   }, [
     open, currentOrder, items, totalAmount,
     finderOpen, customizeOpen, customerModalOpen, checkoutOpen,
-    printMenuOpen, changeTypeOpen, deleteConfirmOpen, moreOptionsOpen, reprintModalOpen
+    printMenuOpen, changeTypeOpen, deleteConfirmOpen, moreOptionsOpen, reprintModalOpen, unsentAlertOpen,
+    handleEnviarOrder, handleCloseAndSaveOrDiscard
   ]);
 
   const filteredItems = items.filter(i =>

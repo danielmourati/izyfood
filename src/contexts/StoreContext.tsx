@@ -353,7 +353,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const tableOrderMap = new Map<number, string>();
     nextOrders.forEach(o => {
       if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
-        tableOrderMap.set(Number(o.tableNumber), o.id);
+        const hasContent = (o.items && o.items.length > 0) || (o.total && o.total > 0) || o.isLocked || o.status === 'segurado';
+        if (hasContent) {
+          tableOrderMap.set(Number(o.tableNumber), o.id);
+        }
       }
     });
 
