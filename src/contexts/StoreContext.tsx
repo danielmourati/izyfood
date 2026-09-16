@@ -235,8 +235,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const parsedOrds = ords.map(dbToOrder);
         setOrders(prev => {
           const dbIds = new Set(parsedOrds.map(o => o.id));
-          const localDrafts = prev.filter(o => (o as any).isOfflineDraft && !dbIds.has(o.id));
-          const merged = [...parsedOrds, ...localDrafts];
+          const activeLocalOrds = prev.filter(o => o.status !== 'cancelado' && o.status !== 'concluido' && !dbIds.has(o.id));
+          const merged = [...parsedOrds, ...activeLocalOrds];
           saveLS('izy_orders', merged);
           return merged;
         });
@@ -257,7 +257,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const currentLocalOrds = ordersRef.current || [];
       const allActiveOrds = [...parsedDbOrds];
       currentLocalOrds.forEach(l => {
-        if ((l as any).isOfflineDraft && !allActiveOrds.some(o => o.id === l.id)) {
+        if (!allActiveOrds.some(o => o.id === l.id) && l.status !== 'cancelado' && l.status !== 'concluido') {
           allActiveOrds.push(l);
         }
       });
@@ -265,9 +265,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const tableOrderMap = new Map<number, string>();
       allActiveOrds.forEach(o => {
         if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
-          if ((o.items && o.items.length > 0) || o.status === 'segurado' || o.isLocked) {
-            tableOrderMap.set(Number(o.tableNumber), o.id);
-          }
+          tableOrderMap.set(Number(o.tableNumber), o.id);
         }
       });
 
@@ -297,12 +295,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           });
         });
 
-        // 4. Reset table status to available if NO active order exists for this table
-        tableMap.forEach((t, num) => {
-          if (!tableOrderMap.has(num)) {
-            const hasActiveOrder = allActiveOrds.some(o => Number(o.tableNumber) === num && o.status !== 'cancelado' && o.status !== 'concluido');
-            if (!hasActiveOrder) {
-              tableMap.set(num, { number: num, status: 'available', orderId: undefined });
+        // 4. Preserve occupied status if store_tables DB has occupied OR active order exists
+        prev.forEach(t => {
+          if (t.status === 'occupied') {
+            const isDbOccupied = tbls?.some(dbt => dbt.number === t.number && dbt.status === 'occupied');
+            const hasActiveOrder = allActiveOrds.some(o => Number(o.tableNumber) === t.number && o.status !== 'cancelado' && o.status !== 'concluido');
+            if (isDbOccupied || hasActiveOrder) {
+              tableMap.set(t.number, t);
             }
           }
         });
