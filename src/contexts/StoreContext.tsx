@@ -1000,7 +1000,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     markPending(order.id);
     if (order.tableNumber != null) markPending(order.tableNumber);
 
-    await supabase.from('sales').insert({
+    // 1) Registra a venda (base dos totais do caixa por forma de pagamento).
+    const { error: saleError } = await supabase.from('sales').insert({
       order_id: order.id,
       total: order.total,
       payment_method: order.paymentMethod!,
@@ -1008,6 +1009,62 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       items: order.items as any,
       payment_splits: order.paymentSplits && order.paymentSplits.length > 0 ? order.paymentSplits as any : null,
     });
+    if (saleError) {
+      console.error('[completeSale] sale insert error:', saleError);
+      clearPending(order.id);
+      if (order.tableNumber != null) clearPending(order.tableNumber);
+      setLastSyncError('Não foi possível registrar o pagamento no caixa. Verifique a conexão e tente novamente.');
+      throw saleError;
+    }
+
+    // 2) Finaliza o pedido ANTES de liberar a mesa, para que a reconciliação
+    // não volte a ocupar a mesa por causa de um pedido ainda aberto.
+    const completedAt = new Date().toISOString();
+    const orderUpdate: Record<string, any> = {
+      status: 'finalizado',
+      completed_at: completedAt,
+      held_at: null,
+      total: order.total,
+      payment_method: order.paymentMethod,
+      payment_splits: order.paymentSplits && order.paymentSplits.length > 0 ? order.paymentSplits as any : null,
+      discount: order.discount || null,
+      discount_type: order.discountType || null,
+      coupon_id: order.couponId || null,
+      customer_id: order.customerId || null,
+      loyalty_redemptions: order.loyaltyRedemptions || null,
+      service_fee: order.serviceFee || null,
+    };
+    if (order.orderType === 'delivery' || order.orderType === 'retirada') {
+      orderUpdate.delivery_status = 'finalizado';
+    }
+    const { error: orderError } = await queueOrderWrite(order.id, async () => {
+      return await supabase.from('orders').update(orderUpdate as any).eq('id', order.id);
+    });
+    if (orderError) {
+      console.error('[completeSale] order finalize error:', orderError);
+      clearPending(order.id);
+      if (order.tableNumber != null) clearPending(order.tableNumber);
+      setLastSyncError('Pagamento registrado, mas não foi possível finalizar o pedido. Tente novamente.');
+      throw orderError;
+    }
+
+    // 3) Estado local do pedido: finalizado e desbloqueado, para que nenhum
+    // salvamento posterior regrave o pedido como aberto.
+    const finalizedOrder: Order = {
+      ...order,
+      status: 'finalizado',
+      isLocked: false,
+      heldAt: undefined,
+      completedAt,
+    };
+    ordersRef.current = ordersRef.current.map(o => o.id === order.id ? finalizedOrder : o);
+    setOrders(ordersRef.current);
+    saveLS('izy_orders', ordersRef.current);
+
+    // 4) Libera a mesa.
+    if (order.tableNumber != null) {
+      await freeTable(order.tableNumber);
+    }
 
     await deductStock(order.items);
 
@@ -1022,37 +1079,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }).length;
 
         const pointsToSubtract = (order.loyaltyRedemptions || 0) * 10;
-        const isFiado = order.paymentMethod === 'fiado';
+        const fiadoAmount = order.paymentSplits && order.paymentSplits.length > 0
+          ? order.paymentSplits.filter(s => s.method === 'fiado').reduce((sum, s) => sum + s.amount, 0)
+          : (order.paymentMethod === 'fiado' ? order.total : 0);
 
         await supabase.from('customers').update({
-          credit_balance: isFiado ? Number(custData.credit_balance) + order.total : Number(custData.credit_balance),
+          credit_balance: Number(custData.credit_balance) + fiadoAmount,
           loyalty_points: Math.max(0, (custData.loyalty_points || 0) + eligibleCount - pointsToSubtract),
         }).eq('id', order.customerId);
       }
     }
 
-    if (order.tableNumber != null) {
-      await freeTable(order.tableNumber);
-    }
+    clearPending(order.id);
+    notifyCrossTabSync();
+  }, [deductStock, products, freeTable, markPending, clearPending, notifyCrossTabSync]);
 
-    const orderUpdate: Record<string, any> = {
-      status: 'finalizado',
-      completed_at: new Date().toISOString(),
-      total: order.total,
-      payment_method: order.paymentMethod,
-      payment_splits: order.paymentSplits && order.paymentSplits.length > 0 ? order.paymentSplits as any : null,
-      discount: order.discount || null,
-      discount_type: order.discountType || null,
-      coupon_id: order.couponId || null,
-      customer_id: order.customerId || null,
-      loyalty_redemptions: order.loyaltyRedemptions || null,
-      service_fee: order.serviceFee || null,
-    };
-    if (order.orderType === 'delivery' || order.orderType === 'retirada') {
-      orderUpdate.delivery_status = 'finalizado';
-    }
-    await supabase.from('orders').update(orderUpdate as any).eq('id', order.id);
-  }, [deductStock, products, freeTable, markPending]);
 
   return (
     <StoreContext.Provider value={{
