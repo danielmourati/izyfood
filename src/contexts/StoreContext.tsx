@@ -148,6 +148,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         timestamp: Date.now(),
       });
     } catch {}
+    try {
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'store_update',
+          payload: { senderId: tabIdRef.current, timestamp: Date.now() },
+        });
+      }
+    } catch {}
   }, []);
 
   const silentFetchAll = useCallback(async () => {
@@ -416,8 +425,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId) return;
 
-    const channelName = `store-realtime-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const tenantKey = user?.tenantId || (user as any)?.tenantSlug || 'default';
+    const channelName = `store-tenant-${tenantKey}`;
     const channel = supabase.channel(channelName)
+      .on('broadcast', { event: 'store_update' }, (payload) => {
+        if (payload?.payload?.senderId !== tabIdRef.current) {
+          silentFetchAll();
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
         if (payload.eventType === 'INSERT') setProducts(prev => prev.some(p => p.id === payload.new.id) ? prev : [...prev, dbToProduct(payload.new)]);
         else if (payload.eventType === 'UPDATE') setProducts(prev => prev.map(p => p.id === payload.new.id ? dbToProduct(payload.new) : p));

@@ -748,20 +748,10 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   }
   parts.push(lineOf('-', cols));
 
-  // TOTAL Line - single line formatting guaranteed
+  // TOTAL Line - left-aligned single line guaranteed never to wrap on 55mm/58mm/80mm
   parts.push(CMD_ALIGN_LEFT, CMD_BOLD_ON);
   const totalValStr = fmtBRL(totalBilled);
-  const totalLabelStr = 'TOTAL';
-  const doubleCols = Math.floor(cols / 2);
-  if (totalLabelStr.length + totalValStr.length + 1 <= doubleCols) {
-    parts.push(CMD_DOUBLE_ON);
-    const gap = doubleCols - totalLabelStr.length - totalValStr.length;
-    parts.push(text(totalLabelStr + ' '.repeat(gap) + totalValStr + '\n'));
-    parts.push(CMD_DOUBLE_OFF);
-  } else {
-    const gap = Math.max(1, cols - totalLabelStr.length - totalValStr.length);
-    parts.push(text(totalLabelStr + ' '.repeat(gap) + totalValStr + '\n'));
-  }
+  parts.push(text(`TOTAL: ${totalValStr}\n`));
   parts.push(CMD_BOLD_OFF, lineOf('-', cols));
 
   // Payment

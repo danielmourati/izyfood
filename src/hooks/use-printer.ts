@@ -612,7 +612,7 @@ export function buildBillHtml(bill: any, ps: any = {}): string {
       ${items || '<p class="center">Nenhum item</p>'}
     </div>
     <div class="line"></div>
-    <div class="row bold" style="font-size: 16px;"><span>TOTAL</span><span>${fmtBRL(totalBilled)}</span></div>
+    <div class="bold" style="font-size: 16px; text-align: left; margin: 4px 0;">TOTAL: ${fmtBRL(totalBilled)}</div>
     ${payments ? `<div class="line" style="margin-top:10px;"></div><p class="bold">PAGAMENTO:</p>${payments}` : ''}
     <div class="footer-text" style="border-top: 1px dashed #000; margin-top: 12px; padding-top: 6px;">
       ${footerHtml}

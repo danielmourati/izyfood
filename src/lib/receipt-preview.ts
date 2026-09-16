@@ -229,7 +229,7 @@ export function buildBillPreviewText(
   if (deliveryFeeVal > 0) lines.push(row('Taxa de entrega:', fmtBRL(deliveryFeeVal), cols));
   lines.push(lineOf('-', cols));
 
-  lines.push(row('TOTAL', fmtBRL(totalBilled), cols));
+  lines.push(`TOTAL: ${fmtBRL(totalBilled)}`);
   lines.push(lineOf('-', cols));
 
   const hasPayment = (bill.paymentSplits && bill.paymentSplits.length > 0) || !!bill.paymentMethod;
