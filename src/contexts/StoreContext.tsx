@@ -1203,8 +1203,17 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
     markPending(o.id);
     if (o.tableNumber) markPending(o.tableNumber);
     try {
+      // O bloqueio da mesa é persistido no status: 'segurado' = bloqueado.
+      const lockAware = o.orderType === 'mesa' && o.status !== 'cancelado' && o.status !== 'finalizado';
+      const persistedStatus = lockAware
+        ? (o.isLocked ? 'segurado' : (o.status === 'segurado' ? 'aberto' : o.status))
+        : o.status;
+      const persistedHeldAt = persistedStatus === 'segurado'
+        ? (o.heldAt || new Date().toISOString())
+        : (lockAware ? null : o.heldAt || null);
+
       const orderPayload: any = {
-        id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: o.status,
+        id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: persistedStatus,
         table_number: o.tableNumber || null, customer_id: o.customerId || null,
         customer_name: o.customerName || null, customer_phone: o.customerPhone || null,
         customer_address: o.customerAddress || null, delivery_fee: o.deliveryFee || null,
@@ -1212,7 +1221,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
         motoboy_name: o.motoboyName || null, payment_method: o.paymentMethod || null,
         payment_splits: o.paymentSplits as any || null, discount: o.discount || null,
         discount_type: o.discountType || null, coupon_id: o.couponId || null,
-        loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
+        loyalty_redemptions: o.loyaltyRedemptions || null, held_at: persistedHeldAt,
         completed_at: o.completedAt || null,
         pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
         pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
