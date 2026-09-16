@@ -1199,7 +1199,7 @@ export function ConsumerOrderModal({
                       onCheckedChange={(checked) => {
                         setIsLocked(checked);
                         if (currentOrder) {
-                          const updated = { ...currentOrder, isLocked: checked };
+                          const updated: Order = { ...currentOrder, isLocked: checked, status: checked ? 'segurado' : 'aberto', heldAt: checked ? (currentOrder.heldAt || new Date().toISOString()) : undefined };
                           setCurrentOrder(updated);
                           onSaveOrder(updated);
                           toast.info(checked ? 'Pedido bloqueado' : 'Pedido desbloqueado');
@@ -1391,7 +1391,7 @@ export function ConsumerOrderModal({
                     onCheckedChange={(checked) => {
                       setIsLocked(checked);
                       if (currentOrder) {
-                        const updated = { ...currentOrder, isLocked: checked };
+                        const updated: Order = { ...currentOrder, isLocked: checked, status: checked ? 'segurado' : 'aberto', heldAt: checked ? (currentOrder.heldAt || new Date().toISOString()) : undefined };
                         setCurrentOrder(updated);
                         onSaveOrder(updated);
                         toast.info(checked ? 'Pedido bloqueado' : 'Pedido desbloqueado');
