@@ -14,6 +14,9 @@ const EMPTY_PRINT_SETTINGS: PrintSettings = {
   storeName: '',
 };
 
+/** Module-level tenant id holder shared with the sync helpers below */
+const tenantIdRef: { current: string | undefined } = { current: undefined };
+
 interface StoreContextType {
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
@@ -48,6 +51,10 @@ interface StoreContextType {
   updateTableCount: (count: number) => void;
   isCashRegisterOpen: boolean;
   loading: boolean;
+  /** Realtime websocket health for cross-device sync diagnostics */
+  syncStatus: 'connecting' | 'connected' | 'disconnected';
+  lastSyncAt: number | null;
+  realtimeEventCount: number;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -119,6 +126,52 @@ function saveLS(key: string, value: any) {
   } catch {}
 }
 
+// ============ Pending local changes (grace window) ============
+// The database is the source of truth. A local row only survives a refresh while
+// its own write is still in flight (short grace window), so deletions and status
+// changes made on another device always propagate.
+const PENDING_TTL_MS = 8000;
+type PendingMap = Map<string, number>;
+
+function markPendingIn(map: PendingMap, entity: string, ids: (string | number)[]) {
+  const now = Date.now();
+  ids.forEach(id => map.set(`${entity}:${id}`, now));
+}
+
+function isPendingIn(map: PendingMap, entity: string, id: string | number) {
+  const key = `${entity}:${id}`;
+  const t = map.get(key);
+  if (!t) return false;
+  if (Date.now() - t > PENDING_TTL_MS) {
+    map.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function changedIds<T extends { id: string }>(prev: T[], next: T[]): string[] {
+  const ids = new Set<string>();
+  next.forEach(n => {
+    const p = prev.find(pp => pp.id === n.id);
+    if (!p || JSON.stringify(p) !== JSON.stringify(n)) ids.add(n.id);
+  });
+  prev.forEach(p => { if (!next.find(n => n.id === p.id)) ids.add(p.id); });
+  return Array.from(ids);
+}
+
+function reconcileById<T extends { id: string }>(map: PendingMap, entity: string, dbRows: T[], prev: T[]): T[] {
+  const result = dbRows.map(row => {
+    if (isPendingIn(map, entity, row.id)) {
+      const local = prev.find(p => p.id === row.id);
+      if (local) return local;
+    }
+    return row;
+  });
+  const dbIds = new Set(dbRows.map(r => r.id));
+  const pendingLocal = prev.filter(p => !dbIds.has(p.id) && isPendingIn(map, entity, p.id));
+  return [...result, ...pendingLocal];
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -136,9 +189,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [printSettings, setPrintSettings] = useState<PrintSettings>({ ...EMPTY_PRINT_SETTINGS });
   const [isCashRegisterOpen, setIsCashRegisterOpen] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const tenantIdRef = useRef<string | undefined>(undefined);
+  
   const tabIdRef = useRef<string>(Math.random().toString(36).slice(2));
   const broadcastRef = useRef<BroadcastChannel | null>(null);
+  const pendingRef = useRef<PendingMap>(new Map());
+  const [syncStatus, setSyncStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const syncStatusRef = useRef<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [realtimeEventCount, setRealtimeEventCount] = useState(0);
+  const ordersSeqRef = useRef(0);
+  const ordersTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fullTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const markPending = useCallback((entity: string, ids: (string | number)[]) => {
+    markPendingIn(pendingRef.current, entity, ids);
+  }, []);
 
   const notifyCrossTabSync = useCallback(() => {
     try {
@@ -158,6 +223,91 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     } catch {}
   }, []);
+
+  // Applies orders + tables coming from the DB, deriving occupancy from active orders.
+  const applyOrdersAndTables = useCallback((ords: any[] | null, tbls: any[] | null) => {
+    const parsedOrds = (ords || []).map(dbToOrder);
+    if (ords) {
+      setOrders(prev => {
+        const merged = reconcileById(pendingRef.current, 'orders', parsedOrds, prev);
+        saveLS('izy_orders', merged);
+        return merged;
+      });
+    }
+
+    const localOrds = ordersRef.current || [];
+    const activeOrds = [...parsedOrds];
+    localOrds.forEach(l => {
+      if (
+        !activeOrds.some(o => o.id === l.id) &&
+        isPendingIn(pendingRef.current, 'orders', l.id) &&
+        l.status !== 'cancelado' && l.status !== 'concluido'
+      ) {
+        activeOrds.push(l);
+      }
+    });
+
+    const tableOrderMap = new Map<number, string>();
+    activeOrds.forEach(o => {
+      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+        tableOrderMap.set(Number(o.tableNumber), o.id);
+      }
+    });
+
+    setTables(prev => {
+      const tableMap = new Map<number, TableInfo>();
+      const baseCount = Math.max(20, tbls?.length || 0);
+      for (let i = 1; i <= baseCount; i++) tableMap.set(i, { number: i, status: 'available' });
+
+      (tbls || []).forEach(t => {
+        const tableObj = dbToTable(t);
+        tableMap.set(tableObj.number, tableObj);
+      });
+
+      tableOrderMap.forEach((orderId, tableNum) => {
+        const existing = tableMap.get(tableNum);
+        tableMap.set(tableNum, {
+          number: tableNum,
+          status: 'occupied',
+          orderId: orderId || existing?.orderId,
+        });
+      });
+
+      // Keep the local state only while this device's own change is still in flight.
+      prev.forEach(t => {
+        if (isPendingIn(pendingRef.current, 'tables', t.number)) tableMap.set(t.number, t);
+      });
+
+      const merged = Array.from(tableMap.values()).sort((a, b) => a.number - b.number);
+      saveLS('izy_tables', merged);
+      return merged;
+    });
+  }, []);
+
+  // Targeted refresh for the hot path (orders + tables), with stale-response guard.
+  const refreshOrdersAndTables = useCallback(async () => {
+    if (!user?.id) return;
+    const seq = ++ordersSeqRef.current;
+    try {
+      const [{ data: ords }, { data: tbls }] = await Promise.all([
+        supabase.from('orders').select('*').order('created_at', { ascending: false }),
+        supabase.from('store_tables').select('*').order('number'),
+      ]);
+      if (seq !== ordersSeqRef.current) return; // a newer refresh already ran
+      applyOrdersAndTables(ords, tbls);
+      setLastSyncAt(Date.now());
+    } catch (err) {
+      console.warn('[StoreContext] Orders/tables refresh error:', err);
+    }
+  }, [user?.id, applyOrdersAndTables]);
+
+  const scheduleOrdersRefresh = useCallback(() => {
+    if (ordersTimerRef.current) return;
+    ordersTimerRef.current = setTimeout(() => {
+      ordersTimerRef.current = null;
+      refreshOrdersAndTables();
+    }, 300);
+  }, [refreshOrdersAndTables]);
 
   const silentFetchAll = useCallback(async () => {
     if (!user?.id) return;
@@ -193,51 +343,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       if (cats) {
         setCategories(prev => {
-          const dbCats = cats.map(dbToCategory);
-          const dbIds = new Set(dbCats.map(c => c.id));
-          const localOnly = prev.filter(c => !dbIds.has(c.id));
-          const merged = [...dbCats, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'categories', cats.map(dbToCategory), prev);
           saveLS('izy_categories', merged);
           return merged;
         });
       }
       if (prods) {
         setProducts(prev => {
-          const dbProds = prods.map(dbToProduct);
-          const dbIds = new Set(dbProds.map(p => p.id));
-          const localOnly = prev.filter(p => !dbIds.has(p.id));
-          const merged = [...dbProds, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'products', prods.map(dbToProduct), prev);
           saveLS('izy_products', merged);
           return merged;
         });
       }
       if (custs) {
         setCustomers(prev => {
-          const dbCusts = custs.map(dbToCustomer);
-          const dbIds = new Set(dbCusts.map(c => c.id));
-          const localOnly = prev.filter(c => !dbIds.has(c.id));
-          const merged = [...dbCusts, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'customers', custs.map(dbToCustomer), prev);
           saveLS('izy_customers', merged);
           return merged;
         });
       }
       if (supps) {
         setSuppliers(prev => {
-          const dbSupps = supps.map(dbToSupplier);
-          const dbIds = new Set(dbSupps.map(s => s.id));
-          const localOnly = prev.filter(s => !dbIds.has(s.id));
-          const merged = [...dbSupps, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'suppliers', supps.map(dbToSupplier), prev);
           saveLS('izy_suppliers', merged);
-          return merged;
-        });
-      }
-      if (ords) {
-        const parsedOrds = ords.map(dbToOrder);
-        setOrders(prev => {
-          const dbIds = new Set(parsedOrds.map(o => o.id));
-          const activeLocalOrds = prev.filter(o => o.status !== 'cancelado' && o.status !== 'concluido' && !dbIds.has(o.id));
-          const merged = [...parsedOrds, ...activeLocalOrds];
-          saveLS('izy_orders', merged);
           return merged;
         });
       }
@@ -252,64 +380,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         saveLS('izy_stock_entries', parsedStks);
       }
 
-      // Parse active orders to identify occupied tables from DB order data
-      const parsedDbOrds = (ords || []).map(dbToOrder);
-      const currentLocalOrds = ordersRef.current || [];
-      const allActiveOrds = [...parsedDbOrds];
-      currentLocalOrds.forEach(l => {
-        if (!allActiveOrds.some(o => o.id === l.id) && l.status !== 'cancelado' && l.status !== 'concluido') {
-          allActiveOrds.push(l);
-        }
-      });
-
-      const tableOrderMap = new Map<number, string>();
-      allActiveOrds.forEach(o => {
-        if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
-          tableOrderMap.set(Number(o.tableNumber), o.id);
-        }
-      });
-
-      setTables(prev => {
-        const tableMap = new Map<number, TableInfo>();
-
-        // 1. Initialize default 20 tables as available
-        for (let i = 1; i <= 20; i++) {
-          tableMap.set(i, { number: i, status: 'available' });
-        }
-
-        // 2. Overlay DB tbls
-        if (tbls && tbls.length > 0) {
-          tbls.forEach(t => {
-            const tableObj = dbToTable(t);
-            tableMap.set(tableObj.number, tableObj);
-          });
-        }
-
-        // 3. Overlay active orders map
-        tableOrderMap.forEach((orderId, tableNum) => {
-          const existing = tableMap.get(tableNum);
-          tableMap.set(tableNum, {
-            number: tableNum,
-            status: 'occupied',
-            orderId: orderId || existing?.orderId,
-          });
-        });
-
-        // 4. Preserve occupied status if store_tables DB has occupied OR active order exists
-        prev.forEach(t => {
-          if (t.status === 'occupied') {
-            const isDbOccupied = tbls?.some(dbt => dbt.number === t.number && dbt.status === 'occupied');
-            const hasActiveOrder = allActiveOrds.some(o => Number(o.tableNumber) === t.number && o.status !== 'cancelado' && o.status !== 'concluido');
-            if (isDbOccupied || hasActiveOrder) {
-              tableMap.set(t.number, t);
-            }
-          }
-        });
-
-        const merged = Array.from(tableMap.values()).sort((a, b) => a.number - b.number);
-        saveLS('izy_tables', merged);
-        return merged;
-      });
+      // Orders + tables are reconciled together (occupancy derives from active orders)
+      applyOrdersAndTables(ords, tbls);
       if (cpns) {
         const parsedCpns = cpns.map(dbToCoupon);
         setCoupons(parsedCpns);
@@ -317,10 +389,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       if (opts) {
         setNoteOptions(prev => {
-          const dbOpts = opts.map(dbToNoteOption);
-          const dbIds = new Set(dbOpts.map(o => o.id));
-          const localOnly = prev.filter(o => !dbIds.has(o.id));
-          const merged = [...dbOpts, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'noteOptions', opts.map(dbToNoteOption), prev);
           saveLS('izy_note_options', merged);
           return merged;
         });
@@ -403,10 +472,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('storage', handleStorage);
 
-    // 3. Silent background heartbeat every 5 seconds for multi-device data parity
+    // 3. Safety-net polling: only when the realtime websocket is not healthy
     const heartbeatId = setInterval(() => {
-      silentFetchAll();
-    }, 5000);
+      if (syncStatusRef.current !== 'connected') silentFetchAll();
+    }, 20000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -425,30 +494,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!userId) return;
 
     const tenantKey = user?.tenantId || (user as any)?.tenantSlug || 'default';
-    const broadcastChannelName = `store-tenant-broadcast-${tenantKey}`;
-    const broadcastChannel = supabase.channel(broadcastChannelName, {
+    let disposed = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let broadcastChannel: RealtimeChannel | null = null;
+    let dbChannel: RealtimeChannel | null = null;
+
+    const trackEvent = () => {
+      setRealtimeEventCount(c => c + 1);
+      setLastSyncAt(Date.now());
+    };
+
+    const setStatus = (s: 'connecting' | 'connected' | 'disconnected') => {
+      syncStatusRef.current = s;
+      setSyncStatus(s);
+    };
+
+    const scheduleReconnect = () => {
+      if (disposed || retryTimer) return;
+      const delays = [1000, 2000, 5000, 10000, 30000];
+      const wait = delays[Math.min(attempt, delays.length - 1)];
+      attempt += 1;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        connect();
+      }, wait);
+    };
+
+    const teardown = () => {
+      if (broadcastChannel) { supabase.removeChannel(broadcastChannel); broadcastChannel = null; }
+      if (dbChannel) { supabase.removeChannel(dbChannel); dbChannel = null; }
+      channelRef.current = null;
+    };
+
+    function connect() {
+      if (disposed) return;
+      teardown();
+      setStatus('connecting');
+
+    const broadcastChannelName = `store-tenant-broadcast-${tenantKey}-${tabIdRef.current}`;
+    broadcastChannel = supabase.channel(broadcastChannelName, {
       config: { broadcast: { ack: false, self: true } },
     })
       .on('broadcast', { event: 'store_update' }, (payload) => {
         if (payload?.payload?.senderId !== tabIdRef.current) {
+          trackEvent();
           silentFetchAll();
         }
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          silentFetchAll();
-        }
-      });
+      .subscribe();
 
     channelRef.current = broadcastChannel;
 
-    const dbChannelName = `store-tenant-db-${tenantKey}`;
-    const dbChannel = supabase.channel(dbChannelName)
+    const dbChannelName = `store-tenant-db-${tenantKey}-${tabIdRef.current}`;
+    dbChannel = supabase.channel(dbChannelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        silentFetchAll();
+        trackEvent();
+        scheduleOrdersRefresh();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, () => {
-        silentFetchAll();
+        trackEvent();
+        scheduleOrdersRefresh();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
         if (payload.eventType === 'INSERT') setProducts(prev => prev.some(p => p.id === payload.new.id) ? prev : [...prev, dbToProduct(payload.new)]);
