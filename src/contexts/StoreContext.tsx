@@ -14,6 +14,8 @@ const EMPTY_PRINT_SETTINGS: PrintSettings = {
   storeName: '',
 };
 
+export type RealtimeStatus = 'SUBSCRIBED' | 'CONNECTING' | 'RECONNECTING' | 'ERROR' | 'CLOSED';
+
 interface StoreContextType {
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
@@ -37,7 +39,6 @@ interface StoreContextType {
   setNoteOptions: React.Dispatch<React.SetStateAction<ProductNoteOption[]>>;
   settings: StoreSettings;
   setSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
-  /** Consolidated print configuration for this tenant — always in memory, never stale */
   printSettings: PrintSettings;
   setPrintSettings: React.Dispatch<React.SetStateAction<PrintSettings>>;
   occupyTable: (tableNumber: number, orderId: string) => Promise<void>;
@@ -48,6 +49,10 @@ interface StoreContextType {
   updateTableCount: (count: number) => void;
   isCashRegisterOpen: boolean;
   loading: boolean;
+  realtimeStatus: RealtimeStatus;
+  lastRealtimeEventTime: number | null;
+  realtimeEventCounts: Record<string, number>;
+  fetchAll: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -119,6 +124,8 @@ function saveLS(key: string, value: any) {
   } catch { }
 }
 
+const PENDING_GRACE_MS = 8000;
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -142,9 +149,60 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [realtimeEventCounts, setRealtimeEventCounts] = useState<Record<string, number>>({});
 
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const dbChannelRef = useRef<RealtimeChannel | null>(null);
   const tenantIdRef = useRef<string | undefined>(undefined);
   const tabIdRef = useRef<string>(Math.random().toString(36).slice(2));
   const broadcastRef = useRef<BroadcastChannel | null>(null);
+  const pendingIdsRef = useRef<Map<string, number>>(new Map());
+  const retryDelayRef = useRef<number>(1000);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const realtimeStatusRef = useRef<RealtimeStatus>('CONNECTING');
+  realtimeStatusRef.current = realtimeStatus;
+
+  // Track local modifications with timestamp
+  const markPending = useCallback((id: string | number) => {
+    if (!id) return;
+    pendingIdsRef.current.set(String(id), Date.now());
+  }, []);
+
+  const isPendingLocalChange = useCallback((id: string | number) => {
+    if (!id) return false;
+    const ts = pendingIdsRef.current.get(String(id));
+    if (!ts) return false;
+    if (Date.now() - ts > PENDING_GRACE_MS) {
+      pendingIdsRef.current.delete(String(id));
+      return false;
+    }
+    return true;
+  }, []);
+
+  const recordRealtimeEvent = useCallback((table: string) => {
+    const now = Date.now();
+    setLastRealtimeEventTime(now);
+    setRealtimeEventCounts(prev => ({
+      ...prev,
+      [table]: (prev[table] || 0) + 1,
+    }));
+  }, []);
+
+  // Per-entity sequence numbers to discard stale out-of-order DB responses
+  const seqRef = useRef<{ [entity: string]: number }>({
+    categories: 0, products: 0, customers: 0, suppliers: 0,
+    orders: 0, sales: 0, stockEntries: 0, tables: 0,
+    coupons: 0, noteOptions: 0, settings: 0,
+  });
+
+  // Debounce timers for burst events
+  const debounceTimersRef = useRef<{ [entity: string]: NodeJS.Timeout }>({});
+
+  const debounceFetch = useCallback((entity: string, fetchFn: () => Promise<void>, delay = 300) => {
+    if (debounceTimersRef.current[entity]) {
+      clearTimeout(debounceTimersRef.current[entity]);
+    }
+    debounceTimersRef.current[entity] = setTimeout(() => {
+      fetchFn();
+    }, delay);
+  }, []);
 
   const notifyCrossTabSync = useCallback(() => {
     try {
@@ -165,31 +223,136 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch { }
   }, []);
 
-  // Applies orders + tables coming from the DB, deriving occupancy from active orders.
-  const applyOrdersAndTables = useCallback((ords: any[] | null, tbls: any[] | null) => {
-    const parsedOrds = (ords || []).map(dbToOrder);
+  // Granular Entity Fetchers
+  const fetchCategories = useCallback(async () => {
+    const currentSeq = ++seqRef.current.categories;
+    const { data: cats } = await supabase.from('categories').select('*');
+    if (seqRef.current.categories !== currentSeq) return;
+    if (cats) {
+      setCategories(prev => {
+        const dbCats = cats.map(dbToCategory);
+        const dbIds = new Set(dbCats.map(c => c.id));
+        const pendingLocal = prev.filter(c => !dbIds.has(c.id) && isPendingLocalChange(c.id));
+        const merged = [...dbCats, ...pendingLocal];
+        saveLS('izy_categories', merged);
+        return merged;
+      });
+    }
+  }, [isPendingLocalChange]);
+
+  const fetchProducts = useCallback(async () => {
+    const currentSeq = ++seqRef.current.products;
+    const { data: prods } = await supabase.from('products').select('*');
+    if (seqRef.current.products !== currentSeq) return;
+    if (prods) {
+      setProducts(prev => {
+        const dbProds = prods.map(dbToProduct);
+        const dbIds = new Set(dbProds.map(p => p.id));
+        const pendingLocal = prev.filter(p => !dbIds.has(p.id) && isPendingLocalChange(p.id));
+        const merged = [...dbProds, ...pendingLocal];
+        saveLS('izy_products', merged);
+        return merged;
+      });
+    }
+  }, [isPendingLocalChange]);
+
+  const fetchCustomers = useCallback(async () => {
+    const currentSeq = ++seqRef.current.customers;
+    const { data: custs } = await supabase.from('customers').select('*');
+    if (seqRef.current.customers !== currentSeq) return;
+    if (custs) {
+      setCustomers(prev => {
+        const dbCusts = custs.map(dbToCustomer);
+        const dbIds = new Set(dbCusts.map(c => c.id));
+        const pendingLocal = prev.filter(c => !dbIds.has(c.id) && isPendingLocalChange(c.id));
+        const merged = [...dbCusts, ...pendingLocal];
+        saveLS('izy_customers', merged);
+        return merged;
+      });
+    }
+  }, [isPendingLocalChange]);
+
+  const fetchSuppliers = useCallback(async () => {
+    const currentSeq = ++seqRef.current.suppliers;
+    const { data: supps } = await supabase.from('suppliers').select('*');
+    if (seqRef.current.suppliers !== currentSeq) return;
+    if (supps) {
+      setSuppliers(prev => {
+        const dbSupps = supps.map(dbToSupplier);
+        const dbIds = new Set(dbSupps.map(s => s.id));
+        const pendingLocal = prev.filter(s => !dbIds.has(s.id) && isPendingLocalChange(s.id));
+        const merged = [...dbSupps, ...pendingLocal];
+        saveLS('izy_suppliers', merged);
+        return merged;
+      });
+    }
+  }, [isPendingLocalChange]);
+
+  const fetchOrders = useCallback(async () => {
+    const currentSeq = ++seqRef.current.orders;
+    const { data: ords } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    if (seqRef.current.orders !== currentSeq) return;
     if (ords) {
+      const parsedOrds = ords.map(dbToOrder);
       setOrders(prev => {
-        const merged = reconcileById(pendingRef.current, 'orders', parsedOrds, prev);
+        const dbIds = new Set(parsedOrds.map(o => o.id));
+        const activeLocalOrds = prev.filter(o => 
+          o.status !== 'cancelado' && 
+          o.status !== 'concluido' && 
+          !dbIds.has(o.id) && 
+          isPendingLocalChange(o.id)
+        );
+        const merged = [...parsedOrds, ...activeLocalOrds];
         saveLS('izy_orders', merged);
         return merged;
       });
     }
+  }, [isPendingLocalChange]);
 
-    const localOrds = ordersRef.current || [];
-    const activeOrds = [...parsedOrds];
-    localOrds.forEach(l => {
-      if (
-        !activeOrds.some(o => o.id === l.id) &&
-        isPendingIn(pendingRef.current, 'orders', l.id) &&
-        l.status !== 'cancelado' && l.status !== 'concluido'
-      ) {
-        activeOrds.push(l);
+  const fetchSales = useCallback(async () => {
+    const currentSeq = ++seqRef.current.sales;
+    const { data: sls } = await supabase.from('sales').select('*').order('date', { ascending: false });
+    if (seqRef.current.sales !== currentSeq) return;
+    if (sls) {
+      const parsedSls = sls.map(dbToSale);
+      setSales(parsedSls);
+      saveLS('izy_sales', parsedSls);
+    }
+  }, []);
+
+  const fetchStockEntries = useCallback(async () => {
+    const currentSeq = ++seqRef.current.stockEntries;
+    const { data: stks } = await supabase.from('stock_entries').select('*').order('date', { ascending: false });
+    if (seqRef.current.stockEntries !== currentSeq) return;
+    if (stks) {
+      const parsedStks = stks.map(dbToStockEntry);
+      setStockEntries(parsedStks);
+      saveLS('izy_stock_entries', parsedStks);
+    }
+  }, []);
+
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
+
+  const fetchTables = useCallback(async () => {
+    const currentSeq = ++seqRef.current.tables;
+    const [{ data: tbls }, { data: ords }] = await Promise.all([
+      supabase.from('store_tables').select('*').order('number'),
+      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+    ]);
+    if (seqRef.current.tables !== currentSeq) return;
+
+    const parsedDbOrds = (ords || []).map(dbToOrder);
+    const currentLocalOrds = ordersRef.current || [];
+    const allActiveOrds = [...parsedDbOrds];
+    currentLocalOrds.forEach(l => {
+      if (!allActiveOrds.some(o => o.id === l.id) && l.status !== 'cancelado' && l.status !== 'concluido' && isPendingLocalChange(l.id)) {
+        allActiveOrds.push(l);
       }
     });
 
     const tableOrderMap = new Map<number, string>();
-    activeOrds.forEach(o => {
+    allActiveOrds.forEach(o => {
       if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
         tableOrderMap.set(Number(o.tableNumber), o.id);
       }
@@ -197,14 +360,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     setTables(prev => {
       const tableMap = new Map<number, TableInfo>();
-      const baseCount = Math.max(20, tbls?.length || 0);
-      for (let i = 1; i <= baseCount; i++) tableMap.set(i, { number: i, status: 'available' });
 
-      (tbls || []).forEach(t => {
-        const tableObj = dbToTable(t);
-        tableMap.set(tableObj.number, tableObj);
-      });
+      // 1. Default 20 tables as available
+      for (let i = 1; i <= 20; i++) {
+        tableMap.set(i, { number: i, status: 'available' });
+      }
 
+      // 2. Overlay DB tables
+      if (tbls && tbls.length > 0) {
+        tbls.forEach(t => {
+          const tableObj = dbToTable(t);
+          tableMap.set(tableObj.number, tableObj);
+        });
+      }
+
+      // 3. Overlay active orders map
       tableOrderMap.forEach((orderId, tableNum) => {
         const existing = tableMap.get(tableNum);
         tableMap.set(tableNum, {
@@ -214,225 +384,102 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
       });
 
-      // Keep the local state only while this device's own change is still in flight.
+      // 4. Preserve occupied status ONLY if a local change was registered within grace window
       prev.forEach(t => {
-        if (isPendingIn(pendingRef.current, 'tables', t.number)) tableMap.set(t.number, t);
+        if (t.status === 'occupied') {
+          const hasPendingChange = isPendingLocalChange(t.number) || (t.orderId && isPendingLocalChange(t.orderId));
+          if (hasPendingChange) {
+            tableMap.set(t.number, t);
+          }
+        }
       });
 
       const merged = Array.from(tableMap.values()).sort((a, b) => a.number - b.number);
       saveLS('izy_tables', merged);
       return merged;
     });
+  }, [isPendingLocalChange]);
+
+  const fetchCoupons = useCallback(async () => {
+    const currentSeq = ++seqRef.current.coupons;
+    const { data: cpns } = await supabase.from('coupons').select('*');
+    if (seqRef.current.coupons !== currentSeq) return;
+    if (cpns) {
+      const parsedCpns = cpns.map(dbToCoupon);
+      setCoupons(parsedCpns);
+      saveLS('izy_coupons', parsedCpns);
+    }
   }, []);
 
-  // Targeted refresh for the hot path (orders + tables), with stale-response guard.
-  const refreshOrdersAndTables = useCallback(async () => {
-    if (!user?.id) return;
-    const seq = ++ordersSeqRef.current;
-    try {
-      const [{ data: ords }, { data: tbls }] = await Promise.all([
-        supabase.from('orders').select('*').order('created_at', { ascending: false }),
-        supabase.from('store_tables').select('*').order('number'),
-      ]);
-      if (seq !== ordersSeqRef.current) return; // a newer refresh already ran
-      applyOrdersAndTables(ords, tbls);
-      setLastSyncAt(Date.now());
-    } catch (err) {
-      console.warn('[StoreContext] Orders/tables refresh error:', err);
+  const fetchNoteOptions = useCallback(async () => {
+    const currentSeq = ++seqRef.current.noteOptions;
+    const { data: opts } = await supabase.from('product_note_options').select('*');
+    if (seqRef.current.noteOptions !== currentSeq) return;
+    if (opts) {
+      setNoteOptions(prev => {
+        const dbOpts = opts.map(dbToNoteOption);
+        const dbIds = new Set(dbOpts.map(o => o.id));
+        const pendingLocal = prev.filter(o => !dbIds.has(o.id) && isPendingLocalChange(o.id));
+        const merged = [...dbOpts, ...pendingLocal];
+        saveLS('izy_note_options', merged);
+        return merged;
+      });
     }
-  }, [user?.id, applyOrdersAndTables]);
+  }, [isPendingLocalChange]);
 
-  const scheduleOrdersRefresh = useCallback(() => {
-    if (ordersTimerRef.current) return;
-    ordersTimerRef.current = setTimeout(() => {
-      ordersTimerRef.current = null;
-      refreshOrdersAndTables();
-    }, 300);
-  }, [refreshOrdersAndTables]);
-
-  const silentFetchAll = useCallback(async () => {
-    if (!user?.id) return;
+  const fetchSettings = useCallback(async () => {
+    const currentSeq = ++seqRef.current.settings;
     const tenantId = user?.tenantId;
     tenantIdRef.current = tenantId;
     const lsKey = tenantId ? `print_settings_${tenantId}` : null;
 
+    const [{ data: setts }, { data: cashRegs }, tenantNameRes] = await Promise.all([
+      tenantId
+        ? supabase.from('store_settings').select('*').eq('tenant_id', tenantId).limit(1)
+        : supabase.from('store_settings').select('*').limit(1),
+      supabase.from('cash_registers').select('id').is('closed_at', null).limit(1),
+      tenantId
+        ? supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    if (seqRef.current.settings !== currentSeq) return;
+
+    if (setts && setts.length > 0) {
+      setSettings({
+        tableCount: setts[0].table_count,
+        serviceFeePercentage: setts[0].service_fee_percentage ? Number(setts[0].service_fee_percentage) : undefined,
+      });
+      const tenantName = (tenantNameRes as any)?.data?.name || '';
+      const dbPs = (setts[0] as any).print_settings;
+      if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
+        const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, ...dbPs, storeName: tenantName };
+        setPrintSettings(merged);
+        if (lsKey) {
+          localStorage.setItem(lsKey, JSON.stringify(merged));
+          (window as any).__printSettingsCache = merged;
+        }
+      }
+    }
+    setIsCashRegisterOpen(!!(cashRegs && cashRegs.length > 0));
+  }, [user?.tenantId]);
+
+  const fetchAll = useCallback(async () => {
+    if (!user?.id) return;
     try {
-      const [
-        { data: cats }, { data: prods }, { data: custs }, { data: supps },
-        { data: ords }, { data: sls }, { data: stks }, { data: tbls },
-        { data: cpns }, { data: opts }, { data: setts }, { data: cashRegs },
-        tenantNameRes,
-      ] = await Promise.all([
-        supabase.from('categories').select('*'),
-        supabase.from('products').select('*'),
-        supabase.from('customers').select('*'),
-        supabase.from('suppliers').select('*'),
-        supabase.from('orders').select('*').order('created_at', { ascending: false }),
-        supabase.from('sales').select('*').order('date', { ascending: false }),
-        supabase.from('stock_entries').select('*').order('date', { ascending: false }),
-        supabase.from('store_tables').select('*').order('number'),
-        supabase.from('coupons').select('*'),
-        supabase.from('product_note_options').select('*'),
-        tenantId
-          ? supabase.from('store_settings').select('*').eq('tenant_id', tenantId).limit(1)
-          : supabase.from('store_settings').select('*').limit(1),
-        supabase.from('cash_registers').select('id').is('closed_at', null).limit(1),
-        tenantId
-          ? supabase.from('tenants').select('name').eq('id', tenantId).limit(1).maybeSingle()
-          : Promise.resolve({ data: null, error: null }),
+      await Promise.all([
+        fetchCategories(),
+        fetchProducts(),
+        fetchCustomers(),
+        fetchSuppliers(),
+        fetchOrders(),
+        fetchSales(),
+        fetchStockEntries(),
+        fetchTables(),
+        fetchCoupons(),
+        fetchNoteOptions(),
+        fetchSettings(),
       ]);
-
-      if (cats) {
-        setCategories(prev => {
-          const dbCats = cats.map(dbToCategory);
-          const dbIds = new Set(dbCats.map(c => c.id));
-          const localOnly = prev.filter(c => !dbIds.has(c.id));
-          const merged = [...dbCats, ...localOnly];
-          saveLS('izy_categories', merged);
-          return merged;
-        });
-      }
-      if (prods) {
-        setProducts(prev => {
-          const dbProds = prods.map(dbToProduct);
-          const dbIds = new Set(dbProds.map(p => p.id));
-          const localOnly = prev.filter(p => !dbIds.has(p.id));
-          const merged = [...dbProds, ...localOnly];
-          saveLS('izy_products', merged);
-          return merged;
-        });
-      }
-      if (custs) {
-        setCustomers(prev => {
-          const dbCusts = custs.map(dbToCustomer);
-          const dbIds = new Set(dbCusts.map(c => c.id));
-          const localOnly = prev.filter(c => !dbIds.has(c.id));
-          const merged = [...dbCusts, ...localOnly];
-          saveLS('izy_customers', merged);
-          return merged;
-        });
-      }
-      if (supps) {
-        setSuppliers(prev => {
-          const dbSupps = supps.map(dbToSupplier);
-          const dbIds = new Set(dbSupps.map(s => s.id));
-          const localOnly = prev.filter(s => !dbIds.has(s.id));
-          const merged = [...dbSupps, ...localOnly];
-          saveLS('izy_suppliers', merged);
-          return merged;
-        });
-      }
-      if (ords) {
-        const parsedOrds = ords.map(dbToOrder);
-        setOrders(prev => {
-          const dbIds = new Set(parsedOrds.map(o => o.id));
-          const activeLocalOrds = prev.filter(o => o.status !== 'cancelado' && o.status !== 'concluido' && !dbIds.has(o.id));
-          const merged = [...parsedOrds, ...activeLocalOrds];
-          saveLS('izy_orders', merged);
-          return merged;
-        });
-      }
-      if (sls) {
-        const parsedSls = sls.map(dbToSale);
-        setSales(parsedSls);
-        saveLS('izy_sales', parsedSls);
-      }
-      if (stks) {
-        const parsedStks = stks.map(dbToStockEntry);
-        setStockEntries(parsedStks);
-        saveLS('izy_stock_entries', parsedStks);
-      }
-
-      // Parse active orders to identify occupied tables from DB order data
-      const parsedDbOrds = (ords || []).map(dbToOrder);
-      const currentLocalOrds = ordersRef.current || [];
-      const allActiveOrds = [...parsedDbOrds];
-      currentLocalOrds.forEach(l => {
-        if (!allActiveOrds.some(o => o.id === l.id) && l.status !== 'cancelado' && l.status !== 'concluido') {
-          allActiveOrds.push(l);
-        }
-      });
-
-      const tableOrderMap = new Map<number, string>();
-      allActiveOrds.forEach(o => {
-        if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
-          tableOrderMap.set(Number(o.tableNumber), o.id);
-        }
-      });
-
-      setTables(prev => {
-        const tableMap = new Map<number, TableInfo>();
-
-        // 1. Initialize default 20 tables as available
-        for (let i = 1; i <= 20; i++) {
-          tableMap.set(i, { number: i, status: 'available' });
-        }
-
-        // 2. Overlay DB tbls
-        if (tbls && tbls.length > 0) {
-          tbls.forEach(t => {
-            const tableObj = dbToTable(t);
-            tableMap.set(tableObj.number, tableObj);
-          });
-        }
-
-        // 3. Overlay active orders map
-        tableOrderMap.forEach((orderId, tableNum) => {
-          const existing = tableMap.get(tableNum);
-          tableMap.set(tableNum, {
-            number: tableNum,
-            status: 'occupied',
-            orderId: orderId || existing?.orderId,
-          });
-        });
-
-        // 4. Preserve occupied status if store_tables DB has occupied OR active order exists
-        prev.forEach(t => {
-          if (t.status === 'occupied') {
-            const isDbOccupied = tbls?.some(dbt => dbt.number === t.number && dbt.status === 'occupied');
-            const hasActiveOrder = allActiveOrds.some(o => Number(o.tableNumber) === t.number && o.status !== 'cancelado' && o.status !== 'concluido');
-            if (isDbOccupied || hasActiveOrder) {
-              tableMap.set(t.number, t);
-            }
-          }
-        });
-
-        const merged = Array.from(tableMap.values()).sort((a, b) => a.number - b.number);
-        saveLS('izy_tables', merged);
-        return merged;
-      });
-      if (cpns) {
-        const parsedCpns = cpns.map(dbToCoupon);
-        setCoupons(parsedCpns);
-        saveLS('izy_coupons', parsedCpns);
-      }
-      if (opts) {
-        setNoteOptions(prev => {
-          const dbOpts = opts.map(dbToNoteOption);
-          const dbIds = new Set(dbOpts.map(o => o.id));
-          const localOnly = prev.filter(o => !dbIds.has(o.id));
-          const merged = [...dbOpts, ...localOnly];
-          saveLS('izy_note_options', merged);
-          return merged;
-        });
-      }
-      if (setts && setts.length > 0) {
-        setSettings({
-          tableCount: setts[0].table_count,
-          serviceFeePercentage: setts[0].service_fee_percentage ? Number(setts[0].service_fee_percentage) : undefined,
-        });
-        const tenantName = (tenantNameRes as any)?.data?.name || '';
-        const dbPs = (setts[0] as any).print_settings;
-        if (dbPs && typeof dbPs === 'object' && Object.keys(dbPs).length > 0) {
-          const merged: PrintSettings = { ...EMPTY_PRINT_SETTINGS, ...dbPs, storeName: tenantName };
-          setPrintSettings(merged);
-          if (lsKey) {
-            localStorage.setItem(lsKey, JSON.stringify(merged));
-            (window as any).__printSettingsCache = merged;
-          }
-        }
-      }
-      setIsCashRegisterOpen(!!(cashRegs && cashRegs.length > 0));
     } catch (err) {
       console.warn('[StoreContext] fetchAll error:', err);
     }
@@ -458,93 +505,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [userId, fetchAll]);
 
-  // ============ Silent Multi-Tab & Cross-Device Event Listeners ============
-  useEffect(() => {
-    if (!userId) return;
-
-    // 1. Cross-Tab BroadcastChannel
-    if (typeof BroadcastChannel !== 'undefined') {
-      try {
-        const bc = new BroadcastChannel('izyfood-realtime-cross-tab');
-        bc.onmessage = (ev) => {
-          if (ev.data && ev.data.senderId !== tabIdRef.current) {
-            silentFetchAll();
-          }
-        };
-        broadcastRef.current = bc;
-      } catch (e) {
-        console.warn('[StoreContext] BroadcastChannel unsupported:', e);
-      }
-    }
-
-    // 2. Window Visibility & Online listeners
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        silentFetchAll();
-      }
-    };
-    const handleOnline = () => {
-      silentFetchAll();
-    };
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key && e.key.startsWith('print_settings_') && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue);
-          setPrintSettings(prev => ({ ...prev, ...parsed }));
-        } catch { }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('storage', handleStorage);
-
-    // 3. Silent background heartbeat every 5 seconds for multi-device data parity
-    const heartbeatId = setInterval(() => {
-      silentFetchAll();
-    }, 5000);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('storage', handleStorage);
-      clearInterval(heartbeatId);
-      if (broadcastRef.current) {
-        broadcastRef.current.close();
-        broadcastRef.current = null;
-      }
-    };
-  }, [userId, silentFetchAll]);
-
-  // ============ Realtime subscriptions (Supabase WebSockets) ============
-  useEffect(() => {
+  // Setup subscriptions with exponential backoff
+  const setupRealtimeSubscriptions = useCallback(() => {
     if (!userId) return;
 
     const tenantKey = user?.tenantId || (user as any)?.tenantSlug || 'default';
+
+    // Broadcast channel
     const broadcastChannelName = `store-tenant-broadcast-${tenantKey}`;
     const broadcastChannel = supabase.channel(broadcastChannelName, {
       config: { broadcast: { ack: false, self: true } },
     })
       .on('broadcast', { event: 'store_update' }, (payload) => {
         if (payload?.payload?.senderId !== tabIdRef.current) {
-          silentFetchAll();
+          recordRealtimeEvent('broadcast');
+          debounceFetch('all', fetchAll, 300);
         }
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          silentFetchAll();
+          setRealtimeStatus('SUBSCRIBED');
+          retryDelayRef.current = 1000;
+          fetchAll();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setRealtimeStatus('RECONNECTING');
+          scheduleReconnect();
         }
       });
 
     channelRef.current = broadcastChannel;
 
+    // Database postgres_changes channel
     const dbChannelName = `store-tenant-db-${tenantKey}`;
     const dbChannel = supabase.channel(dbChannelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        silentFetchAll();
+        recordRealtimeEvent('orders');
+        debounceFetch('orders', fetchOrders, 300);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, () => {
-        silentFetchAll();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, (payload) => {
+        recordRealtimeEvent('store_tables');
+        if (payload.eventType === 'DELETE') {
+          const deletedNumber = payload.old?.number;
+          if (deletedNumber && isPendingLocalChange(deletedNumber)) {
+            return;
+          }
+        }
+        debounceFetch('tables', fetchTables, 300);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
         recordRealtimeEvent('products');
@@ -1205,4 +1211,3 @@ async function syncNoteOptions(prev: ProductNoteOption[], next: ProductNoteOptio
   for (const o of updated) { markPending(o.id); await supabase.from('product_note_options').update({ name: o.name, type: o.type, price: o.price, category_ids: o.categoryIds, active: o.active }).eq('id', o.id); }
   for (const o of removed) { markPending(o.id); await supabase.from('product_note_options').delete().eq('id', o.id); }
 }
-
