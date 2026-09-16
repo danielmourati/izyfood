@@ -32,18 +32,37 @@ const Mesas = () => {
     return tables.filter(t => String(t.number).includes(searchQuery.trim()));
   }, [tables, searchQuery]);
 
-  const occupiedTables = useMemo(() => filteredTables.filter(t => t.status === 'occupied'), [filteredTables]);
-  const availableTables = useMemo(() => filteredTables.filter(t => t.status === 'available'), [filteredTables]);
+  const activeMesaOrders = useMemo(() => {
+    const map = new Map<number, Order>();
+    orders.forEach(o => {
+      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+        if ((o.items && o.items.length > 0) || o.isLocked || o.status === 'segurado') {
+          map.set(Number(o.tableNumber), o);
+        }
+      }
+    });
+    return map;
+  }, [orders]);
+
+  const occupiedTables = useMemo(() => {
+    return filteredTables.filter(t => t.status === 'occupied' || activeMesaOrders.has(t.number));
+  }, [filteredTables, activeMesaOrders]);
+
+  const availableTables = useMemo(() => {
+    return filteredTables.filter(t => t.status !== 'occupied' && !activeMesaOrders.has(t.number));
+  }, [filteredTables, activeMesaOrders]);
 
   const handleTableClick = (tableNum: number) => {
     const table = tables.find(t => t.number === tableNum);
-    if (!table) return;
+    const activeOrderForTable = activeMesaOrders.get(tableNum) || orders.find(o => Number(o.tableNumber) === tableNum && o.status !== 'cancelado' && o.status !== 'concluido');
+    const isOccupied = (table && table.status === 'occupied') || !!activeOrderForTable;
 
     let targetOrder: Order;
 
-    if (table.status === 'occupied' && table.orderId) {
-      targetOrder = orders.find(o => o.id === table.orderId) || {
-        id: table.orderId,
+    if (isOccupied) {
+      const existingId = activeOrderForTable?.id || table?.orderId;
+      targetOrder = orders.find(o => o.id === existingId) || activeOrderForTable || {
+        id: existingId || crypto.randomUUID(),
         items: [],
         total: 0,
         orderType: 'mesa',

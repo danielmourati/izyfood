@@ -395,10 +395,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('storage', handleStorage);
 
-    // 3. Silent background heartbeat every 20 seconds for fail-safe data parity
+    // 3. Silent background heartbeat every 5 seconds for multi-device data parity
     const heartbeatId = setInterval(() => {
       silentFetchAll();
-    }, 20000);
+    }, 5000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -447,6 +447,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
         else if (payload.eventType === 'UPDATE') setOrders(prev => prev.map(o => o.id === payload.new.id ? dbToOrder(payload.new) : o));
         else if (payload.eventType === 'DELETE') setOrders(prev => prev.filter(o => o.id !== payload.old.id));
+        silentFetchAll();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, (payload) => {
         if (payload.eventType === 'INSERT') setSales(prev => [dbToSale(payload.new), ...prev]);
@@ -478,6 +479,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             return prev.filter(t => t.number !== old.number);
           });
         }
+        silentFetchAll();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons' }, (payload) => {
         if (payload.eventType === 'INSERT') setCoupons(prev => [...prev, dbToCoupon(payload.new)]);
