@@ -494,30 +494,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!userId) return;
 
     const tenantKey = user?.tenantId || (user as any)?.tenantSlug || 'default';
-    const broadcastChannelName = `store-tenant-broadcast-${tenantKey}`;
-    const broadcastChannel = supabase.channel(broadcastChannelName, {
+    let disposed = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let broadcastChannel: RealtimeChannel | null = null;
+    let dbChannel: RealtimeChannel | null = null;
+
+    const trackEvent = () => {
+      setRealtimeEventCount(c => c + 1);
+      setLastSyncAt(Date.now());
+    };
+
+    const setStatus = (s: 'connecting' | 'connected' | 'disconnected') => {
+      syncStatusRef.current = s;
+      setSyncStatus(s);
+    };
+
+    const scheduleReconnect = () => {
+      if (disposed || retryTimer) return;
+      const delays = [1000, 2000, 5000, 10000, 30000];
+      const wait = delays[Math.min(attempt, delays.length - 1)];
+      attempt += 1;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        connect();
+      }, wait);
+    };
+
+    const teardown = () => {
+      if (broadcastChannel) { supabase.removeChannel(broadcastChannel); broadcastChannel = null; }
+      if (dbChannel) { supabase.removeChannel(dbChannel); dbChannel = null; }
+      channelRef.current = null;
+    };
+
+    function connect() {
+      if (disposed) return;
+      teardown();
+      setStatus('connecting');
+
+    const broadcastChannelName = `store-tenant-broadcast-${tenantKey}-${tabIdRef.current}`;
+    broadcastChannel = supabase.channel(broadcastChannelName, {
       config: { broadcast: { ack: false, self: true } },
     })
       .on('broadcast', { event: 'store_update' }, (payload) => {
         if (payload?.payload?.senderId !== tabIdRef.current) {
+          trackEvent();
           silentFetchAll();
         }
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          silentFetchAll();
-        }
-      });
+      .subscribe();
 
     channelRef.current = broadcastChannel;
 
-    const dbChannelName = `store-tenant-db-${tenantKey}`;
-    const dbChannel = supabase.channel(dbChannelName)
+    const dbChannelName = `store-tenant-db-${tenantKey}-${tabIdRef.current}`;
+    dbChannel = supabase.channel(dbChannelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        silentFetchAll();
+        trackEvent();
+        scheduleOrdersRefresh();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, () => {
-        silentFetchAll();
+        trackEvent();
+        scheduleOrdersRefresh();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
         if (payload.eventType === 'INSERT') setProducts(prev => prev.some(p => p.id === payload.new.id) ? prev : [...prev, dbToProduct(payload.new)]);
