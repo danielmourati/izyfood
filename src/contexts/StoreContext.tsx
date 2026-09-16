@@ -425,12 +425,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!userId) return;
 
     const tenantKey = user?.tenantId || (user as any)?.tenantSlug || 'default';
-    const channelName = `store-tenant-${tenantKey}`;
-    const channel = supabase.channel(channelName)
+    const broadcastChannelName = `store-tenant-broadcast-${tenantKey}`;
+    const broadcastChannel = supabase.channel(broadcastChannelName, {
+      config: { broadcast: { ack: false, self: true } },
+    })
       .on('broadcast', { event: 'store_update' }, (payload) => {
         if (payload?.payload?.senderId !== tabIdRef.current) {
           silentFetchAll();
         }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          silentFetchAll();
+        }
+      });
+
+    channelRef.current = broadcastChannel;
+
+    const dbChannelName = `store-tenant-db-${tenantKey}`;
+    const dbChannel = supabase.channel(dbChannelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        silentFetchAll();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, () => {
+        silentFetchAll();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
         if (payload.eventType === 'INSERT') setProducts(prev => prev.some(p => p.id === payload.new.id) ? prev : [...prev, dbToProduct(payload.new)]);
@@ -452,17 +470,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         else if (payload.eventType === 'UPDATE') setSuppliers(prev => prev.map(s => s.id === payload.new.id ? dbToSupplier(payload.new) : s));
         else if (payload.eventType === 'DELETE') setSuppliers(prev => prev.filter(s => s.id !== payload.old.id));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-        if (payload.eventType === 'INSERT') setOrders(prev => {
-          if (prev.some(o => o.id === payload.new.id)) {
-            return prev.map(o => o.id === payload.new.id ? dbToOrder(payload.new) : o);
-          }
-          return [dbToOrder(payload.new), ...prev];
-        });
-        else if (payload.eventType === 'UPDATE') setOrders(prev => prev.map(o => o.id === payload.new.id ? dbToOrder(payload.new) : o));
-        else if (payload.eventType === 'DELETE') setOrders(prev => prev.filter(o => o.id !== payload.old.id));
-        silentFetchAll();
-      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, (payload) => {
         if (payload.eventType === 'INSERT') setSales(prev => [dbToSale(payload.new), ...prev]);
         else if (payload.eventType === 'UPDATE') setSales(prev => prev.map(s => s.id === payload.new.id ? dbToSale(payload.new) : s));
@@ -471,29 +478,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_entries' }, (payload) => {
         if (payload.eventType === 'INSERT') setStockEntries(prev => [dbToStockEntry(payload.new), ...prev]);
         else if (payload.eventType === 'DELETE') setStockEntries(prev => prev.filter(s => s.id !== payload.old.id));
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, (payload) => {
-        if (payload.eventType === 'UPDATE') setTables(prev => prev.map(t => t.number === payload.new.number ? dbToTable(payload.new) : t));
-        else if (payload.eventType === 'INSERT') setTables(prev => {
-          if (prev.some(t => t.number === payload.new.number)) {
-            return prev.map(t => t.number === payload.new.number ? dbToTable(payload.new) : t);
-          }
-          return [...prev, dbToTable(payload.new)].sort((a, b) => a.number - b.number);
-        });
-        else if (payload.eventType === 'DELETE') {
-          const old = payload.old as any;
-          if (old.status === 'occupied') return;
-          setTables(prev => {
-            const local = prev.find(t => t.number === old.number);
-            // NEVER remove a table that is occupied locally (order in progress)
-            if (local && local.status === 'occupied') {
-              console.warn(`[realtime] Blocked removal of occupied table ${old.number}.`);
-              return prev;
-            }
-            return prev.filter(t => t.number !== old.number);
-          });
-        }
-        silentFetchAll();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons' }, (payload) => {
         if (payload.eventType === 'INSERT') setCoupons(prev => [...prev, dbToCoupon(payload.new)]);
@@ -532,14 +516,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setIsCashRegisterOpen(!!(data && data.length > 0));
         });
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          silentFetchAll();
-        }
-      });
+      .subscribe();
 
-    channelRef.current = channel;
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(broadcastChannel);
+      supabase.removeChannel(dbChannel);
+    };
   }, [userId, silentFetchAll]);
 
   const getCategoryById = useCallback((id: string) => categories.find(c => c.id === id), [categories]);
