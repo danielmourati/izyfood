@@ -1250,6 +1250,9 @@ export function ConsumerOrderModal({
                     </button>
                   )}
                 </div>
+
+                {/* SEÇÃO 2: IMPRESSORA BLUETOOTH (LOCAL) */}
+                <BluetoothPrinterSection />
               </div>
 
               <DialogFooter className="pt-2 border-t border-border">
