@@ -343,51 +343,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       if (cats) {
         setCategories(prev => {
-          const dbCats = cats.map(dbToCategory);
-          const dbIds = new Set(dbCats.map(c => c.id));
-          const localOnly = prev.filter(c => !dbIds.has(c.id));
-          const merged = [...dbCats, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'categories', cats.map(dbToCategory), prev);
           saveLS('izy_categories', merged);
           return merged;
         });
       }
       if (prods) {
         setProducts(prev => {
-          const dbProds = prods.map(dbToProduct);
-          const dbIds = new Set(dbProds.map(p => p.id));
-          const localOnly = prev.filter(p => !dbIds.has(p.id));
-          const merged = [...dbProds, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'products', prods.map(dbToProduct), prev);
           saveLS('izy_products', merged);
           return merged;
         });
       }
       if (custs) {
         setCustomers(prev => {
-          const dbCusts = custs.map(dbToCustomer);
-          const dbIds = new Set(dbCusts.map(c => c.id));
-          const localOnly = prev.filter(c => !dbIds.has(c.id));
-          const merged = [...dbCusts, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'customers', custs.map(dbToCustomer), prev);
           saveLS('izy_customers', merged);
           return merged;
         });
       }
       if (supps) {
         setSuppliers(prev => {
-          const dbSupps = supps.map(dbToSupplier);
-          const dbIds = new Set(dbSupps.map(s => s.id));
-          const localOnly = prev.filter(s => !dbIds.has(s.id));
-          const merged = [...dbSupps, ...localOnly];
+          const merged = reconcileById(pendingRef.current, 'suppliers', supps.map(dbToSupplier), prev);
           saveLS('izy_suppliers', merged);
-          return merged;
-        });
-      }
-      if (ords) {
-        const parsedOrds = ords.map(dbToOrder);
-        setOrders(prev => {
-          const dbIds = new Set(parsedOrds.map(o => o.id));
-          const activeLocalOrds = prev.filter(o => o.status !== 'cancelado' && o.status !== 'concluido' && !dbIds.has(o.id));
-          const merged = [...parsedOrds, ...activeLocalOrds];
-          saveLS('izy_orders', merged);
           return merged;
         });
       }
