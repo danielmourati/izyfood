@@ -94,11 +94,13 @@ const Mesas = () => {
 
     setOrders(prev => prev.filter(o => o.id !== orderId));
     if (tableNum) await freeTable(Number(tableNum));
+    try { await supabase.from('orders').delete().eq('id', orderId); } catch {}
   };
 
   const handleDeleteConsumerOrder = async (orderId: string, tableNum?: number) => {
     setOrders(prev => prev.filter(o => o.id !== orderId));
     if (tableNum) await freeTable(Number(tableNum));
+    try { await supabase.from('orders').delete().eq('id', orderId); } catch {}
   };
 
   const handlePrintConsumerKitchen = async (orderToPrint: Order) => {

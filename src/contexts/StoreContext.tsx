@@ -268,14 +268,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        // 3. Overlay memory occupied state from prev (Shield: never revert occupied table in memory)
-        prev.forEach(t => {
-          if (t.status === 'occupied') {
-            tableMap.set(t.number, t);
-          }
-        });
-
-        // 4. Overlay active orders (Shield: if table has an active order, it MUST be occupied)
+        // 3. Overlay active orders (if an active order exists for a table, ensure it is occupied)
         tableOrderMap.forEach((orderId, tableNum) => {
           const existing = tableMap.get(tableNum);
           tableMap.set(tableNum, {
@@ -884,6 +877,13 @@ async function syncOrders(prev: Order[], next: Order[]) {
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && JSON.stringify(p) !== JSON.stringify(n); });
 
+  for (const o of removed) {
+    try {
+      await supabase.from('orders').delete().eq('id', o.id);
+    } catch (err) {
+      console.error('[syncOrders] DB delete error:', err);
+    }
+  }
   for (const o of added) {
     await supabase.from('orders').insert({
       id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: o.status,
@@ -940,15 +940,14 @@ async function syncTables(prev: TableInfo[], next: TableInfo[]) {
   const updated = next.filter(n => {
     const p = prev.find(pp => pp.number === n.number);
     if (!p) return false;
-    // CRITICAL SECURITY SHIELD: Block automatic array sync from ever un-occupying an active occupied table!
-    if (p.status === 'occupied' && n.status === 'available') {
-      console.warn(`[syncTables] Intercepted and blocked un-occupy for table ${n.number}. Occupied tables must be released explicitly via freeTable().`);
-      return false;
-    }
     return JSON.stringify(p) !== JSON.stringify(n);
   });
   for (const t of updated) {
-    await supabase.from('store_tables').update({ status: t.status, order_id: t.orderId || null }).eq('number', t.number);
+    await supabase.from('store_tables').upsert({
+      number: t.number,
+      status: t.status,
+      order_id: t.status === 'occupied' ? t.orderId || null : null,
+    }, { onConflict: 'number' });
   }
 }
 
