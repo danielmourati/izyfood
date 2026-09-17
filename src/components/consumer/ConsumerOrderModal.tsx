@@ -91,6 +91,7 @@ export function ConsumerOrderModal({
   const [reprintSelectedIds, setReprintSelectedIds] = useState<string[]>([]);
 
   const [selectedMobileProduct, setSelectedMobileProduct] = useState<Product | null>(null);
+  const [printNotice, setPrintNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && order) {
