@@ -472,7 +472,15 @@ export function usePrinter() {
     return { ...ps, feedLines };
   };
 
+  /**
+   * Sem impressora local utilizável e com um aparelho "Caixa" online?
+   * Então o cupom vai para a fila e é impresso lá.
+   */
+  const shouldQueue = (options?: { force?: boolean }) =>
+    !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
+
   const printOrder = async (order: any, options?: { force?: boolean }): Promise<PrintResult> => {
+    if (shouldQueue(options)) return enqueuePrintJob('order', order);
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
@@ -486,6 +494,7 @@ export function usePrinter() {
   };
 
   const printBill = async (bill: any, options?: { force?: boolean }): Promise<PrintResult> => {
+    if (shouldQueue(options)) return enqueuePrintJob('bill', bill);
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printBill] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
@@ -499,6 +508,7 @@ export function usePrinter() {
   };
 
   const printCashClose = async (data: any, options?: { force?: boolean }): Promise<PrintResult> => {
+    if (shouldQueue(options)) return enqueuePrintJob('cash_close', data);
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printCashClose] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
