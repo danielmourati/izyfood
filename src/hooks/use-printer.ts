@@ -567,6 +567,10 @@ export function usePrinter() {
     printBill,
     printCashClose,
     printTest,
+    printHostEnabled,
+    togglePrintHost,
+    hostOnline,
+    enqueuePrintJob,
   };
 }
 
