@@ -283,6 +283,12 @@ export function ImpressoraTab() {
         </div>
       </Card>
 
+      {/* Impressão centralizada: aparelho "Caixa" + fila de cupons */}
+      <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 font-sans">
+        <PrintQueuePanel />
+      </Card>
+
+
       {/* Bluetooth Connection Module Card (Attachment 2) - Exibido somente quando o toggle está ativado */}
       {enablePrinterDevice && (
         <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 space-y-3 font-sans">
