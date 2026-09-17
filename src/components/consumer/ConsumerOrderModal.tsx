@@ -327,7 +327,9 @@ export function ConsumerOrderModal({
         if (res && res.ok === false) blockedReason = res.reason || null;
       }
       if (!blockedReason) {
-        toast.success(`${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
+        toast.success(queuedAtHost
+          ? `${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s). ${PRINT_QUEUED_MESSAGE}`
+          : `${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
       }
     } catch (printErr: any) {
       console.warn('[handleEnviarOrder] Tentativa de impressão concluída ou ignorada:', printErr);
