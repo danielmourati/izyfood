@@ -478,7 +478,7 @@ const PDV = () => {
   const handlePrintBill = async () => {
     if (cart.length === 0) return;
     if (!enablePrinterDevice) {
-      toast.info('Impressão desativada neste dispositivo (ative nas Configurações de Impressora).');
+      setPrintWarning(PRINT_DISABLED_REASON);
       return;
     }
     setPrintWarning(null);
