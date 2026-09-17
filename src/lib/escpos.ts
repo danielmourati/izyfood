@@ -21,8 +21,8 @@ const CP860_MAP: Record<string, number> = {
   '¡': 0xAD, '«': 0xAE, '»': 0xAF,
 };
 
-/**
 const utf8Encoder = new TextEncoder();
+
 
 /**
  * Encode string to standard UTF-8 bytes for thermal printing.
