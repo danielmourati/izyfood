@@ -447,7 +447,7 @@ const PDV = () => {
   const handleReprintOrder = async (items: OrderItem[]) => {
     if (items.length === 0) return;
     if (!enablePrinterDevice) {
-      toast.info('Impressão desativada neste dispositivo (ative nas Configurações de Impressora).');
+      setPrintWarning(PRINT_DISABLED_REASON);
       return;
     }
     const cust = customers.find(c => c.id === currentOrder.customerId);
