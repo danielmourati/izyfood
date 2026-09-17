@@ -508,7 +508,11 @@ const PDV = () => {
       return;
     }
     try {
-      await printBill(billData);
+      const res = await printBill(billData);
+      if (res && res.ok === false) {
+        setPrintWarning(res.reason || PRINT_DISABLED_REASON);
+        return;
+      }
       toast.success('Conta enviada para impressão!');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Impressão bloqueada: confira as configurações de cabeçalho/rodapé neste aparelho.';
