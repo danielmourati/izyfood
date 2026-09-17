@@ -1106,6 +1106,12 @@ export function ConsumerOrderModal({
                 </div>
               </div>
 
+              {printNotice && (
+                <div className="mx-2 mb-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] font-semibold leading-snug text-amber-700 dark:text-amber-400 shrink-0">
+                  {printNotice}
+                </div>
+              )}
+
               {/* Bottom Footer Action Bar matching Anexo 2 */}
               <div className={`p-2 bg-white border-t border-[#e8e4dc] grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 shrink-0`}>
                 {/* White Voltar Button -> Returns to categories */}
