@@ -26,6 +26,7 @@ import {
   PRINTER_PREFS_EVENT,
   getPrintHostEnabled,
   setPrintHostEnabled,
+  getDeviceId,
   getDeviceLabel,
   getDevicePrinterConfig,
 } from '@/lib/printer';
