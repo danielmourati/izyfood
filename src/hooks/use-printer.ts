@@ -399,38 +399,41 @@ export function usePrinter() {
     return { ...ps, feedLines };
   };
 
-  const printOrder = async (order: any, options?: { force?: boolean }) => {
+  const printOrder = async (order: any, options?: { force?: boolean }): Promise<PrintResult> => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
-      return;
+      return { ok: false, reason: PRINT_DISABLED_REASON };
     }
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printOrder] printSettings usados:', JSON.stringify(ps));
     const escpos = buildOrderReceipt(order, paperWidth, ps);
     const html = buildOrderHtml(order, ps);
     await sendToPrinter(escpos, html, 'Comanda', options);
+    return { ok: true };
   };
 
-  const printBill = async (bill: any, options?: { force?: boolean }) => {
+  const printBill = async (bill: any, options?: { force?: boolean }): Promise<PrintResult> => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printBill] Opção por usar impressora desativada neste dispositivo. Ignorando.');
-      return;
+      return { ok: false, reason: PRINT_DISABLED_REASON };
     }
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printBill] printSettings usados:', JSON.stringify(ps));
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta', options);
+    return { ok: true };
   };
 
-  const printCashClose = async (data: any, options?: { force?: boolean }) => {
+  const printCashClose = async (data: any, options?: { force?: boolean }): Promise<PrintResult> => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printCashClose] Opção por usar impressora desativada neste dispositivo. Ignorando.');
-      return;
+      return { ok: false, reason: PRINT_DISABLED_REASON };
     }
     const escpos = buildCashCloseReceipt(data, paperWidth);
     const html = buildCashCloseHtml(data);
     await sendToPrinter(escpos, html, 'Fechamento de Caixa', options);
+    return { ok: true };
   };
 
   const printTest = async () => {
