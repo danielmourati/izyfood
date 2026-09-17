@@ -283,93 +283,95 @@ export function ImpressoraTab() {
         </div>
       </Card>
 
-      {/* Bluetooth Connection Module Card (Attachment 2) */}
-      <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 space-y-3 font-sans">
-        <div className="flex items-center justify-between border-b border-border/80 pb-2">
-          <span className="font-extrabold uppercase tracking-wider text-xs text-primary flex items-center gap-2">
-            <Printer className="h-4 w-4" /> Conexão Impressora Bluetooth (Dispositivo Local)
-          </span>
-          <span className={`text-[11px] font-black px-2.5 py-0.5 rounded flex items-center gap-1.5 ${
-            btConnected
-              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
-              : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
-          }`}>
-            <span className={`h-2 w-2 rounded-full ${btConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-            {btConnected ? 'Conectado' : 'Desconectado'}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="text-muted-foreground">
-            Dispositivo Pareado: <strong className="text-foreground font-bold">{btDeviceName || lastPairedName || 'Nenhum pareado'}</strong>
+      {/* Bluetooth Connection Module Card (Attachment 2) - Exibido somente quando o toggle está ativado */}
+      {enablePrinterDevice && (
+        <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 space-y-3 font-sans">
+          <div className="flex items-center justify-between border-b border-border/80 pb-2">
+            <span className="font-extrabold uppercase tracking-wider text-xs text-primary flex items-center gap-2">
+              <Printer className="h-4 w-4" /> Conexão Impressora Bluetooth (Dispositivo Local)
+            </span>
+            <span className={`text-[11px] font-black px-2.5 py-0.5 rounded flex items-center gap-1.5 ${
+              btConnected
+                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
+            }`}>
+              <span className={`h-2 w-2 rounded-full ${btConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              {btConnected ? 'Conectado' : 'Desconectado'}
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              size="sm"
-              onClick={async () => {
-                try {
-                  const name = await pairBluetooth();
-                  toast.success(`Conectado a ${name}!`);
-                } catch (err) {
-                  toast.error('Não foi possível conectar ao Bluetooth.');
-                }
-              }}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold h-9 px-4 flex items-center gap-1.5 rounded-lg shadow-xs"
-            >
-              Parear / Buscar
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="text-muted-foreground">
+              Dispositivo Pareado: <strong className="text-foreground font-bold">{btDeviceName || lastPairedName || 'Nenhum pareado'}</strong>
+            </div>
 
-            {btConnected ? (
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
                 size="sm"
-                variant="outline"
-                onClick={() => {
-                  forgetPrinter();
-                  toast.info('Impressora desconectada.');
-                }}
-                className="text-xs font-bold h-9 px-3 border-destructive/40 text-destructive hover:bg-destructive/10 rounded-lg"
-              >
-                Desconectar
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
                 onClick={async () => {
-                  const ok = await reconnectPrinter();
-                  if (ok) toast.success('Reconectado com sucesso!');
-                  else toast.warning('Nenhuma impressora pareada previamente.');
+                  try {
+                    const name = await pairBluetooth();
+                    toast.success(`Conectado a ${name}!`);
+                  } catch (err) {
+                    toast.error('Não foi possível conectar ao Bluetooth.');
+                  }
                 }}
-                className="text-xs font-bold h-9 px-3 border-border text-foreground hover:bg-muted rounded-lg"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold h-9 px-4 flex items-center gap-1.5 rounded-lg shadow-xs"
               >
-                Reconectar
+                Parear / Buscar
               </Button>
-            )}
 
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleRunTest}
-              disabled={testing}
-              className="text-xs font-bold h-9 px-3 rounded-lg flex items-center gap-1.5"
-            >
-              <Printer className="h-3.5 w-3.5" /> Teste de Impressão
-            </Button>
+              {btConnected ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    forgetPrinter();
+                    toast.info('Impressora desconectada.');
+                  }}
+                  className="text-xs font-bold h-9 px-3 border-destructive/40 text-destructive hover:bg-destructive/10 rounded-lg"
+                >
+                  Desconectar
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    const ok = await reconnectPrinter();
+                    if (ok) toast.success('Reconectado com sucesso!');
+                    else toast.warning('Nenhuma impressora pareada previamente.');
+                  }}
+                  className="text-xs font-bold h-9 px-3 border-border text-foreground hover:bg-muted rounded-lg"
+                >
+                  Reconectar
+                </Button>
+              )}
+
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleRunTest}
+                disabled={testing}
+                className="text-xs font-bold h-9 px-3 rounded-lg flex items-center gap-1.5"
+              >
+                <Printer className="h-3.5 w-3.5" /> Teste de Impressão
+              </Button>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
-          <span className="font-semibold text-foreground">Usar Bluetooth como Padrão Local neste Aparelho</span>
-          <Switch
-            checked={btPriorityDefault}
-            onCheckedChange={(checked) => {
-              toggleBluetoothPriorityDefault(checked);
-              toast.info(checked ? 'Prioridade Bluetooth ativada neste dispositivo!' : 'Prioridade Bluetooth desativada.');
-            }}
-          />
-        </div>
-      </Card>
+          <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
+            <span className="font-semibold text-foreground">Usar Bluetooth como Padrão Local neste Aparelho</span>
+            <Switch
+              checked={btPriorityDefault}
+              onCheckedChange={(checked) => {
+                toggleBluetoothPriorityDefault(checked);
+                toast.info(checked ? 'Prioridade Bluetooth ativada neste dispositivo!' : 'Prioridade Bluetooth desativada.');
+              }}
+            />
+          </div>
+        </Card>
+      )}
 
       {!isAttendantMobile ? (
         <div className="space-y-6">
