@@ -468,7 +468,11 @@ const PDV = () => {
       return;
     }
     try {
-      await printOrder(orderData);
+      const res = await printOrder(orderData);
+      if (res && res.ok === false) {
+        setPrintWarning(res.reason || PRINT_DISABLED_REASON);
+        return;
+      }
       toast.success(`${items.length} item(ns) reimpresso(s)!`);
     } catch (err) {
       toast.error('Erro na reimpressão.');
