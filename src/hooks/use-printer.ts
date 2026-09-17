@@ -20,6 +20,9 @@ import {
   ensureBluetoothConnected,
   getBluetoothPriorityDefault,
   setBluetoothPriorityDefault,
+  getEnablePrinterDevice,
+  setEnablePrinterDevice,
+  isMobileDevice,
 } from '@/lib/printer';
 import {
   buildOrderReceipt,
@@ -126,10 +129,16 @@ export function usePrinter() {
   const [lastPairedName, setLastPairedName] = useState<string | null>(() => getLastPairedDeviceName());
   const [qzConnected, setQzConnected] = useState(false);
   const [btPriorityDefault, setBtPriorityDefaultState] = useState<boolean>(() => getBluetoothPriorityDefault());
+  const [enablePrinterDevice, setEnablePrinterDeviceState] = useState<boolean>(() => getEnablePrinterDevice());
 
   const toggleBluetoothPriorityDefault = useCallback((v: boolean) => {
     setBluetoothPriorityDefault(v);
     setBtPriorityDefaultState(v);
+  }, []);
+
+  const toggleEnablePrinterDevice = useCallback((v: boolean) => {
+    setEnablePrinterDevice(v);
+    setEnablePrinterDeviceState(v);
   }, []);
 
 
@@ -157,8 +166,8 @@ export function usePrinter() {
 
   useEffect(() => {
     const initConnections = async () => {
-      // QZ auto-connect only if a default printer opted in (or no printers configured yet)
-      const shouldAutoQz = printers.length === 0 || printers.some(p => p.is_default && p.auto_connect_qz);
+      // QZ auto-connect only if NOT on mobile and default printer opted in (or no printers configured yet)
+      const shouldAutoQz = !isMobileDevice() && (printers.length === 0 || printers.some(p => p.is_default && p.auto_connect_qz));
       if (shouldAutoQz) {
         const qzReady = await initQzTray();
         setQzConnected(qzReady);
@@ -218,6 +227,7 @@ export function usePrinter() {
   }, []);
 
   const retryQzConnection = async () => {
+    if (isMobileDevice()) return false;
     const qzReady = await initQzTray();
     setQzConnected(qzReady);
     return qzReady;
@@ -227,9 +237,8 @@ export function usePrinter() {
   const paperWidth = defaultPrinter?.paper_width || 58; // Default para 58mm (mini impressoras térmicas)
 
   // Existe impressora utilizável? Considera dois cenários:
-  // 1) Toggle "Padrão neste aparelho" ligado + BT realmente conectado agora
-  //    (funciona mesmo sem linha em printer_configs — caso comum em mobile).
-  // 2) Há impressora registrada em printer_configs e alguma via de saída plausível.
+  // 1) Toggle "Usar Impressora neste Dispositivo" ativo AND
+  // 2) Impressora Bluetooth conectada/prioritária OU QZ/impressora padrão disponível.
   const hasActiveLocalBluetooth = btPriorityDefault && btConnected;
 
   const hasBluetoothDefault =
@@ -237,14 +246,15 @@ export function usePrinter() {
     (btConnected || btPriorityDefault || !!getLastPairedDeviceName());
 
   const hasPrinterAvailable =
-    hasActiveLocalBluetooth ||
-    (printers.length > 0 && (
-      btConnected ||
-      qzConnected ||
-      defaultPrinter?.connection_type === 'system' ||
-      defaultPrinter?.connection_type === 'network' ||
-      hasBluetoothDefault
-    ));
+    enablePrinterDevice &&
+    (hasActiveLocalBluetooth ||
+      (printers.length > 0 && (
+        btConnected ||
+        qzConnected ||
+        defaultPrinter?.connection_type === 'system' ||
+        defaultPrinter?.connection_type === 'network' ||
+        hasBluetoothDefault
+      )));
 
 
   const pairBluetooth = async () => {
@@ -286,7 +296,12 @@ export function usePrinter() {
     setBtPriorityDefaultState(false);
   };
 
-  const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string) => {
+  const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string, options?: { force?: boolean }) => {
+    if (!enablePrinterDevice && !options?.force) {
+      console.info('[sendToPrinter] Impressão desativada neste dispositivo. Ignorando envio.');
+      return;
+    }
+
     // 1. Bluetooth (ESC/POS) - Prioridade se o Bluetooth estiver conectado ou se houver dispositivo pareado
     if (isBluetoothConnected() || getLastPairedDeviceName() || btPriorityDefault) {
       try {
@@ -304,7 +319,7 @@ export function usePrinter() {
     }
 
     // 2. QZ Tray (USB/Rede em desktop)
-    if ((defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && isQzConnected()) {
+    if (!isMobileDevice() && (defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && isQzConnected()) {
       try {
         await printViaQzTray(data, defaultPrinter.address);
         return; // Sucesso, imprimiu via QZ Tray!
@@ -320,11 +335,7 @@ export function usePrinter() {
 
   /**
    * Returns a fully-populated PrintSettings object, guaranteed not to be a "barebones"
-   * default. Order of precedence:
-   *   1. Context printSettings (already loaded by StoreContext, kept fresh by Realtime).
-   *   2. Fresh DB fetch via fetchPrintSettings() — no race timeout.
-   *   3. localStorage fallback (offline scenario).
-   *   4. Last-resort: at minimum the tenant name as storeName, so the receipt isn't blank.
+   * default.
    */
   const resolvePrintSettings = async (tenantId: string | undefined): Promise<any> => {
     // 1) Context baseline
@@ -369,34 +380,41 @@ export function usePrinter() {
     return { ...ps, feedLines };
   };
 
-  const printOrder = async (order: any) => {
+  const printOrder = async (order: any, options?: { force?: boolean }) => {
+    if (!enablePrinterDevice && !options?.force) {
+      console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
+      return;
+    }
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printOrder] printSettings usados:', JSON.stringify(ps));
-    console.log('[printOrder] items snapshot:', JSON.stringify((order.items || []).map((i: any) => ({
-      name: i.name, selectedNotes: i.selectedNotes, otherNotes: i.otherNotes, notes: i.notes,
-    }))));
-    // O mesmo `order` alimenta ESC/POS e HTML para garantir paridade prévia ↔ impressão.
     const escpos = buildOrderReceipt(order, paperWidth, ps);
     const html = buildOrderHtml(order, ps);
-    await sendToPrinter(escpos, html, 'Comanda');
+    await sendToPrinter(escpos, html, 'Comanda', options);
   };
 
-  const printBill = async (bill: any) => {
+  const printBill = async (bill: any, options?: { force?: boolean }) => {
+    if (!enablePrinterDevice && !options?.force) {
+      console.info('[printBill] Opção por usar impressora desativada neste dispositivo. Ignorando.');
+      return;
+    }
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printBill] printSettings usados:', JSON.stringify(ps));
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
-    await sendToPrinter(escpos, html, 'Conta');
+    await sendToPrinter(escpos, html, 'Conta', options);
   };
 
-  const printCashClose = async (data: any) => {
+  const printCashClose = async (data: any, options?: { force?: boolean }) => {
+    if (!enablePrinterDevice && !options?.force) {
+      console.info('[printCashClose] Opção por usar impressora desativada neste dispositivo. Ignorando.');
+      return;
+    }
     const escpos = buildCashCloseReceipt(data, paperWidth);
     const html = buildCashCloseHtml(data);
-    await sendToPrinter(escpos, html, 'Fechamento de Caixa');
+    await sendToPrinter(escpos, html, 'Fechamento de Caixa', options);
   };
 
   const printTest = async () => {
-    // Rich mock order to exercise the same code path as a real print
     const mockOrder = {
       id: `TESTE-${Date.now().toString().slice(-6)}`,
       orderType: 'mesa',
@@ -416,7 +434,7 @@ export function usePrinter() {
       createdAt: new Date().toISOString(),
       __test: true,
     };
-    return printOrder(mockOrder);
+    return printOrder(mockOrder, { force: true });
   };
 
 
@@ -430,6 +448,8 @@ export function usePrinter() {
     btAvailable: isBluetoothAvailable(),
     btPriorityDefault,
     toggleBluetoothPriorityDefault,
+    enablePrinterDevice,
+    toggleEnablePrinterDevice,
     qzConnected,
     hasPrinterAvailable,
     retryQzConnection,

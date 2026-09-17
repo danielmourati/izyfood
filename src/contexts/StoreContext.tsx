@@ -330,9 +330,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let tableQuery = supabase.from('store_tables').select('*').order('number');
     let orderQuery = supabase.from('orders').select('*').order('created_at', { ascending: false });
 
-    if (tenantId) {
-      tableQuery = tableQuery.eq('tenant_id', tenantId);
-      orderQuery = orderQuery.eq('tenant_id', tenantId);
+    if (tenantId && tenantId !== 'default') {
+      tableQuery = tableQuery.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
+      orderQuery = orderQuery.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
     }
 
     const [{ data: tbls }, { data: ords }] = await Promise.all([

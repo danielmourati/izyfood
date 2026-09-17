@@ -74,7 +74,7 @@ const PDV = () => {
     }
   }, [mobileView]);
 
-  const { printOrder, printBill, hasPrinterAvailable, defaultPrinter } = usePrinter();
+  const { printOrder, printBill, hasPrinterAvailable, defaultPrinter, enablePrinterDevice } = usePrinter();
   const previewPaperWidth = defaultPrinter?.paper_width || 58;
 
   useEffect(() => {
@@ -389,20 +389,22 @@ const PDV = () => {
       customerAddress: cust?.address || undefined,
     };
 
-    // 1. Enviar para a impressora (somente se houver impressora utilizável)
-    if (hasPrinterAvailable) {
-      try {
-        await printOrder(orderData);
-        toast.success('Comanda enviada para impressão!');
-      } catch (err) {
-        toast.error('Erro na impressão, mas o pedido será salvo.');
+    // 1. Enviar para a impressora (somente se a opção de impressora estiver ativada neste dispositivo)
+    if (enablePrinterDevice) {
+      if (hasPrinterAvailable) {
+        try {
+          await printOrder(orderData);
+          toast.success('Comanda enviada para impressão!');
+        } catch (err) {
+          toast.error('Erro na impressão, mas o pedido será salvo.');
+        }
+      } else {
+        setPrintPreview({
+          open: true,
+          order: orderData,
+          reason: 'Nenhuma impressora configurada ou conectada. O pedido foi salvo — você pode imprimir manualmente pelo navegador ou seguir sem impressão. Configure uma impressora em Configurações > Impressora.',
+        });
       }
-    } else {
-      setPrintPreview({
-        open: true,
-        order: orderData,
-        reason: 'Nenhuma impressora configurada ou conectada. O pedido foi salvo — você pode imprimir manualmente pelo navegador ou seguir sem impressão. Configure uma impressora em Configurações > Impressora.',
-      });
     }
 
     // 2. Atualizar estado interno
@@ -413,36 +415,35 @@ const PDV = () => {
       const exists = prev.some(o => o.id === orderId);
       const custId = selectedCustomerId || undefined;
       const resCust = resolveCustomer(custId);
-      const finalCustomerName = resCust.customerName || manualCustomerName || undefined;
-
+      const newOrder = {
+        ...currentOrder,
+        id: orderId,
+        items: markedCart,
+        status: currentOrder.status || 'aberto',
+        customerId: custId,
+        customerName: resCust.name,
+        customerPhone: resCust.phone,
+        customerAddress: resCust.address,
+        subtotal: markedCart.reduce((a, i) => a + i.subtotal, 0),
+        total: markedCart.reduce((a, i) => a + i.subtotal, 0),
+        createdAt: currentOrder.createdAt || new Date().toISOString(),
+      };
       if (exists) {
-        return prev.map(o => {
-          if (o.id !== orderId) return o;
-          return { ...o, items: markedCart, total, status: 'segurado' as const, customerId: custId, ...resCust, customerName: finalCustomerName, heldAt: new Date().toISOString() };
-        });
+        return prev.map(o => o.id === orderId ? newOrder : o);
       }
-      return [...prev, {
-        id: orderId, items: markedCart, total, orderType, status: 'segurado' as const,
-        tableNumber, customerId: custId, ...resCust, customerName: finalCustomerName, createdAt: new Date().toISOString(), heldAt: new Date().toISOString(),
-      }];
+      return [newOrder, ...prev];
     });
 
-    if (tableNumber) {
-      setTables(prev => prev.map(t =>
-        t.number === tableNumber ? { ...t, status: 'occupied', orderId } : t
-      ));
-    }
-
-    // 3. Atualizar estado visual (manter itens mas marcados como impressos)
-    setCart(markedCart);
-    
-    // Envia o usuário de volta ao início independentemente do tipo de pedido
     toast.success('Comanda enviada para a produção!');
     navigate('/');
   };
 
   const handleReprintOrder = async (items: OrderItem[]) => {
     if (items.length === 0) return;
+    if (!enablePrinterDevice) {
+      toast.info('Impressão desativada neste dispositivo (ative nas Configurações de Impressora).');
+      return;
+    }
     const cust = customers.find(c => c.id === currentOrder.customerId);
     const orderData = {
       ...currentOrder,
@@ -470,6 +471,10 @@ const PDV = () => {
 
   const handlePrintBill = async () => {
     if (cart.length === 0) return;
+    if (!enablePrinterDevice) {
+      toast.info('Impressão desativada neste dispositivo (ative nas Configurações de Impressora).');
+      return;
+    }
     setPrintWarning(null);
     const cust = customers.find(c => c.id === currentOrder.customerId);
     const itemsTotal = (currentOrder.items || []).reduce((acc: number, it: any) => acc + (it.subtotal ?? (it.price * (it.weight ?? it.quantity))), 0);

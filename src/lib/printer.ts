@@ -62,6 +62,27 @@ export function setDevicePrinterConfig(config: DevicePrinterConfig): void {
   } catch { /* ignore */ }
 }
 
+const LS_ENABLE_PRINTER = 'enable_printer_device';
+
+export function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  const userAgent = navigator.userAgent || '';
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  const isSmallScreen = window.innerWidth < 768;
+  return isMobileUA || isSmallScreen;
+}
+
+export function getEnablePrinterDevice(): boolean {
+  try { return localStorage.getItem(LS_ENABLE_PRINTER) === '1'; } catch { return false; }
+}
+
+export function setEnablePrinterDevice(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(LS_ENABLE_PRINTER, '1');
+    else localStorage.removeItem(LS_ENABLE_PRINTER);
+  } catch { /* ignore */ }
+}
+
 export function getBluetoothPriorityDefault(): boolean {
   try { return localStorage.getItem(LS_BT_PRIORITY) === '1'; } catch { return false; }
 }

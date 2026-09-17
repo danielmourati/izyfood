@@ -46,6 +46,7 @@ export function ImpressoraTab() {
     printers, loading, qzConnected, retryQzConnection, fetchPrinters, printTest,
     btConnected, btDeviceName, lastPairedName, pairBluetooth, reconnectPrinter, forgetPrinter,
     btPriorityDefault, toggleBluetoothPriorityDefault,
+    enablePrinterDevice, toggleEnablePrinterDevice,
   } = usePrinter();
 
   const [selectedSector, setSelectedSector] = useState<string>('recibo');
@@ -258,6 +259,29 @@ export function ImpressoraTab() {
           </div>
         </div>
       </div>
+
+      {/* Device Printer Toggle Card */}
+      <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 space-y-3 font-sans">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <span className="font-extrabold uppercase tracking-wider text-xs text-primary flex items-center gap-2">
+              <Printer className="h-4 w-4" /> Usar Impressora neste Dispositivo
+            </span>
+            <p className="text-xs text-muted-foreground">
+              {enablePrinterDevice
+                ? 'Impressão ativada neste aparelho. O preview automático do navegador ou impressora pareada será acionado ao enviar pedidos.'
+                : 'Desativado (Padrão). O sistema salva e sincroniza os pedidos sem abrir o preview automático do navegador.'}
+            </p>
+          </div>
+          <Switch
+            checked={enablePrinterDevice}
+            onCheckedChange={(checked) => {
+              toggleEnablePrinterDevice(checked);
+              toast.info(checked ? 'Impressão ativada neste dispositivo!' : 'Impressão desativada neste dispositivo (preview automático desligado).');
+            }}
+          />
+        </div>
+      </Card>
 
       {/* Bluetooth Connection Module Card (Attachment 2) */}
       <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 space-y-3 font-sans">
@@ -582,30 +606,34 @@ export function ImpressoraTab() {
       {/* Footer Controls Bar */}
       <div className="rounded-2xl border border-border bg-card p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4 flex-wrap">
-          {/* Status Badge */}
-          {qzConnected ? (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold">
-              <CheckCircle2 className="h-4 w-4" /> Impressão ligada
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowQzWizard(true)}
-              className="rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20 text-xs font-bold gap-1.5"
-            >
-              <AlertTriangle className="h-3.5 w-3.5" /> QZ Desconectado
-            </Button>
+          {/* Status Badge - Oculto em Mobile */}
+          {!isMobile && (
+            qzConnected ? (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold">
+                <CheckCircle2 className="h-4 w-4" /> Impressão ligada
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowQzWizard(true)}
+                className="rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20 text-xs font-bold gap-1.5"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" /> QZ Desconectado
+              </Button>
+            )
           )}
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowQzWizard(true)}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground gap-1.5"
-          >
-            <HelpCircle className="h-4 w-4" /> Ajuda
-          </Button>
+          {!isMobile && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowQzWizard(true)}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground gap-1.5"
+            >
+              <HelpCircle className="h-4 w-4" /> Ajuda QZ
+            </Button>
+          )}
 
           <Button
             variant="outline"
@@ -639,12 +667,14 @@ export function ImpressoraTab() {
         </div>
       </div>
 
-      {/* 3-Step QZ Wizard Modal */}
-      <QzSetupModal
-        open={showQzWizard}
-        onOpenChange={setShowQzWizard}
-        onTestConnection={retryQzConnection}
-      />
+      {/* 3-Step QZ Wizard Modal (Somente Desktop) */}
+      {!isMobile && (
+        <QzSetupModal
+          open={showQzWizard}
+          onOpenChange={setShowQzWizard}
+          onTestConnection={retryQzConnection}
+        />
+      )}
 
       {/* Add Local Modal */}
       <Dialog open={showAddLocalModal} onOpenChange={setShowAddLocalModal}>
