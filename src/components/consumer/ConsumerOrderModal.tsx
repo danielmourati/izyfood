@@ -365,6 +365,10 @@ export function ConsumerOrderModal({
 
   // Helper to add item directly without customization
   const handleAddDirect = (prod: Product) => {
+    if (isLocked) {
+      toast.error('Mesa fechada. Clique em REABRIR para lançar novos produtos.');
+      return;
+    }
     setSelectedMobileProduct(prod);
     // Search specifically for an UNPRINTED item to increment, so printed items remain separate
     const unprintedIndex = items.findIndex(i => i.productId === prod.id && !i.printed && !i.selectedNotes?.length && !i.selectedComplements?.length);
@@ -455,6 +459,10 @@ export function ConsumerOrderModal({
 
   // Open customization modal
   const handlePersonalizeProduct = (prod: Product) => {
+    if (isLocked) {
+      toast.error('Mesa fechada. Clique em REABRIR para lançar novos produtos.');
+      return;
+    }
     setSelectedProduct(prod);
     setEditingItem(null);
     setCustomizeOpen(true);
@@ -1143,10 +1151,22 @@ export function ConsumerOrderModal({
                     <CreditCard className="h-4 w-4 mb-0.5" /> PAGAR
                   </Button>
                 )}
-                {/* Blue Novo Button -> Returns to categories */}
+                {/* Blue Novo Button -> Returns to categories (disabled when table is locked) */}
                 <Button
-                  onClick={() => setMobileStep('categories')}
-                  className="h-12 text-[10px] font-black bg-[#0099ff] hover:bg-[#0080df] text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm"
+                  onClick={() => {
+                    if (isLocked) {
+                      toast.error('Mesa fechada. Clique em REABRIR para lançar novos itens.');
+                      return;
+                    }
+                    setMobileStep('categories');
+                  }}
+                  disabled={isLocked}
+                  className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
+                    isLocked
+                      ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
+                      : 'bg-[#0099ff] hover:bg-[#0080df] cursor-pointer'
+                  }`}
+                  title={isLocked ? 'Reabra a mesa para lançar novos itens' : 'Adicionar novos produtos'}
                 >
                   <Plus className="h-4 w-4 mb-0.5" /> NOVO
                 </Button>
@@ -1336,11 +1356,23 @@ export function ConsumerOrderModal({
                 />
               </div>
 
-              {/* + Produtos Button */}
+              {/* + Produtos Button (disabled when table is locked) */}
               <Button
-                onClick={() => setFinderOpen(true)}
+                onClick={() => {
+                  if (isLocked) {
+                    toast.error('Mesa fechada. Clique em REABRIR para lançar novos produtos.');
+                    return;
+                  }
+                  setFinderOpen(true);
+                }}
+                disabled={isLocked}
                 variant="outline"
-                className="bg-card hover:bg-muted text-foreground border-border text-xs h-8 px-3 font-bold flex items-center gap-1.5 shadow-xs active:scale-95"
+                className={`text-xs h-8 px-3 font-bold flex items-center gap-1.5 shadow-xs transition-all ${
+                  isLocked
+                    ? 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border'
+                    : 'bg-card hover:bg-muted text-foreground border-border active:scale-95 cursor-pointer'
+                }`}
+                title={isLocked ? 'Reabra a mesa para lançar novos produtos' : 'Adicionar produtos ao pedido'}
               >
                 <Plus className="h-4 w-4 text-primary" /> Produtos
               </Button>
