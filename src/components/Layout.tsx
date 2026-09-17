@@ -7,6 +7,7 @@ import { TrialBanner } from '@/components/TrialBanner';
 import { HeaderClock } from '@/components/HeaderClock';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/AuthContext';
+import PrintHostRunner from '@/components/PrintHostRunner';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
