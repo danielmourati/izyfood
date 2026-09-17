@@ -640,7 +640,8 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   }
 
   parts.push(lineOf('-', cols));
-  parts.push(CMD_BOLD_ON, leftRightAlign('QTD. TOTAL ITENS:', `${totalItemsCount}`, cols), CMD_BOLD_OFF);
+  const qtdCols = Math.min(cols, 22);
+  parts.push(CMD_BOLD_ON, leftRightAlign('QTD. TOTAL ITENS:', `${totalItemsCount}`, qtdCols), CMD_BOLD_OFF);
   parts.push(lineOf('-', cols));
 
   parts.push(feedAndCut(Math.max(3, ps.feedLines ?? 4)));

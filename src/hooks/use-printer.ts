@@ -478,7 +478,9 @@ const orderTypeLabels: Record<string, string> = { balcao: 'Balcão', mesa: 'Mesa
 const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX', cartao: 'Cartão', fiado: 'Fiado' };
 
 export function buildOrderHtml(order: any, ps: any = {}): string {
+  let totalItemsCount = 0;
   const items = (order.items || []).map((i: any) => {
+    totalItemsCount += i.quantity || 1;
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
     let html = `<p class="bold" style="margin: 0 0 2px 0;">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
     const noteLines = getItemNoteLines(i);
@@ -529,7 +531,8 @@ export function buildOrderHtml(order: any, ps: any = {}): string {
     </div>
 
     <div class="line" style="margin-top: 12px;"></div>
-    <div style="margin-top: 6px; font-size: 11px; color: #444;">Atendente: ${order.operatorName || 'Não informado'}</div>
+    <div style="margin-top: 6px; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; white-space: nowrap;"><span>QTD. TOTAL ITENS:</span><span>${totalItemsCount}</span></div>
+    <div style="margin-top: 4px; font-size: 11px; color: #444;">Atendente: ${order.operatorName || 'Não informado'}</div>
   `;
 }
 
