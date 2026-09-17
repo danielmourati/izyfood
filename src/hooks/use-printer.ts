@@ -23,6 +23,7 @@ import {
   getEnablePrinterDevice,
   setEnablePrinterDevice,
   isMobileDevice,
+  PRINTER_PREFS_EVENT,
 } from '@/lib/printer';
 import {
   buildOrderReceipt,
@@ -106,6 +107,14 @@ function validateBillPrintSettingsCache(tenantId: string | undefined, resolved: 
   return null;
 }
 
+export interface PrintResult {
+  ok: boolean;
+  reason?: string;
+}
+
+export const PRINT_DISABLED_REASON =
+  'Impressão desativada neste aparelho. Ative "Usar impressora neste dispositivo" na seção Impressora Bluetooth (ou em Configurações > Impressora).';
+
 export interface PrinterConfig {
   id: string;
   name: string;
@@ -140,6 +149,24 @@ export function usePrinter() {
     setEnablePrinterDevice(v);
     setEnablePrinterDeviceState(v);
   }, []);
+
+  // Mantém as preferências consolidadas entre as telas (Configurações > Impressora
+  // e a seção do menu do pedido) e entre abas abertas no mesmo aparelho.
+  useEffect(() => {
+    const sync = () => {
+      setEnablePrinterDeviceState(getEnablePrinterDevice());
+      setBtPriorityDefaultState(getBluetoothPriorityDefault());
+      setLastPairedName(getLastPairedDeviceName());
+    };
+    window.addEventListener(PRINTER_PREFS_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(PRINTER_PREFS_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+
+
 
 
   const fetchPrinters = useCallback(async () => {
@@ -380,38 +407,41 @@ export function usePrinter() {
     return { ...ps, feedLines };
   };
 
-  const printOrder = async (order: any, options?: { force?: boolean }) => {
+  const printOrder = async (order: any, options?: { force?: boolean }): Promise<PrintResult> => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
-      return;
+      return { ok: false, reason: PRINT_DISABLED_REASON };
     }
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printOrder] printSettings usados:', JSON.stringify(ps));
     const escpos = buildOrderReceipt(order, paperWidth, ps);
     const html = buildOrderHtml(order, ps);
     await sendToPrinter(escpos, html, 'Comanda', options);
+    return { ok: true };
   };
 
-  const printBill = async (bill: any, options?: { force?: boolean }) => {
+  const printBill = async (bill: any, options?: { force?: boolean }): Promise<PrintResult> => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printBill] Opção por usar impressora desativada neste dispositivo. Ignorando.');
-      return;
+      return { ok: false, reason: PRINT_DISABLED_REASON };
     }
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log('[printBill] printSettings usados:', JSON.stringify(ps));
     const escpos = buildBillReceipt(bill, paperWidth, ps);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta', options);
+    return { ok: true };
   };
 
-  const printCashClose = async (data: any, options?: { force?: boolean }) => {
+  const printCashClose = async (data: any, options?: { force?: boolean }): Promise<PrintResult> => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printCashClose] Opção por usar impressora desativada neste dispositivo. Ignorando.');
-      return;
+      return { ok: false, reason: PRINT_DISABLED_REASON };
     }
     const escpos = buildCashCloseReceipt(data, paperWidth);
     const html = buildCashCloseHtml(data);
     await sendToPrinter(escpos, html, 'Fechamento de Caixa', options);
+    return { ok: true };
   };
 
   const printTest = async () => {

@@ -16,6 +16,8 @@ export default function BluetoothPrinterSection() {
     btAvailable,
     btPriorityDefault,
     toggleBluetoothPriorityDefault,
+    enablePrinterDevice,
+    toggleEnablePrinterDevice,
     pairBluetooth,
     reconnectPrinter,
     forgetPrinter,
@@ -81,6 +83,30 @@ export default function BluetoothPrinterSection() {
       </span>
 
       <div className="rounded-md bg-muted/40 p-2.5 space-y-2.5">
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
+          <span className="font-semibold text-foreground text-[11px] pr-2 leading-snug">
+            Usar impressora neste dispositivo
+          </span>
+          <Switch
+            checked={enablePrinterDevice}
+            onCheckedChange={(checked) => {
+              toggleEnablePrinterDevice(checked);
+              setMessage({
+                type: checked ? 'ok' : 'warn',
+                text: checked
+                  ? 'Impressão ativada neste aparelho.'
+                  : 'Impressão desativada: cupons da cozinha e conta não serão impressos.',
+              });
+            }}
+          />
+        </div>
+
+        {!enablePrinterDevice && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-snug font-semibold">
+            Impressão desativada neste aparelho. Ative a chave acima para imprimir cupom da cozinha e conta.
+          </p>
+        )}
+
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 font-semibold text-foreground">
             <Bluetooth className="h-4 w-4 text-primary" />

@@ -22,7 +22,7 @@ import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
 import { TableBar } from '@/components/TableBar';
 import { OrderTypeSelector } from '@/components/OrderTypeSelector';
-import { usePrinter } from '@/hooks/use-printer';
+import { usePrinter, PRINT_DISABLED_REASON } from '@/hooks/use-printer';
 import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 
 const orderTypeLabels: Record<OrderType, string> = {
@@ -393,8 +393,12 @@ const PDV = () => {
     if (enablePrinterDevice) {
       if (hasPrinterAvailable) {
         try {
-          await printOrder(orderData);
-          toast.success('Comanda enviada para impressão!');
+          const res = await printOrder(orderData);
+          if (res && res.ok === false) {
+            setPrintPreview({ open: true, order: orderData, reason: res.reason || PRINT_DISABLED_REASON });
+          } else {
+            toast.success('Comanda enviada para impressão!');
+          }
         } catch (err) {
           toast.error('Erro na impressão, mas o pedido será salvo.');
         }
@@ -405,6 +409,8 @@ const PDV = () => {
           reason: 'Nenhuma impressora configurada ou conectada. O pedido foi salvo — você pode imprimir manualmente pelo navegador ou seguir sem impressão. Configure uma impressora em Configurações > Impressora.',
         });
       }
+    } else {
+      setPrintPreview({ open: true, order: orderData, reason: PRINT_DISABLED_REASON });
     }
 
     // 2. Atualizar estado interno
@@ -421,9 +427,9 @@ const PDV = () => {
         items: markedCart,
         status: currentOrder.status || 'aberto',
         customerId: custId,
-        customerName: resCust.name,
-        customerPhone: resCust.phone,
-        customerAddress: resCust.address,
+        customerName: resCust.customerName || manualCustomerName || undefined,
+        customerPhone: resCust.customerPhone,
+        customerAddress: resCust.customerAddress,
         subtotal: markedCart.reduce((a, i) => a + i.subtotal, 0),
         total: markedCart.reduce((a, i) => a + i.subtotal, 0),
         createdAt: currentOrder.createdAt || new Date().toISOString(),
@@ -441,7 +447,7 @@ const PDV = () => {
   const handleReprintOrder = async (items: OrderItem[]) => {
     if (items.length === 0) return;
     if (!enablePrinterDevice) {
-      toast.info('Impressão desativada neste dispositivo (ative nas Configurações de Impressora).');
+      setPrintWarning(PRINT_DISABLED_REASON);
       return;
     }
     const cust = customers.find(c => c.id === currentOrder.customerId);
@@ -462,7 +468,11 @@ const PDV = () => {
       return;
     }
     try {
-      await printOrder(orderData);
+      const res = await printOrder(orderData);
+      if (res && res.ok === false) {
+        setPrintWarning(res.reason || PRINT_DISABLED_REASON);
+        return;
+      }
       toast.success(`${items.length} item(ns) reimpresso(s)!`);
     } catch (err) {
       toast.error('Erro na reimpressão.');
@@ -472,7 +482,7 @@ const PDV = () => {
   const handlePrintBill = async () => {
     if (cart.length === 0) return;
     if (!enablePrinterDevice) {
-      toast.info('Impressão desativada neste dispositivo (ative nas Configurações de Impressora).');
+      setPrintWarning(PRINT_DISABLED_REASON);
       return;
     }
     setPrintWarning(null);
@@ -498,7 +508,11 @@ const PDV = () => {
       return;
     }
     try {
-      await printBill(billData);
+      const res = await printBill(billData);
+      if (res && res.ok === false) {
+        setPrintWarning(res.reason || PRINT_DISABLED_REASON);
+        return;
+      }
       toast.success('Conta enviada para impressão!');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Impressão bloqueada: confira as configurações de cabeçalho/rodapé neste aparelho.';

@@ -64,6 +64,15 @@ export function setDevicePrinterConfig(config: DevicePrinterConfig): void {
 
 const LS_ENABLE_PRINTER = 'enable_printer_device';
 
+/** Nome do evento que sincroniza as preferências de impressora entre telas/abas. */
+export const PRINTER_PREFS_EVENT = 'printer_prefs_changed';
+
+export function emitPrinterPrefsChanged(): void {
+  try {
+    window.dispatchEvent(new CustomEvent(PRINTER_PREFS_EVENT));
+  } catch { /* ignore */ }
+}
+
 export function isMobileDevice(): boolean {
   if (typeof window === 'undefined') return false;
   const userAgent = navigator.userAgent || '';
@@ -81,6 +90,7 @@ export function setEnablePrinterDevice(v: boolean): void {
     if (v) localStorage.setItem(LS_ENABLE_PRINTER, '1');
     else localStorage.removeItem(LS_ENABLE_PRINTER);
   } catch { /* ignore */ }
+  emitPrinterPrefsChanged();
 }
 
 export function getBluetoothPriorityDefault(): boolean {
@@ -92,6 +102,7 @@ export function setBluetoothPriorityDefault(v: boolean): void {
     if (v) localStorage.setItem(LS_BT_PRIORITY, '1');
     else localStorage.removeItem(LS_BT_PRIORITY);
   } catch { /* ignore */ }
+  emitPrinterPrefsChanged();
 }
 
 function _saveLastDevice(device: any) {

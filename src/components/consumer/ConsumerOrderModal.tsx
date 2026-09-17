@@ -91,6 +91,7 @@ export function ConsumerOrderModal({
   const [reprintSelectedIds, setReprintSelectedIds] = useState<string[]>([]);
 
   const [selectedMobileProduct, setSelectedMobileProduct] = useState<Product | null>(null);
+  const [printNotice, setPrintNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && order) {
@@ -210,6 +211,9 @@ export function ConsumerOrderModal({
       return;
     }
 
+    setPrintNotice(null);
+    let blockedReason: string | null = null;
+
     // 1. Imprimir comanda de novos itens na cozinha se houverem
     const unprintedItems = items.filter(i => !i.printed);
     if (unprintedItems.length > 0) {
@@ -218,7 +222,8 @@ export function ConsumerOrderModal({
         if (onPrintOrder) {
           await onPrintOrder(orderToPrintKitchen);
         } else {
-          await printOrder(orderToPrintKitchen);
+          const res = await printOrder(orderToPrintKitchen);
+          if (res && res.ok === false) blockedReason = res.reason || null;
         }
       } catch (err) {
         console.warn('[handleFecharOrder] Impressão da cozinha ignorada ou falhou:', err);
@@ -243,11 +248,20 @@ export function ConsumerOrderModal({
       if (onPrintBill) {
         await onPrintBill(updatedOrder);
       } else {
-        await printBill(updatedOrder);
+        const res = await printBill(updatedOrder);
+        if (res && res.ok === false) blockedReason = res.reason || null;
       }
-      toast.success(`Mesa ${mesaNum || ''} / Conta impressa e mesa bloqueada!`);
+      if (!blockedReason) {
+        toast.success(`Mesa ${mesaNum || ''} / Conta impressa e mesa bloqueada!`);
+      }
     } catch (err: any) {
       toast.error('Erro ao imprimir conta: ' + (err?.message || 'Verifique a impressora'));
+    }
+
+    // Impressão bloqueada por configuração do aparelho: mantém a comanda aberta com o aviso
+    if (blockedReason) {
+      setPrintNotice(blockedReason);
+      return;
     }
 
     // Redireciona o usuário para a tela de Mesas
@@ -301,21 +315,30 @@ export function ConsumerOrderModal({
     onSaveOrder(updatedOrder);
 
     // 2. Imprimir SOMENTE os novos itens lançados na cozinha
+    let blockedReason: string | null = null;
+    setPrintNotice(null);
     try {
       const orderToPrint = { ...updatedOrder, items: unprintedItems };
 
       if (onPrintOrder) {
         await onPrintOrder(orderToPrint);
       } else {
-        await printOrder(orderToPrint);
+        const res = await printOrder(orderToPrint);
+        if (res && res.ok === false) blockedReason = res.reason || null;
       }
-      toast.success(`${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
+      if (!blockedReason) {
+        toast.success(`${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
+      }
     } catch (printErr: any) {
       console.warn('[handleEnviarOrder] Tentativa de impressão concluída ou ignorada:', printErr);
       toast.success(`Pedido da Mesa ${mesaNum || ''} enviado!`);
     } finally {
       setSendingOrder(false);
-      onClose(); // Redireciona o usuário para as mesas
+      if (blockedReason) {
+        setPrintNotice(blockedReason);
+      } else {
+        onClose(); // Redireciona o usuário para as mesas
+      }
     }
   };
 
@@ -1083,6 +1106,12 @@ export function ConsumerOrderModal({
                 </div>
               </div>
 
+              {printNotice && (
+                <div className="mx-2 mb-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] font-semibold leading-snug text-amber-700 dark:text-amber-400 shrink-0">
+                  {printNotice}
+                </div>
+              )}
+
               {/* Bottom Footer Action Bar matching Anexo 2 */}
               <div className={`p-2 bg-white border-t border-[#e8e4dc] grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 shrink-0`}>
                 {/* White Voltar Button -> Returns to categories */}
@@ -1588,6 +1617,12 @@ export function ConsumerOrderModal({
                   </table>
                 )}
               </div>
+
+              {printNotice && (
+                <div className="mx-4 mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs font-semibold leading-snug text-amber-700 dark:text-amber-400 shrink-0">
+                  {printNotice}
+                </div>
+              )}
 
               {/* Bottom Right Actions (Imprimir & PAGAMENTO) */}
               <div className="bg-muted/40 p-4 border-t border-border flex justify-between items-center shrink-0 gap-4">
