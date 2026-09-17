@@ -16,6 +16,8 @@ export default function BluetoothPrinterSection() {
     btAvailable,
     btPriorityDefault,
     toggleBluetoothPriorityDefault,
+    enablePrinterDevice,
+    toggleEnablePrinterDevice,
     pairBluetooth,
     reconnectPrinter,
     forgetPrinter,
