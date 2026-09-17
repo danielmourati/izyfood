@@ -189,8 +189,14 @@ export function usePrinter() {
     const tenantId = user?.tenantId;
     if (!tenantId) return;
 
-    const channel = supabase.channel(`${PRINT_HOST_PRESENCE_PREFIX}${tenantId}`, {
-      config: { presence: { key: `watch_${Math.random().toString(36).slice(2, 9)}` } },
+    const channelName = `${PRINT_HOST_PRESENCE_PREFIX}${tenantId}`;
+    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
+    if (existing) {
+      supabase.removeChannel(existing);
+    }
+
+    const channel = supabase.channel(channelName, {
+      config: { presence: { key: getDeviceId() } },
     });
 
     const readState = () => {
@@ -206,10 +212,18 @@ export function usePrinter() {
       .on('presence', { event: 'sync' }, readState)
       .on('presence', { event: 'join' }, readState)
       .on('presence', { event: 'leave' }, readState)
-      .subscribe();
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          if (printHostEnabled) {
+            await channel.track({ role: 'host', label: getDeviceLabel(), at: new Date().toISOString() });
+          } else {
+            await channel.track({ role: 'watcher', label: getDeviceLabel(), at: new Date().toISOString() });
+          }
+        }
+      });
 
     return () => { supabase.removeChannel(channel); };
-  }, [user?.tenantId]);
+  }, [user?.tenantId, printHostEnabled]);
 
   const enqueuePrintJob = useCallback(async (kind: PrintJobKind, payload: any): Promise<PrintResult> => {
     const tenantId = user?.tenantId;

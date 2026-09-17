@@ -113,10 +113,14 @@ export function usePrintHost() {
       purgeOldPrintJobs();
     })();
 
+    const channelName = `print-jobs-host:${tenantId}:${getDeviceId()}`;
+    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
+    if (existing) {
+      supabase.removeChannel(existing);
+    }
+
     const channel = supabase
-      .channel(`${PRINT_HOST_PRESENCE_PREFIX}${tenantId}`, {
-        config: { presence: { key: getDeviceId() } },
-      })
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'print_jobs', filter: `tenant_id=eq.${tenantId}` },
@@ -136,11 +140,7 @@ export function usePrintHost() {
           }
         },
       )
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ role: 'host', label: getDeviceLabel(), at: new Date().toISOString() });
-        }
-      });
+      .subscribe();
 
     return () => {
       active = false;
