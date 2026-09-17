@@ -1618,6 +1618,12 @@ export function ConsumerOrderModal({
                 )}
               </div>
 
+              {printNotice && (
+                <div className="mx-4 mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs font-semibold leading-snug text-amber-700 dark:text-amber-400 shrink-0">
+                  {printNotice}
+                </div>
+              )}
+
               {/* Bottom Right Actions (Imprimir & PAGAMENTO) */}
               <div className="bg-muted/40 p-4 border-t border-border flex justify-between items-center shrink-0 gap-4">
                 
