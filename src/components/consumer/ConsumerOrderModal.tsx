@@ -211,6 +211,9 @@ export function ConsumerOrderModal({
       return;
     }
 
+    setPrintNotice(null);
+    let blockedReason: string | null = null;
+
     // 1. Imprimir comanda de novos itens na cozinha se houverem
     const unprintedItems = items.filter(i => !i.printed);
     if (unprintedItems.length > 0) {
@@ -219,7 +222,8 @@ export function ConsumerOrderModal({
         if (onPrintOrder) {
           await onPrintOrder(orderToPrintKitchen);
         } else {
-          await printOrder(orderToPrintKitchen);
+          const res = await printOrder(orderToPrintKitchen);
+          if (res && res.ok === false) blockedReason = res.reason || null;
         }
       } catch (err) {
         console.warn('[handleFecharOrder] Impressão da cozinha ignorada ou falhou:', err);
@@ -244,11 +248,20 @@ export function ConsumerOrderModal({
       if (onPrintBill) {
         await onPrintBill(updatedOrder);
       } else {
-        await printBill(updatedOrder);
+        const res = await printBill(updatedOrder);
+        if (res && res.ok === false) blockedReason = res.reason || null;
       }
-      toast.success(`Mesa ${mesaNum || ''} / Conta impressa e mesa bloqueada!`);
+      if (!blockedReason) {
+        toast.success(`Mesa ${mesaNum || ''} / Conta impressa e mesa bloqueada!`);
+      }
     } catch (err: any) {
       toast.error('Erro ao imprimir conta: ' + (err?.message || 'Verifique a impressora'));
+    }
+
+    // Impressão bloqueada por configuração do aparelho: mantém a comanda aberta com o aviso
+    if (blockedReason) {
+      setPrintNotice(blockedReason);
+      return;
     }
 
     // Redireciona o usuário para a tela de Mesas
