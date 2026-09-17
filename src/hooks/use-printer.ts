@@ -142,6 +142,24 @@ export function usePrinter() {
     setEnablePrinterDeviceState(v);
   }, []);
 
+  // Mantém as preferências consolidadas entre as telas (Configurações > Impressora
+  // e a seção do menu do pedido) e entre abas abertas no mesmo aparelho.
+  useEffect(() => {
+    const sync = () => {
+      setEnablePrinterDeviceState(getEnablePrinterDevice());
+      setBtPriorityDefaultState(getBluetoothPriorityDefault());
+      setLastPairedName(getLastPairedDeviceName());
+    };
+    window.addEventListener(PRINTER_PREFS_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(PRINTER_PREFS_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+
+
+
 
   const fetchPrinters = useCallback(async () => {
     const { data } = await supabase
