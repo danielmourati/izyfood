@@ -22,6 +22,9 @@ export default function BluetoothPrinterSection() {
     reconnectPrinter,
     forgetPrinter,
     printTest,
+    printHostEnabled,
+    togglePrintHost,
+    hostOnline,
   } = usePrinter();
 
   const [busy, setBusy] = useState<null | 'pair' | 'reconnect' | 'test'>(null);
