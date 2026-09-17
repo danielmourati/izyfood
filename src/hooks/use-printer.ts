@@ -107,6 +107,14 @@ function validateBillPrintSettingsCache(tenantId: string | undefined, resolved: 
   return null;
 }
 
+export interface PrintResult {
+  ok: boolean;
+  reason?: string;
+}
+
+export const PRINT_DISABLED_REASON =
+  'Impressão desativada neste aparelho. Ative "Usar impressora neste dispositivo" na seção Impressora Bluetooth (ou em Configurações > Impressora).';
+
 export interface PrinterConfig {
   id: string;
   name: string;
