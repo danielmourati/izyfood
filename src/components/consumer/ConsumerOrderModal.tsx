@@ -210,6 +210,22 @@ export function ConsumerOrderModal({
       return;
     }
 
+    // 1. Imprimir comanda de novos itens na cozinha se houverem
+    const unprintedItems = items.filter(i => !i.printed);
+    if (unprintedItems.length > 0) {
+      try {
+        const orderToPrintKitchen = { ...currentOrder, items: unprintedItems };
+        if (onPrintOrder) {
+          await onPrintOrder(orderToPrintKitchen);
+        } else {
+          await printOrder(orderToPrintKitchen);
+        }
+      } catch (err) {
+        console.warn('[handleFecharOrder] Impressão da cozinha ignorada ou falhou:', err);
+      }
+    }
+
+    // 2. Marcar itens como impressos e bloquear a mesa
     const updatedOrder: Order = {
       ...currentOrder,
       isLocked: true,
@@ -222,7 +238,7 @@ export function ConsumerOrderModal({
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
 
-    // Imprimir cupom da conta automaticamente ao fechar a mesa
+    // 3. Imprimir cupom da conta automaticamente ao fechar a mesa
     try {
       if (onPrintBill) {
         await onPrintBill(updatedOrder);
@@ -268,24 +284,18 @@ export function ConsumerOrderModal({
       return;
     }
 
-    const unprintedItems = items.filter(i => !i.printed);
-    if (unprintedItems.length === 0) {
-      toast.info('Não há novos itens para enviar.');
-      return;
-    }
-
     setSendingOrder(true);
     const mesaNum = currentOrder.tableNumber || tableNumber;
 
     // 1. Marcar itens novos como impressos e salvar pedido
+    const unprintedItems = items.filter(i => !i.printed);
     const updatedItems = items.map(i => ({ ...i, printed: true }));
     const updatedOrder: Order = { ...currentOrder, items: updatedItems };
 
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
 
-    // 2. O fluxo central salva o pedido e vincula a mesa de forma ordenada.
-    // 3. Tentar impressão em bloco isolado (sem interromper salvamento/mudança de status)
+    // 2. Tentar impressão da comanda da cozinha automaticamente
     try {
       const orderToPrint = unprintedItems.length > 0
         ? { ...updatedOrder, items: unprintedItems }
@@ -1083,20 +1093,14 @@ export function ConsumerOrderModal({
                   </Button>
                 ) : (
                   <Button
-                    onClick={() => {
-                      if (hasUnsentItems) {
-                        toast.warning('Envie o pedido para a cozinha antes de fechar a mesa!');
-                        return;
-                      }
-                      handleFecharOrder();
-                    }}
-                    disabled={hasUnsentItems}
+                    onClick={handleFecharOrder}
+                    disabled={items.length === 0}
                     className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                      hasUnsentItems
+                      items.length === 0
                         ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
                         : 'bg-[#00b050] hover:bg-[#009544] cursor-pointer'
                     }`}
-                    title={hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear mesa'}
+                    title="Fechar e bloquear mesa (imprime conta)"
                   >
                     <Lock className="h-4 w-4 mb-0.5" /> FECHAR
                   </Button>
@@ -1104,13 +1108,13 @@ export function ConsumerOrderModal({
                 {/* Orange Enviar Button -> stays ENVIAR regardless of lock state */}
                 <Button
                   onClick={handleEnviarOrder}
-                  disabled={sendingOrder || !hasNewUnsentItems}
+                  disabled={sendingOrder || items.length === 0}
                   className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                    sendingOrder || !hasNewUnsentItems
+                    sendingOrder || items.length === 0
                       ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
                       : 'bg-[#ff9400] hover:bg-[#e08300] cursor-pointer'
                   }`}
-                  title={!hasNewUnsentItems ? 'Lance um novo item para habilitar o envio' : 'Enviar pedido'}
+                  title="Enviar pedido para a cozinha e salvar"
                 >
                   <Send className="h-4 w-4 mb-0.5" /> ENVIAR
                 </Button>
