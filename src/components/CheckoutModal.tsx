@@ -46,6 +46,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [cashRegisterChecked, setCashRegisterChecked] = useState(false);
   const [localCashOpen, setLocalCashOpen] = useState(false);
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
+  const [finalizing, setFinalizing] = useState(false);
   const [activeSubModal, setActiveSubModal] = useState<SubModalType>('list');
   const [cardSubtype, setCardSubtype] = useState<'credito' | 'debito' | 'refeicao'>('credito');
 
@@ -284,7 +285,8 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     toast.success(`Cliente ${newCust.name} cadastrado e selecionado!`);
   };
 
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
+    if (finalizing) return;
     if (!effectiveCashOpen) {
       toast.error('O caixa não está aberto.');
       return;
@@ -318,7 +320,16 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       serviceFee: serviceFeeAmount > 0 ? serviceFeeAmount : undefined,
     };
 
-    completeSale(finalOrder);
+    setFinalizing(true);
+    try {
+      await completeSale(finalOrder);
+    } catch (err) {
+      console.error('[CheckoutModal] completeSale error:', err);
+      toast.error('Não foi possível concluir o pagamento. Verifique a conexão e tente novamente.');
+      setFinalizing(false);
+      return;
+    }
+    setFinalizing(false);
 
     setSplits([]);
     setActiveSubModal('list');
@@ -329,6 +340,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     onComplete();
     onClose();
   };
+
 
   const cashSplit = splits.find(s => s.method === 'dinheiro');
   const cashChange = cashSplit && cashGiven ? parseFloat(cashGiven.replace(',', '.')) - cashSplit.amount : 0;

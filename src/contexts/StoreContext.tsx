@@ -52,6 +52,7 @@ interface StoreContextType {
   realtimeStatus: RealtimeStatus;
   lastRealtimeEventTime: number | null;
   realtimeEventCounts: Record<string, number>;
+  lastSyncError: string | null;
   fetchAll: () => Promise<void>;
 }
 
@@ -91,7 +92,7 @@ function dbToOrder(r: any): Order {
     pickupTime: r.pickup_time || undefined,
     pickupNotes: r.pickup_notes || undefined,
     serviceFee: r.service_fee ? Number(r.service_fee) : undefined,
-    isLocked: r.is_locked ?? false,
+    isLocked: r.status === 'segurado',
   };
 }
 function dbToSale(r: any): Sale {
@@ -147,6 +148,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('CONNECTING');
   const [lastRealtimeEventTime, setLastRealtimeEventTime] = useState<number | null>(null);
   const [realtimeEventCounts, setRealtimeEventCounts] = useState<Record<string, number>>({});
+  const [lastSyncError, setLastSyncError] = useState<string | null>(null);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const dbChannelRef = useRef<RealtimeChannel | null>(null);
@@ -156,6 +158,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const pendingIdsRef = useRef<Map<string, number>>(new Map());
   const retryDelayRef = useRef<number>(1000);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const subscriptionsStartingRef = useRef(false);
   const realtimeStatusRef = useRef<RealtimeStatus>('CONNECTING');
   realtimeStatusRef.current = realtimeStatus;
 
@@ -353,7 +356,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         o.status !== 'concluido' && 
         o.status !== 'finalizado' &&
         !dbIds.has(o.id) && 
-        (isPendingLocalChange(o.id) || (o.items && o.items.length > 0) || (o.total && o.total > 0) || o.isLocked || o.status === 'segurado')
+        isPendingLocalChange(o.id)
       );
       nextOrders = [...parsedDbOrds, ...activeLocalOrds];
       saveLS('izy_orders', nextOrders);
@@ -492,7 +495,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         fetchOrders(),
         fetchSales(),
         fetchStockEntries(),
-        fetchTables(),
         fetchCoupons(),
         fetchNoteOptions(),
         fetchSettings(),
@@ -524,7 +526,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // Setup subscriptions with exponential backoff
   const setupRealtimeSubscriptions = useCallback(() => {
-    if (!userId) return;
+    if (!userId || subscriptionsStartingRef.current) return;
+    subscriptionsStartingRef.current = true;
+
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    if (dbChannelRef.current) {
+      supabase.removeChannel(dbChannelRef.current);
+      dbChannelRef.current = null;
+    }
 
     const tenantKey = user?.tenantId || (user as any)?.tenantSlug || tenantIdRef.current || 'default';
 
@@ -541,7 +553,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          setRealtimeStatus('SUBSCRIBED');
           retryDelayRef.current = 1000;
           fetchAll();
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -554,12 +565,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     // Database postgres_changes channel
     const dbChannelName = `store-tenant-db-${tenantKey}`;
+    const tenantFilter = user?.tenantId ? `tenant_id=eq.${user.tenantId}` : undefined;
     const dbChannel = supabase.channel(dbChannelName)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', ...(tenantFilter ? { filter: tenantFilter } : {}) }, () => {
         recordRealtimeEvent('orders');
         debounceFetch('orders', fetchTablesAndOrders, 300);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_tables', ...(tenantFilter ? { filter: tenantFilter } : {}) }, (payload) => {
         recordRealtimeEvent('store_tables');
         if (payload.eventType === 'DELETE') {
           const deletedNumber = payload.old?.number;
@@ -657,8 +669,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           setRealtimeStatus('SUBSCRIBED');
+          subscriptionsStartingRef.current = false;
           retryDelayRef.current = 1000;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          subscriptionsStartingRef.current = false;
           setRealtimeStatus('RECONNECTING');
           scheduleReconnect();
         }
@@ -667,7 +681,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dbChannelRef.current = dbChannel;
   }, [
     userId, user?.tenantId, recordRealtimeEvent, debounceFetch, fetchAll,
-    fetchOrders, fetchTables, fetchProducts, fetchCategories, fetchCustomers,
+    fetchOrders, fetchProducts, fetchCategories, fetchCustomers,
     fetchSuppliers, fetchSales, fetchStockEntries, fetchCoupons, fetchNoteOptions,
     fetchSettings, isPendingLocalChange
   ]);
@@ -686,6 +700,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.removeChannel(dbChannelRef.current);
         dbChannelRef.current = null;
       }
+      subscriptionsStartingRef.current = false;
       setupRealtimeSubscriptions();
     }, delay);
   }, [setupRealtimeSubscriptions]);
@@ -738,12 +753,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('storage', handleStorage);
 
-    // Sync silencioso de alta frequência a cada 2 segundos (2000ms) para sincronização instantânea entre dispositivos (Desktop <-> Mobile)
+    // Contingência leve: o WebSocket é o caminho principal; consulta apenas quando ele não está saudável.
     const silentSyncIntervalId = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && realtimeStatusRef.current !== 'SUBSCRIBED') {
         fetchTablesAndOrders();
       }
-    }, 2000);
+    }, 20000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -763,6 +778,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.removeChannel(dbChannelRef.current);
         dbChannelRef.current = null;
       }
+      subscriptionsStartingRef.current = false;
     };
   }, [userId, setupRealtimeSubscriptions, fetchAll, fetchTablesAndOrders]);
 
@@ -791,22 +807,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setProductsWrapped: typeof setProducts = useCallback((updater) => {
     const prev = productsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    productsRef.current = next;
     setProducts(next);
     saveLS('izy_products', next);
-    syncProducts(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncProducts]', e));
-  }, [notifyCrossTabSync, markPending]);
+    syncProducts(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync()).catch(e => console.error('[syncProducts]', e));
+  }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   const setCategoriesWrapped: typeof setCategories = useCallback((updater) => {
     const prev = categoriesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    categoriesRef.current = next;
     setCategories(next);
     saveLS('izy_categories', next);
-    syncCategories(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCategories]', e));
-  }, [notifyCrossTabSync, markPending]);
+    syncCategories(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCategories]', e));
+  }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   const setCustomersWrapped: typeof setCustomers = useCallback((updater) => {
     const prev = customersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    customersRef.current = next;
     setCustomers(next);
     saveLS('izy_customers', next);
     syncCustomers(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCustomers]', e));
@@ -815,6 +834,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setSuppliersWrapped: typeof setSuppliers = useCallback((updater) => {
     const prev = suppliersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    suppliersRef.current = next;
     setSuppliers(next);
     saveLS('izy_suppliers', next);
     syncSuppliers(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncSuppliers]', e));
@@ -823,14 +843,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setOrdersWrapped: typeof setOrders = useCallback((updater) => {
     const prev = ordersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    ordersRef.current = next;
     setOrders(next);
     saveLS('izy_orders', next);
-    syncOrders(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncOrders]', e));
-  }, [notifyCrossTabSync, markPending]);
+    setLastSyncError(null);
+    syncOrders(prev, next, markPending, clearPending, user?.tenantId)
+      .then(() => notifyCrossTabSync())
+      .catch(e => {
+        console.error('[syncOrders]', e);
+        setLastSyncError('Não foi possível sincronizar o pedido. Verifique a conexão e tente novamente.');
+      });
+  }, [notifyCrossTabSync, markPending, clearPending, user?.tenantId]);
 
   const setSalesWrapped: typeof setSales = useCallback((updater) => {
     const prev = salesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    salesRef.current = next;
     setSales(next);
     saveLS('izy_sales', next);
     syncSales(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncSales]', e));
@@ -839,6 +867,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setStockEntriesWrapped: typeof setStockEntries = useCallback((updater) => {
     const prev = stockEntriesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    stockEntriesRef.current = next;
     setStockEntries(next);
     saveLS('izy_stock_entries', next);
     syncStockEntries(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncStockEntries]', e));
@@ -847,14 +876,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setTablesWrapped: typeof setTables = useCallback((updater) => {
     const prev = tablesRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    tablesRef.current = next;
     setTables(next);
     saveLS('izy_tables', next);
-    syncTables(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncTables]', e));
-  }, [notifyCrossTabSync, markPending]);
+    syncTables(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync()).catch(e => console.error('[syncTables]', e));
+  }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   const setCouponsWrapped: typeof setCoupons = useCallback((updater) => {
     const prev = couponsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    couponsRef.current = next;
     setCoupons(next);
     saveLS('izy_coupons', next);
     syncCoupons(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCoupons]', e));
@@ -863,6 +894,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setNoteOptionsWrapped: typeof setNoteOptions = useCallback((updater) => {
     const prev = noteOptionsRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    noteOptionsRef.current = next;
     setNoteOptions(next);
     saveLS('izy_note_options', next);
     syncNoteOptions(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncNoteOptions]', e));
@@ -925,7 +957,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (tenantId) item.tenant_id = tenantId;
       await supabase.from('store_tables').upsert(
         item,
-        { onConflict: 'number' }
+        { onConflict: 'number,tenant_id' }
       );
     } catch (err) {
       console.error('[occupyTable] DB upsert error:', err);
@@ -946,7 +978,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (tenantId) item.tenant_id = tenantId;
       await supabase.from('store_tables').upsert(
         item,
-        { onConflict: 'number' }
+        { onConflict: 'number,tenant_id' }
       );
     } catch (err) {
       console.error('[freeTable] DB upsert error:', err);
@@ -968,7 +1000,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     markPending(order.id);
     if (order.tableNumber != null) markPending(order.tableNumber);
 
-    await supabase.from('sales').insert({
+    // 1) Registra a venda (base dos totais do caixa por forma de pagamento).
+    const { error: saleError } = await supabase.from('sales').insert({
       order_id: order.id,
       total: order.total,
       payment_method: order.paymentMethod!,
@@ -976,6 +1009,68 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       items: order.items as any,
       payment_splits: order.paymentSplits && order.paymentSplits.length > 0 ? order.paymentSplits as any : null,
     });
+    if (saleError) {
+      console.error('[completeSale] sale insert error:', saleError);
+      clearPending(order.id);
+      if (order.tableNumber != null) clearPending(order.tableNumber);
+      setLastSyncError('Não foi possível registrar o pagamento no caixa. Verifique a conexão e tente novamente.');
+      throw saleError;
+    }
+
+    // 2) Finaliza o pedido ANTES de liberar a mesa, para que a reconciliação
+    // não volte a ocupar a mesa por causa de um pedido ainda aberto.
+    const completedAt = new Date().toISOString();
+    const orderUpdate: Record<string, any> = {
+      status: 'finalizado',
+      completed_at: completedAt,
+      held_at: null,
+      total: order.total,
+      payment_method: order.paymentMethod,
+      payment_splits: order.paymentSplits && order.paymentSplits.length > 0 ? order.paymentSplits as any : null,
+      discount: order.discount || null,
+      discount_type: order.discountType || null,
+      coupon_id: order.couponId || null,
+      customer_id: order.customerId || null,
+      loyalty_redemptions: order.loyaltyRedemptions || null,
+      service_fee: order.serviceFee || null,
+    };
+    if (order.orderType === 'delivery' || order.orderType === 'retirada') {
+      orderUpdate.delivery_status = 'finalizado';
+    }
+    let orderError: unknown = null;
+    try {
+      await queueOrderWrite(order.id, async () => {
+        const { error } = await supabase.from('orders').update(orderUpdate as any).eq('id', order.id);
+        if (error) throw error;
+      });
+    } catch (err) {
+      orderError = err;
+    }
+    if (orderError) {
+      console.error('[completeSale] order finalize error:', orderError);
+      clearPending(order.id);
+      if (order.tableNumber != null) clearPending(order.tableNumber);
+      setLastSyncError('Pagamento registrado, mas não foi possível finalizar o pedido. Tente novamente.');
+      throw orderError;
+    }
+
+    // 3) Estado local do pedido: finalizado e desbloqueado, para que nenhum
+    // salvamento posterior regrave o pedido como aberto.
+    const finalizedOrder: Order = {
+      ...order,
+      status: 'finalizado',
+      isLocked: false,
+      heldAt: undefined,
+      completedAt,
+    };
+    ordersRef.current = ordersRef.current.map(o => o.id === order.id ? finalizedOrder : o);
+    setOrders(ordersRef.current);
+    saveLS('izy_orders', ordersRef.current);
+
+    // 4) Libera a mesa.
+    if (order.tableNumber != null) {
+      await freeTable(order.tableNumber);
+    }
 
     await deductStock(order.items);
 
@@ -990,37 +1085,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }).length;
 
         const pointsToSubtract = (order.loyaltyRedemptions || 0) * 10;
-        const isFiado = order.paymentMethod === 'fiado';
+        const fiadoAmount = order.paymentSplits && order.paymentSplits.length > 0
+          ? order.paymentSplits.filter(s => s.method === 'fiado').reduce((sum, s) => sum + s.amount, 0)
+          : (order.paymentMethod === 'fiado' ? order.total : 0);
 
         await supabase.from('customers').update({
-          credit_balance: isFiado ? Number(custData.credit_balance) + order.total : Number(custData.credit_balance),
+          credit_balance: Number(custData.credit_balance) + fiadoAmount,
           loyalty_points: Math.max(0, (custData.loyalty_points || 0) + eligibleCount - pointsToSubtract),
         }).eq('id', order.customerId);
       }
     }
 
-    if (order.tableNumber != null) {
-      await freeTable(order.tableNumber);
-    }
+    clearPending(order.id);
+    notifyCrossTabSync();
+  }, [deductStock, products, freeTable, markPending, clearPending, notifyCrossTabSync]);
 
-    const orderUpdate: Record<string, any> = {
-      status: 'finalizado',
-      completed_at: new Date().toISOString(),
-      total: order.total,
-      payment_method: order.paymentMethod,
-      payment_splits: order.paymentSplits && order.paymentSplits.length > 0 ? order.paymentSplits as any : null,
-      discount: order.discount || null,
-      discount_type: order.discountType || null,
-      coupon_id: order.couponId || null,
-      customer_id: order.customerId || null,
-      loyalty_redemptions: order.loyaltyRedemptions || null,
-      service_fee: order.serviceFee || null,
-    };
-    if (order.orderType === 'delivery' || order.orderType === 'retirada') {
-      orderUpdate.delivery_status = 'finalizado';
-    }
-    await supabase.from('orders').update(orderUpdate as any).eq('id', order.id);
-  }, [deductStock, products, freeTable, markPending]);
 
   return (
     <StoreContext.Provider value={{
@@ -1033,7 +1112,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       printSettings, setPrintSettings,
       occupyTable, freeTable,
       completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
-      realtimeStatus, lastRealtimeEventTime, realtimeEventCounts, fetchAll,
+       realtimeStatus, lastRealtimeEventTime, realtimeEventCounts, lastSyncError, fetchAll,
     }}>
       {children}
     </StoreContext.Provider>
@@ -1048,15 +1127,13 @@ export const useStore = () => {
 
 // ============ Sync helpers ============
 
-async function syncProducts(prev: Product[], next: Product[], markPending: (id: string) => void) {
+async function syncProducts(prev: Product[], next: Product[], markPending: (id: string) => void, tenantId?: string) {
   const added = next.filter(n => !prev.find(p => p.id === n.id));
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const updated = next.filter(n => {
     const p = prev.find(pp => pp.id === n.id);
     return p && JSON.stringify(p) !== JSON.stringify(n);
   });
-
-  const tenantId = tenantIdRef.current;
 
   for (const p of added) {
     markPending(p.id);
@@ -1090,12 +1167,10 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
   }
 }
 
-async function syncCategories(prev: ProductCategory[], next: ProductCategory[], markPending: (id: string) => void) {
+async function syncCategories(prev: ProductCategory[], next: ProductCategory[], markPending: (id: string) => void, tenantId?: string) {
   const added = next.filter(n => !prev.find(p => p.id === n.id));
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && p.name !== n.name; });
-
-  const tenantId = tenantIdRef.current;
 
   for (const c of added) {
     markPending(c.id);
@@ -1140,18 +1215,31 @@ async function syncSuppliers(prev: Supplier[], next: Supplier[], markPending: (i
   for (const s of removed) { markPending(s.id); await supabase.from('suppliers').delete().eq('id', s.id); }
 }
 
-async function syncOrders(prev: Order[], next: Order[], markPending: (id: string | number) => void) {
+const orderWriteChains = new Map<string, Promise<void>>();
+
+function queueOrderWrite(orderId: string, write: () => Promise<void>) {
+  const previous = orderWriteChains.get(orderId) || Promise.resolve();
+  const current = previous.catch(() => undefined).then(write);
+  orderWriteChains.set(orderId, current);
+  return current.finally(() => {
+    if (orderWriteChains.get(orderId) === current) orderWriteChains.delete(orderId);
+  });
+}
+
+async function syncOrders(prev: Order[], next: Order[], markPending: (id: string | number) => void, clearPending: (id: string | number) => void, tenantId?: string) {
   const added = next.filter(n => !prev.find(p => p.id === n.id));
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && JSON.stringify(p) !== JSON.stringify(n); });
-
-  const tenantId = tenantIdRef.current;
 
   for (const o of removed) {
     markPending(o.id);
     if (o.tableNumber) markPending(o.tableNumber);
     try {
-      await supabase.from('orders').delete().eq('id', o.id);
+      await queueOrderWrite(o.id, async () => {
+        const { error } = await supabase.from('orders').delete().eq('id', o.id);
+        if (error) throw error;
+      });
+      clearPending(o.id);
     } catch (err) {
       console.error('[syncOrders] DB delete error:', err);
     }
@@ -1162,8 +1250,17 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
     markPending(o.id);
     if (o.tableNumber) markPending(o.tableNumber);
     try {
+      // O bloqueio da mesa é persistido no status: 'segurado' = bloqueado.
+      const lockAware = o.orderType === 'mesa' && o.status !== 'cancelado' && o.status !== 'finalizado' && o.status !== 'concluido';
+      const persistedStatus = lockAware
+        ? (o.isLocked ? 'segurado' : (o.status === 'segurado' ? 'aberto' : o.status))
+        : o.status;
+      const persistedHeldAt = persistedStatus === 'segurado'
+        ? (o.heldAt || new Date().toISOString())
+        : (lockAware ? null : o.heldAt || null);
+
       const orderPayload: any = {
-        id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: o.status,
+        id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: persistedStatus,
         table_number: o.tableNumber || null, customer_id: o.customerId || null,
         customer_name: o.customerName || null, customer_phone: o.customerPhone || null,
         customer_address: o.customerAddress || null, delivery_fee: o.deliveryFee || null,
@@ -1171,27 +1268,37 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
         motoboy_name: o.motoboyName || null, payment_method: o.paymentMethod || null,
         payment_splits: o.paymentSplits as any || null, discount: o.discount || null,
         discount_type: o.discountType || null, coupon_id: o.couponId || null,
-        loyalty_redemptions: o.loyaltyRedemptions || null, held_at: o.heldAt || null,
+        loyalty_redemptions: o.loyaltyRedemptions || null, held_at: persistedHeldAt,
         completed_at: o.completedAt || null,
         pickup_person: o.pickupPerson || null, production_time: o.productionTime || null,
         pickup_time: o.pickupTime || null, pickup_notes: o.pickupNotes || null,
-        is_locked: o.isLocked ?? false,
+        service_fee: o.serviceFee || null,
       };
       if (tenantId) orderPayload.tenant_id = tenantId;
 
-      await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' });
+      if (!tenantId) throw new Error(`Pedido ${o.id} sem identificação da loja`);
+      await queueOrderWrite(o.id, async () => {
+        const { error } = await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' });
+        if (error) throw error;
+      });
 
-      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido') {
+      if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido' && o.status !== 'finalizado' && persistedStatus !== 'finalizado') {
         const tablePayload: any = { number: Number(o.tableNumber), status: 'occupied', order_id: o.id };
         if (tenantId) tablePayload.tenant_id = tenantId;
 
-        await supabase.from('store_tables').upsert(
+        const { error: tableError } = await supabase.from('store_tables').upsert(
           tablePayload,
-          { onConflict: 'number' }
+          { onConflict: 'number,tenant_id' }
         );
+        if (tableError) throw tableError;
       }
+      clearPending(o.id);
+      if (o.tableNumber) clearPending(o.tableNumber);
     } catch (err) {
       console.error('[syncOrders] DB upsert error:', err);
+      clearPending(o.id);
+      if (o.tableNumber) clearPending(o.tableNumber);
+      throw err;
     }
   }
 }
@@ -1213,13 +1320,12 @@ async function syncStockEntries(prev: StockEntry[], next: StockEntry[]) {
   for (const s of removed) await supabase.from('stock_entries').delete().eq('id', s.id);
 }
 
-async function syncTables(prev: TableInfo[], next: TableInfo[], markPending: (id: number) => void) {
+async function syncTables(prev: TableInfo[], next: TableInfo[], markPending: (id: number) => void, tenantId?: string) {
   const updated = next.filter(n => {
     const p = prev.find(pp => pp.number === n.number);
     if (!p) return false;
     return JSON.stringify(p) !== JSON.stringify(n);
   });
-  const tenantId = tenantIdRef.current;
   for (const t of updated) {
     markPending(t.number);
     const tablePayload: any = {
@@ -1229,7 +1335,8 @@ async function syncTables(prev: TableInfo[], next: TableInfo[], markPending: (id
     };
     if (tenantId) tablePayload.tenant_id = tenantId;
 
-    await supabase.from('store_tables').upsert(tablePayload, { onConflict: 'number' });
+    const { error } = await supabase.from('store_tables').upsert(tablePayload, { onConflict: 'number,tenant_id' });
+    if (error) throw error;
   }
 }
 

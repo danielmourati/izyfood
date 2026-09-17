@@ -19,6 +19,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { usePrinter } from '@/hooks/use-printer';
 import { supabase } from '@/integrations/supabase/client';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
+import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -43,7 +44,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const canManageMesa = isAdmin || permissions.manage_tables || permissions.cancel_orders;
@@ -109,6 +110,20 @@ export function ConsumerOrderModal({
     }
   }, [open, order, user]);
 
+  // Reflete em tempo real o bloqueio/desbloqueio feito em outro dispositivo
+  useEffect(() => {
+    if (!open || !currentOrder) return;
+    const remote = storeOrders.find(o => o.id === currentOrder.id);
+    if (!remote) return;
+    const remoteLocked = remote.isLocked === true || remote.status === 'segurado';
+    if (remoteLocked !== isLocked) {
+      setIsLocked(remoteLocked);
+      setCurrentOrder(prev => (prev ? { ...prev, isLocked: remoteLocked, status: remote.status } : prev));
+    }
+  }, [open, storeOrders, currentOrder?.id, isLocked]);
+
+
+
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
 
@@ -134,9 +149,6 @@ export function ConsumerOrderModal({
       };
       setCurrentOrder(updatedOrder);
       onSaveOrder(updatedOrder);
-      if (mesaNum && occupyTable) {
-        occupyTable(Number(mesaNum), updatedOrder.id);
-      }
       toast.success(`Mesa ${mesaNum || ''} salva com sucesso!`);
     } else {
       // Se não possui itens nem valor (R$0,00), libera obrigatoriamente a mesa
@@ -201,19 +213,14 @@ export function ConsumerOrderModal({
     const updatedOrder: Order = {
       ...currentOrder,
       isLocked: true,
+      status: 'segurado',
+      heldAt: currentOrder.heldAt || new Date().toISOString(),
       items: items.map(i => ({ ...i, printed: true })),
     };
 
     setIsLocked(true);
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
-
-    if (mesaNum) {
-      const numMesa = Number(mesaNum);
-      if (occupyTable) {
-        await occupyTable(numMesa, updatedOrder.id);
-      }
-    }
 
     // Imprimir cupom da conta automaticamente ao fechar a mesa
     try {
@@ -230,6 +237,29 @@ export function ConsumerOrderModal({
     // Redireciona o usuário para a tela de Mesas
     onClose();
   };
+
+  // Reabre a mesa bloqueada (reflete em todos os dispositivos)
+  const handleReabrirOrder = () => {
+    if (!canManageMesa) {
+      toast.error('Permissão negada. Somente administradores ou atendentes autorizados podem reabrir a mesa.');
+      return;
+    }
+    if (!currentOrder) return;
+
+    const updatedOrder: Order = {
+      ...currentOrder,
+      isLocked: false,
+      status: 'aberto',
+      heldAt: undefined,
+    };
+
+    setIsLocked(false);
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    toast.success(`Mesa ${currentOrder.tableNumber || tableNumber || ''} reaberta!`);
+  };
+
+
 
   // Helper to send and print order automatically via local Bluetooth printer & redirect to Mesas
   const handleEnviarOrder = async () => {
@@ -254,33 +284,7 @@ export function ConsumerOrderModal({
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
 
-    // 2. Mudar obrigatoriamente o status da mesa para 'occupied' no estado e no Supabase
-    if (mesaNum) {
-      const numMesa = Number(mesaNum);
-      if (occupyTable) {
-        await occupyTable(numMesa, updatedOrder.id);
-      }
-      try {
-        await supabase
-          .from('orders')
-          .upsert({
-            id: updatedOrder.id,
-            items: updatedItems as any,
-            total: updatedOrder.total,
-            order_type: updatedOrder.orderType,
-            status: updatedOrder.status,
-            table_number: numMesa,
-            customer_id: updatedOrder.customerId || null,
-            customer_name: updatedOrder.customerName || null,
-            customer_phone: updatedOrder.customerPhone || null,
-            pickup_notes: updatedOrder.pickupNotes || null,
-            is_locked: updatedOrder.isLocked ?? false,
-          } as any);
-      } catch (dbErr) {
-        console.warn('Aviso ao sincronizar pedido no banco:', dbErr);
-      }
-    }
-
+    // 2. O fluxo central salva o pedido e vincula a mesa de forma ordenada.
     // 3. Tentar impressão em bloco isolado (sem interromper salvamento/mudança de status)
     try {
       const orderToPrint = unprintedItems.length > 0
@@ -388,10 +392,6 @@ export function ConsumerOrderModal({
     setIsLocked(false);
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
-    const mesaNum = currentOrder?.tableNumber || tableNumber;
-    if (mesaNum && occupyTable) {
-      occupyTable(Number(mesaNum), updatedOrder.id);
-    }
     toast.success(`Adicionado: ${prod.name}`);
   };
 
@@ -530,10 +530,6 @@ export function ConsumerOrderModal({
     setIsLocked(false);
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
-    const mesaNum = currentOrder?.tableNumber || tableNumber;
-    if (mesaNum && occupyTable) {
-      occupyTable(Number(mesaNum), updatedOrder.id);
-    }
     setCustomizeOpen(false);
     toast.success(editingItem ? 'Item atualizado!' : `Adicionado: ${selectedProduct.name}`);
   };
@@ -723,12 +719,6 @@ export function ConsumerOrderModal({
       if (freeTable) {
         await freeTable(numMesa);
       }
-      try {
-        await supabase.from('store_tables').upsert(
-          { number: numMesa, status: 'available', order_id: null },
-          { onConflict: 'number' }
-        );
-      } catch {}
     }
 
     setAdminDeleting(false);
@@ -1082,26 +1072,36 @@ export function ConsumerOrderModal({
                 >
                   <ChevronLeft className="h-4 w-4 mb-0.5" /> VOLTAR
                 </Button>
-                {/* Green Fechar Button -> Blocked until order has been sent */}
-                <Button
-                  onClick={() => {
-                    if (hasUnsentItems) {
-                      toast.warning('Envie o pedido para a cozinha antes de fechar a mesa!');
-                      return;
-                    }
-                    handleFecharOrder();
-                  }}
-                  disabled={hasUnsentItems}
-                  className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                    hasUnsentItems
-                      ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
-                      : 'bg-[#00b050] hover:bg-[#009544] cursor-pointer'
-                  }`}
-                  title={hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear mesa'}
-                >
-                  <Lock className="h-4 w-4 mb-0.5" /> FECHAR
-                </Button>
-                {/* Orange Enviar Button -> Automatically prints on local Bluetooth printer */}
+                {/* Green Fechar Button -> becomes REABRIR when the table is locked */}
+                {isLocked ? (
+                  <Button
+                    onClick={handleReabrirOrder}
+                    className="h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all bg-[#00b050] hover:bg-[#009544] cursor-pointer"
+                    title="Reabrir mesa para novos lançamentos"
+                  >
+                    <RefreshCw className="h-4 w-4 mb-0.5" /> REABRIR
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      if (hasUnsentItems) {
+                        toast.warning('Envie o pedido para a cozinha antes de fechar a mesa!');
+                        return;
+                      }
+                      handleFecharOrder();
+                    }}
+                    disabled={hasUnsentItems}
+                    className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
+                      hasUnsentItems
+                        ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
+                        : 'bg-[#00b050] hover:bg-[#009544] cursor-pointer'
+                    }`}
+                    title={hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear mesa'}
+                  >
+                    <Lock className="h-4 w-4 mb-0.5" /> FECHAR
+                  </Button>
+                )}
+                {/* Orange Enviar Button -> stays ENVIAR regardless of lock state */}
                 <Button
                   onClick={handleEnviarOrder}
                   disabled={sendingOrder || !hasNewUnsentItems}
@@ -1114,6 +1114,7 @@ export function ConsumerOrderModal({
                 >
                   <Send className="h-4 w-4 mb-0.5" /> ENVIAR
                 </Button>
+
                 {/* Purple Pagar Button -> Shown ONLY to Admin users */}
                 {isAdmin && (
                   <Button
@@ -1213,7 +1214,7 @@ export function ConsumerOrderModal({
                       onCheckedChange={(checked) => {
                         setIsLocked(checked);
                         if (currentOrder) {
-                          const updated = { ...currentOrder, isLocked: checked };
+                          const updated: Order = { ...currentOrder, isLocked: checked, status: checked ? 'segurado' : 'aberto', heldAt: checked ? (currentOrder.heldAt || new Date().toISOString()) : undefined };
                           setCurrentOrder(updated);
                           onSaveOrder(updated);
                           toast.info(checked ? 'Pedido bloqueado' : 'Pedido desbloqueado');
@@ -1250,6 +1251,9 @@ export function ConsumerOrderModal({
                     </button>
                   )}
                 </div>
+
+                {/* SEÇÃO 2: IMPRESSORA BLUETOOTH (LOCAL) */}
+                <BluetoothPrinterSection />
               </div>
 
               <DialogFooter className="pt-2 border-t border-border">
@@ -1405,7 +1409,7 @@ export function ConsumerOrderModal({
                     onCheckedChange={(checked) => {
                       setIsLocked(checked);
                       if (currentOrder) {
-                        const updated = { ...currentOrder, isLocked: checked };
+                        const updated: Order = { ...currentOrder, isLocked: checked, status: checked ? 'segurado' : 'aberto', heldAt: checked ? (currentOrder.heldAt || new Date().toISOString()) : undefined };
                         setCurrentOrder(updated);
                         onSaveOrder(updated);
                         toast.info(checked ? 'Pedido bloqueado' : 'Pedido desbloqueado');
