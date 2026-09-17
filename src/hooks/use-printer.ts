@@ -28,7 +28,7 @@ import {
   setPrintHostEnabled,
   getDeviceLabel,
 } from '@/lib/printer';
-import { PRINT_HOST_PRESENCE_PREFIX, type PrintJobKind } from '@/lib/print-queue';
+import { PRINT_HOST_PRESENCE_PREFIX, insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
 import {
   buildOrderReceipt,
   buildBillReceipt,
