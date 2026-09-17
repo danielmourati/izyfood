@@ -284,31 +284,34 @@ export function ConsumerOrderModal({
       return;
     }
 
+    const unprintedItems = items.filter(i => !i.printed);
+    if (unprintedItems.length === 0) {
+      toast.info('Não há novos itens para enviar.');
+      return;
+    }
+
     setSendingOrder(true);
     const mesaNum = currentOrder.tableNumber || tableNumber;
 
     // 1. Marcar itens novos como impressos e salvar pedido
-    const unprintedItems = items.filter(i => !i.printed);
     const updatedItems = items.map(i => ({ ...i, printed: true }));
     const updatedOrder: Order = { ...currentOrder, items: updatedItems };
 
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
 
-    // 2. Tentar impressão da comanda da cozinha automaticamente
+    // 2. Imprimir SOMENTE os novos itens lançados na cozinha
     try {
-      const orderToPrint = unprintedItems.length > 0
-        ? { ...updatedOrder, items: unprintedItems }
-        : updatedOrder;
+      const orderToPrint = { ...updatedOrder, items: unprintedItems };
 
       if (onPrintOrder) {
         await onPrintOrder(orderToPrint);
       } else {
         await printOrder(orderToPrint);
       }
-      toast.success(`Pedido da Mesa ${mesaNum || ''} enviado e impresso!`);
+      toast.success(`${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
     } catch (printErr: any) {
-      console.warn('[handleEnviarOrder] Tentativa de impressão concluída ou ignorada (status mantido Ocupado):', printErr);
+      console.warn('[handleEnviarOrder] Tentativa de impressão concluída ou ignorada:', printErr);
       toast.success(`Pedido da Mesa ${mesaNum || ''} enviado!`);
     } finally {
       setSendingOrder(false);
@@ -1093,14 +1096,20 @@ export function ConsumerOrderModal({
                   </Button>
                 ) : (
                   <Button
-                    onClick={handleFecharOrder}
-                    disabled={items.length === 0}
+                    onClick={() => {
+                      if (hasUnsentItems) {
+                        toast.warning('Envie o pedido para a cozinha antes de fechar a mesa!');
+                        return;
+                      }
+                      handleFecharOrder();
+                    }}
+                    disabled={hasUnsentItems}
                     className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                      items.length === 0
+                      hasUnsentItems
                         ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
                         : 'bg-[#00b050] hover:bg-[#009544] cursor-pointer'
                     }`}
-                    title="Fechar e bloquear mesa (imprime conta)"
+                    title={hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear mesa'}
                   >
                     <Lock className="h-4 w-4 mb-0.5" /> FECHAR
                   </Button>
@@ -1108,13 +1117,13 @@ export function ConsumerOrderModal({
                 {/* Orange Enviar Button -> stays ENVIAR regardless of lock state */}
                 <Button
                   onClick={handleEnviarOrder}
-                  disabled={sendingOrder || items.length === 0}
+                  disabled={sendingOrder || !hasNewUnsentItems}
                   className={`h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all ${
-                    sendingOrder || items.length === 0
+                    sendingOrder || !hasNewUnsentItems
                       ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 opacity-60 cursor-not-allowed border border-slate-300'
                       : 'bg-[#ff9400] hover:bg-[#e08300] cursor-pointer'
                   }`}
-                  title="Enviar pedido para a cozinha e salvar"
+                  title={!hasNewUnsentItems ? 'Lance um novo item para habilitar o envio' : 'Enviar pedido'}
                 >
                   <Send className="h-4 w-4 mb-0.5" /> ENVIAR
                 </Button>
@@ -1558,12 +1567,56 @@ export function ConsumerOrderModal({
                 </div>
 
                 {/* Main Action Buttons */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
+                  {/* FECHAR / REABRIR Button */}
+                  {isLocked ? (
+                    <Button
+                      onClick={handleReabrirOrder}
+                      className="bg-[#00b050] hover:bg-[#009544] text-white h-11 px-4 text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      title="Reabrir mesa para novos lançamentos"
+                    >
+                      <RefreshCw className="h-4 w-4" /> REABRIR
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        if (hasUnsentItems) {
+                          toast.warning('Envie o pedido para a cozinha antes de fechar a mesa!');
+                          return;
+                        }
+                        handleFecharOrder();
+                      }}
+                      disabled={hasUnsentItems}
+                      className={`h-11 px-4 text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all ${
+                        hasUnsentItems
+                          ? 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border'
+                          : 'bg-[#00b050] hover:bg-[#009544] text-white cursor-pointer'
+                      }`}
+                      title={hasUnsentItems ? 'Envie o pedido para habilitar o fechamento' : 'Fechar e bloquear comanda'}
+                    >
+                      <Lock className="h-4 w-4" /> FECHAR
+                    </Button>
+                  )}
+
+                  {/* ENVIAR Button */}
+                  <Button
+                    onClick={handleEnviarOrder}
+                    disabled={sendingOrder || !hasNewUnsentItems}
+                    className={`h-11 px-4 text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all ${
+                      sendingOrder || !hasNewUnsentItems
+                        ? 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border'
+                        : 'bg-[#ff9400] hover:bg-[#e08300] text-white cursor-pointer'
+                    }`}
+                    title={!hasNewUnsentItems ? 'Lance um novo item para habilitar o envio' : 'Enviar pedido'}
+                  >
+                    <Send className="h-4 w-4" /> ENVIAR
+                  </Button>
+
                   {/* Imprimir Button -> Opens Print Menu (Anexo 1) */}
                   <Button
                     variant="outline"
                     onClick={() => setPrintMenuOpen(true)}
-                    className="bg-card border-border text-foreground hover:bg-muted h-11 px-4 text-xs font-bold flex items-center gap-2 shadow-xs"
+                    className="bg-card border-border text-foreground hover:bg-muted h-11 px-4 text-xs font-bold flex items-center gap-1.5 shadow-xs"
                   >
                     <Printer className="h-4 w-4" /> Imprimir
                   </Button>
@@ -1578,7 +1631,7 @@ export function ConsumerOrderModal({
                       setCheckoutOpen(true);
                     }}
                     disabled={items.length === 0 || totalAmount <= 0}
-                    className={`h-11 px-6 text-sm font-extrabold flex items-center gap-2 shadow-lg tracking-wider transition-all ${
+                    className={`h-11 px-5 text-sm font-extrabold flex items-center gap-2 shadow-lg tracking-wider transition-all ${
                       items.length > 0 && totalAmount > 0
                         ? 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95 cursor-pointer'
                         : 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-border'
