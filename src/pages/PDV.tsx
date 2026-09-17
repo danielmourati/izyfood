@@ -22,7 +22,7 @@ import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
 import { TableBar } from '@/components/TableBar';
 import { OrderTypeSelector } from '@/components/OrderTypeSelector';
-import { usePrinter } from '@/hooks/use-printer';
+import { usePrinter, PRINT_DISABLED_REASON } from '@/hooks/use-printer';
 import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 
 const orderTypeLabels: Record<OrderType, string> = {
