@@ -148,6 +148,9 @@ export function usePrinter() {
   const [qzConnected, setQzConnected] = useState(false);
   const [btPriorityDefault, setBtPriorityDefaultState] = useState<boolean>(() => getBluetoothPriorityDefault());
   const [enablePrinterDevice, setEnablePrinterDeviceState] = useState<boolean>(() => getEnablePrinterDevice());
+  const [printHostEnabled, setPrintHostEnabledState] = useState<boolean>(() => getPrintHostEnabled());
+  const [hostOnline, setHostOnline] = useState(false);
+  const hostOnlineRef = useRef(false);
 
   const toggleBluetoothPriorityDefault = useCallback((v: boolean) => {
     setBluetoothPriorityDefault(v);
@@ -159,6 +162,11 @@ export function usePrinter() {
     setEnablePrinterDeviceState(v);
   }, []);
 
+  const togglePrintHost = useCallback((v: boolean) => {
+    setPrintHostEnabled(v);
+    setPrintHostEnabledState(v);
+  }, []);
+
   // Mantém as preferências consolidadas entre as telas (Configurações > Impressora
   // e a seção do menu do pedido) e entre abas abertas no mesmo aparelho.
   useEffect(() => {
@@ -166,6 +174,7 @@ export function usePrinter() {
       setEnablePrinterDeviceState(getEnablePrinterDevice());
       setBtPriorityDefaultState(getBluetoothPriorityDefault());
       setLastPairedName(getLastPairedDeviceName());
+      setPrintHostEnabledState(getPrintHostEnabled());
     };
     window.addEventListener(PRINTER_PREFS_EVENT, sync);
     window.addEventListener('storage', sync);
@@ -174,6 +183,53 @@ export function usePrinter() {
       window.removeEventListener('storage', sync);
     };
   }, []);
+
+  // Presença: existe algum aparelho "Caixa" online para imprimir por nós?
+  useEffect(() => {
+    const tenantId = user?.tenantId;
+    if (!tenantId) return;
+
+    const channel = supabase.channel(`${PRINT_HOST_PRESENCE_PREFIX}${tenantId}`, {
+      config: { presence: { key: `watch_${Math.random().toString(36).slice(2, 9)}` } },
+    });
+
+    const readState = () => {
+      const state = channel.presenceState() as Record<string, any[]>;
+      const online = Object.values(state).some(entries =>
+        entries.some((e: any) => e?.role === 'host')
+      );
+      hostOnlineRef.current = online;
+      setHostOnline(prev => (prev === online ? prev : online));
+    };
+
+    channel
+      .on('presence', { event: 'sync' }, readState)
+      .on('presence', { event: 'join' }, readState)
+      .on('presence', { event: 'leave' }, readState)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.tenantId]);
+
+  const enqueuePrintJob = useCallback(async (kind: PrintJobKind, payload: any): Promise<PrintResult> => {
+    const tenantId = user?.tenantId;
+    if (!tenantId) {
+      return { ok: false, reason: 'Loja não identificada neste aparelho. Reabra o PDV e tente novamente.' };
+    }
+    try {
+      const jobId = await insertPrintJob({
+        tenantId,
+        createdBy: user?.id ?? null,
+        deviceLabel: getDeviceLabel(),
+        kind,
+        payload,
+      });
+      return { ok: true, queued: true, jobId, reason: PRINT_QUEUED_MESSAGE };
+    } catch (err: any) {
+      console.error('[print] falha ao enviar cupom para a fila do caixa', err);
+      return { ok: false, reason: 'Não foi possível enviar o cupom para o caixa. Verifique a conexão e tente novamente.' };
+    }
+  }, [user?.tenantId, user?.id]);
 
 
 
