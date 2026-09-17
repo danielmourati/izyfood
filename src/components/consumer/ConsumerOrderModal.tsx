@@ -315,21 +315,30 @@ export function ConsumerOrderModal({
     onSaveOrder(updatedOrder);
 
     // 2. Imprimir SOMENTE os novos itens lançados na cozinha
+    let blockedReason: string | null = null;
+    setPrintNotice(null);
     try {
       const orderToPrint = { ...updatedOrder, items: unprintedItems };
 
       if (onPrintOrder) {
         await onPrintOrder(orderToPrint);
       } else {
-        await printOrder(orderToPrint);
+        const res = await printOrder(orderToPrint);
+        if (res && res.ok === false) blockedReason = res.reason || null;
       }
-      toast.success(`${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
+      if (!blockedReason) {
+        toast.success(`${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
+      }
     } catch (printErr: any) {
       console.warn('[handleEnviarOrder] Tentativa de impressão concluída ou ignorada:', printErr);
       toast.success(`Pedido da Mesa ${mesaNum || ''} enviado!`);
     } finally {
       setSendingOrder(false);
-      onClose(); // Redireciona o usuário para as mesas
+      if (blockedReason) {
+        setPrintNotice(blockedReason);
+      } else {
+        onClose(); // Redireciona o usuário para as mesas
+      }
     }
   };
 
