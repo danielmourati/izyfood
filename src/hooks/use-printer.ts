@@ -27,6 +27,7 @@ import {
   getPrintHostEnabled,
   setPrintHostEnabled,
   getDeviceLabel,
+  getDevicePrinterConfig,
 } from '@/lib/printer';
 import { PRINT_HOST_PRESENCE_PREFIX, insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
 import {
@@ -340,7 +341,39 @@ export function usePrinter() {
   };
 
   const defaultPrinter = printers.find(p => p.is_default) || printers[0];
-  const paperWidth = defaultPrinter?.paper_width || 58; // Default para 58mm (mini impressoras térmicas)
+  const paperWidth = defaultPrinter?.paper_width || 80; // Default para 80mm
+
+  /**
+   * Identifica a impressora configurada para um setor específico (ex: 'recibo' para o Caixa, 'cozinha' para a Cozinha).
+   */
+  const getPrinterForSector = useCallback((sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao'): PrinterConfig | null => {
+    // 1. Configuração local salva no próprio dispositivo (override local)
+    const deviceConfig = getDevicePrinterConfig();
+    if (deviceConfig && deviceConfig.name) {
+      return {
+        id: 'local_device',
+        name: deviceConfig.name,
+        connection_type: deviceConfig.connectionType || (deviceConfig.name.includes('Bluetooth') ? 'bluetooth' : 'system'),
+        address: deviceConfig.address || deviceConfig.name,
+        paper_width: deviceConfig.paperWidth || 80,
+        is_default: true,
+        sector: sector || 'recibo',
+      };
+    }
+
+    const targetSector = sector || 'recibo';
+
+    // 2. Procurar impressora cadastrada no banco de dados para o setor solicitado
+    const exactMatch = printers.find(p => p.sector === targetSector);
+    if (exactMatch) return exactMatch;
+
+    // 3. Fallback para impressora de recibo (Caixa) se o setor específico não tiver impressora dedicada
+    const reciboMatch = printers.find(p => p.sector === 'recibo');
+    if (reciboMatch) return reciboMatch;
+
+    // 4. Fallback para a impressora padrão ou primeira cadastrada
+    return defaultPrinter || null;
+  }, [printers, defaultPrinter]);
 
   // Existe impressora utilizável? Considera dois cenários:
   // 1) Toggle "Usar Impressora neste Dispositivo" ativo AND
@@ -402,20 +435,30 @@ export function usePrinter() {
     setBtPriorityDefaultState(false);
   };
 
-  const sendToPrinter = async (data: Uint8Array, htmlFallback: string, title: string, options?: { force?: boolean }) => {
+  const sendToPrinter = async (
+    data: Uint8Array,
+    htmlFallback: string,
+    title: string,
+    options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao' }
+  ) => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[sendToPrinter] Impressão desativada neste dispositivo. Ignorando envio.');
       return;
     }
 
+    const resolvedPrinter = options?.targetPrinter || getPrinterForSector(options?.sector);
+    const targetPaperWidth = resolvedPrinter?.paper_width || paperWidth;
+    const printerAddress = resolvedPrinter?.address;
+    const connectionType = resolvedPrinter?.connection_type || defaultPrinter?.connection_type;
+
     // 1. Bluetooth (ESC/POS) - Prioridade se o Bluetooth estiver conectado ou se houver dispositivo pareado
-    if (isBluetoothConnected() || getLastPairedDeviceName() || btPriorityDefault) {
+    if (isBluetoothConnected() || getLastPairedDeviceName() || btPriorityDefault || connectionType === 'bluetooth') {
       try {
         if (!isBluetoothConnected()) {
           await ensureBluetoothConnected();
         }
         if (isBluetoothConnected()) {
-          console.log('[sendToPrinter] Enviando comando ESC/POS via Bluetooth...');
+          console.log('[sendToPrinter] Enviando comando ESC/POS via Bluetooth para:', resolvedPrinter?.name || 'Bluetooth');
           await printViaBluetooth(data);
           return; // Sucesso, imprimiu via Bluetooth!
         }
@@ -424,11 +467,13 @@ export function usePrinter() {
       }
     }
 
-    // 2. QZ Tray (USB/Rede em desktop)
-    if (!isMobileDevice() && (defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && isQzConnected()) {
+    // 2. QZ Tray / Desktop System Spooler / Socket (para o endereço da impressora do setor configurado)
+    if (!isMobileDevice() && (connectionType === 'system' || connectionType === 'network' || defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && (isQzConnected() || isDesktopApp())) {
       try {
-        await printViaQzTray(data, defaultPrinter.address);
-        return; // Sucesso, imprimiu via QZ Tray!
+        const destAddress = printerAddress || defaultPrinter?.address;
+        console.log('[sendToPrinter] Enviando para impressora do setor/caixa:', resolvedPrinter?.name, '->', destAddress);
+        await printViaQzTray(data, destAddress);
+        return; // Sucesso, imprimiu via QZ Tray / Desktop Spooler!
       } catch (err) {
         console.error('[sendToPrinter] Erro no QZ Tray, caindo para fallback HTML:', err);
       }
@@ -436,7 +481,7 @@ export function usePrinter() {
 
     // 3. Fallback apenas se NENHUMA impressora direta (Bluetooth / QZ) funcionou
     console.info('[sendToPrinter] Nenhuma impressora direta conectada ou ativa. Abrindo janela de visualização HTML...');
-    printViaHtmlFallback(htmlFallback, title, paperWidth);
+    printViaHtmlFallback(htmlFallback, title, targetPaperWidth);
   };
 
   /**
@@ -493,17 +538,20 @@ export function usePrinter() {
   const shouldQueue = (options?: { force?: boolean }) =>
     !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
 
-  const printOrder = async (order: any, options?: { force?: boolean }): Promise<PrintResult> => {
+  const printOrder = async (order: any, options?: { force?: boolean; sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao' }): Promise<PrintResult> => {
     if (shouldQueue(options)) return enqueuePrintJob('order', order);
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
     }
+    const sector = options?.sector || 'cozinha';
+    const targetPrinter = getPrinterForSector(sector);
+    const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const ps = await resolvePrintSettings(user?.tenantId);
-    console.log('[printOrder] printSettings usados:', JSON.stringify(ps));
-    const escpos = buildOrderReceipt(order, paperWidth, ps);
+    console.log(`[printOrder] printSettings usados (setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, largura: ${targetPaperWidth}mm):`, JSON.stringify(ps));
+    const escpos = buildOrderReceipt(order, targetPaperWidth, ps);
     const html = buildOrderHtml(order, ps);
-    await sendToPrinter(escpos, html, 'Comanda', options);
+    await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
     return { ok: true };
   };
 
@@ -513,11 +561,14 @@ export function usePrinter() {
       console.info('[printBill] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
     }
+    const sector = 'recibo';
+    const targetPrinter = getPrinterForSector(sector);
+    const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const ps = await resolvePrintSettings(user?.tenantId);
-    console.log('[printBill] printSettings usados:', JSON.stringify(ps));
-    const escpos = buildBillReceipt(bill, paperWidth, ps);
+    console.log(`[printBill] printSettings usados (setor: recibo, impressora: ${targetPrinter?.name || 'padrão'}, largura: ${targetPaperWidth}mm):`, JSON.stringify(ps));
+    const escpos = buildBillReceipt(bill, targetPaperWidth, ps);
     const html = buildBillHtml(bill, ps);
-    await sendToPrinter(escpos, html, 'Conta', options);
+    await sendToPrinter(escpos, html, 'Conta', { ...options, targetPrinter, sector });
     return { ok: true };
   };
 
@@ -527,13 +578,16 @@ export function usePrinter() {
       console.info('[printCashClose] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
     }
-    const escpos = buildCashCloseReceipt(data, paperWidth);
+    const sector = 'recibo';
+    const targetPrinter = getPrinterForSector(sector);
+    const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
+    const escpos = buildCashCloseReceipt(data, targetPaperWidth);
     const html = buildCashCloseHtml(data);
-    await sendToPrinter(escpos, html, 'Fechamento de Caixa', options);
+    await sendToPrinter(escpos, html, 'Fechamento de Caixa', { ...options, targetPrinter, sector });
     return { ok: true };
   };
 
-  const printTest = async () => {
+  const printTest = async (sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao') => {
     const mockOrder = {
       id: `TESTE-${Date.now().toString().slice(-6)}`,
       orderType: 'mesa',
@@ -553,7 +607,7 @@ export function usePrinter() {
       createdAt: new Date().toISOString(),
       __test: true,
     };
-    return printOrder(mockOrder, { force: true });
+    return printOrder(mockOrder, { force: true, sector });
   };
 
 
@@ -561,6 +615,7 @@ export function usePrinter() {
     printers,
     loading,
     defaultPrinter,
+    getPrinterForSector,
     btConnected,
     btDeviceName,
     lastPairedName,

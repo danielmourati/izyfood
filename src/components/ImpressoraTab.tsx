@@ -231,7 +231,7 @@ export function ImpressoraTab() {
   const handleRunTest = async () => {
     setTesting(true);
     try {
-      await printTest();
+      await printTest(selectedSector as any);
       toast.success('Impressão de teste enviada!');
     } catch (e: any) {
       toast.error('Falha no teste de impressão: ' + (e?.message || 'Verifique a impressora'));
