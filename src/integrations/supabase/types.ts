@@ -579,6 +579,71 @@ export type Database = {
           },
         ]
       }
+      print_jobs: {
+        Row: {
+          attempts: number
+          claimed_at: string | null
+          claimed_by: string | null
+          copies: number
+          created_at: string
+          created_by: string | null
+          device_label: string | null
+          error: string | null
+          id: string
+          kind: string
+          paper_width: number | null
+          payload: Json
+          printed_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          copies?: number
+          created_at?: string
+          created_by?: string | null
+          device_label?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          paper_width?: number | null
+          payload?: Json
+          printed_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          copies?: number
+          created_at?: string
+          created_by?: string | null
+          device_label?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          paper_width?: number | null
+          payload?: Json
+          printed_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "print_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       printer_configs: {
         Row: {
           address: string
@@ -1186,6 +1251,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_print_job: {
+        Args: { _claimed_by: string; _job_id: string }
+        Returns: {
+          attempts: number
+          claimed_at: string | null
+          claimed_by: string | null
+          copies: number
+          created_at: string
+          created_by: string | null
+          device_label: string | null
+          error: string | null
+          id: string
+          kind: string
+          paper_width: number | null
+          payload: Json
+          printed_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_tenant_branding: {
         Args: { _slug: string }
         Returns: {
@@ -1216,6 +1308,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      purge_print_jobs: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "atendente" | "motoboy" | "superadmin"
