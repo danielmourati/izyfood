@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 import { useIsMobile } from '@/hooks/use-mobile';
-import { usePrinter } from '@/hooks/use-printer';
+import { usePrinter, PRINT_QUEUED_MESSAGE } from '@/hooks/use-printer';
 import { supabase } from '@/integrations/supabase/client';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
 import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
@@ -316,6 +316,7 @@ export function ConsumerOrderModal({
 
     // 2. Imprimir SOMENTE os novos itens lançados na cozinha
     let blockedReason: string | null = null;
+    let queuedAtHost = false;
     setPrintNotice(null);
     try {
       const orderToPrint = { ...updatedOrder, items: unprintedItems };
@@ -325,9 +326,12 @@ export function ConsumerOrderModal({
       } else {
         const res = await printOrder(orderToPrint);
         if (res && res.ok === false) blockedReason = res.reason || null;
+        if (res?.queued) queuedAtHost = true;
       }
       if (!blockedReason) {
-        toast.success(`${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
+        toast.success(queuedAtHost
+          ? `${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s). ${PRINT_QUEUED_MESSAGE}`
+          : `${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
       }
     } catch (printErr: any) {
       console.warn('[handleEnviarOrder] Tentativa de impressão concluída ou ignorada:', printErr);
