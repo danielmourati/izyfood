@@ -393,8 +393,12 @@ const PDV = () => {
     if (enablePrinterDevice) {
       if (hasPrinterAvailable) {
         try {
-          await printOrder(orderData);
-          toast.success('Comanda enviada para impressão!');
+          const res = await printOrder(orderData);
+          if (res && res.ok === false) {
+            setPrintPreview({ open: true, order: orderData, reason: res.reason || PRINT_DISABLED_REASON });
+          } else {
+            toast.success('Comanda enviada para impressão!');
+          }
         } catch (err) {
           toast.error('Erro na impressão, mas o pedido será salvo.');
         }
@@ -405,6 +409,8 @@ const PDV = () => {
           reason: 'Nenhuma impressora configurada ou conectada. O pedido foi salvo — você pode imprimir manualmente pelo navegador ou seguir sem impressão. Configure uma impressora em Configurações > Impressora.',
         });
       }
+    } else {
+      setPrintPreview({ open: true, order: orderData, reason: PRINT_DISABLED_REASON });
     }
 
     // 2. Atualizar estado interno
