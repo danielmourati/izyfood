@@ -22,6 +22,17 @@ const CP860_MAP: Record<string, number> = {
 };
 
 /**
+const utf8Encoder = new TextEncoder();
+
+/**
+ * Encode string to standard UTF-8 bytes for thermal printing.
+ */
+export function encodeUtf8(s: string): Uint8Array {
+  if (!s) return new Uint8Array(0);
+  return utf8Encoder.encode(s);
+}
+
+/**
  * Encode string to Code Page 860 (PC860 Portuguese) bytes for thermal printing.
  * Guarantees that ABNT PT-BR accents and (ç) print perfectly without corrupting bytes.
  */
@@ -44,7 +55,7 @@ export function encodeCp860(s: string): Uint8Array {
 }
 
 function text(s: string): Uint8Array {
-  return encodeCp860(s);
+  return encodeUtf8(s);
 }
 
 function concat(...parts: Uint8Array[]): Uint8Array {
@@ -62,6 +73,8 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 
 /** Initialise printer */
 export const CMD_INIT = new Uint8Array([ESC, 0x40]);
+/** Select code page (UTF-8) */
+export const CMD_CODEPAGE_UTF8 = new Uint8Array([ESC, 0x74, 0xFF]);
 /** Select code page (PC860: Portuguese) */
 export const CMD_CODEPAGE_PC860 = new Uint8Array([ESC, 0x74, 0x03]);
 /** Line feed */
@@ -560,7 +573,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   const cols = colsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
-    CMD_CODEPAGE_PC860,
+    CMD_CODEPAGE_UTF8,
   ];
 
   parts.push(
@@ -656,7 +669,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   const cols = colsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
-    CMD_CODEPAGE_PC860,
+    CMD_CODEPAGE_UTF8,
     normalTextMode(),
   ];
 
@@ -806,7 +819,7 @@ export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80): Uin
   const cols = colsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
-    CMD_CODEPAGE_PC860,
+    CMD_CODEPAGE_UTF8,
     CMD_ALIGN_CENTER,
     CMD_BOLD_ON, CMD_DOUBLE_ON,
     text('FECHAMENTO DE CAIXA\n'),

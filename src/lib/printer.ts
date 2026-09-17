@@ -567,7 +567,7 @@ export function printViaHtmlFallback(
   const printWidth = paperWidth === 58 ? '197px' : '280px';
 
   win.document.write(`
-    <html><head><title>${title}</title>
+    <html><head><meta charset="utf-8"><title>${title}</title>
     <style>
       body { 
         font-family: 'Courier New', monospace; 
