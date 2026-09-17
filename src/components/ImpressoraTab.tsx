@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import PrintQueuePanel from '@/components/PrintQueuePanel';
 import {
   Printer, Plus, Trash2, RefreshCw, HelpCircle, CheckCircle2,
   AlertTriangle, Monitor, Check, Loader2, Sliders
