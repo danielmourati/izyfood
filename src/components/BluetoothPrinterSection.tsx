@@ -101,11 +101,35 @@ export default function BluetoothPrinterSection() {
           />
         </div>
 
-        {!enablePrinterDevice && (
+        {!enablePrinterDevice && !hostOnline && (
           <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-snug font-semibold">
             Impressão desativada neste aparelho. Ative a chave acima para imprimir cupom da cozinha e conta.
           </p>
         )}
+
+        {hostOnline && !printHostEnabled && (
+          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 leading-snug font-semibold">
+            O caixa está online: os cupons deste aparelho saem na impressora do caixa, sem precisar de Bluetooth aqui.
+          </p>
+        )}
+
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
+          <span className="font-semibold text-foreground text-[11px] pr-2 leading-snug">
+            Este aparelho imprime para os outros (Caixa)
+          </span>
+          <Switch
+            checked={printHostEnabled}
+            onCheckedChange={(checked) => {
+              togglePrintHost(checked);
+              setMessage({
+                type: checked ? 'ok' : 'warn',
+                text: checked
+                  ? 'Este aparelho passou a imprimir os cupons enviados pelos outros.'
+                  : 'Este aparelho não imprime mais os cupons dos outros aparelhos.',
+              });
+            }}
+          />
+        </div>
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 font-semibold text-foreground">
