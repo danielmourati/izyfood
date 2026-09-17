@@ -22,7 +22,7 @@ import { CategoryBar } from '@/components/CategoryBar';
 import { ProductCard } from '@/components/ProductCard';
 import { TableBar } from '@/components/TableBar';
 import { OrderTypeSelector } from '@/components/OrderTypeSelector';
-import { usePrinter, PRINT_DISABLED_REASON } from '@/hooks/use-printer';
+import { usePrinter, PRINT_DISABLED_REASON, PRINT_QUEUED_MESSAGE } from '@/hooks/use-printer';
 import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 
 const orderTypeLabels: Record<OrderType, string> = {
@@ -74,7 +74,7 @@ const PDV = () => {
     }
   }, [mobileView]);
 
-  const { printOrder, printBill, hasPrinterAvailable, defaultPrinter, enablePrinterDevice } = usePrinter();
+  const { printOrder, printBill, hasPrinterAvailable, defaultPrinter, enablePrinterDevice, hostOnline } = usePrinter();
   const previewPaperWidth = defaultPrinter?.paper_width || 58;
 
   useEffect(() => {
