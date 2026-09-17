@@ -23,6 +23,7 @@ import {
   getEnablePrinterDevice,
   setEnablePrinterDevice,
   isMobileDevice,
+  PRINTER_PREFS_EVENT,
 } from '@/lib/printer';
 import {
   buildOrderReceipt,
