@@ -316,6 +316,7 @@ export function ConsumerOrderModal({
 
     // 2. Imprimir SOMENTE os novos itens lançados na cozinha
     let blockedReason: string | null = null;
+    let queuedAtHost = false;
     setPrintNotice(null);
     try {
       const orderToPrint = { ...updatedOrder, items: unprintedItems };
@@ -325,6 +326,7 @@ export function ConsumerOrderModal({
       } else {
         const res = await printOrder(orderToPrint);
         if (res && res.ok === false) blockedReason = res.reason || null;
+        if (res?.queued) queuedAtHost = true;
       }
       if (!blockedReason) {
         toast.success(queuedAtHost
