@@ -93,6 +93,53 @@ export function setEnablePrinterDevice(v: boolean): void {
   emitPrinterPrefsChanged();
 }
 
+// ---- Modo "Caixa" (host de impressão) ----
+
+const LS_PRINT_HOST = 'print_host_device';
+const LS_DEVICE_ID = 'print_device_id';
+const LS_DEVICE_LABEL = 'print_device_label';
+
+/** Este aparelho imprime os cupons enviados pelos outros? */
+export function getPrintHostEnabled(): boolean {
+  try { return localStorage.getItem(LS_PRINT_HOST) === '1'; } catch { return false; }
+}
+
+export function setPrintHostEnabled(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(LS_PRINT_HOST, '1');
+    else localStorage.removeItem(LS_PRINT_HOST);
+  } catch { /* ignore */ }
+  emitPrinterPrefsChanged();
+}
+
+/** Identificador estável deste aparelho (usado para "assumir" cupons da fila). */
+export function getDeviceId(): string {
+  try {
+    let id = localStorage.getItem(LS_DEVICE_ID);
+    if (!id) {
+      id = `dev_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+      localStorage.setItem(LS_DEVICE_ID, id);
+    }
+    return id;
+  } catch {
+    return 'dev_anon';
+  }
+}
+
+/** Nome amigável do aparelho, mostrado na fila de impressão. */
+export function getDeviceLabel(): string {
+  try {
+    const saved = localStorage.getItem(LS_DEVICE_LABEL);
+    if (saved) return saved;
+  } catch { /* ignore */ }
+  return isMobileDevice() ? 'Celular' : 'Computador';
+}
+
+export function setDeviceLabel(label: string): void {
+  try { localStorage.setItem(LS_DEVICE_LABEL, label); } catch { /* ignore */ }
+  emitPrinterPrefsChanged();
+}
+
 export function getBluetoothPriorityDefault(): boolean {
   try { return localStorage.getItem(LS_BT_PRIORITY) === '1'; } catch { return false; }
 }
