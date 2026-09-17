@@ -21,6 +21,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="h-[100dvh] flex w-full overflow-hidden">
+        <PrintHostRunner />
         <AppSidebar />
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           <TrialBanner />
