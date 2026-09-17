@@ -24,7 +24,11 @@ import {
   setEnablePrinterDevice,
   isMobileDevice,
   PRINTER_PREFS_EVENT,
+  getPrintHostEnabled,
+  setPrintHostEnabled,
+  getDeviceLabel,
 } from '@/lib/printer';
+import { PRINT_HOST_PRESENCE_PREFIX, type PrintJobKind } from '@/lib/print-queue';
 import {
   buildOrderReceipt,
   buildBillReceipt,
@@ -110,10 +114,15 @@ function validateBillPrintSettingsCache(tenantId: string | undefined, resolved: 
 export interface PrintResult {
   ok: boolean;
   reason?: string;
+  /** true quando o cupom foi enviado para o aparelho do caixa imprimir. */
+  queued?: boolean;
+  jobId?: string;
 }
 
 export const PRINT_DISABLED_REASON =
   'Impressão desativada neste aparelho. Ative "Usar impressora neste dispositivo" na seção Impressora Bluetooth (ou em Configurações > Impressora).';
+
+export const PRINT_QUEUED_MESSAGE = 'Cupom enviado para o caixa. O papel sai na impressora do caixa em instantes.';
 
 export interface PrinterConfig {
   id: string;
