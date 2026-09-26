@@ -50,7 +50,10 @@ describe('ConsumerItemCustomizeModal', () => {
     expect(screen.queryByText('Sem cebola')).not.toBeInTheDocument();
     expect(screen.queryByText('Inativo')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(/Limão/).closest('div')?.querySelector('button') as HTMLButtonElement);
+    const complementRow = screen.getByText(/Limão/).parentElement;
+    const complementButtons = complementRow?.querySelectorAll('button');
+    expect(complementButtons).toHaveLength(2);
+    fireEvent.click(complementButtons?.[1] as HTMLButtonElement);
     fireEvent.click(screen.getByRole('button', { name: /adicionar item/i }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
       selectedNotes: ['Sem gelo'],
