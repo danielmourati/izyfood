@@ -14,17 +14,43 @@ export function OrderItemDetails({ item, compact = false }: OrderItemDetailsProp
 
   return (
     <div className={`${compact ? 'mt-0.5 text-[10px]' : 'mt-1 text-xs'} space-y-0.5 text-muted-foreground`}>
-      {notes.map((note, index) => (
-        <p key={`${note}-${index}`} className="leading-tight break-words">
-          <span className="font-semibold text-foreground/80">Obs:</span> {note}
-        </p>
-      ))}
-      {complements.map((complement, index) => (
-        <p key={`${complement.name}-${index}`} className="leading-tight break-words">
-          <span className="font-semibold text-foreground/80">Adicional:</span>{' '}
-          {complement.quantity}x {complement.name}
-        </p>
-      ))}
+      {notes.length > 0 && (
+        <div className="leading-tight break-words">
+          <span className="font-semibold text-foreground/80">
+            {notes.length === 1 ? 'Obs:' : 'Observações:'}
+          </span>{' '}
+          {notes.length === 1 ? (
+            notes[0]
+          ) : (
+            <span className="block pl-2">
+              {notes.map((note, index) => (
+                <span key={`${note}-${index}`} className="block">
+                  <span aria-hidden="true">• </span><span>{note}</span>
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
+      {complements.length > 0 && (
+        <div className="leading-tight break-words">
+          <span className="font-semibold text-foreground/80">
+            {complements.length === 1 ? 'Adicional:' : 'Adicionais:'}
+          </span>{' '}
+          {complements.length === 1 ? (
+            <>{complements[0].quantity}x {complements[0].name}</>
+          ) : (
+            <span className="block pl-2">
+              {complements.map((complement, index) => (
+                <span key={`${complement.name}-${index}`} className="block">
+                  <span aria-hidden="true">• </span>
+                  <span>{complement.quantity}x {complement.name}</span>
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

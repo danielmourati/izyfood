@@ -625,10 +625,17 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
       normalTextMode()
     );
     const noteLines = getItemNoteLines(item);
-    for (const n of noteLines) {
-      parts.push(CMD_BOLD_ON, textOnlyWrap(`   * OBS: ${n.toUpperCase()}`, cols), CMD_BOLD_OFF);
+    if (noteLines.length === 1) {
+      parts.push(CMD_BOLD_ON, textOnlyWrap(`   OBS: ${noteLines[0].toUpperCase()}`, cols), CMD_BOLD_OFF);
+    } else if (noteLines.length > 1) {
+      parts.push(CMD_BOLD_ON, textOnlyWrap('   OBSERVACOES:', cols), CMD_BOLD_OFF);
+      for (const note of noteLines) {
+        parts.push(CMD_BOLD_ON, textOnlyWrap(`   * ${note.toUpperCase()}`, cols), CMD_BOLD_OFF);
+      }
     }
     if (item.selectedComplements && item.selectedComplements.length > 0) {
+      const complementTitle = item.selectedComplements.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
+      parts.push(textOnlyWrap(`   ${complementTitle}`, cols));
       for (const comp of item.selectedComplements) {
         parts.push(textOnlyWrap(`   + ${comp.quantity}x ${comp.name}`, cols));
       }
@@ -709,10 +716,16 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     parts.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
-    for (const note of getItemNoteLines(item)) {
-      parts.push(textOnlyWrap(`  * OBS: ${note}`, cols));
+    const noteLines = getItemNoteLines(item);
+    if (noteLines.length === 1) {
+      parts.push(textOnlyWrap(`  OBS: ${noteLines[0]}`, cols));
+    } else if (noteLines.length > 1) {
+      parts.push(textOnlyWrap('  OBSERVACOES:', cols));
+      for (const note of noteLines) parts.push(textOnlyWrap(`  * ${note}`, cols));
     }
     if (item.selectedComplements && item.selectedComplements.length > 0) {
+      const complementTitle = item.selectedComplements.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
+      parts.push(textOnlyWrap(`  ${complementTitle}`, cols));
       for (const comp of item.selectedComplements) {
         const compQty = `${comp.quantity}x`;
         const compPrice = fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity));

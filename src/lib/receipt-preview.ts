@@ -224,10 +224,15 @@ export function buildBillPreviewText(
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     lines.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
-    for (const note of getOrderItemNoteLines(item)) {
-      lines.push(...detailWrap('* Obs: ', note, cols));
+    const notes = getOrderItemNoteLines(item);
+    if (notes.length === 1) {
+      lines.push(...detailWrap('Obs: ', notes[0], cols));
+    } else if (notes.length > 1) {
+      lines.push('  Observações:');
+      for (const note of notes) lines.push(...detailWrap('  • ', note, cols));
     }
-    if (item.selectedComplements) {
+    if (item.selectedComplements && item.selectedComplements.length > 0) {
+      lines.push(`  ${item.selectedComplements.length === 1 ? 'Adicional:' : 'Adicionais:'}`);
       for (const c of item.selectedComplements) {
         const compQty = `${c.quantity}x`;
         const compPrice = fmtBRL(c.price * c.quantity * (item.weight ? 1 : item.quantity));
