@@ -495,6 +495,25 @@ export function ConsumerOrderModal({
     setCustomizeOpen(true);
   };
 
+  const handleCustomizeSelectedMobileProduct = () => {
+    if (!selectedMobileProduct) return;
+
+    const selectedItem = [...items].reverse().find(item =>
+      item.productId === selectedMobileProduct.id
+      && !item.printed
+      && !item.selectedNotes?.length
+      && !item.selectedComplements?.length
+      && !item.otherNotes
+    ) || [...items].reverse().find(item =>
+      item.productId === selectedMobileProduct.id && !item.printed
+    );
+
+    if (!selectedItem) return;
+    setSelectedProduct(selectedMobileProduct);
+    setEditingItem(selectedItem);
+    setCustomizeOpen(true);
+  };
+
   // Edit existing item customization
   const handleEditItemCustomization = (item: OrderItem) => {
     const prod = products.find(p => p.id === item.productId) || {
@@ -985,12 +1004,17 @@ export function ConsumerOrderModal({
                     >
                       <Trash2 className="h-5 w-5" />
                     </button>
-                    <button
-                      onClick={() => setSelectedMobileProduct(null)}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleCustomizeSelectedMobileProduct}
+                      aria-label="Selecionar observações e complementos"
+                      title="Selecionar observações e complementos"
                       className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
                     >
-                      +
-                    </button>
+                      <Check className="h-5 w-5" />
+                    </Button>
                   </div>
 
                   {/* Control Action Buttons */}
