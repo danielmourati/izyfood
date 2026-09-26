@@ -22,6 +22,7 @@ export interface PrintJob {
   claimed_by: string | null;
   claimed_at: string | null;
   printed_at: string | null;
+  printed_on?: string | null;
   created_at: string;
 }
 
@@ -100,8 +101,8 @@ export async function claimPrintJob(jobId: string, claimedBy: string): Promise<P
   return rows.length > 0 ? rows[0] : null;
 }
 
-export async function markPrintJobDone(jobId: string): Promise<void> {
-  await table().update({ status: 'done', printed_at: new Date().toISOString(), error: null } as any).eq('id', jobId);
+export async function markPrintJobDone(jobId: string, printedOn?: string | null): Promise<void> {
+  await table().update({ status: 'done', printed_at: new Date().toISOString(), error: null, printed_on: printedOn ?? null } as any).eq('id', jobId);
 }
 
 export async function markPrintJobError(jobId: string, message: string): Promise<void> {
