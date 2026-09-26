@@ -1,3 +1,4 @@
+import { resolveItemSector } from '@/lib/print-sectors';
 import { isDesktopApp } from '@/lib/printer-desktop';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
