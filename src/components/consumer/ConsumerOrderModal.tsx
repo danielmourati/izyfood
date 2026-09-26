@@ -20,6 +20,7 @@ import { usePrinter, PRINT_QUEUED_MESSAGE } from '@/hooks/use-printer';
 import { supabase } from '@/integrations/supabase/client';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
 import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
+import { OrderItemDetails } from '@/components/OrderItemDetails';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -1092,8 +1093,8 @@ export function ConsumerOrderModal({
                   </div>
                 ) : (
                   items.map(item => (
-                    <div key={item.id} className="bg-white border border-[#e8e4dc] p-2.5 rounded-lg shadow-xs flex justify-between items-center text-xs">
-                      <div>
+                    <div key={item.id} className="bg-white border border-[#e8e4dc] p-2.5 rounded-lg shadow-xs flex justify-between items-start gap-2 text-xs">
+                      <div className="min-w-0 flex-1">
                         <div className="font-bold text-[#3e2b20] flex items-center gap-1.5">
                           <span>{item.name}</span>
                           {item.printed ? (
@@ -1109,6 +1110,7 @@ export function ConsumerOrderModal({
                         <div className="text-[11px] text-muted-foreground">
                           {item.quantity}x R$ {fmt(item.price)}
                         </div>
+                        <OrderItemDetails item={item} compact />
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-extrabold text-[#3e2b20]">R$ {fmt(item.subtotal)}</span>
@@ -1601,22 +1603,7 @@ export function ConsumerOrderModal({
                               )}
                             </div>
 
-                            {/* Complements & Notes Detail */}
-                            {item.selectedComplements && item.selectedComplements.length > 0 && (
-                              <div className="text-[11px] text-muted-foreground mt-0.5">
-                                {item.selectedComplements.map((c, ci) => (
-                                  <span key={ci} className="mr-2">
-                                    + {c.quantity}x {c.name} ({fmt(c.price)})
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            {item.notes && (
-                              <div className="text-[11px] text-amber-600 dark:text-amber-400 italic mt-0.5">
-                                Obs: {item.notes}
-                              </div>
-                            )}
+                            <OrderItemDetails item={item} compact />
                           </td>
                           <td className="py-3 px-3 text-right font-medium text-muted-foreground">
                             R$ {fmt(item.price)}
@@ -2078,7 +2065,7 @@ export function ConsumerOrderModal({
                         <div className="font-bold text-foreground">
                           {item.quantity}x {item.name}
                         </div>
-                        {item.notes && <p className="text-[10px] text-amber-600 dark:text-amber-400">Obs: {item.notes}</p>}
+                        <OrderItemDetails item={item} compact />
                       </div>
                     </div>
 

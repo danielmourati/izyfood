@@ -526,6 +526,30 @@ describe('kitchen order notes rendering', () => {
     });
     expect(lines).toEqual(['Arroz Branco']);
   });
+
+  it('buildBillReceipt: prints observations and complements beneath the item', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      ...baseOrder,
+      items: [{
+        name: 'Peixe assado completo',
+        quantity: 1,
+        price: 80,
+        subtotal: 83,
+        selectedNotes: ['Bem passado'],
+        otherNotes: 'Sem cebola',
+        selectedComplements: [{ name: 'Arroz Integral', price: 3, quantity: 1 }],
+      }],
+    }, 58)).toUpperCase();
+
+    const itemIndex = receipt.indexOf('PEIXE ASSADO');
+    const noteIndex = receipt.indexOf('BEM PASSADO');
+    const otherNoteIndex = receipt.indexOf('SEM CEBOLA');
+    const complementIndex = receipt.indexOf('ARROZ INTEGRAL');
+    expect(itemIndex).toBeGreaterThan(-1);
+    expect(noteIndex).toBeGreaterThan(itemIndex);
+    expect(otherNoteIndex).toBeGreaterThan(noteIndex);
+    expect(complementIndex).toBeGreaterThan(otherNoteIndex);
+  });
 });
 
 
