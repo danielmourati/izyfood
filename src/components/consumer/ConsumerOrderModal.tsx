@@ -389,6 +389,16 @@ export function ConsumerOrderModal({
     i.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
   );
 
+  // Busca dinâmica: enquanto digita, sugere produtos do catálogo para lançar
+  const productSearchResults = itemSearchQuery.trim()
+    ? products
+        .filter(p => {
+          const q = itemSearchQuery.trim().toLowerCase();
+          return p.name.toLowerCase().includes(q) || (p.searchCode || '').toLowerCase().includes(q);
+        })
+        .slice(0, 8)
+    : [];
+
   const unprintedCount = items.filter(i => !i.printed).length;
 
   // Helper to add item directly without customization
@@ -1376,6 +1386,29 @@ export function ConsumerOrderModal({
                   onChange={e => setItemSearchQuery(e.target.value)}
                   className="pl-8 h-8 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                 />
+                {itemSearchQuery.trim() && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
+                    {productSearchResults.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum produto encontrado.</div>
+                    ) : (
+                      productSearchResults.map(prod => (
+                        <button
+                          key={prod.id}
+                          type="button"
+                          disabled={isLocked}
+                          onClick={() => {
+                            handleAddDirect(prod);
+                            setItemSearchQuery('');
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-muted/60 flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="font-bold text-foreground truncate">{prod.name}</span>
+                          <span className="text-primary font-bold shrink-0">R$ {fmt(prod.price)}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* + Produtos Button (disabled when table is locked) */}
