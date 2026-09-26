@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle, Check, LockKeyhole } from 'lucide-react';
+import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle, Check, ListChecks, LockKeyhole } from 'lucide-react';
 import { Order, OrderItem, OrderType, Product, TableInfo } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -1007,13 +1007,12 @@ export function ConsumerOrderModal({
                     <Button
                       type="button"
                       variant="outline"
-                      size="icon"
                       onClick={handleCustomizeSelectedMobileProduct}
                       aria-label="Selecionar observações e complementos"
                       title="Selecionar observações e complementos"
-                      className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
+                      className="w-full bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
                     >
-                      <Check className="h-5 w-5" />
+                      <ListChecks className="h-6 w-6" strokeWidth={3} />
                     </Button>
                   </div>
 
@@ -1358,6 +1357,14 @@ export function ConsumerOrderModal({
             </DialogContent>
           </Dialog>
         </div>
+
+        <ConsumerItemCustomizeModal
+          open={customizeOpen}
+          onClose={() => setCustomizeOpen(false)}
+          product={selectedProduct}
+          itemToEdit={editingItem}
+          onConfirm={handleConfirmCustomization}
+        />
       </>
     );
   }
