@@ -476,11 +476,15 @@ export function usePrinter() {
         await printViaQzTray(data, destAddress);
         return; // Sucesso, imprimiu via QZ Tray / Desktop Spooler!
       } catch (err) {
-        console.error('[sendToPrinter] Erro no QZ Tray, caindo para fallback HTML:', err);
+        console.error('[sendToPrinter] Erro no QZ Tray:', err);
+        if (options?.force) throw err; // host da fila: marcar como Falhou, não fingir impresso
       }
     }
 
     // 3. Fallback apenas se NENHUMA impressora direta (Bluetooth / QZ) funcionou
+    if (options?.force && printHostEnabled) {
+      throw new Error('Nenhuma impressora conectada neste caixa (QZ Tray/USB ou Bluetooth).');
+    }
     console.info('[sendToPrinter] Nenhuma impressora direta conectada ou ativa. Abrindo janela de visualização HTML...');
     printViaHtmlFallback(htmlFallback, title, targetPaperWidth);
   };
