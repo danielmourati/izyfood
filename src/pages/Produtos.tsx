@@ -48,6 +48,21 @@ const emptyCategoryForm = { name: '', printSector: 'cozinha' };
 /** Flag para ativar/desativar botões e dialog de importação via CSV (Mudar para true quando desejar reativar) */
 const ENABLE_CSV_IMPORT = false;
 
+// Definidos fora do componente para não remontar os campos (e perder o foco) a cada digitação
+const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <fieldset className="rounded-lg border p-3 space-y-3">
+    <legend className="px-1 text-xs font-semibold uppercase text-muted-foreground">{title}</legend>
+    {children}
+  </fieldset>
+);
+
+const Check = ({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint: string }) => (
+  <label className="flex items-start gap-2 cursor-pointer">
+    <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="mt-1 rounded border-border" />
+    <span className="text-sm"><b>{title}</b> <span className="text-muted-foreground">— {hint}</span></span>
+  </label>
+);
+
 const Produtos = () => {
   const { products, setProducts, categories, setCategories, noteOptions, setNoteOptions, suppliers, setSuppliers } = useStore();
   const { printers } = usePrinter();
@@ -612,19 +627,6 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
     );
   };
 
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <fieldset className="rounded-lg border p-3 space-y-3">
-      <legend className="px-1 text-xs font-semibold uppercase text-muted-foreground">{title}</legend>
-      {children}
-    </fieldset>
-  );
-
-  const Check = ({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint: string }) => (
-    <label className="flex items-start gap-2 cursor-pointer">
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="mt-1 rounded border-border" />
-      <span className="text-sm"><b>{title}</b> <span className="text-muted-foreground">— {hint}</span></span>
-    </label>
-  );
 
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
