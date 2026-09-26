@@ -11,7 +11,7 @@ import { ConsumerProductFinderModal } from './ConsumerProductFinderModal';
 import { ConsumerItemCustomizeModal } from './ConsumerItemCustomizeModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { fmt, formatCurrency } from '@/lib/utils';
+import { fmt } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -1403,7 +1403,7 @@ export function ConsumerOrderModal({
                           className="w-full text-left px-3 py-2 text-xs hover:bg-muted/60 flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="font-bold text-foreground truncate">{prod.name}</span>
-                          <span className="text-primary font-bold shrink-0">{formatCurrency(prod.price)}</span>
+                          <span className="text-primary font-bold shrink-0">{fmt(prod.price)}</span>
                         </button>
                       ))
                     )}
