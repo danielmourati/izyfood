@@ -39,13 +39,13 @@ export function ConsumerItemCustomizeModal({
 
   const availableNotes = useMemo(() => {
     return noteOptions.filter(
-      o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.length === 0 || o.categoryIds.includes(categoryId))
+      o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId))
     );
   }, [noteOptions, categoryId]);
 
   const availableComplements = useMemo(() => {
     return noteOptions.filter(
-      o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.length === 0 || o.categoryIds.includes(categoryId))
+      o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId))
     );
   }, [noteOptions, categoryId]);
 
