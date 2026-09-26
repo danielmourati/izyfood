@@ -674,50 +674,6 @@ export function ConsumerOrderModal({
     setReprintModalOpen(true);
   };
 
-  // Actions for "Mais Opções"
-  const handlePrintConsumptionTickets = () => {
-    if (items.length === 0) {
-      toast.error('Nenhum item no pedido para imprimir.');
-      return;
-    }
-    const updatedItems = items.map(i => ({ ...i, printed: true }));
-    const updatedOrder: Order = { ...currentOrder, items: updatedItems };
-    setCurrentOrder(updatedOrder);
-    onSaveOrder(updatedOrder);
-    if (onPrintOrder) onPrintOrder(updatedOrder);
-    toast.success('Fichas de consumo impressas com sucesso!');
-    setMoreOptionsOpen(false);
-  };
-
-  const handleSendWhatsApp = () => {
-    const phone = currentOrder?.customerPhone || '5500000000000';
-    let text = `*PEDIDO #${currentOrder?.id ? currentOrder.id.slice(0, 4) : ''}*\n`;
-    text += `Mesa/Comanda: ${currentOrder.tableNumber || tableNumber || 1}\n\n`;
-    text += `*ITENS:*\n`;
-    items.forEach(i => {
-      text += `• ${i.quantity}x ${i.name} - R$ ${fmt(i.subtotal)}\n`;
-    });
-    text += `\n*TOTAL: R$ ${fmt(totalAmount)}*`;
-
-    const encoded = encodeURIComponent(text);
-    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`, '_blank');
-    toast.success('Abrindo WhatsApp...');
-    setMoreOptionsOpen(false);
-  };
-
-  const handleRecalculateOrder = () => {
-    const updatedItems = items.map(i => ({
-      ...i,
-      subtotal: i.price * i.quantity,
-    }));
-    const newTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
-    const updatedOrder: Order = { ...currentOrder, items: updatedItems, total: newTotal };
-    setCurrentOrder(updatedOrder);
-    onSaveOrder(updatedOrder);
-    toast.success('Pedido recalculado com sucesso!');
-    setMoreOptionsOpen(false);
-  };
-
   const handleChangeOrderType = (newType: OrderType) => {
     const updatedOrder: Order = { ...currentOrder, orderType: newType };
     setCurrentOrder(updatedOrder);
@@ -1504,13 +1460,6 @@ export function ConsumerOrderModal({
                     readOnly
                     className="bg-background border-input text-xs text-foreground h-8"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toast.info('Funcionalidade de transferência disponível em Mais Opções > Trocar para...')}
-                    className="text-primary hover:underline text-[11px] block mt-1"
-                  >
-                    Outras comandas nesta mesa
-                  </button>
                 </div>
 
                 {/* Lock Order Toggle */}
@@ -1853,30 +1802,6 @@ export function ConsumerOrderModal({
               className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
             >
               Trocar para...
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePrintConsumptionTickets}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
-            >
-              Imprimir Fichas de Consumo ({unprintedCount > 0 ? `${unprintedCount} Itens novos` : '0 Itens novos'})
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSendWhatsApp}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
-            >
-              Enviar para WhatsApp
-            </button>
-
-            <button
-              type="button"
-              onClick={handleRecalculateOrder}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
-            >
-              Recalcular Pedido
             </button>
 
             <button
