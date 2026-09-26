@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePrinter } from '@/hooks/use-printer';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { getQzPrinters } from '@/lib/printer';
+import { getQzPrinters, isVirtualPrinter } from '@/lib/printer';
 import { QzSetupModal } from '@/components/QzSetupModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -506,7 +506,7 @@ export function ImpressoraTab() {
                             ) : (
                               qzPrintersList.map((pName) => (
                                 <SelectItem key={pName} value={pName}>
-                                  {pName}
+                                  {pName}{isVirtualPrinter(pName) ? ' (virtual – salva arquivo)' : ''}
                                 </SelectItem>
                               ))
                             )}
