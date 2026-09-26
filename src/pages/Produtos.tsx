@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useStore } from '@/contexts/StoreContext';
-import { fmt } from '@/lib/utils';
+import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -370,7 +371,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
     setForm({
       name: p.name,
       description: p.description || '',
-      price: String(p.price),
+      price: formatBRLInput(p.price),
       categoryId: p.categoryId,
       type: p.type,
       unit: p.unit,
@@ -379,7 +380,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
       controlStock: p.controlStock,
       supplierId: p.supplierId || '',
       searchCode: p.searchCode || '',
-      costPrice: p.costPrice != null ? String(p.costPrice) : '',
+      costPrice: p.costPrice != null ? formatBRLInput(p.costPrice) : '',
       minStock: String(p.minStock ?? 0),
       serviceFeeExempt: p.serviceFeeExempt ?? false,
       printSector: p.printSector || '',
@@ -395,7 +396,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
       toast.error('Informe o nome do produto.');
       return;
     }
-    if (!form.price || isNaN(parseFloat(form.price)) || parseFloat(form.price) < 0) {
+    if (!form.price || parseBRLInput(form.price) < 0) {
       toast.error('Informe um preço válido.');
       return;
     }
@@ -407,7 +408,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
       id: editingId || crypto.randomUUID(),
       name: form.name.trim(),
       description: form.description.trim() || undefined,
-      price: parseFloat(form.price),
+      price: parseBRLInput(form.price),
       categoryId: form.categoryId,
       type: form.type,
       unit: form.type === 'weight' ? 'kg' : 'un',
@@ -417,7 +418,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
       controlStock: form.controlStock,
       supplierId: form.supplierId || undefined,
       searchCode: form.searchCode.trim() || undefined,
-      costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
+      costPrice: form.costPrice ? parseBRLInput(form.costPrice) : undefined,
       minStock: parseFloat(form.minStock) || 0,
       serviceFeeExempt: form.serviceFeeExempt,
       printSector: form.printSector || undefined,
@@ -511,7 +512,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
     setOptForm({
       name: opt.name,
       type: opt.type,
-      price: String(opt.price),
+      price: formatBRLInput(opt.price),
       categoryIds: opt.categoryIds,
       active: opt.active,
     });
@@ -530,7 +531,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
       id: editingOptId || crypto.randomUUID(),
       name: optForm.name.trim(),
       type: optForm.type,
-      price: parseFloat(optForm.price) || 0,
+      price: parseBRLInput(optForm.price),
       categoryIds: optForm.categoryIds,
       active: optForm.active,
     };
@@ -784,11 +785,11 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Preço de venda (R$) *</Label>
-                  <Input type="number" step="0.01" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+                  <CurrencyInput value={form.price} onValueChange={price => setForm(f => ({ ...f, price }))} />
                 </div>
                 <div>
                   <Label>Preço de custo (R$)</Label>
-                  <Input type="number" step="0.01" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))} />
+                  <CurrencyInput value={form.costPrice} onValueChange={costPrice => setForm(f => ({ ...f, costPrice }))} />
                 </div>
               </div>
               <div>
@@ -940,7 +941,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
               {optForm.type === 'complement' && (
                 <div>
                   <Label>Preço Adicional (R$)</Label>
-                  <Input type="number" step="0.01" value={optForm.price} onChange={e => setOptForm(f => ({ ...f, price: e.target.value }))} />
+                  <CurrencyInput value={optForm.price} onValueChange={price => setOptForm(f => ({ ...f, price }))} />
                 </div>
               )}
             </div>

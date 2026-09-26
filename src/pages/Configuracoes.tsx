@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useStore } from '@/contexts/StoreContext';
@@ -14,7 +15,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import { fmt } from '@/lib/utils';
+import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, CreditCard, Sun
@@ -943,7 +944,7 @@ function CuponsTab() {
 
   const handleSave = () => {
     if (!form.code || !form.value) return;
-    const val = parseFloat(form.value.replace(',', '.'));
+    const val = form.type === 'fixed' ? parseBRLInput(form.value) : parseFloat(form.value.replace(',', '.'));
     if (isNaN(val) || val <= 0) return;
 
     const coupon: DiscountCoupon = {
@@ -952,7 +953,7 @@ function CuponsTab() {
       type: form.type,
       value: val,
       active: true,
-      minOrder: form.minOrder ? parseFloat(form.minOrder.replace(',', '.')) : undefined,
+      minOrder: form.minOrder ? parseBRLInput(form.minOrder) : undefined,
       expiresAt: form.expiresAt || undefined,
     };
 
@@ -976,8 +977,8 @@ function CuponsTab() {
     setForm({
       code: coupon.code,
       type: coupon.type,
-      value: coupon.value.toString(),
-      minOrder: coupon.minOrder?.toString() || '',
+      value: coupon.type === 'fixed' ? formatBRLInput(coupon.value) : coupon.value.toString().replace('.', ','),
+      minOrder: coupon.minOrder != null ? formatBRLInput(coupon.minOrder) : '',
       expiresAt: coupon.expiresAt || '',
     });
     setEditingId(coupon.id);
@@ -1002,7 +1003,7 @@ function CuponsTab() {
               </div>
               <div className="space-y-1">
                 <Label>Tipo</Label>
-                <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v as 'percentage' | 'fixed' }))}>
+                <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v as 'percentage' | 'fixed', value: '' }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="percentage">Porcentagem (%)</SelectItem>
@@ -1012,11 +1013,15 @@ function CuponsTab() {
               </div>
               <div className="space-y-1">
                 <Label>Valor {form.type === 'percentage' ? '(%)' : '(R$)'}</Label>
-                <Input value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} placeholder={form.type === 'percentage' ? '10' : '5,00'} />
+                {form.type === 'fixed' ? (
+                  <CurrencyInput value={form.value} onValueChange={value => setForm(f => ({ ...f, value }))} />
+                ) : (
+                  <Input inputMode="decimal" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} placeholder="10" />
+                )}
               </div>
               <div className="space-y-1">
                 <Label>Pedido mínimo (R$)</Label>
-                <Input value={form.minOrder} onChange={e => setForm(f => ({ ...f, minOrder: e.target.value }))} placeholder="Opcional" />
+                <CurrencyInput value={form.minOrder} onValueChange={minOrder => setForm(f => ({ ...f, minOrder }))} placeholder="Opcional" />
               </div>
               <div className="space-y-1">
                 <Label>Validade</Label>
