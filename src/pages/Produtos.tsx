@@ -55,6 +55,13 @@ const Produtos = () => {
 
   // Product state
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Foca o campo Nome apenas quando o modal abre (autoFocus roubava o foco ao trocar de campo)
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const t = setTimeout(() => nameInputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, [dialogOpen]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -773,7 +780,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
                 </div>
                 <div className="col-span-2">
                   <Label>Nome *</Label>
-                  <Input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                  <Input ref={nameInputRef} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
               </div>
               <div>
