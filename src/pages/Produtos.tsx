@@ -8,7 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Upload, X, Search, Tag, Building2, FileSpreadsheet, Download, CheckCircle2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Building2, FileSpreadsheet, Download, CheckCircle2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { PRINT_SECTOR_OPTIONS, sectorLabel } from '@/lib/print-sectors';
 import { toast } from 'sonner';
 import type { Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
 
@@ -20,10 +23,14 @@ const emptyProductForm = {
   type: 'unit' as ProductType,
   unit: 'un',
   stock: '',
-  image: '',
   loyaltyEligible: false,
   controlStock: true,
   supplierId: '',
+  searchCode: '',
+  costPrice: '',
+  minStock: '',
+  serviceFeeExempt: false,
+  printSector: '',
 };
 
 const emptyNoteOptionForm = {
@@ -34,7 +41,7 @@ const emptyNoteOptionForm = {
   active: true,
 };
 
-const emptyCategoryForm = { name: '' };
+const emptyCategoryForm = { name: '', printSector: 'cozinha' };
 
 /** Flag para ativar/desativar botões e dialog de importação via CSV (Mudar para true quando desejar reativar) */
 const ENABLE_CSV_IMPORT = false;
@@ -50,7 +57,8 @@ const Produtos = () => {
   const [form, setForm] = useState(emptyProductForm);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [groupByCategory, setGroupByCategory] = useState(true);
+  const [catDeleteBlocked, setCatDeleteBlocked] = useState(false);
 
   // Category state
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -341,7 +349,8 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
   const getCat = (id: string) => categories.find(c => c.id === id);
 
   const filtered = products.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchSearch = p.name.toLowerCase().includes(q) || (p.searchCode || '').toLowerCase().includes(q);
     const matchCat = filterCategory === 'all' || p.categoryId === filterCategory;
     return matchSearch && matchCat;
   });
@@ -363,27 +372,19 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
       type: p.type,
       unit: p.unit,
       stock: String(p.stock),
-      image: p.image || '',
       loyaltyEligible: p.loyaltyEligible,
       controlStock: p.controlStock,
       supplierId: p.supplierId || '',
+      searchCode: p.searchCode || '',
+      costPrice: p.costPrice != null ? String(p.costPrice) : '',
+      minStock: String(p.minStock ?? 0),
+      serviceFeeExempt: p.serviceFeeExempt ?? false,
+      printSector: p.printSector || '',
     });
     setDialogOpen(true);
   };
 
   const openDelete = (id: string) => { setDeleteId(id); setDeleteOpen(true); };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      return;
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setForm(f => ({ ...f, image: reader.result as string }));
-    reader.readAsDataURL(file);
-  };
 
   const save = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -408,10 +409,15 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
       type: form.type,
       unit: form.type === 'weight' ? 'kg' : 'un',
       stock: parseFloat(form.stock) || 0,
-      image: form.image || undefined,
+      image: editingId ? products.find(p => p.id === editingId)?.image : undefined,
       loyaltyEligible: form.loyaltyEligible,
       controlStock: form.controlStock,
       supplierId: form.supplierId || undefined,
+      searchCode: form.searchCode.trim() || undefined,
+      costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
+      minStock: parseFloat(form.minStock) || 0,
+      serviceFeeExempt: form.serviceFeeExempt,
+      printSector: form.printSector || undefined,
     };
     if (editingId) {
       setProducts(prev => prev.map(p => p.id === editingId ? product : p));
@@ -442,7 +448,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
 
   const openEditCat = (cat: ProductCategory) => {
     setEditingCatId(cat.id);
-    setCatForm({ name: cat.name });
+    setCatForm({ name: cat.name, printSector: cat.printSector || 'cozinha' });
     setCatDialogOpen(true);
   };
 
@@ -458,6 +464,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
     const cat: ProductCategory = {
       id: editingCatId || crypto.randomUUID(),
       name: catName,
+      printSector: catForm.printSector || 'cozinha',
     };
     if (editingCatId) {
       setCategories(prev => prev.map(c => c.id === editingCatId ? cat : c));
@@ -475,10 +482,12 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
     if (!deleteCatId) return;
     const hasProducts = products.some(p => p.categoryId === deleteCatId);
     if (hasProducts) {
+      setCatDeleteBlocked(true);
       setCatDeleteOpen(false);
       setCatDeleteOpen(false);
       return;
     }
+    setCatDeleteBlocked(false);
     setCategories(prev => prev.filter(c => c.id !== deleteCatId));
     if (filterCategory === deleteCatId) setFilterCategory('all');
     
@@ -530,249 +539,309 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
     setOptFormOpen(false);
   };
 
+  const stockStatus = (p: Product) => {
+    if (!p.controlStock) return { label: 'Não controlado', dot: 'bg-muted-foreground/40' };
+    if (p.stock <= (p.minStock ?? 0)) return { label: 'Baixo', dot: 'bg-destructive' };
+    return { label: 'Regular', dot: 'bg-primary' };
+  };
+
+  const groupedRows = groupByCategory
+    ? [...categories.map(c => ({ cat: c as ProductCategory | undefined, items: filtered.filter(p => p.categoryId === c.id) })),
+       { cat: undefined, items: filtered.filter(p => !getCat(p.categoryId)) }].filter(g => g.items.length > 0)
+    : [{ cat: undefined, items: filtered }];
+
+  const productSectorLabel = (p: Product) =>
+    p.printSector ? sectorLabel(p.printSector) : `${sectorLabel(getCat(p.categoryId)?.printSector || 'cozinha')} (categoria)`;
+
+  const OptList = ({ type }: { type: 'note' | 'complement' }) => {
+    const list = noteOptions.filter(o => o.type === type);
+    return (
+      <div className="rounded-lg border bg-card flex flex-col min-h-0">
+        <div className="flex items-center justify-between gap-2 p-3 border-b">
+          <div>
+            <h3 className="font-semibold text-sm">{type === 'note' ? 'Observações' : 'Complementos'}</h3>
+            <p className="text-xs text-muted-foreground">
+              {type === 'note' ? 'Observações comuns para agilizar o lançamento dos pedidos.' : 'Adicionais cobrados para montar lanches, pratos ou bebidas.'}
+            </p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => { setEditingOptId(null); setOptForm({ ...emptyNoteOptionForm, type }); setOptFormOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Adicionar
+          </Button>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Descrição</TableHead>
+              {type === 'complement' && <TableHead className="text-right">Valor</TableHead>}
+              <TableHead className="w-24 text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.length === 0 ? (
+              <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-6">Nada cadastrado.</TableCell></TableRow>
+            ) : list.map(opt => (
+              <TableRow key={opt.id} className={!opt.active ? 'opacity-50' : ''}>
+                <TableCell>
+                  <div className="font-medium">{opt.name}</div>
+                  <div className="text-[10px] text-muted-foreground truncate max-w-[240px]">
+                    {opt.categoryIds.map(cid => getCat(cid)?.name).filter(Boolean).join(', ')}
+                  </div>
+                </TableCell>
+                {type === 'complement' && <TableCell className="text-right font-mono">{fmt(opt.price)}</TableCell>}
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditOpt(opt)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteOpt(opt.id)}><Trash2 className="h-4 w-4" /></Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <fieldset className="rounded-lg border p-3 space-y-3">
+      <legend className="px-1 text-xs font-semibold uppercase text-muted-foreground">{title}</legend>
+      {children}
+    </fieldset>
+  );
+
+  const Check = ({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint: string }) => (
+    <label className="flex items-start gap-2 cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="mt-1 rounded border-border" />
+      <span className="text-sm"><b>{title}</b> <span className="text-muted-foreground">— {hint}</span></span>
+    </label>
+  );
+
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Produtos</h1>
-        <div className="flex flex-wrap gap-2">
-          {ENABLE_CSV_IMPORT && (
-            <>
-              <Button variant="outline" onClick={downloadCSVModel} title="Baixar arquivo modelo .CSV">
-                <Download className="h-4 w-4 mr-2 text-muted-foreground" /> Modelo CSV
-              </Button>
-              <Button variant="outline" onClick={() => csvInputRef.current?.click()} title="Importar categorias e produtos de arquivo CSV">
-                <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400" /> Importar CSV
-              </Button>
-              <input
-                type="file"
-                ref={csvInputRef}
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={handleCSVFileSelect}
-              />
-            </>
-          )}
-          <Button variant="outline" onClick={() => { setOptsDialogOpen(true); }}>
-            <Tag className="h-4 w-4 mr-2" /> Obs & Complementos
-          </Button>
-          <Button variant="outline" onClick={openCreateCat}>
-            <Tag className="h-4 w-4 mr-2" /> Nova Categoria
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" /> Novo Produto
-          </Button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar produto..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <Button variant={filterCategory === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilterCategory('all')}>
-            Todos
-          </Button>
-          {categories.map(cat => (
-            <Button
-              key={cat.id}
-              variant={filterCategory === cat.id ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterCategory(cat.id)}
-              className="whitespace-nowrap group/cat"
-            >
-              {cat.name}
-              <span
-                className="ml-1 opacity-0 group-hover/cat:opacity-100 transition-opacity cursor-pointer"
-                onClick={e => { e.stopPropagation(); openEditCat(cat); }}
-              >
-                <Pencil className="h-3 w-3 inline" />
-              </span>
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Product Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
-        {filtered.map(product => {
-          const cat = getCat(product.categoryId);
-          return (
-            <div key={product.id} className="bg-card rounded-[16px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all flex flex-col border border-border h-full w-full group relative">
-              {/* Image area - Full width top header */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-50 dark:bg-zinc-900/60 shrink-0 p-2 flex items-center justify-center">
-                {product.image ? (
-                  <img src={product.image} alt={product.name} className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-primary/5">
-                    <span className="text-4xl opacity-30 font-bold text-muted-foreground">
-                      {cat?.name?.charAt(0)?.toUpperCase() || '?'}
-                    </span>
-                  </div>
-                )}
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <Button variant="secondary" size="icon" className="h-8 w-8 shadow-md" onClick={() => openEdit(product)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="destructive" size="icon" className="h-8 w-8 shadow-md" onClick={() => openDelete(product.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Info */}
-              <div className="p-3 flex flex-col flex-1 justify-between">
-                <div>
-                  <h3 className="font-semibold text-[13px] leading-tight text-foreground line-clamp-2 mb-1" title={product.name}>
-                    {product.name}
-                  </h3>
-                  <p className="text-[#4CAF50] dark:text-emerald-400 font-bold text-[14px]">
-                    R$ {fmt(product.price)}
-                    {product.type === 'weight' && <span className="text-[10px] font-medium text-muted-foreground ml-1">/kg</span>}
-                  </p>
-                </div>
-
-                <div className="flex items-center pt-2 flex-wrap gap-1 mt-auto">
-                  <Badge variant="outline" className="text-[10px]">
-                    {cat ? cat.name : 'Sem categoria'}
-                  </Badge>
-                  {product.loyaltyEligible && (
-                    <Badge variant="secondary" className="text-[10px] bg-success/10 text-success dark:bg-success/30 dark:text-success">
-                      ⭐ Fidelidade
-                    </Badge>
-                  )}
-                  {product.controlStock && (
-                    <Badge variant={product.stock <= 5 ? 'destructive' : 'secondary'} className="text-[9px] px-1">
-                      {product.stock} {product.unit}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {filtered.length === 0 && (
-          <div className="col-span-full text-center py-12 text-muted-foreground">Nenhum produto encontrado</div>
+        {ENABLE_CSV_IMPORT && (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={downloadCSVModel}><Download className="h-4 w-4 mr-2" /> Modelo CSV</Button>
+            <Button variant="outline" onClick={() => csvInputRef.current?.click()}><FileSpreadsheet className="h-4 w-4 mr-2" /> Importar CSV</Button>
+            <input type="file" ref={csvInputRef} accept=".csv,text/csv" className="hidden" onChange={handleCSVFileSelect} />
+          </div>
         )}
       </div>
 
+      <Tabs defaultValue="produtos">
+        <TabsList>
+          <TabsTrigger value="produtos">Produtos</TabsTrigger>
+          <TabsTrigger value="categorias">Categorias</TabsTrigger>
+          <TabsTrigger value="obs">Observações e Complementos</TabsTrigger>
+        </TabsList>
+
+        {/* PRODUTOS */}
+        <TabsContent value="produtos" className="mt-4 space-y-3">
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Buscar por nome ou código..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={groupByCategory} onChange={e => setGroupByCategory(e.target.checked)} className="rounded border-border" />
+              Agrupar por categoria
+            </label>
+            <div className="md:ml-auto flex gap-2">
+              <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Novo Produto</Button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-24">Código</TableHead>
+                  <TableHead>Produto</TableHead>
+                  <TableHead>Imprimir em</TableHead>
+                  <TableHead className="text-right">Preço de Venda</TableHead>
+                  <TableHead className="text-right">Est. Mínimo</TableHead>
+                  <TableHead className="text-right">Estoque Atual</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead className="w-24 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 && (
+                  <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">Nenhum produto encontrado</TableCell></TableRow>
+                )}
+                {groupedRows.map((g, gi) => (
+                  <React.Fragment key={g.cat?.id || `g${gi}`}>
+                    {groupByCategory && (
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableCell colSpan={8} className="font-semibold text-foreground py-2">
+                          {g.cat?.name || 'Sem categoria'} <span className="text-xs font-normal text-muted-foreground">({g.items.length})</span>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {g.items.map(p => {
+                      const st = stockStatus(p);
+                      return (
+                        <TableRow key={p.id} className="cursor-pointer" onDoubleClick={() => openEdit(p)}>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{p.searchCode || '-'}</TableCell>
+                          <TableCell className="font-medium">
+                            {p.name}
+                            {p.loyaltyEligible && <span className="ml-1 text-[10px] text-muted-foreground">★</span>}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{productSectorLabel(p)}</TableCell>
+                          <TableCell className="text-right font-mono">{fmt(p.price)}{p.type === 'weight' ? '/kg' : ''}</TableCell>
+                          <TableCell className="text-right font-mono">{p.controlStock ? fmt(p.minStock ?? 0) : '-'}</TableCell>
+                          <TableCell className="text-right font-mono">{p.controlStock ? fmt(p.stock) : '-'}</TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1.5 text-xs"><span className={`h-2.5 w-2.5 rounded-full ${st.dot}`} />{st.label}</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openDelete(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-muted-foreground">{filtered.length} produto(s)</p>
+        </TabsContent>
+
+        {/* CATEGORIAS */}
+        <TabsContent value="categorias" className="mt-4 space-y-3">
+          <div className="flex justify-end">
+            <Button onClick={openCreateCat}><Plus className="h-4 w-4 mr-2" /> Nova Categoria</Button>
+          </div>
+          <div className="rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>Impressora padrão</TableHead>
+                  <TableHead className="text-right">Produtos</TableHead>
+                  <TableHead className="w-24 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {categories.length === 0 && (
+                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhuma categoria</TableCell></TableRow>
+                )}
+                {categories.map(c => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>{sectorLabel(c.printSector || 'cozinha')}</TableCell>
+                    <TableCell className="text-right">{products.filter(p => p.categoryId === c.id).length}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditCat(c)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openDeleteCat(c.id)}><Trash2 className="h-4 w-4" /></Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {catDeleteBlocked && <p className="text-sm text-destructive">Esta categoria tem produtos vinculados e não pode ser excluída.</p>}
+        </TabsContent>
+
+        {/* OBSERVAÇÕES E COMPLEMENTOS */}
+        <TabsContent value="obs" className="mt-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <OptList type="note" />
+            <OptList type="complement" />
+          </div>
+        </TabsContent>
+      </Tabs>
+
       {/* Product Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
+            <DialogTitle>{editingId ? form.name || 'Editar Produto' : 'Novo Produto'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
-            <div>
-              <Label>Foto do Produto</Label>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-              {form.image ? (
-                <div className="relative mt-2 rounded-lg overflow-hidden aspect-video bg-slate-50 dark:bg-zinc-900/60 p-2 flex items-center justify-center">
-                  <img src={form.image} alt="Preview" className="w-full h-full object-contain object-center" />
-                  <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={() => setForm(f => ({ ...f, image: '' }))}>
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
+            <Section title="Dados principais">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Código de busca</Label>
+                  <Input value={form.searchCode} onChange={e => setForm(f => ({ ...f, searchCode: e.target.value }))} placeholder="Ex: 101" />
                 </div>
-              ) : (
-                <div className="mt-2 border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => fileRef.current?.click()}>
-                  <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Clique para enviar uma foto</p>
-                  <p className="text-xs text-muted-foreground/60">Máx. 2MB • JPG, PNG</p>
+                <div className="col-span-2">
+                  <Label>Nome *</Label>
+                  <Input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
-              )}
-            </div>
-            <div>
-              <Label>Nome *</Label>
-              <Input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Descrição</Label>
-              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="Descrição opcional..." />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Preço (R$) *</Label>
-                <Input type="number" step="0.01" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
               </div>
-              <div>
-                <Label>Estoque</Label>
-                <Input type="number" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Categoria *</Label>
-                <select
-                  className="w-full h-10 rounded-md border bg-background px-3 text-sm"
-                  value={form.categoryId}
-                  onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
-                >
+                <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
                   <option value="">Selecione...</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
+                  {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                 </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Preço de venda (R$) *</Label>
+                  <Input type="number" step="0.01" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Preço de custo (R$)</Label>
+                  <Input type="number" step="0.01" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))} />
+                </div>
               </div>
               <div>
-                <Label>Tipo</Label>
-                <select
-                  className="w-full h-10 rounded-md border bg-background px-3 text-sm"
-                  value={form.type}
-                  onChange={e => setForm(f => ({ ...f, type: e.target.value as ProductType }))}
-                >
-                  <option value="unit">Unidade</option>
-                  <option value="weight">Peso (kg)</option>
+                <Label>Descrição</Label>
+                <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="Opcional" />
+              </div>
+            </Section>
+
+            <Section title="Configurações">
+              <Check checked={form.type === 'weight'} onChange={v => setForm(f => ({ ...f, type: v ? 'weight' : 'unit' }))} title="Venda por quilo" hint="vende este item por kg." />
+              <Check checked={form.serviceFeeExempt} onChange={v => setForm(f => ({ ...f, serviceFeeExempt: v }))} title="Isento da taxa de serviço" hint="não cobra a taxa de serviço sobre este item." />
+              <Check checked={form.loyaltyEligible} onChange={v => setForm(f => ({ ...f, loyaltyEligible: v }))} title="Fidelidade" hint="conta pontos no programa de fidelidade." />
+              <div>
+                <Label>Imprimir em</Label>
+                <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.printSector} onChange={e => setForm(f => ({ ...f, printSector: e.target.value }))}>
+                  <option value="">Padrão da categoria ({sectorLabel(getCat(form.categoryId)?.printSector || 'cozinha')})</option>
+                  {PRINT_SECTOR_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                </select>
+                <p className="text-[11px] text-muted-foreground mt-1">Define em qual impressora a comanda deste item sai.</p>
+              </div>
+            </Section>
+
+            <Section title="Estoque">
+              <Check checked={form.controlStock} onChange={v => setForm(f => ({ ...f, controlStock: v }))} title="Estoque controlado" hint="controla o estoque deste item." />
+              {form.controlStock && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Estoque mínimo</Label>
+                    <Input type="number" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label>Estoque atual</Label>
+                    <Input type="number" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} />
+                  </div>
+                </div>
+              )}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Fornecedor</Label>
+                  <button type="button" onClick={() => { setSupplierForm({ name: '', contact: '' }); setNewSupplierOpen(true); }} className="flex items-center gap-1 text-[11px] text-primary hover:underline">
+                    <Building2 className="h-3 w-3" /> Novo fornecedor
+                  </button>
+                </div>
+                <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.supplierId} onChange={e => setForm(f => ({ ...f, supplierId: e.target.value }))}>
+                  <option value="">Nenhum</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}{s.contact ? ` · ${s.contact}` : ''}</option>)}
                 </select>
               </div>
-            </div>
-            <div className="flex items-center gap-3 pt-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.controlStock}
-                  onChange={e => setForm(f => ({ ...f, controlStock: e.target.checked }))}
-                  className="rounded border-border"
-                />
-                <span className="text-sm">Controlar Estoque</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.loyaltyEligible}
-                  onChange={e => setForm(f => ({ ...f, loyaltyEligible: e.target.checked }))}
-                  className="rounded border-border"
-                />
-                <span className="text-sm">⭐ Elegível para pontuação fidelidade</span>
-              </label>
-            </div>
+            </Section>
 
-            {/* Supplier field */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <Label>Fornecedor</Label>
-                <button
-                  type="button"
-                  onClick={() => { setSupplierForm({ name: '', contact: '' }); setNewSupplierOpen(true); }}
-                  className="flex items-center gap-1 text-[11px] text-primary hover:underline opacity-70 hover:opacity-100 transition-opacity"
-                >
-                  <Building2 className="h-3 w-3" /> Novo fornecedor
-                </button>
-              </div>
-              <select
-                className="w-full h-10 rounded-md border bg-background px-3 text-sm"
-                value={form.supplierId}
-                onChange={e => setForm(f => ({ ...f, supplierId: e.target.value }))}
-              >
-                <option value="">Nenhum</option>
-                {suppliers.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}{s.contact ? ` · ${s.contact}` : ''}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2 justify-end pt-2">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit">{editingId ? 'Salvar' : 'Cadastrar'}</Button>
+            <div className="flex gap-2 justify-end pt-1">
+              {editingId && (
+                <Button type="button" variant="destructive" className="mr-auto" onClick={() => { setDialogOpen(false); openDelete(editingId); }}>Excluir</Button>
+              )}
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Voltar</Button>
+              <Button type="submit">Salvar</Button>
             </div>
           </form>
         </DialogContent>
@@ -799,7 +868,14 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
           <form onSubmit={saveCat} className="space-y-4">
             <div>
               <Label>Nome *</Label>
-              <Input autoFocus value={catForm.name} onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Refri" />
+              <Input autoFocus value={catForm.name} onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Refrigerantes" />
+            </div>
+            <div>
+              <Label>Impressora padrão</Label>
+              <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={catForm.printSector} onChange={e => setCatForm(f => ({ ...f, printSector: e.target.value }))}>
+                {PRINT_SECTOR_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+              <p className="text-[11px] text-muted-foreground mt-1">Os itens desta categoria saem nesta impressora, salvo se o produto indicar outra.</p>
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <Button type="button" variant="outline" onClick={() => setCatDialogOpen(false)}>Cancelar</Button>
@@ -826,92 +902,6 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
         </DialogContent>
       </Dialog>
 
-      {/* NoteOptions Manager Dialog */}
-      <Dialog open={optsDialogOpen} onOpenChange={setOptsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="shrink-0 flex flex-row items-center justify-between">
-          <DialogTitle>Observações e Complementos</DialogTitle>
-          </DialogHeader>
-          <div className="flex gap-2 mb-2 shrink-0">
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => { setEditingOptId(null); setOptForm({...emptyNoteOptionForm, type: 'note'}); setOptFormOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Nova Observação
-            </Button>
-            <Button size="sm" onClick={() => { setEditingOptId(null); setOptForm({...emptyNoteOptionForm, type: 'complement'}); setOptFormOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Novo Complemento
-            </Button>
-          </div>
-          <div className="flex-1 overflow-auto p-1 space-y-5">
-            {/* Observações */}
-            <div>
-              <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 px-1 flex items-center gap-1.5">
-                <span className="inline-block w-2 h-2 rounded-full bg-secondary" />
-                Observações Livres ({noteOptions.filter(o => o.type === 'note').length})
-              </h3>
-              {noteOptions.filter(o => o.type === 'note').length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhuma observação cadastrada.</p>
-              ) : (
-                <div className="grid gap-2">
-                  {noteOptions.filter(o => o.type === 'note').map(opt => (
-                    <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">Observação</Badge>
-                          <span className="font-bold">{opt.name}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1 flex gap-1 flex-wrap">
-                          {opt.categoryIds.map(cid => {
-                            const cat = getCat(cid);
-                            return cat ? <Badge key={cid} variant="outline" className="text-[10px] px-1 py-0">{cat.name}</Badge> : null;
-                          })}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => openEditOpt(opt)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteOpt(opt.id)}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Complementos */}
-            <div>
-              <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 px-1 flex items-center gap-1.5">
-                <span className="inline-block w-2 h-2 rounded-full bg-primary" />
-                Complementos Pagos ({noteOptions.filter(o => o.type === 'complement').length})
-              </h3>
-              {noteOptions.filter(o => o.type === 'complement').length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhum complemento cadastrado.</p>
-              ) : (
-                <div className="grid gap-2">
-                  {noteOptions.filter(o => o.type === 'complement').map(opt => (
-                    <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="default">Complemento</Badge>
-                          <span className="font-bold">{opt.name}</span>
-                          {opt.price > 0 && <span className="text-sm text-primary font-bold">R$ {fmt(opt.price)}</span>}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1 flex gap-1 flex-wrap">
-                          {opt.categoryIds.map(cid => {
-                            const cat = getCat(cid);
-                            return cat ? <Badge key={cid} variant="outline" className="text-[10px] px-1 py-0">{cat.name}</Badge> : null;
-                          })}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => openEditOpt(opt)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteOpt(opt.id)}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* NoteOption Create/Edit Form Dialog */}
       <Dialog open={optFormOpen} onOpenChange={setOptFormOpen}>
