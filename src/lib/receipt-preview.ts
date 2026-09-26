@@ -5,6 +5,7 @@
  */
 
 import type { PrintSettings } from './escpos';
+import { getOrderItemNoteLines } from './utils';
 
 export interface PreviewItem {
   name: string;
@@ -12,6 +13,9 @@ export interface PreviewItem {
   weight?: number;
   price: number;
   subtotal: number;
+  notes?: string;
+  selectedNotes?: string[];
+  otherNotes?: string;
   selectedComplements?: { name: string; price: number; quantity: number }[];
 }
 
@@ -200,6 +204,9 @@ export function buildBillPreviewText(
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     lines.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    for (const note of getOrderItemNoteLines(item)) {
+      lines.push(`  * Obs: ${note}`);
+    }
     if (item.selectedComplements) {
       for (const c of item.selectedComplements) {
         const compQty = `${c.quantity}x`;
