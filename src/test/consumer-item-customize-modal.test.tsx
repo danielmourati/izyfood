@@ -54,7 +54,7 @@ describe('ConsumerItemCustomizeModal', () => {
     const complementButtons = complementRow?.querySelectorAll('button');
     expect(complementButtons).toHaveLength(2);
     fireEvent.click(complementButtons?.[1] as HTMLButtonElement);
-    fireEvent.click(screen.getByRole('button', { name: /adicionar item/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
       selectedNotes: ['Sem gelo'],
       selectedComplements: [{ name: 'Limão', price: 1, quantity: 1 }],
