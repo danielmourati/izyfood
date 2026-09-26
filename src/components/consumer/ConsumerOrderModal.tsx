@@ -389,6 +389,16 @@ export function ConsumerOrderModal({
     i.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
   );
 
+  // Busca dinâmica: enquanto digita, sugere produtos do catálogo para lançar
+  const productSearchResults = itemSearchQuery.trim()
+    ? products
+        .filter(p => {
+          const q = itemSearchQuery.trim().toLowerCase();
+          return p.name.toLowerCase().includes(q) || (p.searchCode || '').toLowerCase().includes(q);
+        })
+        .slice(0, 8)
+    : [];
+
   const unprintedCount = items.filter(i => !i.printed).length;
 
   // Helper to add item directly without customization
