@@ -1139,7 +1139,7 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
     markPending(p.id);
     const item: any = {
       id: p.id, name: p.name, description: p.description || null, price: p.price,
-      category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: null,
+      category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
       loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
       search_code: p.searchCode || null, cost_price: p.costPrice ?? null, min_stock: p.minStock ?? 0,
       service_fee_exempt: p.serviceFeeExempt ?? false, print_sector: p.printSector || null,
@@ -1157,7 +1157,7 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
     markPending(p.id);
     const { error } = await supabase.from('products').update({
       name: p.name, description: p.description || null, price: p.price,
-      category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: null,
+      category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
       loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
       search_code: p.searchCode || null, cost_price: p.costPrice ?? null, min_stock: p.minStock ?? 0,
       service_fee_exempt: p.serviceFeeExempt ?? false, print_sector: p.printSector || null,
