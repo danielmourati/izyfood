@@ -744,6 +744,9 @@ export function buildBillHtml(bill: any, ps: any = {}): string {
   const items = (bill.items || []).map((i: any) => {
     const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}x`;
     let html = `<div class="row"><span>${qty} ${i.name || 'Item'}</span><span>${fmtBRL(i.subtotal || 0)}</span></div>`;
+    getItemNoteLines(i).forEach((note: string) => {
+      html += `<p style="margin: 0 0 2px 12px; font-size: 11px; font-style: italic;">* Obs: ${note}</p>`;
+    });
     if (i.selectedComplements && i.selectedComplements.length > 0) {
       i.selectedComplements.forEach((c: any) => {
         html += `<div class="row" style="font-size: 11px; padding-left: 12px;"><span>+ ${c.quantity}x ${c.name}</span><span>${fmtBRL(c.price * c.quantity * (i.weight ? 1 : i.quantity))}</span></div>`;

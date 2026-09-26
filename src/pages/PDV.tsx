@@ -24,6 +24,7 @@ import { TableBar } from '@/components/TableBar';
 import { OrderTypeSelector } from '@/components/OrderTypeSelector';
 import { usePrinter, PRINT_DISABLED_REASON, PRINT_QUEUED_MESSAGE } from '@/hooks/use-printer';
 import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
+import { OrderItemDetails } from '@/components/OrderItemDetails';
 
 const orderTypeLabels: Record<OrderType, string> = {
   balcao: '🏪 Balcão',
@@ -1098,9 +1099,7 @@ function CartContent({
                     <p className="text-[14px] text-muted-foreground leading-none mt-1">{fmtWeight(item.weight)}kg × R$ {fmt(item.price)}/kg</p>
                   ) : null}
                   {item.addedByName && <p className="text-[12px] text-muted-foreground opacity-70 mt-0.5">por {item.addedByName}</p>}
-                  <div className="mt-1.5 flex flex-col items-start gap-1">
-                    {item.notes && <p className="text-[14px] font-medium leading-tight opacity-90 text-foreground"><span className="font-bold text-primary">Obs:</span> {item.notes}</p>}
-                  </div>
+                  <OrderItemDetails item={item} />
                 </div>
                 <div className="flex flex-col items-end shrink-0 justify-between h-full gap-2">
                   <div className="flex items-center gap-1">
