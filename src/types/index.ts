@@ -3,6 +3,7 @@ export type ProductType = 'unit' | 'weight';
 export interface ProductCategory {
   id: string;
   name: string;
+  printSector?: string;
 }
 export type OrderType = 'balcao' | 'mesa' | 'delivery' | 'retirada';
 export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | 'pronto' | 'concluido';
@@ -24,6 +25,12 @@ export interface Product {
   loyaltyEligible: boolean;
   controlStock: boolean;
   supplierId?: string;
+  searchCode?: string;
+  costPrice?: number;
+  minStock?: number;
+  serviceFeeExempt?: boolean;
+  /** null/undefined = herda da categoria; 'none' = não imprime */
+  printSector?: string;
 }
 
 export interface ProductNoteOption {

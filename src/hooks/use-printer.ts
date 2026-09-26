@@ -550,14 +550,32 @@ export function usePrinter() {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
     }
-    const sector = options?.sector || 'cozinha';
-    const targetPrinter = getPrinterForSector(sector);
-    const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const ps = await resolvePrintSettings(user?.tenantId);
-    console.log(`[printOrder] printSettings usados (setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, largura: ${targetPaperWidth}mm):`, JSON.stringify(ps));
-    const escpos = buildOrderReceipt(order, targetPaperWidth, ps);
-    const html = buildOrderHtml(order, ps);
-    await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
+
+    // Separa os itens por setor (produto > categoria > cozinha), salvo quando um setor foi forçado.
+    const groups = new Map<string, any[]>();
+    const items: any[] = Array.isArray(order?.items) ? order.items : [];
+    if (options?.sector || items.length === 0) {
+      groups.set(options?.sector || 'cozinha', items);
+    } else {
+      for (const it of items) {
+        const sec = resolveItemSector(it, storeProducts, storeCategories);
+        if (sec === 'none') continue;
+        if (!groups.has(sec)) groups.set(sec, []);
+        groups.get(sec)!.push(it);
+      }
+      if (groups.size === 0) return { ok: true };
+    }
+
+    for (const [sector, secItems] of groups) {
+      const secOrder = { ...order, items: secItems };
+      const targetPrinter = getPrinterForSector(sector);
+      const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
+      console.log(`[printOrder] setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, itens: ${secItems.length}`);
+      const escpos = buildOrderReceipt(secOrder, targetPaperWidth, ps);
+      const html = buildOrderHtml(secOrder, ps);
+      await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
+    }
     return { ok: true };
   };
 

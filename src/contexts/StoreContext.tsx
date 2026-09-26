@@ -61,13 +61,13 @@ const StoreContext = createContext<StoreContextType | null>(null);
 // ============ DB <-> App mappers ============
 
 function dbToProduct(r: any): Product {
-  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false, controlStock: r.control_stock ?? true };
+  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false, controlStock: r.control_stock ?? true, searchCode: r.search_code || undefined, costPrice: r.cost_price != null ? Number(r.cost_price) : undefined, minStock: Number(r.min_stock ?? 0), serviceFeeExempt: r.service_fee_exempt ?? false, printSector: r.print_sector || undefined };
 }
 function dbToNoteOption(r: any): ProductNoteOption {
   return { id: r.id, name: r.name, type: r.type, price: Number(r.price), categoryIds: r.category_ids || [], active: r.active ?? true };
 }
 function dbToCategory(r: any): ProductCategory {
-  return { id: r.id, name: r.name };
+  return { id: r.id, name: r.name, printSector: r.print_sector || undefined };
 }
 function dbToCustomer(r: any): Customer {
   return { id: r.id, name: r.name, phone: r.phone, address: r.address, notes: r.notes, creditBalance: Number(r.credit_balance), loyaltyPoints: r.loyalty_points };
@@ -1139,8 +1139,10 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
     markPending(p.id);
     const item: any = {
       id: p.id, name: p.name, description: p.description || null, price: p.price,
-      category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
+      category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: null,
       loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
+      search_code: p.searchCode || null, cost_price: p.costPrice ?? null, min_stock: p.minStock ?? 0,
+      service_fee_exempt: p.serviceFeeExempt ?? false, print_sector: p.printSector || null,
     };
     if (tenantId) item.tenant_id = tenantId;
     const { error } = await supabase.from('products').insert(item);
@@ -1155,8 +1157,10 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
     markPending(p.id);
     const { error } = await supabase.from('products').update({
       name: p.name, description: p.description || null, price: p.price,
-      category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
+      category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: null,
       loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
+      search_code: p.searchCode || null, cost_price: p.costPrice ?? null, min_stock: p.minStock ?? 0,
+      service_fee_exempt: p.serviceFeeExempt ?? false, print_sector: p.printSector || null,
     }).eq('id', p.id);
     if (error) console.error('Error updating product in Supabase:', error);
   }
@@ -1170,11 +1174,11 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
 async function syncCategories(prev: ProductCategory[], next: ProductCategory[], markPending: (id: string) => void, tenantId?: string) {
   const added = next.filter(n => !prev.find(p => p.id === n.id));
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
-  const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && p.name !== n.name; });
+  const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && (p.name !== n.name || p.printSector !== n.printSector); });
 
   for (const c of added) {
     markPending(c.id);
-    const item: any = { id: c.id, name: c.name };
+    const item: any = { id: c.id, name: c.name, print_sector: c.printSector || null };
     if (tenantId) item.tenant_id = tenantId;
     const { error } = await supabase.from('categories').insert(item);
     if (error) {
@@ -1185,7 +1189,7 @@ async function syncCategories(prev: ProductCategory[], next: ProductCategory[], 
   }
   for (const c of updated) {
     markPending(c.id);
-    const { error } = await supabase.from('categories').update({ name: c.name }).eq('id', c.id);
+    const { error } = await supabase.from('categories').update({ name: c.name, print_sector: c.printSector || null }).eq('id', c.id);
     if (error) console.error('Error updating category in Supabase:', error);
   }
   for (const c of removed) {
