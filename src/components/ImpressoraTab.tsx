@@ -524,6 +524,16 @@ export function ImpressoraTab() {
                           </Button>
                         )}
                       </div>
+                      {form.address && isVirtualPrinter(form.address) && (
+                        <p className="text-xs font-semibold text-destructive">
+                          Esta é uma impressora virtual: o cupom será salvo como arquivo em Documentos. Selecione a impressora térmica USB.
+                        </p>
+                      )}
+                      {form.address && qzPrintersList.length > 0 && !qzPrintersList.includes(form.address) && (
+                        <p className="text-xs font-semibold text-destructive">
+                          Esta impressora não foi encontrada no Windows. Clique em Procurar e selecione novamente.
+                        </p>
+                      )}
                     </div>
 
                     {/* Form Field 2: Tamanho do papel */}
