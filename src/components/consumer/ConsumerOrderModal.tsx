@@ -1447,21 +1447,6 @@ export function ConsumerOrderModal({
                   />
                 </div>
 
-                <hr className="border-border" />
-
-                {/* Table Indicator */}
-                <div className="space-y-2">
-                  <label className="text-muted-foreground font-medium block">
-                    🪑 Mesa onde a comanda está
-                  </label>
-                  <Input
-                    placeholder="Núm. da Mesa (Opcional)"
-                    value={displayMesaNum}
-                    readOnly
-                    className="bg-background border-input text-xs text-foreground h-8"
-                  />
-                </div>
-
                 {/* Lock Order Toggle */}
                 <div className="flex items-center gap-3 pt-2">
                   <Switch
