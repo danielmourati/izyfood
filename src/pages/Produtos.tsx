@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,13 @@ const Produtos = () => {
 
   // Product state
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Foca o campo Nome apenas quando o modal abre (autoFocus roubava o foco ao trocar de campo)
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const t = setTimeout(() => nameInputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, [dialogOpen]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -84,6 +91,7 @@ const Produtos = () => {
 
   // CSV Import state
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [csvPreviewOpen, setCsvPreviewOpen] = useState(false);
   const [csvItems, setCsvItems] = useState<{
     categoryName: string;
@@ -772,7 +780,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
                 </div>
                 <div className="col-span-2">
                   <Label>Nome *</Label>
-                  <Input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                  <Input ref={nameInputRef} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
               </div>
               <div>
