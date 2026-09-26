@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePrinter } from '@/hooks/use-printer';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { getQzPrinters } from '@/lib/printer';
+import { getQzPrinters, isVirtualPrinter } from '@/lib/printer';
 import { QzSetupModal } from '@/components/QzSetupModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -506,7 +506,7 @@ export function ImpressoraTab() {
                             ) : (
                               qzPrintersList.map((pName) => (
                                 <SelectItem key={pName} value={pName}>
-                                  {pName}
+                                  {pName}{isVirtualPrinter(pName) ? ' (virtual – salva arquivo)' : ''}
                                 </SelectItem>
                               ))
                             )}
@@ -524,6 +524,16 @@ export function ImpressoraTab() {
                           </Button>
                         )}
                       </div>
+                      {form.address && isVirtualPrinter(form.address) && (
+                        <p className="text-xs font-semibold text-destructive">
+                          Esta é uma impressora virtual: o cupom será salvo como arquivo em Documentos. Selecione a impressora térmica USB.
+                        </p>
+                      )}
+                      {form.address && qzPrintersList.length > 0 && !qzPrintersList.includes(form.address) && (
+                        <p className="text-xs font-semibold text-destructive">
+                          Esta impressora não foi encontrada no Windows. Clique em Procurar e selecione novamente.
+                        </p>
+                      )}
                     </div>
 
                     {/* Form Field 2: Tamanho do papel */}

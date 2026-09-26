@@ -594,6 +594,7 @@ export type Database = {
           paper_width: number | null
           payload: Json
           printed_at: string | null
+          printed_on: string | null
           status: string
           tenant_id: string
           updated_at: string
@@ -612,6 +613,7 @@ export type Database = {
           paper_width?: number | null
           payload?: Json
           printed_at?: string | null
+          printed_on?: string | null
           status?: string
           tenant_id: string
           updated_at?: string
@@ -630,6 +632,7 @@ export type Database = {
           paper_width?: number | null
           payload?: Json
           printed_at?: string | null
+          printed_on?: string | null
           status?: string
           tenant_id?: string
           updated_at?: string
@@ -1267,6 +1270,7 @@ export type Database = {
           paper_width: number | null
           payload: Json
           printed_at: string | null
+          printed_on: string | null
           status: string
           tenant_id: string
           updated_at: string
