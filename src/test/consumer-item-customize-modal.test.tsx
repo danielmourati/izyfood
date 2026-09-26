@@ -51,7 +51,7 @@ describe('ConsumerItemCustomizeModal', () => {
     expect(screen.queryByText('Inativo')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText(/Limão/).closest('div')?.querySelector('button') as HTMLButtonElement);
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /adicionar item/i }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
       selectedNotes: ['Sem gelo'],
       selectedComplements: [{ name: 'Limão', price: 1, quantity: 1 }],
