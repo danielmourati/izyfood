@@ -236,18 +236,21 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          print_sector: string | null
           tenant_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          print_sector?: string | null
           tenant_id?: string
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          print_sector?: string | null
           tenant_id?: string
         }
         Relationships: [
@@ -748,13 +751,18 @@ export type Database = {
         Row: {
           category_id: string | null
           control_stock: boolean
+          cost_price: number | null
           created_at: string
           description: string | null
           id: string
           image: string | null
           loyalty_eligible: boolean
+          min_stock: number
           name: string
           price: number
+          print_sector: string | null
+          search_code: string | null
+          service_fee_exempt: boolean
           stock: number
           tenant_id: string
           type: Database["public"]["Enums"]["product_type"]
@@ -764,13 +772,18 @@ export type Database = {
         Insert: {
           category_id?: string | null
           control_stock?: boolean
+          cost_price?: number | null
           created_at?: string
           description?: string | null
           id?: string
           image?: string | null
           loyalty_eligible?: boolean
+          min_stock?: number
           name: string
           price?: number
+          print_sector?: string | null
+          search_code?: string | null
+          service_fee_exempt?: boolean
           stock?: number
           tenant_id?: string
           type?: Database["public"]["Enums"]["product_type"]
@@ -780,13 +793,18 @@ export type Database = {
         Update: {
           category_id?: string | null
           control_stock?: boolean
+          cost_price?: number | null
           created_at?: string
           description?: string | null
           id?: string
           image?: string | null
           loyalty_eligible?: boolean
+          min_stock?: number
           name?: string
           price?: number
+          print_sector?: string | null
+          search_code?: string | null
+          service_fee_exempt?: boolean
           stock?: number
           tenant_id?: string
           type?: Database["public"]["Enums"]["product_type"]
