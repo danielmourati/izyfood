@@ -163,6 +163,26 @@ function rowWrap(label: string, value: string, cols: number): string {
   return lines.join('\n');
 }
 
+function detailWrap(prefix: string, value: string, cols: number): string[] {
+  const firstPrefix = `  ${prefix}`;
+  const continuation = ' '.repeat(firstPrefix.length);
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  const output: string[] = [];
+  let current = firstPrefix;
+
+  for (const word of words) {
+    const candidate = current === firstPrefix ? `${current}${word}` : `${current} ${word}`;
+    if (candidate.length <= cols) {
+      current = candidate;
+    } else {
+      if (current.trim()) output.push(current);
+      current = `${continuation}${word}`;
+    }
+  }
+  if (current.trim()) output.push(current);
+  return output;
+}
+
 export function buildBillPreviewText(
   bill: PreviewBill,
   paperWidth: 58 | 80,
@@ -205,7 +225,7 @@ export function buildBillPreviewText(
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     lines.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
     for (const note of getOrderItemNoteLines(item)) {
-      lines.push(`  * Obs: ${note}`);
+      lines.push(...detailWrap('* Obs: ', note, cols));
     }
     if (item.selectedComplements) {
       for (const c of item.selectedComplements) {

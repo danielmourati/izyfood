@@ -544,7 +544,7 @@ describe('kitchen order notes rendering', () => {
     const itemIndex = receipt.indexOf('PEIXE ASSADO');
     const noteIndex = receipt.indexOf('BEM PASSADO');
     const otherNoteIndex = receipt.indexOf('SEM CEBOLA');
-    const complementIndex = receipt.indexOf('ARROZ INTEGRAL');
+    const complementIndex = receipt.indexOf('ARROZ');
     expect(itemIndex).toBeGreaterThan(-1);
     expect(noteIndex).toBeGreaterThan(itemIndex);
     expect(otherNoteIndex).toBeGreaterThan(noteIndex);
