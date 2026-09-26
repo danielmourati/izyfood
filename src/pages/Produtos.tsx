@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Search, Building2, FileSpreadsheet, Download, CheckCircle2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { PRINT_SECTOR_OPTIONS, sectorLabel } from '@/lib/print-sectors';
+import { buildSectorOptions, sectorLabel } from '@/lib/print-sectors';
+import { usePrinter } from '@/hooks/use-printer';
 import { toast } from 'sonner';
 import type { Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
 
@@ -48,6 +49,8 @@ const ENABLE_CSV_IMPORT = false;
 
 const Produtos = () => {
   const { products, setProducts, categories, setCategories, noteOptions, setNoteOptions, suppliers, setSuppliers } = useStore();
+  const { printers } = usePrinter();
+  const sectorOptions = buildSectorOptions(printers);
 
   // Product state
   const [dialogOpen, setDialogOpen] = useState(false);
