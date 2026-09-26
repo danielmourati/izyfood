@@ -1,3 +1,4 @@
+import { resolveItemSector } from '@/lib/print-sectors';
 import { isDesktopApp } from '@/lib/printer-desktop';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -137,12 +138,12 @@ export interface PrinterConfig {
   model?: string;
   escpos_profile?: string;
   auto_connect_qz?: boolean;
-  sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao';
+  sector?: string;
 }
 
 export function usePrinter() {
   const { user } = useAuth();
-  const { printSettings } = useStore();
+  const { printSettings, products: storeProducts, categories: storeCategories } = useStore();
   const [printers, setPrinters] = useState<PrinterConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [btConnected, setBtConnected] = useState(false);
@@ -348,7 +349,7 @@ export function usePrinter() {
   /**
    * Identifica a impressora configurada para um setor específico (ex: 'recibo' para o Caixa, 'cozinha' para a Cozinha).
    */
-  const getPrinterForSector = useCallback((sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao'): PrinterConfig | null => {
+  const getPrinterForSector = useCallback((sector?: string): PrinterConfig | null => {
     // 1. Configuração local salva no próprio dispositivo (override local)
     const deviceConfig = getDevicePrinterConfig();
     if (deviceConfig && deviceConfig.name) {
@@ -441,7 +442,7 @@ export function usePrinter() {
     data: Uint8Array,
     htmlFallback: string,
     title: string,
-    options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao' }
+    options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: string }
   ) => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[sendToPrinter] Impressão desativada neste dispositivo. Ignorando envio.');
@@ -544,20 +545,38 @@ export function usePrinter() {
   const shouldQueue = (options?: { force?: boolean }) =>
     !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
 
-  const printOrder = async (order: any, options?: { force?: boolean; sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao' }): Promise<PrintResult> => {
+  const printOrder = async (order: any, options?: { force?: boolean; sector?: string }): Promise<PrintResult> => {
     if (shouldQueue(options)) return enqueuePrintJob('order', order);
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
     }
-    const sector = options?.sector || 'cozinha';
-    const targetPrinter = getPrinterForSector(sector);
-    const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const ps = await resolvePrintSettings(user?.tenantId);
-    console.log(`[printOrder] printSettings usados (setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, largura: ${targetPaperWidth}mm):`, JSON.stringify(ps));
-    const escpos = buildOrderReceipt(order, targetPaperWidth, ps);
-    const html = buildOrderHtml(order, ps);
-    await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
+
+    // Separa os itens por setor (produto > categoria > cozinha), salvo quando um setor foi forçado.
+    const groups = new Map<string, any[]>();
+    const items: any[] = Array.isArray(order?.items) ? order.items : [];
+    if (options?.sector || items.length === 0) {
+      groups.set(options?.sector || 'cozinha', items);
+    } else {
+      for (const it of items) {
+        const sec = resolveItemSector(it, storeProducts, storeCategories);
+        if (sec === 'none') continue;
+        if (!groups.has(sec)) groups.set(sec, []);
+        groups.get(sec)!.push(it);
+      }
+      if (groups.size === 0) return { ok: true };
+    }
+
+    for (const [sector, secItems] of groups) {
+      const secOrder = { ...order, items: secItems };
+      const targetPrinter = getPrinterForSector(sector);
+      const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
+      console.log(`[printOrder] setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, itens: ${secItems.length}`);
+      const escpos = buildOrderReceipt(secOrder, targetPaperWidth, ps);
+      const html = buildOrderHtml(secOrder, ps);
+      await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
+    }
     return { ok: true };
   };
 
@@ -593,7 +612,7 @@ export function usePrinter() {
     return { ok: true };
   };
 
-  const printTest = async (sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao') => {
+  const printTest = async (sector?: string) => {
     const mockOrder = {
       id: `TESTE-${Date.now().toString().slice(-6)}`,
       orderType: 'mesa',

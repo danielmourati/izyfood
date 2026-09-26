@@ -142,7 +142,10 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   const serviceFeePercentage = settings.serviceFeePercentage ?? 0;
   const isMesa = order?.orderType === 'mesa';
-  const serviceFeeAmount = isMesa && serviceFeePercentage > 0 ? (subtotal * serviceFeePercentage) / 100 : 0;
+  const exemptAmount = (order?.items || []).reduce((s: number, it: any) =>
+    products.find(p => p.id === it.productId)?.serviceFeeExempt ? s + (Number(it.subtotal) || 0) : s, 0);
+  const serviceFeeBase = Math.max(0, subtotal - exemptAmount);
+  const serviceFeeAmount = isMesa && serviceFeePercentage > 0 ? (serviceFeeBase * serviceFeePercentage) / 100 : 0;
   const finalTotal = Math.max(0, subtotal - discountAmount + serviceFeeAmount);
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, finalTotal - totalAssigned);

@@ -8,6 +8,13 @@
       "when": 1790429612359,
       "tag": "0000_print_jobs_printed_on",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790431995276,
+      "tag": "0001_product_print_sector_fields",
+      "breakpoints": true
     }
   ]
 }
