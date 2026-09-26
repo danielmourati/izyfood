@@ -11,7 +11,7 @@ import { ConsumerProductFinderModal } from './ConsumerProductFinderModal';
 import { ConsumerItemCustomizeModal } from './ConsumerItemCustomizeModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { fmt } from '@/lib/utils';
+import { fmt, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
