@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -84,6 +84,7 @@ const Produtos = () => {
 
   // CSV Import state
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [csvPreviewOpen, setCsvPreviewOpen] = useState(false);
   const [csvItems, setCsvItems] = useState<{
     categoryName: string;
