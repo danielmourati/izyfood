@@ -2,8 +2,18 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ConsumerItemCustomizeModal } from '@/components/consumer/ConsumerItemCustomizeModal';
-import { StoreContext } from '@/contexts/StoreContext';
 import type { Product } from '@/types';
+
+vi.mock('@/contexts/StoreContext', () => ({
+  useStore: () => ({
+    noteOptions: [
+      { id: '1', name: 'Sem gelo', type: 'note', price: 0, categoryIds: ['drinks'], active: true },
+      { id: '2', name: 'Limão', type: 'complement', price: 1, categoryIds: ['drinks'], active: true },
+      { id: '3', name: 'Sem cebola', type: 'note', price: 0, categoryIds: ['meals'], active: true },
+      { id: '4', name: 'Inativo', type: 'note', price: 0, categoryIds: ['drinks'], active: false },
+    ],
+  }),
+}));
 
 const product: Product = {
   id: 'product-1',
@@ -20,29 +30,19 @@ const product: Product = {
 describe('ConsumerItemCustomizeModal', () => {
   it('shows only active options linked to the selected product category', () => {
     const onConfirm = vi.fn();
-    const storeValue = {
-      noteOptions: [
-        { id: '1', name: 'Sem gelo', type: 'note', price: 0, categoryIds: ['drinks'], active: true },
-        { id: '2', name: 'Limão', type: 'complement', price: 1, categoryIds: ['drinks'], active: true },
-        { id: '3', name: 'Sem cebola', type: 'note', price: 0, categoryIds: ['meals'], active: true },
-        { id: '4', name: 'Inativo', type: 'note', price: 0, categoryIds: ['drinks'], active: false },
-      ],
-    } as React.ContextType<typeof StoreContext>;
 
     render(
-      <StoreContext.Provider value={storeValue}>
-        <ConsumerItemCustomizeModal
-          open
-          onClose={() => undefined}
-          product={product}
-          itemToEdit={{
-            id: 'item-1', productId: product.id, name: product.name, price: product.price,
-            quantity: 1, subtotal: product.price, selectedNotes: ['Sem gelo'],
-            selectedComplements: [], printed: false,
-          }}
-          onConfirm={onConfirm}
-        />
-      </StoreContext.Provider>,
+      <ConsumerItemCustomizeModal
+        open
+        onClose={() => undefined}
+        product={product}
+        itemToEdit={{
+          id: 'item-1', productId: product.id, name: product.name, price: product.price,
+          quantity: 1, subtotal: product.price, selectedNotes: ['Sem gelo'],
+          selectedComplements: [], printed: false,
+        }}
+        onConfirm={onConfirm}
+      />,
     );
 
     expect(screen.getByText('Sem gelo')).toBeInTheDocument();
