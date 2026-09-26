@@ -24,7 +24,9 @@ export function OrderItemDetails({ item, compact = false }: OrderItemDetailsProp
           ) : (
             <span className="block pl-2">
               {notes.map((note, index) => (
-                <span key={`${note}-${index}`} className="block">• {note}</span>
+                <span key={`${note}-${index}`} className="block">
+                  <span aria-hidden="true">• </span><span>{note}</span>
+                </span>
               ))}
             </span>
           )}
@@ -41,7 +43,8 @@ export function OrderItemDetails({ item, compact = false }: OrderItemDetailsProp
             <span className="block pl-2">
               {complements.map((complement, index) => (
                 <span key={`${complement.name}-${index}`} className="block">
-                  • {complement.quantity}x {complement.name}
+                  <span aria-hidden="true">• </span>
+                  <span>{complement.quantity}x {complement.name}</span>
                 </span>
               ))}
             </span>
