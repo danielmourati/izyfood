@@ -137,12 +137,12 @@ export interface PrinterConfig {
   model?: string;
   escpos_profile?: string;
   auto_connect_qz?: boolean;
-  sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao';
+  sector?: string;
 }
 
 export function usePrinter() {
   const { user } = useAuth();
-  const { printSettings } = useStore();
+  const { printSettings, products: storeProducts, categories: storeCategories } = useStore();
   const [printers, setPrinters] = useState<PrinterConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [btConnected, setBtConnected] = useState(false);
@@ -348,7 +348,7 @@ export function usePrinter() {
   /**
    * Identifica a impressora configurada para um setor específico (ex: 'recibo' para o Caixa, 'cozinha' para a Cozinha).
    */
-  const getPrinterForSector = useCallback((sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao'): PrinterConfig | null => {
+  const getPrinterForSector = useCallback((sector?: string): PrinterConfig | null => {
     // 1. Configuração local salva no próprio dispositivo (override local)
     const deviceConfig = getDevicePrinterConfig();
     if (deviceConfig && deviceConfig.name) {
@@ -441,7 +441,7 @@ export function usePrinter() {
     data: Uint8Array,
     htmlFallback: string,
     title: string,
-    options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao' }
+    options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: string }
   ) => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[sendToPrinter] Impressão desativada neste dispositivo. Ignorando envio.');
@@ -544,7 +544,7 @@ export function usePrinter() {
   const shouldQueue = (options?: { force?: boolean }) =>
     !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
 
-  const printOrder = async (order: any, options?: { force?: boolean; sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao' }): Promise<PrintResult> => {
+  const printOrder = async (order: any, options?: { force?: boolean; sector?: string }): Promise<PrintResult> => {
     if (shouldQueue(options)) return enqueuePrintJob('order', order);
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
@@ -593,7 +593,7 @@ export function usePrinter() {
     return { ok: true };
   };
 
-  const printTest = async (sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao') => {
+  const printTest = async (sector?: string) => {
     const mockOrder = {
       id: `TESTE-${Date.now().toString().slice(-6)}`,
       orderType: 'mesa',
