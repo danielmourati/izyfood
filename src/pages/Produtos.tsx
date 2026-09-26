@@ -805,9 +805,13 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
                 <Label>Imprimir em</Label>
                 <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.printSector} onChange={e => setForm(f => ({ ...f, printSector: e.target.value }))}>
                   <option value="">Padrão da categoria ({sectorLabel(getCat(form.categoryId)?.printSector || 'cozinha')})</option>
-                  {PRINT_SECTOR_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                  {sectorOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                  {form.printSector && form.printSector !== 'none' && !sectorOptions.some(o => o.key === form.printSector) && (
+                    <option value={form.printSector}>{sectorLabel(form.printSector)} (sem impressora configurada)</option>
+                  )}
+                  <option value="none">Não imprimir</option>
                 </select>
-                <p className="text-[11px] text-muted-foreground mt-1">Define em qual impressora a comanda deste item sai.</p>
+                <p className="text-[11px] text-muted-foreground mt-1">Define em qual impressora a comanda deste item sai. Só aparecem impressoras ativas em Configurações &gt; Impressora.</p>
               </div>
             </Section>
 
@@ -876,7 +880,11 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
             <div>
               <Label>Impressora padrão</Label>
               <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={catForm.printSector} onChange={e => setCatForm(f => ({ ...f, printSector: e.target.value }))}>
-                {PRINT_SECTOR_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                {sectorOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                {catForm.printSector && catForm.printSector !== 'none' && !sectorOptions.some(o => o.key === catForm.printSector) && (
+                  <option value={catForm.printSector}>{sectorLabel(catForm.printSector)} (sem impressora configurada)</option>
+                )}
+                <option value="none">Não imprimir</option>
               </select>
               <p className="text-[11px] text-muted-foreground mt-1">Os itens desta categoria saem nesta impressora, salvo se o produto indicar outra.</p>
             </div>
