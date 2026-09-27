@@ -726,99 +726,93 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
             <DialogTitle>{editingId ? form.name || 'Editar Produto' : 'Novo Produto'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
-            <div>
-              <Label>Nome *</Label>
-              <Input ref={nameInputRef} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Categoria *</Label>
-              <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
-                <option value="">Selecione...</option>
-                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            <Section title="Dados principais">
               <div>
-                <Label>Preço de venda (R$) *</Label>
-                <CurrencyInput value={form.price} onValueChange={price => setForm(f => ({ ...f, price }))} />
+                <Label>Código de busca</Label>
+                <Input value={form.searchCode} onChange={e => setForm(f => ({ ...f, searchCode: e.target.value }))} placeholder="Opcional" />
               </div>
               <div>
-                <Label>Preço de custo (R$)</Label>
-                <CurrencyInput value={form.costPrice} onValueChange={costPrice => setForm(f => ({ ...f, costPrice }))} />
+                <Label>Nome *</Label>
+                <Input ref={nameInputRef} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
               </div>
-            </div>
-            <div>
-              <Label>Descrição</Label>
-              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="Opcional" />
-            </div>
-          </Section>
+              <div>
+                <Label>Categoria *</Label>
+                <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
+                  <option value="">Selecione...</option>
+                  {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Preço de venda (R$) *</Label>
+                  <CurrencyInput value={form.price} onValueChange={price => setForm(f => ({ ...f, price }))} />
+                </div>
+                <div>
+                  <Label>Preço de custo (R$)</Label>
+                  <CurrencyInput value={form.costPrice} onValueChange={costPrice => setForm(f => ({ ...f, costPrice }))} />
+                </div>
+              </div>
+              <div>
+                <Label>Descrição</Label>
+                <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="Opcional" />
+              </div>
+            </Section>
 
-          <Section title="Configurações">
-            <Check checked={form.type === 'weight'} onChange={v => setForm(f => ({ ...f, type: v ? 'weight' : 'unit' }))} title="Venda por quilo" hint="vende este item por kg." />
-            <Check checked={form.serviceFeeExempt} onChange={v => setForm(f => ({ ...f, serviceFeeExempt: v }))} title="Isento da taxa de serviço" hint="não cobra a taxa de serviço sobre este item." />
-            <Check checked={form.loyaltyEligible} onChange={v => setForm(f => ({ ...f, loyaltyEligible: v }))} title="Fidelidade" hint="conta pontos no programa de fidelidade." />
-            <div>
-              <Label>Imprimir em</Label>
-              <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.printSector} onChange={e => setForm(f => ({ ...f, printSector: e.target.value }))}>
-                <option value="">Padrão da categoria ({sectorLabel(getCat(form.categoryId)?.printSector || 'cozinha')})</option>
-                {sectorOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-                {form.printSector && form.printSector !== 'none' && !sectorOptions.some(o => o.key === form.printSector) && (
-                  <option value={form.printSector}>{sectorLabel(form.printSector)} (sem impressora configurada)</option>
-                )}
-                <option value="none">Não imprimir</option>
-              </select>
-              <p className="text-[11px] text-muted-foreground mt-1">Define em qual impressora a comanda deste item sai. Só aparecem impressoras ativas em Configurações &gt; Impressora.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 pt-1">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.controlStock}
-                onChange={e => setForm(f => ({ ...f, controlStock: e.target.checked }))}
-                className="rounded border-border"
-              />
-              <span className="text-sm">Controlar Estoque</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.loyaltyEligible}
-                onChange={e => setForm(f => ({ ...f, loyaltyEligible: e.target.checked }))}
-                className="rounded border-border"
-              />
-              <span className="text-sm">⭐ Elegível para pontuação fidelidade</span>
-            </label>
-          </div>
+            <Section title="Configurações">
+              <Check checked={form.type === 'weight'} onChange={v => setForm(f => ({ ...f, type: v ? 'weight' : 'unit' }))} title="Venda por quilo" hint="vende este item por kg." />
+              <Check checked={form.serviceFeeExempt} onChange={v => setForm(f => ({ ...f, serviceFeeExempt: v }))} title="Isento da taxa de serviço" hint="não cobra a taxa de serviço sobre este item." />
+              <Check checked={form.loyaltyEligible} onChange={v => setForm(f => ({ ...f, loyaltyEligible: v }))} title="Fidelidade" hint="conta pontos no programa de fidelidade." />
+              <div>
+                <Label>Imprimir em</Label>
+                <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.printSector} onChange={e => setForm(f => ({ ...f, printSector: e.target.value }))}>
+                  <option value="">Padrão da categoria ({sectorLabel(getCat(form.categoryId)?.printSector || 'cozinha')})</option>
+                  {sectorOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                  {form.printSector && form.printSector !== 'none' && !sectorOptions.some(o => o.key === form.printSector) && (
+                    <option value={form.printSector}>{sectorLabel(form.printSector)} (sem impressora configurada)</option>
+                  )}
+                  <option value="none">Não imprimir</option>
+                </select>
+                <p className="text-[11px] text-muted-foreground mt-1">Define em qual impressora a comanda deste item sai. Só aparecem impressoras ativas em Configurações &gt; Impressora.</p>
+              </div>
+            </Section>
 
-          {/* Supplier field */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <Label>Fornecedor</Label>
-              <button
-                type="button"
-                onClick={() => { setSupplierForm({ name: '', contact: '' }); setNewSupplierOpen(true); }}
-                className="flex items-center gap-1 text-[11px] text-primary hover:underline opacity-70 hover:opacity-100 transition-opacity"
-              >
-                <Building2 className="h-3 w-3" /> Novo fornecedor
-              </button>
+            <Section title="Estoque">
+              <Check checked={form.controlStock} onChange={v => setForm(f => ({ ...f, controlStock: v }))} title="Controlar estoque" hint="acompanha a quantidade disponível deste item." />
+              {form.controlStock && (
+                <div>
+                  <Label>Estoque mínimo</Label>
+                  <Input type="number" min="0" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} placeholder="0" />
+                </div>
+              )}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Fornecedor</Label>
+                  <button
+                    type="button"
+                    onClick={() => { setSupplierForm({ name: '', contact: '' }); setNewSupplierOpen(true); }}
+                    className="flex items-center gap-1 text-[11px] text-primary hover:underline opacity-70 hover:opacity-100 transition-opacity"
+                  >
+                    <Building2 className="h-3 w-3" /> Novo fornecedor
+                  </button>
+                </div>
+                <select
+                  className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                  value={form.supplierId}
+                  onChange={e => setForm(f => ({ ...f, supplierId: e.target.value }))}
+                >
+                  <option value="">Nenhum</option>
+                  {suppliers.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}{s.contact ? ` · ${s.contact}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            </Section>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit">{editingId ? 'Salvar' : 'Cadastrar'}</Button>
             </div>
-            <select
-              className="w-full h-10 rounded-md border bg-background px-3 text-sm"
-              value={form.supplierId}
-              onChange={e => setForm(f => ({ ...f, supplierId: e.target.value }))}
-            >
-              <option value="">Nenhum</option>
-              {suppliers.map(s => (
-                <option key={s.id} value={s.id}>{s.name}{s.contact ? ` · ${s.contact}` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button type="submit">{editingId ? 'Salvar' : 'Cadastrar'}</Button>
-          </div>
-        </form>
+          </form>
       </DialogContent>
     </Dialog>
 
