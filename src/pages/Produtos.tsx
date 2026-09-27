@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { usePrinter } from '@/hooks/use-printer';
 import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
+import { sectorLabel, buildSectorOptions } from '@/lib/print-sectors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CurrencyInput } from '@/components/ui/currency-input';
@@ -60,6 +62,8 @@ const Check = ({ checked, onChange, title, hint }: { checked: boolean; onChange:
 
 const Produtos = () => {
   const { products, setProducts, categories, setCategories, noteOptions, setNoteOptions, suppliers, setSuppliers } = useStore();
+  const { printers } = usePrinter();
+  const sectorOptions = buildSectorOptions(printers);
 
   // Product state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -86,6 +90,8 @@ const Produtos = () => {
   const [editingCatName, setEditingCatName] = useState('');
   const [deleteCatId, setDeleteCatId] = useState<string | null>(null);
   const [catDeleteOpen, setCatDeleteOpen] = useState(false);
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
+  const [catForm, setCatForm] = useState(emptyCategoryForm);
 
   // Dedicated NoteOption state
   const [optsDialogOpen, setOptsDialogOpen] = useState(false);
@@ -475,60 +481,54 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
   };
 
   // ---- Category CRUD ----
-  const handleAddCategory = () => {
-    if (!newCatName.trim()) {
-      toast.error('Informe o nome da categoria.');
-      return;
-    }
-    const catName = newCatName.trim();
-    if (categories.some(c => c.name.toLowerCase() === catName.toLowerCase())) {
-      toast.error(`A categoria "${catName}" já existe.`);
-      return;
-    }
-    const newCat: ProductCategory = {
-      id: crypto.randomUUID(),
-      name: catName,
-    };
-    setCategories(prev => [...prev, newCat]);
-    toast.success(`Categoria "${catName}" criada com sucesso!`);
-    setNewCatName('');
-  };
-
-  const startEditCategory = (cat: ProductCategory) => {
-    setEditingCatId(cat.id);
-    setCatForm({ name: cat.name });
+  const openCreateCat = () => {
+    setEditingCatId(null);
+    setCatForm(emptyCategoryForm);
     setCatDialogOpen(true);
   };
 
-  const saveEditCategory = (id: string) => {
-    if (!editingCatName.trim()) {
-      toast.error('O nome da categoria não pode ficar em branco.');
+  const openEditCat = (cat: ProductCategory) => {
+    setEditingCatId(cat.id);
+    setCatForm({ name: cat.name, printSector: cat.printSector || 'cozinha' });
+    setCatDialogOpen(true);
+  };
+
+  const saveCat = (e: React.FormEvent) => {
+    e.preventDefault();
+    const catName = catForm.name.trim();
+    if (!catName) {
+      toast.error('Informe o nome da categoria.');
       return;
     }
-    const catName = catForm.name.trim();
-    const cat: ProductCategory = {
-      id: editingCatId || crypto.randomUUID(),
-      name: catName,
-    };
+    const duplicate = categories.some(c => c.name.toLowerCase() === catName.toLowerCase() && c.id !== editingCatId);
+    if (duplicate) {
+      toast.error(`A categoria "${catName}" já existe.`);
+      return;
+    }
     if (editingCatId) {
-      setCategories(prev => prev.map(c => c.id === editingCatId ? cat : c));
+      setCategories(prev => prev.map(c => c.id === editingCatId ? { ...c, name: catName, printSector: catForm.printSector } : c));
       toast.success(`Categoria "${catName}" atualizada com sucesso!`);
     } else {
-      setCategories(prev => [...prev, cat]);
+      setCategories(prev => [...prev, { id: crypto.randomUUID(), name: catName, printSector: catForm.printSector }]);
       toast.success(`Categoria "${catName}" cadastrada com sucesso!`);
     }
     setCatForm(emptyCategoryForm);
     setEditingCatId(null);
-    setEditingCatName('');
+    setCatDialogOpen(false);
   };
 
   const openDeleteCat = (id: string) => {
     const hasProducts = products.some(p => p.categoryId === id);
     if (hasProducts) {
-      setCatDeleteOpen(false);
-      setCatDeleteOpen(false);
+      toast.error('Esta categoria possui produtos vinculados e não pode ser excluída.');
       return;
     }
+    setDeleteCatId(id);
+    setCatDeleteOpen(true);
+  };
+
+  const confirmDeleteCat = () => {
+    if (!deleteCatId) return;
     setCategories(prev => prev.filter(c => c.id !== deleteCatId));
     if (filterCategory === deleteCatId) setFilterCategory('all');
     toast.success('Categoria excluída com sucesso!');
