@@ -120,6 +120,40 @@ Deno.serve(async (req) => {
       return json({ success: true })
     }
 
+    if (action === 'delete_tenant') {
+      const { tenant_id } = body
+      if (!tenant_id) return json({ error: 'tenant_id required' }, 400)
+
+      const { data: members } = await adminClient.from('tenant_members').select('user_id').eq('tenant_id', tenant_id)
+      if (members) {
+        for (const m of members) {
+          // Verify if they only belong to this tenant
+          const { data: userTenants } = await adminClient.from('tenant_members').select('tenant_id').eq('user_id', m.user_id)
+          if (userTenants && userTenants.length === 1) {
+            await adminClient.auth.admin.deleteUser(m.user_id)
+          } else {
+            await adminClient.from('tenant_members').delete().eq('user_id', m.user_id).eq('tenant_id', tenant_id)
+          }
+        }
+      }
+
+      // Manual cascade delete
+      const tables = [
+        'audit_logs', 'cash_movements', 'commission_records', 'print_jobs', 'store_tables',
+        'orders', 'product_note_options', 'products', 'categories', 'customers', 'suppliers',
+        'printer_configs', 'cash_registers', 'store_settings', 'tenant_plans', 'attendant_permissions',
+        'coupons'
+      ];
+      
+      for (const table of tables) {
+        await adminClient.from(table).delete().eq('tenant_id', tenant_id)
+      }
+
+      const { error } = await adminClient.from('tenants').delete().eq('id', tenant_id)
+      if (error) return json({ error: error.message }, 400)
+      return json({ success: true })
+    }
+
     return json({ error: 'Invalid action' }, 400)
   } catch (err: any) {
     return json({ error: err.message }, 500)

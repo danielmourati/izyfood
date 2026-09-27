@@ -40,6 +40,8 @@ interface Tenant {
   slug: string;
   active: boolean;
   created_at: string;
+  logo: string | null;
+  login_icon: string | null;
 }
 
 interface Metrics {
@@ -94,8 +96,11 @@ function TenantsTab({ tenants, onToggle, onUpdated, onDeleted }: { tenants: Tena
     if (!deleting) return;
     setIsDeleting(true);
     try {
-      const { error } = await supabase.from('tenants').delete().eq('id', deleting.id);
+      const { data, error } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'delete_tenant', tenant_id: deleting.id }
+      });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       toast.success('Tenant excluído com sucesso');
       onDeleted();
     } catch (err: any) {
@@ -191,13 +196,22 @@ function TenantsTab({ tenants, onToggle, onUpdated, onDeleted }: { tenants: Tena
 function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [logo, setLogo] = useState('');
+  const [loginIcon, setLoginIcon] = useState('');
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (tenant) { setName(tenant.name); setSlug(tenant.slug); setAvailable(null); setServerError(null); }
+    if (tenant) {
+      setName(tenant.name || '');
+      setSlug(tenant.slug || '');
+      setLogo(tenant.logo || '');
+      setLoginIcon(tenant.login_icon || '');
+      setAvailable(null);
+      setServerError(null);
+    }
   }, [tenant]);
 
   const formatError = validateSlugFormat(slug);
@@ -215,14 +229,19 @@ function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null;
     return () => { clearTimeout(handle); setChecking(false); };
   }, [slug, tenant, formatError]);
 
-  const canSave = !!tenant && !formatError && (slug !== tenant.slug || name !== tenant.name) && (available === true || slug === tenant.slug) && !saving;
+  const canSave = !!tenant && !formatError && (slug !== tenant.slug || name !== tenant.name || logo !== (tenant.logo || '') || loginIcon !== (tenant.login_icon || '')) && (available === true || slug === tenant.slug) && !saving;
 
   const handleSave = async () => {
     if (!tenant || !canSave) return;
     setSaving(true);
     setServerError(null);
     const oldSlug = tenant.slug;
-    const { error } = await supabase.from('tenants').update({ name, slug }).eq('id', tenant.id);
+    const { error } = await supabase.from('tenants').update({ 
+      name, 
+      slug, 
+      logo: logo || null, 
+      login_icon: loginIcon || null 
+    }).eq('id', tenant.id);
     if (error) {
       setServerError(error.message);
       setSaving(false);
@@ -268,6 +287,16 @@ function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null;
               {serverError && <span className="text-destructive">{serverError}</span>}
             </div>
             <p className="text-xs text-muted-foreground">Nova URL: /{slug || '…'}/pdv</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Logo (URL)</Label>
+            <Input value={logo} onChange={e => setLogo(e.target.value)} placeholder="https://..." />
+            {logo && <img src={logo} alt="Logo Preview" className="h-10 object-contain rounded border mt-2" />}
+          </div>
+          <div className="space-y-2">
+            <Label>Ícone de Login (URL)</Label>
+            <Input value={loginIcon} onChange={e => setLoginIcon(e.target.value)} placeholder="https://..." />
+            {loginIcon && <img src={loginIcon} alt="Login Icon Preview" className="h-10 object-contain rounded border mt-2" />}
           </div>
         </div>
         <DialogFooter>
