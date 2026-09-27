@@ -18,7 +18,6 @@ const items = [
   { to: '/superadmin/tenants', label: 'Tenants', icon: Building2 },
   { to: '/superadmin/usuarios', label: 'Usuários', icon: Users },
   { to: '/superadmin/planos', label: 'Planos', icon: CreditCard },
-  { to: '/superadmin/auditoria', label: 'Auditoria', icon: FileText },
   { to: '/superadmin/sistema', label: 'Sistema', icon: Settings2 },
 ];
 

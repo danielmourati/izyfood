@@ -63,9 +63,6 @@ export function SistemaPage() {
     return () => clearInterval(t);
   }, [load]);
 
-  const lastEvent = events[0];
-  const isHealthy = lastEvent && new Date(lastEvent.created_at).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000;
-
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-3">
@@ -104,93 +101,6 @@ export function SistemaPage() {
               <li><code>MP_ACCESS_TOKEN</code> — Access token de produção</li>
               <li><code>MP_WEBHOOK_SECRET</code> — Segredo para validar assinatura das notificações</li>
             </ul>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-base">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4" /> Status do Webhook
-            </div>
-            <Button size="sm" variant="ghost" onClick={load} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <div className="grid grid-cols-3 gap-3">
-            <StatusPill
-              label="Conectividade"
-              value={lastEvent ? (isHealthy ? 'Conectado' : 'Inativo há dias') : 'Nunca recebeu'}
-              tone={lastEvent ? (isHealthy ? 'success' : 'warning') : 'danger'}
-            />
-            <StatusPill label="Últ. 24h" value={String(last24h)} tone="neutral" />
-            <StatusPill label="Total" value={String(total)} tone="neutral" />
-          </div>
-
-          {lastEvent && (
-            <div className="text-xs text-muted-foreground">
-              Último evento recebido{' '}
-              <strong className="text-foreground">
-                {formatDistanceToNow(new Date(lastEvent.created_at), { addSuffix: true, locale: ptBR })}
-              </strong>{' '}
-              — tipo <code className="bg-muted px-1 rounded">{lastEvent.event_type || '—'}</code>
-              {lastEvent.signature_valid === false && (
-                <span className="ml-2 inline-flex items-center gap-1 text-warning">
-                  <AlertCircle className="h-3 w-3" /> assinatura inválida
-                </span>
-              )}
-            </div>
-          )}
-
-          {!lastEvent && !loading && (
-            <div className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
-              Nenhum evento recebido ainda. Copie a URL acima e cadastre no painel do Mercado Pago.
-              Você pode acionar o botão <strong>"Simular"</strong> no MP para testar; o evento aparecerá aqui em segundos.
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Últimos eventos</p>
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/40 text-muted-foreground">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-medium">Quando</th>
-                    <th className="text-left px-3 py-2 font-medium">Tipo</th>
-                    <th className="text-left px-3 py-2 font-medium">ID</th>
-                    <th className="text-left px-3 py-2 font-medium">Assinatura</th>
-                    <th className="text-left px-3 py-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {events.map((e) => (
-                    <tr key={e.id} className="border-t">
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {formatDistanceToNow(new Date(e.created_at), { addSuffix: true, locale: ptBR })}
-                      </td>
-                      <td className="px-3 py-2"><code>{e.event_type || '—'}</code></td>
-                      <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">{e.event_id || '—'}</td>
-                      <td className="px-3 py-2">
-                        {e.signature_valid === null ? <span className="text-muted-foreground">—</span>
-                          : e.signature_valid ? <span className="text-success">válida</span>
-                          : <span className="text-warning">inválida</span>}
-                      </td>
-                      <td className="px-3 py-2">
-                        {e.error ? <span className="text-destructive" title={e.error}>erro</span>
-                          : e.processed ? <span className="text-success">ok</span>
-                          : <span className="text-muted-foreground">pendente</span>}
-                      </td>
-                    </tr>
-                  ))}
-                  {events.length === 0 && (
-                    <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Sem eventos.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
           </div>
         </CardContent>
       </Card>

@@ -3,7 +3,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { SuperAdminLayout } from './SuperAdminLayout';
 import { SuperAdminContent } from '@/pages/SuperAdmin';
 import { PlanosPage } from './PlanosPage';
-import { AuditoriaPage } from './AuditoriaPage';
 import { SistemaPage } from './SistemaPage';
 
 /**
@@ -31,7 +30,6 @@ export function SuperAdminRoutes() {
         <Route path="/tenants/novo" element={<ContentPage initialTab="criar" />} />
         <Route path="/usuarios" element={<ContentPage initialTab="usuarios" />} />
         <Route path="/planos" element={<PlanosPage />} />
-        <Route path="/auditoria" element={<AuditoriaPage />} />
         <Route path="/sistema" element={<SistemaPage />} />
         <Route path="*" element={<Navigate to="/superadmin" replace />} />
       </Routes>

@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
-  LayoutDashboard, Building2, Plus, Store, Users, DollarSign, TrendingUp, Loader2, Pencil, Check, X
+  LayoutDashboard, Building2, Plus, Store, Users, DollarSign, TrendingUp, Loader2, Pencil, Check, X, Trash2
 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { SuperAdminUsersTab } from '@/components/SuperAdminUsersTab';
 
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -84,8 +85,27 @@ function DashboardTab({ metrics, loading }: { metrics: Metrics; loading: boolean
 }
 
 /* ─────────── Tenants Tab ─────────── */
-function TenantsTab({ tenants, onToggle, onSlugUpdated }: { tenants: Tenant[]; onToggle: (id: string, active: boolean) => void; onSlugUpdated: () => void }) {
+function TenantsTab({ tenants, onToggle, onUpdated, onDeleted }: { tenants: Tenant[]; onToggle: (id: string, active: boolean) => void; onUpdated: () => void; onDeleted: () => void }) {
   const [editing, setEditing] = useState<Tenant | null>(null);
+  const [deleting, setDeleting] = useState<Tenant | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('tenants').delete().eq('id', deleting.id);
+      if (error) throw error;
+      toast.success('Tenant excluído com sucesso');
+      onDeleted();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao excluir tenant');
+    } finally {
+      setIsDeleting(false);
+      setDeleting(null);
+    }
+  };
+
   return (
     <>
       <Card>
@@ -104,7 +124,8 @@ function TenantsTab({ tenants, onToggle, onSlugUpdated }: { tenants: Tenant[]; o
                     <th className="py-2 pr-4">Slug</th>
                     <th className="py-2 pr-4">Status</th>
                     <th className="py-2 pr-4">Criado em</th>
-                    <th className="py-2">Ativo</th>
+                    <th className="py-2 pr-4">Ativo</th>
+                    <th className="py-2 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -114,9 +135,6 @@ function TenantsTab({ tenants, onToggle, onSlugUpdated }: { tenants: Tenant[]; o
                       <td className="py-3 pr-4">
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary" className="font-mono text-xs">{t.slug}</Badge>
-                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing(t)} aria-label="Editar slug">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
                         </div>
                       </td>
                       <td className="py-3 pr-4">
@@ -127,8 +145,16 @@ function TenantsTab({ tenants, onToggle, onSlugUpdated }: { tenants: Tenant[]; o
                       <td className="py-3 pr-4 text-muted-foreground">
                         {new Date(t.created_at).toLocaleDateString('pt-BR')}
                       </td>
-                      <td className="py-3">
+                      <td className="py-3 pr-4">
                         <Switch checked={t.active} onCheckedChange={(v) => onToggle(t.id, v)} />
+                      </td>
+                      <td className="py-3 text-right">
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditing(t)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setDeleting(t)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -139,13 +165,31 @@ function TenantsTab({ tenants, onToggle, onSlugUpdated }: { tenants: Tenant[]; o
         </CardContent>
       </Card>
 
-      <EditSlugDialog tenant={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onSlugUpdated(); }} />
+      <EditTenantDialog tenant={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onUpdated(); }} />
+      <AlertDialog open={!!deleting} onOpenChange={(v) => !v && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Tenant?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o tenant <strong>{deleting?.name}</strong>?
+              Esta ação removerá o tenant e todos os dados associados (usuários, produtos, vendas). Não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
 
-/* ─────────── Edit Slug Dialog ─────────── */
-function EditSlugDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null; onClose: () => void; onSaved: () => void }) {
+/* ─────────── Edit Tenant Dialog ─────────── */
+function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -153,7 +197,7 @@ function EditSlugDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null; o
   const [serverError, setServerError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (tenant) { setSlug(tenant.slug); setAvailable(null); setServerError(null); }
+    if (tenant) { setName(tenant.name); setSlug(tenant.slug); setAvailable(null); setServerError(null); }
   }, [tenant]);
 
   const formatError = validateSlugFormat(slug);
@@ -171,25 +215,27 @@ function EditSlugDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null; o
     return () => { clearTimeout(handle); setChecking(false); };
   }, [slug, tenant, formatError]);
 
-  const canSave = !!tenant && !formatError && slug !== tenant.slug && available === true && !saving;
+  const canSave = !!tenant && !formatError && (slug !== tenant.slug || name !== tenant.name) && (available === true || slug === tenant.slug) && !saving;
 
   const handleSave = async () => {
     if (!tenant || !canSave) return;
     setSaving(true);
     setServerError(null);
     const oldSlug = tenant.slug;
-    const { error } = await supabase.from('tenants').update({ slug }).eq('id', tenant.id);
+    const { error } = await supabase.from('tenants').update({ name, slug }).eq('id', tenant.id);
     if (error) {
       setServerError(error.message);
       setSaving(false);
       return;
     }
-    await supabase.rpc('log_audit_event' as any, {
-      p_action: 'tenant.slug_updated',
-      p_entity_type: 'tenant',
-      p_entity_id: tenant.id,
-      p_details: { old_slug: oldSlug, new_slug: slug } as any,
-    });
+    if (slug !== oldSlug) {
+      await supabase.rpc('log_audit_event' as any, {
+        p_action: 'tenant.slug_updated',
+        p_entity_type: 'tenant',
+        p_entity_id: tenant.id,
+        p_details: { old_slug: oldSlug, new_slug: slug } as any,
+      });
+    }
     setSaving(false);
     onSaved();
   };
@@ -198,25 +244,31 @@ function EditSlugDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null; o
     <Dialog open={!!tenant} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Editar slug do tenant</DialogTitle>
+          <DialogTitle>Editar Tenant</DialogTitle>
           <DialogDescription>
-            URLs antigas com o slug anterior <b>deixarão de funcionar</b>. Usuários logados podem precisar entrar novamente.
+            Altere os dados do tenant. URLs antigas com o slug anterior <b>deixarão de funcionar</b>.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
-          <Label>Novo slug</Label>
-          <Input value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} className="font-mono" autoFocus />
-          <div className="min-h-[1.25rem] text-xs">
-            {formatError && <span className="text-destructive">{formatError}</span>}
-            {!formatError && tenant && slug !== tenant.slug && (
-              checking ? <span className="text-muted-foreground inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> verificando…</span>
-              : available === true ? <span className="text-success inline-flex items-center gap-1"><Check className="h-3 w-3" /> disponível</span>
-              : available === false ? <span className="text-destructive inline-flex items-center gap-1"><X className="h-3 w-3" /> já em uso</span>
-              : null
-            )}
-            {serverError && <span className="text-destructive">{serverError}</span>}
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label>Nome</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} autoFocus />
           </div>
-          <p className="text-xs text-muted-foreground">Nova URL: /{slug || '…'}/pdv</p>
+          <div className="space-y-2">
+            <Label>Slug</Label>
+            <Input value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} className="font-mono" />
+            <div className="min-h-[1.25rem] text-xs">
+              {formatError && <span className="text-destructive">{formatError}</span>}
+              {!formatError && tenant && slug !== tenant.slug && (
+                checking ? <span className="text-muted-foreground inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> verificando…</span>
+                : available === true ? <span className="text-success inline-flex items-center gap-1"><Check className="h-3 w-3" /> disponível</span>
+                : available === false ? <span className="text-destructive inline-flex items-center gap-1"><X className="h-3 w-3" /> já em uso</span>
+                : null
+              )}
+              {serverError && <span className="text-destructive">{serverError}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground">Nova URL: /{slug || '…'}/pdv</p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
@@ -411,7 +463,7 @@ export function SuperAdminContent({ withHeader = true, initialTab = 'dashboard',
       )}
 
       {activeTab === 'dashboard' && <DashboardTab metrics={metrics} loading={loading} />}
-      {activeTab === 'tenants' && <TenantsTab tenants={tenants} onToggle={handleToggleTenant} onSlugUpdated={fetchData} />}
+      {activeTab === 'tenants' && <TenantsTab tenants={tenants} onToggle={handleToggleTenant} onUpdated={fetchData} onDeleted={fetchData} />}
       {activeTab === 'usuarios' && <SuperAdminUsersTab />}
       {activeTab === 'criar' && <CreateTab onCreated={() => { setActiveTab('tenants'); fetchData(); }} />}
     </div>

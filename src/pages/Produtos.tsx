@@ -5,10 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Upload, X, Search, Tag, Building2, FileSpreadsheet, Download, CheckCircle2 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { 
+  Plus, Pencil, Trash2, Upload, X, Search, Tag, Building2, 
+  FileSpreadsheet, Download, CheckCircle2, LayoutList, LayoutGrid,
+  FolderTree, Package, Check, Layers, AlertCircle, Image as ImageIcon
+} from 'lucide-react';
 import { toast } from 'sonner';
 import type { Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
 
@@ -42,6 +46,9 @@ const ENABLE_CSV_IMPORT = false;
 const Produtos = () => {
   const { products, setProducts, categories, setCategories, noteOptions, setNoteOptions, suppliers, setSuppliers } = useStore();
 
+  // Layout View mode: 'list' (linhas com thumbs - default) or 'grid' (cards)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+
   // Product state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -52,18 +59,21 @@ const Produtos = () => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Category state
-  const [catDialogOpen, setCatDialogOpen] = useState(false);
-  const [catDeleteOpen, setCatDeleteOpen] = useState(false);
+  // Dedicated Category Management Modal state
+  const [catManagerOpen, setCatManagerOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editingCatName, setEditingCatName] = useState('');
   const [deleteCatId, setDeleteCatId] = useState<string | null>(null);
-  const [catForm, setCatForm] = useState(emptyCategoryForm);
+  const [catDeleteOpen, setCatDeleteOpen] = useState(false);
 
-  // NoteOption state
+  // Dedicated NoteOption state
   const [optsDialogOpen, setOptsDialogOpen] = useState(false);
   const [optFormOpen, setOptFormOpen] = useState(false);
   const [editingOptId, setEditingOptId] = useState<string | null>(null);
   const [optForm, setOptForm] = useState(emptyNoteOptionForm);
+  const [optsTab, setOptsTab] = useState<'all' | 'note' | 'complement'>('all');
+  const [optsSearch, setOptsSearch] = useState('');
 
   // New supplier inline modal
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
@@ -377,7 +387,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      return;
+      toast.error('A imagem deve ter no máximo 2MB.');
       return;
     }
     const reader = new FileReader();
@@ -434,63 +444,70 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
   };
 
   // ---- Category CRUD ----
-  const openCreateCat = () => {
-    setEditingCatId(null);
-    setCatForm(emptyCategoryForm);
-    setCatDialogOpen(true);
-  };
-
-  const openEditCat = (cat: ProductCategory) => {
-    setEditingCatId(cat.id);
-    setCatForm({ name: cat.name });
-    setCatDialogOpen(true);
-  };
-
-  const openDeleteCat = (id: string) => { setDeleteCatId(id); setCatDeleteOpen(true); };
-
-  const saveCat = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!catForm.name.trim()) {
+  const handleAddCategory = () => {
+    if (!newCatName.trim()) {
       toast.error('Informe o nome da categoria.');
       return;
     }
-    const catName = catForm.name.trim();
-    const cat: ProductCategory = {
-      id: editingCatId || crypto.randomUUID(),
+    const catName = newCatName.trim();
+    if (categories.some(c => c.name.toLowerCase() === catName.toLowerCase())) {
+      toast.error(`A categoria "${catName}" já existe.`);
+      return;
+    }
+    const newCat: ProductCategory = {
+      id: crypto.randomUUID(),
       name: catName,
     };
-    if (editingCatId) {
-      setCategories(prev => prev.map(c => c.id === editingCatId ? cat : c));
-      toast.success(`Categoria "${catName}" atualizada com sucesso!`);
-    } else {
-      setCategories(prev => [...prev, cat]);
-      toast.success(`Categoria "${catName}" cadastrada com sucesso!`);
+    setCategories(prev => [...prev, newCat]);
+    toast.success(`Categoria "${catName}" criada com sucesso!`);
+    setNewCatName('');
+  };
+
+  const startEditCategory = (cat: ProductCategory) => {
+    setEditingCatId(cat.id);
+    setEditingCatName(cat.name);
+  };
+
+  const saveEditCategory = (id: string) => {
+    if (!editingCatName.trim()) {
+      toast.error('O nome da categoria não pode ficar em branco.');
+      return;
     }
-    setCatForm(emptyCategoryForm);
+    const name = editingCatName.trim();
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, name } : c));
+    toast.success('Categoria atualizada!');
     setEditingCatId(null);
-    setCatDialogOpen(false);
+    setEditingCatName('');
+  };
+
+  const openDeleteCat = (id: string) => {
+    const hasProducts = products.some(p => p.categoryId === id);
+    if (hasProducts) {
+      const prodCount = products.filter(p => p.categoryId === id).length;
+      toast.error(`Esta categoria possui ${prodCount} produto(s) vinculado(s). Reavalia a categoria deles antes de excluir.`);
+      return;
+    }
+    setDeleteCatId(id);
+    setCatDeleteOpen(true);
   };
 
   const confirmDeleteCat = () => {
     if (!deleteCatId) return;
-    const hasProducts = products.some(p => p.categoryId === deleteCatId);
-    if (hasProducts) {
-      setCatDeleteOpen(false);
-      setCatDeleteOpen(false);
-      return;
-    }
     setCategories(prev => prev.filter(c => c.id !== deleteCatId));
     if (filterCategory === deleteCatId) setFilterCategory('all');
-    
-    setCatDeleteOpen(false);
+    toast.success('Categoria excluída com sucesso!');
     setCatDeleteOpen(false);
     setDeleteCatId(null);
   };
 
   // ---- NoteOption CRUD ----
-  const openCreateOpt = () => {
+  const openCreateOpt = (type: 'note' | 'complement' = 'note') => {
     setEditingOptId(null);
-    setOptForm(emptyNoteOptionForm);
+    setOptForm({
+      ...emptyNoteOptionForm,
+      type,
+      categoryIds: categories.map(c => c.id), // select all categories by default
+    });
     setOptFormOpen(true);
   };
 
@@ -507,34 +524,54 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
   };
 
   const deleteOpt = (id: string) => {
-    if (confirm('Deseja excluir esta opção?')) {
-      setNoteOptions(prev => prev.filter(o => o.id !== id));
-    }
+    setNoteOptions(prev => prev.filter(o => o.id !== id));
+    toast.success('Opção removida com sucesso!');
   };
 
   const saveOpt = () => {
-    if (!optForm.name.trim() || optForm.categoryIds.length === 0) return;
+    if (!optForm.name.trim()) {
+      toast.error('Informe o nome da opção.');
+      return;
+    }
+    if (optForm.categoryIds.length === 0) {
+      toast.error('Selecione pelo menos uma categoria.');
+      return;
+    }
     const opt: ProductNoteOption = {
       id: editingOptId || crypto.randomUUID(),
       name: optForm.name.trim(),
       type: optForm.type,
-      price: parseFloat(optForm.price) || 0,
+      price: optForm.type === 'complement' ? (parseFloat(optForm.price) || 0) : 0,
       categoryIds: optForm.categoryIds,
       active: optForm.active,
     };
     if (editingOptId) {
       setNoteOptions(prev => prev.map(o => o.id === editingOptId ? opt : o));
+      toast.success('Opção atualizada com sucesso!');
     } else {
       setNoteOptions(prev => [...prev, opt]);
+      toast.success('Opção criada com sucesso!');
     }
     setOptFormOpen(false);
   };
 
+  const filteredNoteOptions = noteOptions.filter(opt => {
+    const matchTab = optsTab === 'all' || opt.type === optsTab;
+    const matchSearch = opt.name.toLowerCase().includes(optsSearch.toLowerCase());
+    return matchTab && matchSearch;
+  });
+
   return (
-    <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4">
+    <div className="h-full overflow-y-auto p-4 md:p-6 space-y-5">
+      {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-foreground">Produtos</h1>
-        <div className="flex flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Produtos</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Gerencie o catálogo de produtos, categorias e complementos do seu estabelecimento.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {ENABLE_CSV_IMPORT && (
             <>
               <Button variant="outline" onClick={downloadCSVModel} title="Baixar arquivo modelo .CSV">
@@ -552,110 +589,690 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
               />
             </>
           )}
-          <Button variant="outline" onClick={() => { setOptsDialogOpen(true); }}>
-            <Tag className="h-4 w-4 mr-2" /> Obs & Complementos
+
+          {/* Modal Buttons */}
+          <Button variant="outline" onClick={() => setOptsDialogOpen(true)} className="bg-card hover:bg-muted">
+            <Tag className="h-4 w-4 mr-2 text-amber-500" /> Obs & Complementos
           </Button>
-          <Button variant="outline" onClick={openCreateCat}>
-            <Tag className="h-4 w-4 mr-2" /> Nova Categoria
+
+          <Button variant="outline" onClick={() => setCatManagerOpen(true)} className="bg-card hover:bg-muted">
+            <FolderTree className="h-4 w-4 mr-2 text-indigo-500" /> Categorias ({categories.length})
           </Button>
-          <Button onClick={openCreate}>
+
+          <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
             <Plus className="h-4 w-4 mr-2" /> Novo Produto
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar produto..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <Button variant={filterCategory === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilterCategory('all')}>
-            Todos
-          </Button>
-          {categories.map(cat => (
-            <Button
-              key={cat.id}
-              variant={filterCategory === cat.id ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterCategory(cat.id)}
-              className="whitespace-nowrap group/cat"
-            >
-              {cat.name}
-              <span
-                className="ml-1 opacity-0 group-hover/cat:opacity-100 transition-opacity cursor-pointer"
-                onClick={e => { e.stopPropagation(); openEditCat(cat); }}
+      {/* Filters & View Switcher Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-card p-3 rounded-xl border border-border/70 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-center gap-2 flex-1">
+          {/* Search input */}
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Buscar produto por nome..." 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+              className="pl-9 h-9 text-sm bg-background" 
+            />
+            {search && (
+              <button 
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
-                <Pencil className="h-3 w-3 inline" />
-              </span>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Categories Horizontal Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto py-1 max-w-full no-scrollbar">
+            <Button 
+              variant={filterCategory === 'all' ? 'default' : 'ghost'} 
+              size="sm" 
+              onClick={() => setFilterCategory('all')}
+              className="h-8 text-xs shrink-0 rounded-lg"
+            >
+              Todos ({products.length})
             </Button>
-          ))}
+            {categories.map(cat => {
+              const count = products.filter(p => p.categoryId === cat.id).length;
+              const isSelected = filterCategory === cat.id;
+              return (
+                <Button
+                  key={cat.id}
+                  variant={isSelected ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilterCategory(cat.id)}
+                  className={`h-8 text-xs shrink-0 rounded-lg whitespace-nowrap ${!isSelected ? 'bg-background hover:bg-muted' : ''}`}
+                >
+                  {cat.name}
+                  <span className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                    {count}
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Layout Switcher (Linhas/List x Grid) */}
+        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 border-t md:border-t-0 pt-2 md:pt-0">
+          <span className="text-xs text-muted-foreground font-medium">
+            Exibindo <strong className="text-foreground">{filtered.length}</strong> de {products.length}
+          </span>
+          <div className="flex items-center p-1 bg-muted/60 rounded-lg border border-border/50">
+            <button
+              onClick={() => setViewMode('list')}
+              title="Exibir em Linhas com Thumbnails (Lista)"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                viewMode === 'list'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutList className="h-3.5 w-3.5" />
+              <span>Linhas</span>
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              title="Exibir em Cards (Grid)"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                viewMode === 'grid'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Grid</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Product Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
-        {filtered.map(product => {
-          const cat = getCat(product.categoryId);
-          return (
-            <div key={product.id} className="bg-card rounded-[16px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all flex flex-col border border-border h-full w-full group relative">
-              {/* Image area - Full width top header */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-50 dark:bg-zinc-900/60 shrink-0 p-2 flex items-center justify-center">
-                {product.image ? (
-                  <img src={product.image} alt={product.name} className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-primary/5">
-                    <span className="text-4xl opacity-30 font-bold text-muted-foreground">
-                      {cat?.name?.charAt(0)?.toUpperCase() || '?'}
+      {/* Product List Render */}
+      {filtered.length === 0 ? (
+        <div className="bg-card rounded-2xl border border-dashed border-border p-12 text-center flex flex-col items-center justify-center space-y-3">
+          <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground">
+            <Package className="h-6 w-6" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground">Nenhum produto encontrado</h3>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+              Tente alterar os termos da busca ou selecionar outra categoria.
+            </p>
+          </div>
+          {(search || filterCategory !== 'all') && (
+            <Button variant="outline" size="sm" onClick={() => { setSearch(''); setFilterCategory('all'); }}>
+              Limpar Filtros
+            </Button>
+          )}
+        </div>
+      ) : viewMode === 'list' ? (
+        /* LIST LAYOUT (LINHAS COM THUMBS DOS PRODUTOS) */
+        <div className="space-y-2">
+          {filtered.map(product => {
+            const cat = getCat(product.categoryId);
+            return (
+              <div 
+                key={product.id}
+                className="group bg-card hover:bg-card/90 rounded-xl border border-border/80 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all duration-150 hover:shadow-md hover:border-primary/30"
+              >
+                {/* Left section: Thumbnail & Product details */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {/* Thumbnail */}
+                  <div className="relative w-14 h-14 md:w-16 md:h-16 shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-800/80 border border-border/60 flex items-center justify-center p-1 group-hover:border-primary/40 transition-colors">
+                    {product.image ? (
+                      <img 
+                        src={product.image} 
+                        alt={product.name} 
+                        className="w-full h-full object-contain object-center transition-transform duration-200 group-hover:scale-105" 
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-lg md:text-xl rounded">
+                        {cat?.name?.charAt(0)?.toUpperCase() || product.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Product Title & Info */}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-sm md:text-base text-foreground leading-snug truncate" title={product.name}>
+                        {product.name}
+                      </h3>
+
+                      {cat && (
+                        <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 font-normal bg-muted/30">
+                          {cat.name}
+                        </Badge>
+                      )}
+
+                      {product.loyaltyEligible && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
+                          ⭐ Fidelidade
+                        </Badge>
+                      )}
+                    </div>
+
+                    {product.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-1" title={product.description}>
+                        {product.description}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-muted-foreground pt-0.5">
+                      {/* Stock badge */}
+                      {product.controlStock ? (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium text-[10px] ${
+                          product.stock <= 0 
+                            ? 'bg-destructive/10 text-destructive border border-destructive/20' 
+                            : product.stock <= 5 
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20' 
+                            : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            product.stock <= 0 ? 'bg-destructive' : product.stock <= 5 ? 'bg-amber-500' : 'bg-emerald-500'
+                          }`} />
+                          Estoque: {product.stock} {product.unit}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/70">
+                          Estoque: ilimitado
+                        </span>
+                      )}
+
+                      <span className="text-muted-foreground/40">•</span>
+                      <span>Tipo: {product.type === 'weight' ? 'Venda por Peso (Kg)' : 'Unidade (un)'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right section: Price & Action Buttons */}
+                <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0">
+                  <div className="text-left sm:text-right">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground block font-medium">Preço</span>
+                    <span className="text-base md:text-lg font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
+                      R$ {fmt(product.price)}
+                      {product.type === 'weight' && <span className="text-xs text-muted-foreground font-normal ml-0.5">/kg</span>}
                     </span>
                   </div>
-                )}
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <Button variant="secondary" size="icon" className="h-8 w-8 shadow-md" onClick={() => openEdit(product)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="destructive" size="icon" className="h-8 w-8 shadow-md" onClick={() => openDelete(product.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+
+                  <div className="flex items-center gap-1.5">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-8 px-2.5 text-xs gap-1.5 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                      onClick={() => openEdit(product)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      <span className="hidden md:inline">Editar</span>
+                    </Button>
+
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+                      onClick={() => openDelete(product.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span className="hidden md:inline">Excluir</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
-
-              {/* Info */}
-              <div className="p-3 flex flex-col flex-1 justify-between">
-                <div>
-                  <h3 className="font-semibold text-[13px] leading-tight text-foreground line-clamp-2 mb-1" title={product.name}>
-                    {product.name}
-                  </h3>
-                  <p className="text-[#4CAF50] dark:text-emerald-400 font-bold text-[14px]">
-                    R$ {fmt(product.price)}
-                    {product.type === 'weight' && <span className="text-[10px] font-medium text-muted-foreground ml-1">/kg</span>}
-                  </p>
+            );
+          })}
+        </div>
+      ) : (
+        /* GRID LAYOUT (CARDS) */
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
+          {filtered.map(product => {
+            const cat = getCat(product.categoryId);
+            return (
+              <div key={product.id} className="bg-card rounded-[16px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] transition-all flex flex-col border border-border h-full w-full group relative">
+                {/* Image area */}
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-50 dark:bg-zinc-900/60 shrink-0 p-2 flex items-center justify-center">
+                  {product.image ? (
+                    <img src={product.image} alt={product.name} className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-primary/5">
+                      <span className="text-4xl opacity-30 font-bold text-muted-foreground">
+                        {cat?.name?.charAt(0)?.toUpperCase() || '?'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <Button variant="secondary" size="icon" className="h-8 w-8 shadow-md" onClick={() => openEdit(product)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="destructive" size="icon" className="h-8 w-8 shadow-md" onClick={() => openDelete(product.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="flex items-center pt-2 flex-wrap gap-1 mt-auto">
-                  <Badge variant="outline" className="text-[10px]">
-                    {cat ? cat.name : 'Sem categoria'}
-                  </Badge>
-                  {product.loyaltyEligible && (
-                    <Badge variant="secondary" className="text-[10px] bg-success/10 text-success dark:bg-success/30 dark:text-success">
-                      ⭐ Fidelidade
+                {/* Info */}
+                <div className="p-3 flex flex-col flex-1 justify-between">
+                  <div>
+                    <h3 className="font-semibold text-[13px] leading-tight text-foreground line-clamp-2 mb-1" title={product.name}>
+                      {product.name}
+                    </h3>
+                    <p className="text-emerald-600 dark:text-emerald-400 font-bold text-[14px]">
+                      R$ {fmt(product.price)}
+                      {product.type === 'weight' && <span className="text-[10px] font-medium text-muted-foreground ml-1">/kg</span>}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center pt-2 flex-wrap gap-1 mt-auto">
+                    <Badge variant="outline" className="text-[10px]">
+                      {cat ? cat.name : 'Sem categoria'}
                     </Badge>
-                  )}
-                  {product.controlStock && (
-                    <Badge variant={product.stock <= 5 ? 'destructive' : 'secondary'} className="text-[9px] px-1">
-                      {product.stock} {product.unit}
-                    </Badge>
-                  )}
+                    {product.loyaltyEligible && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        ⭐ Fidelidade
+                      </Badge>
+                    )}
+                    {product.controlStock && (
+                      <Badge variant={product.stock <= 5 ? 'destructive' : 'secondary'} className="text-[9px] px-1">
+                        {product.stock} {product.unit}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 1. DEDICATED CATEGORY MANAGEMENT MODAL */}
+      {/* ========================================================================= */}
+      <Dialog open={catManagerOpen} onOpenChange={setCatManagerOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-5 pb-3 border-b bg-card">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500">
+                <FolderTree className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold">Gerenciar Categorias</DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Crie, edite ou exclua as categorias do seu menu de produtos.
+                </DialogDescription>
               </div>
             </div>
-          );
-        })}
-        {filtered.length === 0 && (
-          <div className="col-span-full text-center py-12 text-muted-foreground">Nenhum produto encontrado</div>
-        )}
-      </div>
+          </DialogHeader>
+
+          {/* Inline Add Category Bar */}
+          <div className="p-4 bg-muted/30 border-b flex gap-2">
+            <Input 
+              placeholder="Digite o nome da nova categoria..." 
+              value={newCatName}
+              onChange={e => setNewCatName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(); }}
+              className="bg-background h-9 text-sm"
+            />
+            <Button onClick={handleAddCategory} size="sm" className="h-9 px-4 shrink-0">
+              <Plus className="h-4 w-4 mr-1" /> Criar
+            </Button>
+          </div>
+
+          {/* Category List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {categories.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8 text-sm">
+                Nenhuma categoria cadastrada.
+              </p>
+            ) : (
+              categories.map(cat => {
+                const prodCount = products.filter(p => p.categoryId === cat.id).length;
+                const isEditing = editingCatId === cat.id;
+
+                return (
+                  <div 
+                    key={cat.id} 
+                    className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-card/90 transition-colors"
+                  >
+                    {isEditing ? (
+                      <div className="flex items-center gap-2 flex-1 mr-2">
+                        <Input 
+                          value={editingCatName} 
+                          onChange={e => setEditingCatName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEditCategory(cat.id); }}
+                          autoFocus
+                          className="h-8 text-sm bg-background"
+                        />
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" onClick={() => saveEditCategory(cat.id)}>
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => setEditingCatId(null)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-sm text-foreground">{cat.name}</span>
+                          <Badge variant="secondary" className="text-[11px] font-normal">
+                            {prodCount} {prodCount === 1 ? 'produto' : 'produtos'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            onClick={() => startEditCategory(cat)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            onClick={() => openDeleteCat(cat.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="p-3 border-t bg-card text-right">
+            <Button variant="outline" size="sm" onClick={() => setCatManagerOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Delete Confirmation Dialog */}
+      <Dialog open={catDeleteOpen} onOpenChange={setCatDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Excluir Categoria</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir esta categoria? Esta ação não poderá ser desfeita.
+          </p>
+          <div className="flex gap-2 justify-end pt-3">
+            <Button variant="outline" size="sm" onClick={() => setCatDeleteOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" size="sm" onClick={confirmDeleteCat}>Excluir</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* 2. DEDICATED OBS & COMPLEMENTS MANAGEMENT MODAL */}
+      {/* ========================================================================= */}
+      <Dialog open={optsDialogOpen} onOpenChange={setOptsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[88vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-5 pb-3 border-b bg-card">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+                  <Tag className="h-5 w-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-bold">Observações e Complementos</DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Cadastre opções livres (observações sem custo) e complementos pagos para seus produtos.
+                  </DialogDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => openCreateOpt('note')} className="text-xs">
+                  <Plus className="h-3.5 w-3.5 mr-1 text-secondary-foreground" /> Nova Obs (Livre)
+                </Button>
+                <Button size="sm" onClick={() => openCreateOpt('complement')} className="text-xs bg-amber-600 hover:bg-amber-700 text-white">
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Novo Complemento
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {/* Modal Filter Controls */}
+          <div className="p-4 bg-muted/30 border-b flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input 
+                placeholder="Buscar opção..." 
+                value={optsSearch} 
+                onChange={e => setOptsSearch(e.target.value)}
+                className="pl-8 h-8 text-xs bg-background"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-background p-1 rounded-lg border text-xs w-full sm:w-auto">
+              <button
+                onClick={() => setOptsTab('all')}
+                className={`flex-1 sm:flex-none px-3 py-1 rounded-md transition-colors ${optsTab === 'all' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Todas ({noteOptions.length})
+              </button>
+              <button
+                onClick={() => setOptsTab('note')}
+                className={`flex-1 sm:flex-none px-3 py-1 rounded-md transition-colors ${optsTab === 'note' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Observações ({noteOptions.filter(o => o.type === 'note').length})
+              </button>
+              <button
+                onClick={() => setOptsTab('complement')}
+                className={`flex-1 sm:flex-none px-3 py-1 rounded-md transition-colors ${optsTab === 'complement' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Complementos ({noteOptions.filter(o => o.type === 'complement').length})
+              </button>
+            </div>
+          </div>
+
+          {/* Items List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {filteredNoteOptions.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground space-y-2 border border-dashed rounded-xl">
+                <Tag className="h-8 w-8 mx-auto opacity-40" />
+                <p className="text-sm">Nenhuma opção de observação ou complemento cadastrada.</p>
+                <Button size="sm" variant="outline" onClick={() => openCreateOpt('note')}>
+                  Cadastrar Primeira Opção
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-2.5">
+                {filteredNoteOptions.map(opt => (
+                  <div 
+                    key={opt.id} 
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 border border-border/80 rounded-xl bg-card hover:border-primary/30 transition-all gap-3"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {opt.type === 'note' ? (
+                          <Badge variant="secondary" className="text-[10px] bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300">
+                            Observação (Livre)
+                          </Badge>
+                        ) : (
+                          <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                            Complemento (+ R$ {fmt(opt.price)})
+                          </Badge>
+                        )}
+                        <span className="font-bold text-sm text-foreground">{opt.name}</span>
+                        {!opt.active && (
+                          <Badge variant="outline" className="text-[9px] text-destructive border-destructive/30">Inativo</Badge>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 flex-wrap text-xs text-muted-foreground pt-1">
+                        <span className="text-[11px] font-medium text-muted-foreground/80">Categorias:</span>
+                        {opt.categoryIds.length === categories.length ? (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted/40">Todas as categorias</Badge>
+                        ) : (
+                          opt.categoryIds.map(cid => {
+                            const cat = getCat(cid);
+                            return cat ? (
+                              <Badge key={cid} variant="outline" className="text-[10px] px-1.5 py-0 bg-muted/40">
+                                {cat.name}
+                              </Badge>
+                            ) : null;
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                      <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={() => openEditOpt(opt)}>
+                        <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10" onClick={() => deleteOpt(opt.id)}>
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 border-t bg-card text-right">
+            <Button variant="outline" size="sm" onClick={() => setOptsDialogOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* NoteOption Create/Edit Form Dialog */}
+      <Dialog open={optFormOpen} onOpenChange={setOptFormOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingOptId ? 'Editar Opção' : 'Nova Opção'}</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Preencha os detalhes da observação ou complemento.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {/* Type selector */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg border">
+              <button
+                type="button"
+                onClick={() => setOptForm(f => ({ ...f, type: 'note' }))}
+                className={`py-1.5 px-3 rounded-md text-xs font-semibold transition-all ${
+                  optForm.type === 'note' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                }`}
+              >
+                Observação Livre
+              </button>
+              <button
+                type="button"
+                onClick={() => setOptForm(f => ({ ...f, type: 'complement' }))}
+                className={`py-1.5 px-3 rounded-md text-xs font-semibold transition-all ${
+                  optForm.type === 'complement' ? 'bg-background text-amber-600 dark:text-amber-400 shadow-sm' : 'text-muted-foreground'
+                }`}
+              >
+                Complemento Pago
+              </button>
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold">Nome da Opção *</Label>
+              <Input 
+                value={optForm.name} 
+                onChange={e => setOptForm(f => ({ ...f, name: e.target.value }))} 
+                placeholder={optForm.type === 'note' ? 'Ex: Sem cebola, Ponto da carne...' : 'Ex: Bacon Extra, Queijo Triplo...'} 
+                className="mt-1"
+                autoFocus
+              />
+            </div>
+
+            {optForm.type === 'complement' && (
+              <div>
+                <Label className="text-xs font-semibold">Preço Adicional (R$) *</Label>
+                <Input 
+                  type="number" 
+                  step="0.01" 
+                  value={optForm.price} 
+                  onChange={e => setOptForm(f => ({ ...f, price: e.target.value }))}
+                  placeholder="0.00"
+                  className="mt-1"
+                />
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-xs font-semibold">Disponível para as Categorias: *</Label>
+                <div className="flex items-center gap-2">
+                  <button 
+                    type="button" 
+                    className="text-[11px] text-primary hover:underline"
+                    onClick={() => setOptForm(f => ({ ...f, categoryIds: categories.map(c => c.id) }))}
+                  >
+                    Marcar todas
+                  </button>
+                  <span className="text-muted-foreground text-[10px]">•</span>
+                  <button 
+                    type="button" 
+                    className="text-[11px] text-muted-foreground hover:underline"
+                    onClick={() => setOptForm(f => ({ ...f, categoryIds: [] }))}
+                  >
+                    Desmarcar
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-44 overflow-y-auto border rounded-lg p-2.5 grid grid-cols-2 gap-2 bg-muted/20">
+                {categories.map(cat => {
+                  const checked = optForm.categoryIds.includes(cat.id);
+                  return (
+                    <label key={cat.id} className="flex items-center gap-2 text-xs cursor-pointer p-1.5 rounded hover:bg-muted/60 transition-colors">
+                      <input 
+                        type="checkbox" 
+                        checked={checked}
+                        onChange={e => {
+                          const isChecked = e.target.checked;
+                          setOptForm(f => ({
+                            ...f, 
+                            categoryIds: isChecked 
+                              ? [...f.categoryIds, cat.id] 
+                              : f.categoryIds.filter(id => id !== cat.id)
+                          }));
+                        }}
+                        className="rounded border-border text-primary focus:ring-primary h-4 w-4"
+                      />
+                      <span className="truncate font-medium">{cat.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={optForm.active} 
+                  onChange={e => setOptForm(f => ({ ...f, active: e.target.checked }))} 
+                  className="rounded border-border text-primary focus:ring-primary h-4 w-4" 
+                />
+                <span className="text-xs font-medium">Opção Ativa</span>
+              </label>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-3 border-t">
+              <Button variant="outline" size="sm" onClick={() => setOptFormOpen(false)}>Cancelar</Button>
+              <Button size="sm" onClick={saveOpt} disabled={!optForm.name.trim() || optForm.categoryIds.length === 0}>
+                {editingOptId ? 'Salvar' : 'Cadastrar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Product Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -668,7 +1285,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
               <Label>Foto do Produto</Label>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
               {form.image ? (
-                <div className="relative mt-2 rounded-lg overflow-hidden aspect-video bg-slate-50 dark:bg-zinc-900/60 p-2 flex items-center justify-center">
+                <div className="relative mt-2 rounded-lg overflow-hidden aspect-video bg-slate-50 dark:bg-zinc-900/60 p-2 flex items-center justify-center border">
                   <img src={form.image} alt="Preview" className="w-full h-full object-contain object-center" />
                   <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={() => setForm(f => ({ ...f, image: '' }))}>
                     <X className="h-3.5 w-3.5" />
@@ -726,7 +1343,7 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
                 </select>
               </div>
             </div>
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex flex-col gap-2 pt-1">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -786,199 +1403,6 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
           <div className="flex gap-2 justify-end pt-2">
             <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
             <Button type="button" variant="destructive" onClick={confirmDelete}>Excluir</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Category Create/Edit Dialog */}
-      <Dialog open={catDialogOpen} onOpenChange={setCatDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{editingCatId ? 'Editar Categoria' : 'Nova Categoria'}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={saveCat} className="space-y-4">
-            <div>
-              <Label>Nome *</Label>
-              <Input autoFocus value={catForm.name} onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Refri" />
-            </div>
-            <div className="flex gap-2 justify-end pt-2">
-              <Button type="button" variant="outline" onClick={() => setCatDialogOpen(false)}>Cancelar</Button>
-              {editingCatId && (
-                <Button type="button" variant="destructive" onClick={() => { setCatDialogOpen(false); openDeleteCat(editingCatId); }}>
-                  Excluir
-                </Button>
-              )}
-              <Button type="submit">{editingCatId ? 'Salvar' : 'Cadastrar'}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Category Delete Confirmation */}
-      <Dialog open={catDeleteOpen} onOpenChange={setCatDeleteOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Excluir Categoria</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Tem certeza? Categorias com produtos vinculados não podem ser excluídas.</p>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button variant="outline" onClick={() => setCatDeleteOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={confirmDeleteCat}>Excluir</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* NoteOptions Manager Dialog */}
-      <Dialog open={optsDialogOpen} onOpenChange={setOptsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="shrink-0 flex flex-row items-center justify-between">
-          <DialogTitle>Observações e Complementos</DialogTitle>
-          </DialogHeader>
-          <div className="flex gap-2 mb-2 shrink-0">
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => { setEditingOptId(null); setOptForm({...emptyNoteOptionForm, type: 'note'}); setOptFormOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Nova Observação
-            </Button>
-            <Button size="sm" onClick={() => { setEditingOptId(null); setOptForm({...emptyNoteOptionForm, type: 'complement'}); setOptFormOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" /> Novo Complemento
-            </Button>
-          </div>
-          <div className="flex-1 overflow-auto p-1 space-y-5">
-            {/* Observações */}
-            <div>
-              <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 px-1 flex items-center gap-1.5">
-                <span className="inline-block w-2 h-2 rounded-full bg-secondary" />
-                Observações Livres ({noteOptions.filter(o => o.type === 'note').length})
-              </h3>
-              {noteOptions.filter(o => o.type === 'note').length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhuma observação cadastrada.</p>
-              ) : (
-                <div className="grid gap-2">
-                  {noteOptions.filter(o => o.type === 'note').map(opt => (
-                    <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">Observação</Badge>
-                          <span className="font-bold">{opt.name}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1 flex gap-1 flex-wrap">
-                          {opt.categoryIds.map(cid => {
-                            const cat = getCat(cid);
-                            return cat ? <Badge key={cid} variant="outline" className="text-[10px] px-1 py-0">{cat.name}</Badge> : null;
-                          })}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => openEditOpt(opt)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteOpt(opt.id)}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Complementos */}
-            <div>
-              <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 px-1 flex items-center gap-1.5">
-                <span className="inline-block w-2 h-2 rounded-full bg-primary" />
-                Complementos Pagos ({noteOptions.filter(o => o.type === 'complement').length})
-              </h3>
-              {noteOptions.filter(o => o.type === 'complement').length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhum complemento cadastrado.</p>
-              ) : (
-                <div className="grid gap-2">
-                  {noteOptions.filter(o => o.type === 'complement').map(opt => (
-                    <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="default">Complemento</Badge>
-                          <span className="font-bold">{opt.name}</span>
-                          {opt.price > 0 && <span className="text-sm text-primary font-bold">R$ {fmt(opt.price)}</span>}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1 flex gap-1 flex-wrap">
-                          {opt.categoryIds.map(cid => {
-                            const cat = getCat(cid);
-                            return cat ? <Badge key={cid} variant="outline" className="text-[10px] px-1 py-0">{cat.name}</Badge> : null;
-                          })}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => openEditOpt(opt)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteOpt(opt.id)}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* NoteOption Create/Edit Form Dialog */}
-      <Dialog open={optFormOpen} onOpenChange={setOptFormOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingOptId ? 'Editar Opção' : 'Nova Opção'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2">
-                <input type="radio" checked={optForm.type === 'note'} onChange={() => setOptForm(f => ({ ...f, type: 'note' }))} />
-                <span>Observação Livre</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="radio" checked={optForm.type === 'complement'} onChange={() => setOptForm(f => ({ ...f, type: 'complement' }))} />
-                <span>Complemento Pago</span>
-              </label>
-            </div>
-            
-            <div className="grid gap-3">
-              <div>
-                <Label>Nome *</Label>
-                <Input value={optForm.name} onChange={e => setOptForm(f => ({ ...f, name: e.target.value }))} placeholder={optForm.type === 'note' ? 'Ex: Sem cebola' : 'Ex: Bacon Extra'} />
-              </div>
-              {optForm.type === 'complement' && (
-                <div>
-                  <Label>Preço Adicional (R$)</Label>
-                  <Input type="number" step="0.01" value={optForm.price} onChange={e => setOptForm(f => ({ ...f, price: e.target.value }))} />
-                </div>
-              )}
-            </div>
-
-            <div>
-              <Label className="mb-2 block">Disponível para as categorias: *</Label>
-              <div className="max-h-40 overflow-y-auto border rounded-md p-2 grid grid-cols-2 gap-2 bg-muted/30">
-                {categories.map(cat => (
-                  <label key={cat.id} className="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-muted">
-                    <input 
-                      type="checkbox" 
-                      checked={optForm.categoryIds.includes(cat.id)}
-                      onChange={e => {
-                        const checked = e.target.checked;
-                        setOptForm(f => ({
-                          ...f, 
-                          categoryIds: checked ? [...f.categoryIds, cat.id] : f.categoryIds.filter(id => id !== cat.id)
-                        }));
-                      }}
-                    />
-                    <span className="truncate">{cat.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={optForm.active} onChange={e => setOptForm(f => ({ ...f, active: e.target.checked }))} className="rounded" />
-                <span className="text-sm font-medium">Ativo</span>
-              </label>
-            </div>
-
-            <div className="flex gap-2 justify-end pt-4">
-              <Button variant="outline" onClick={() => setOptFormOpen(false)}>Cancelar</Button>
-              <Button onClick={saveOpt} disabled={!optForm.name.trim() || optForm.categoryIds.length === 0}>
-                {editingOptId ? 'Salvar' : 'Cadastrar'}
-              </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1051,7 +1475,6 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
             </DialogHeader>
 
             <div className="space-y-4 overflow-y-auto pr-1 flex-1 my-2">
-              {/* Action Summary Cards */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-center">
                   <span className="block text-2xl font-bold text-emerald-600 dark:text-emerald-400">{csvStats.newProds}</span>
@@ -1080,7 +1503,6 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
                 </div>
               )}
 
-              {/* Table Preview */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-semibold">Lista de Produtos para Importação ({csvItems.length} itens):</h4>
