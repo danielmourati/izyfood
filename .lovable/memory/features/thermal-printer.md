@@ -19,3 +19,5 @@ O módulo de impressão térmica suporta dois métodos de conexão:
 **Tipos de documento:** Comanda (itens para cozinha), Conta (recibo do cliente), Fechamento de Caixa.
 
 **Largura do papel:** 58mm (32 colunas) ou 80mm (48 colunas), configurável por impressora.
+
+**Setor por item:** produto.print_sector > categoria.print_sector > 'cozinha'; 'none' = não imprime. `printOrder` gera uma comanda por setor (`src/lib/print-sectors.ts`). Fotos de produto desativadas (coluna image deprecated).

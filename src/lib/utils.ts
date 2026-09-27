@@ -15,6 +15,53 @@ export function fmtWeight(value: number): string {
   return value.toString().replace('.', ',');
 }
 
+/** Return item observations without duplicating structured and legacy values. */
+export function getOrderItemNoteLines(item: {
+  notes?: string;
+  selectedNotes?: string[];
+  otherNotes?: string;
+}): string[] {
+  const structured = [
+    ...(item.selectedNotes || []),
+    ...(item.otherNotes?.trim() ? [item.otherNotes] : []),
+  ];
+  const source = structured.length > 0 ? structured : String(item.notes || '').split('|');
+  const seen = new Set<string>();
+
+  return source.reduce<string[]>((lines, value) => {
+    const note = String(value || '').trim();
+    const key = note.toLocaleLowerCase('pt-BR');
+    if (note && !seen.has(key)) {
+      seen.add(key);
+      lines.push(note);
+    }
+    return lines;
+  }, []);
+}
+
+/** Format a numeric value for controlled BRL currency inputs. */
+export function formatBRLInput(value: number): string {
+  if (!Number.isFinite(value)) return '';
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Convert a masked BRL value such as "R$ 1.234,56" to a number. */
+export function parseBRLInput(value: string): number {
+  const digits = value.replace(/\D/g, '');
+  return digits ? Number(digits) / 100 : 0;
+}
+
+/** Apply a BRL mask while the user types, treating the last two digits as cents. */
+export function maskBRLInput(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 15);
+  return digits ? formatBRLInput(Number(digits) / 100) : '';
+}
+
 /** Mask phone input to (00) 00000-0000 format */
 export function maskPhone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11);

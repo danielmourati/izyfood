@@ -7,11 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { fmt } from '@/lib/utils';
+import { fmt, parseBRLInput } from '@/lib/utils';
 import { Order, OrderType, DeliveryStatus, OrderSource } from '@/types';
 import { toast } from 'sonner';
 
@@ -111,7 +112,7 @@ const Entregas = () => {
       return;
     }
 
-    const fee = parseFloat(deliveryFee.replace(',', '.')) || 0;
+    const fee = parseBRLInput(deliveryFee);
 
     const newOrder: Order = {
       id: crypto.randomUUID(),
@@ -555,12 +556,10 @@ const Entregas = () => {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="fee">Taxa de entrega (R$)</Label>
-                  <Input
+                  <CurrencyInput
                     id="fee"
-                    placeholder="0,00"
-                    inputMode="decimal"
                     value={deliveryFee}
-                    onChange={e => setDeliveryFee(e.target.value)}
+                    onValueChange={setDeliveryFee}
                   />
                 </div>
                 <div className="space-y-1.5">

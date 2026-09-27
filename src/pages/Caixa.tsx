@@ -8,6 +8,7 @@ import { logAudit } from '@/lib/audit';
 import { CashRegisterReceipt } from '@/components/CashRegisterReceipt';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -19,6 +20,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert, Filter, Search as SearchIcon, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { parseBRLInput } from '@/lib/utils';
 
 interface CashMovement {
   id: string;
@@ -151,7 +153,7 @@ export default function Caixa() {
   }
 
   async function handleOpen() {
-    const amount = parseFloat(initialAmount.replace(',', '.'));
+    const amount = parseBRLInput(initialAmount);
     if (isNaN(amount) || amount < 0) {
       toast.error('Informe um valor válido para o fundo de troco');
       return;
@@ -356,7 +358,7 @@ export default function Caixa() {
 
   async function handleAddMovement() {
     if (!currentRegister) return;
-    const amount = parseFloat(movementAmount.replace(',', '.'));
+    const amount = parseBRLInput(movementAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error('Informe um valor válido');
       return;
@@ -488,12 +490,9 @@ export default function Caixa() {
           <CardContent className="space-y-4">
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Fundo de Troco (R$)</label>
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
+              <CurrencyInput
                 value={initialAmount}
-                onChange={e => setInitialAmount(e.target.value)}
+                onValueChange={setInitialAmount}
               />
             </div>
             <Button onClick={handleOpen} className="w-full gap-2">
@@ -744,7 +743,7 @@ export default function Caixa() {
           <div className="space-y-3">
             {movementModal.type === 'saida' && currentRegister && (() => {
               const cashBalance = currentRegister.initialAmount + liveTotals.cash + totalEntradas - totalSaidas;
-              const parsedAmount = parseFloat(movementAmount.replace(',', '.'));
+              const parsedAmount = parseBRLInput(movementAmount);
               const exceedsBalance = !isNaN(parsedAmount) && parsedAmount > 0 && parsedAmount > cashBalance;
               return (
                 <>
@@ -765,12 +764,9 @@ export default function Caixa() {
             })()}
             <div>
               <Label>Valor (R$)</Label>
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
+              <CurrencyInput
                 value={movementAmount}
-                onChange={e => setMovementAmount(e.target.value)}
+                onValueChange={setMovementAmount}
               />
             </div>
             <div>
@@ -790,7 +786,7 @@ export default function Caixa() {
               className="flex-1"
               onClick={handleAddMovement}
               disabled={movementModal.type === 'saida' && (() => {
-                const parsedAmount = parseFloat(movementAmount.replace(',', '.'));
+                const parsedAmount = parseBRLInput(movementAmount);
                 const cashBalance = currentRegister ? currentRegister.initialAmount + liveTotals.cash + totalEntradas - totalSaidas : 0;
                 return !isNaN(parsedAmount) && parsedAmount > cashBalance;
               })()}

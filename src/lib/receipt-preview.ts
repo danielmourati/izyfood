@@ -5,6 +5,7 @@
  */
 
 import type { PrintSettings } from './escpos';
+import { getOrderItemNoteLines } from './utils';
 
 export interface PreviewItem {
   name: string;
@@ -12,6 +13,9 @@ export interface PreviewItem {
   weight?: number;
   price: number;
   subtotal: number;
+  notes?: string;
+  selectedNotes?: string[];
+  otherNotes?: string;
   selectedComplements?: { name: string; price: number; quantity: number }[];
 }
 
@@ -159,6 +163,26 @@ function rowWrap(label: string, value: string, cols: number): string {
   return lines.join('\n');
 }
 
+function detailWrap(prefix: string, value: string, cols: number): string[] {
+  const firstPrefix = `  ${prefix}`;
+  const continuation = ' '.repeat(firstPrefix.length);
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  const output: string[] = [];
+  let current = firstPrefix;
+
+  for (const word of words) {
+    const candidate = current === firstPrefix ? `${current}${word}` : `${current} ${word}`;
+    if (candidate.length <= cols) {
+      current = candidate;
+    } else {
+      if (current.trim()) output.push(current);
+      current = `${continuation}${word}`;
+    }
+  }
+  if (current.trim()) output.push(current);
+  return output;
+}
+
 export function buildBillPreviewText(
   bill: PreviewBill,
   paperWidth: 58 | 80,
@@ -200,7 +224,15 @@ export function buildBillPreviewText(
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     lines.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
-    if (item.selectedComplements) {
+    const notes = getOrderItemNoteLines(item);
+    if (notes.length === 1) {
+      lines.push(...detailWrap('Obs: ', notes[0], cols));
+    } else if (notes.length > 1) {
+      lines.push('  Observações:');
+      for (const note of notes) lines.push(...detailWrap('  • ', note, cols));
+    }
+    if (item.selectedComplements && item.selectedComplements.length > 0) {
+      lines.push(`  ${item.selectedComplements.length === 1 ? 'Adicional:' : 'Adicionais:'}`);
       for (const c of item.selectedComplements) {
         const compQty = `${c.quantity}x`;
         const compPrice = fmtBRL(c.price * c.quantity * (item.weight ? 1 : item.quantity));

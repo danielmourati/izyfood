@@ -39,13 +39,13 @@ export function ConsumerItemCustomizeModal({
 
   const availableNotes = useMemo(() => {
     return noteOptions.filter(
-      o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.length === 0 || o.categoryIds.includes(categoryId))
+      o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId))
     );
   }, [noteOptions, categoryId]);
 
   const availableComplements = useMemo(() => {
     return noteOptions.filter(
-      o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.length === 0 || o.categoryIds.includes(categoryId))
+      o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId))
     );
   }, [noteOptions, categoryId]);
 
@@ -111,60 +111,68 @@ export function ConsumerItemCustomizeModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 font-sans">
-      <div className="bg-card text-card-foreground w-full max-w-4xl rounded-md shadow-2xl overflow-hidden border border-border flex flex-col h-[90vh] max-h-[700px] animate-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 font-sans">
+      <div className="bg-card text-card-foreground w-full max-w-4xl rounded-none sm:rounded-md shadow-2xl overflow-hidden border-0 sm:border border-border flex flex-col h-full sm:h-[90vh] sm:max-h-[700px] animate-in zoom-in-95 duration-150">
         
         {/* Title Bar */}
-        <div className="bg-muted/70 px-4 py-2 flex justify-between items-center border-b border-border shrink-0">
-          <span className="text-sm font-bold text-foreground">Personalizar Item</span>
-          <button
+        <div className="bg-primary px-4 py-3 sm:py-2 flex justify-between items-center border-b border-border shrink-0">
+          <span className="text-sm font-bold text-primary-foreground">Personalizar Item</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors"
+            aria-label="Fechar personalização"
+            className="h-8 w-8 text-primary-foreground hover:text-primary-foreground hover:bg-primary-foreground/15"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         {/* Sub-header Bar (Quantity, Item Name, Total Price) */}
-        <div className="bg-muted/30 px-4 py-3 border-b border-border flex items-center justify-between shrink-0 gap-4">
-          <div className="flex items-center gap-3">
+        <div className="bg-muted/30 px-4 py-3 border-b border-border flex items-center justify-between shrink-0 gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             {/* Quantity Selector */}
             <div className="flex items-center bg-background border border-input rounded">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                className="w-8 h-8 flex items-center justify-center text-primary hover:bg-muted font-bold text-lg border-r border-input transition-colors"
+                className="w-8 h-8 rounded-none text-primary hover:bg-muted font-bold text-lg border-r border-input"
               >
                 <Minus className="h-4 w-4" />
-              </button>
+              </Button>
               <span className="w-10 text-center font-bold text-base text-foreground">{quantity}</span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setQuantity(q => q + 1)}
-                className="w-8 h-8 flex items-center justify-center text-primary hover:bg-muted font-bold text-lg border-l border-input transition-colors"
+                className="w-8 h-8 rounded-none text-primary hover:bg-muted font-bold text-lg border-l border-input"
               >
                 <Plus className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
 
             {/* Product Title */}
-            <h2 className="text-lg font-bold text-foreground truncate max-w-md">{product.name}</h2>
+            <h2 className="text-sm sm:text-lg font-bold text-foreground truncate max-w-md">{product.name}</h2>
           </div>
 
           {/* Price Tag */}
           <div className="text-right">
-            <span className="text-2xl font-extrabold text-primary drop-shadow-sm">
+            <span className="text-lg sm:text-2xl font-extrabold text-primary drop-shadow-sm whitespace-nowrap">
               R$ {fmt(totalPrice)}
             </span>
           </div>
         </div>
 
         {/* Body Split (2 Columns) */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border overflow-hidden bg-background">
+        <div className="flex-1 flex flex-col md:grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border overflow-y-auto md:overflow-hidden bg-background">
           
           {/* Left Column: Observações */}
-          <div className="flex flex-col h-full overflow-hidden p-3 bg-muted/10">
-            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+          <div className="flex flex-col min-h-fit md:h-full md:overflow-hidden p-3 bg-muted/10">
+            <h3 className="text-base font-bold text-foreground mb-2 flex items-center gap-2">
               Observações
             </h3>
 
@@ -180,7 +188,7 @@ export function ConsumerItemCustomizeModal({
             </div>
 
             {/* Checkbox List */}
-            <div className="flex-1 overflow-y-auto space-y-1 pr-1 border border-border rounded bg-background p-2 mb-3">
+            <div className="md:flex-1 md:overflow-y-auto space-y-1 pr-1 border border-border rounded bg-background p-2 mb-3">
               {filteredNotes.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhuma observação cadastrada</p>
               ) : (
@@ -220,8 +228,8 @@ export function ConsumerItemCustomizeModal({
           </div>
 
           {/* Right Column: Complementos */}
-          <div className="flex flex-col h-full overflow-hidden p-3 bg-muted/10">
-            <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+          <div className="flex flex-col min-h-fit md:h-full md:overflow-hidden p-3 bg-muted/10">
+            <h3 className="text-base font-bold text-foreground mb-2 flex items-center gap-2">
               Complementos
             </h3>
 
@@ -237,7 +245,7 @@ export function ConsumerItemCustomizeModal({
             </div>
 
             {/* Complements List */}
-            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 border border-border rounded bg-background p-2">
+            <div className="md:flex-1 md:overflow-y-auto space-y-1.5 pr-1 border border-border rounded bg-background p-2">
               {filteredComplements.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhum complemento disponível</p>
               ) : (
@@ -256,22 +264,26 @@ export function ConsumerItemCustomizeModal({
 
                       {/* Quantity Selector */}
                       <div className="flex items-center bg-background border border-input rounded">
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => updateCompQty(comp, -1)}
                           disabled={qty <= 0}
-                          className="w-7 h-7 flex items-center justify-center text-primary hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent font-bold border-r border-input"
+                          className="w-7 h-7 rounded-none text-destructive hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent font-bold border-r border-input"
                         >
                           <Minus className="h-3 w-3" />
-                        </button>
+                        </Button>
                         <span className="w-8 text-center font-bold text-foreground">{qty}</span>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => updateCompQty(comp, 1)}
-                          className="w-7 h-7 flex items-center justify-center text-primary hover:bg-muted font-bold border-l border-input"
+                          className="w-7 h-7 rounded-none text-success hover:bg-muted font-bold border-l border-input"
                         >
                           <Plus className="h-3 w-3" />
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   );
@@ -282,20 +294,20 @@ export function ConsumerItemCustomizeModal({
         </div>
 
         {/* Footer Action Buttons */}
-        <div className="bg-muted/60 p-3 border-t border-border flex justify-between items-center shrink-0">
+        <div className="bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border grid grid-cols-2 gap-2 shrink-0 shadow-[0_-4px_12px_hsl(var(--foreground)/0.08)]">
           <Button
             variant="outline"
             onClick={onClose}
-            className="bg-secondary hover:bg-secondary/80 text-secondary-foreground text-xs h-9 px-4 flex items-center gap-1.5 font-bold border-border"
+            className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm h-12 px-4 flex items-center gap-1.5 font-bold border-border"
           >
-            <ChevronLeft className="h-4 w-4" /> Cancelar
+            <ChevronLeft className="h-4 w-4" /> VOLTAR
           </Button>
 
           <Button
             onClick={handleSave}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-9 px-5 flex items-center gap-2 font-bold shadow-md active:scale-95 transition-all"
+            className="w-full bg-success hover:bg-success/90 text-success-foreground text-sm h-12 px-5 flex items-center gap-2 font-bold shadow-md active:scale-95 transition-all"
           >
-            <Check className="h-4 w-4 stroke-[3]" /> Adicionar Item
+            <Check className="h-4 w-4 stroke-[3]" /> OK
           </Button>
         </div>
       </div>

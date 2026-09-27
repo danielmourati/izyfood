@@ -125,6 +125,7 @@ export default function PrintQueuePanel() {
                 </div>
                 <p className="text-[11px] text-muted-foreground truncate">
                   {job.device_label || 'Aparelho'} · {fmtHour(job.created_at)}
+                  {job.status === 'done' && job.printed_on ? ` · ${job.printed_on}` : ''}
                   {job.error ? ` · ${job.error}` : ''}
                 </p>
               </div>

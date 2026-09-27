@@ -1,0 +1,1 @@
+ALTER TABLE public.print_jobs ADD COLUMN IF NOT EXISTS printed_on text;

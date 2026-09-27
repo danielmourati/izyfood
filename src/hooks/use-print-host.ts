@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { usePrinter } from '@/hooks/use-printer';
-import { getDeviceId, getDeviceLabel } from '@/lib/printer';
+import { consumeLastPrinterUsed, getDeviceId, getDeviceLabel } from '@/lib/printer';
 import {
   claimPrintJob,
   fetchOpenPrintJobs,
@@ -68,8 +68,9 @@ export function usePrintHost() {
 
         setProcessing(jobId);
         try {
+          consumeLastPrinterUsed();
           await withTimeout(printJob(claimed), PRINT_TIMEOUT_MS);
-          await markPrintJobDone(jobId);
+          await markPrintJobDone(jobId, consumeLastPrinterUsed());
         } catch (err: any) {
           const message = err instanceof Error ? err.message : 'Falha ao imprimir.';
           if ((claimed.attempts || 1) < MAX_PRINT_ATTEMPTS) {

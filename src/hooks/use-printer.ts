@@ -1,3 +1,5 @@
+import { resolveItemSector } from '@/lib/print-sectors';
+import { isDesktopApp } from '@/lib/printer-desktop';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/contexts/StoreContext';
@@ -136,12 +138,12 @@ export interface PrinterConfig {
   model?: string;
   escpos_profile?: string;
   auto_connect_qz?: boolean;
-  sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao';
+  sector?: string;
 }
 
 export function usePrinter() {
   const { user } = useAuth();
-  const { printSettings } = useStore();
+  const { printSettings, products: storeProducts, categories: storeCategories } = useStore();
   const [printers, setPrinters] = useState<PrinterConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [btConnected, setBtConnected] = useState(false);
@@ -347,7 +349,7 @@ export function usePrinter() {
   /**
    * Identifica a impressora configurada para um setor específico (ex: 'recibo' para o Caixa, 'cozinha' para a Cozinha).
    */
-  const getPrinterForSector = useCallback((sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao'): PrinterConfig | null => {
+  const getPrinterForSector = useCallback((sector?: string): PrinterConfig | null => {
     // 1. Configuração local salva no próprio dispositivo (override local)
     const deviceConfig = getDevicePrinterConfig();
     if (deviceConfig && deviceConfig.name) {
@@ -440,7 +442,7 @@ export function usePrinter() {
     data: Uint8Array,
     htmlFallback: string,
     title: string,
-    options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao' }
+    options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: string }
   ) => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[sendToPrinter] Impressão desativada neste dispositivo. Ignorando envio.');
@@ -476,11 +478,15 @@ export function usePrinter() {
         await printViaQzTray(data, destAddress);
         return; // Sucesso, imprimiu via QZ Tray / Desktop Spooler!
       } catch (err) {
-        console.error('[sendToPrinter] Erro no QZ Tray, caindo para fallback HTML:', err);
+        console.error('[sendToPrinter] Erro no QZ Tray:', err);
+        if (options?.force) throw err; // host da fila: marcar como Falhou, não fingir impresso
       }
     }
 
     // 3. Fallback apenas se NENHUMA impressora direta (Bluetooth / QZ) funcionou
+    if (options?.force && printHostEnabled) {
+      throw new Error('Nenhuma impressora conectada neste caixa (QZ Tray/USB ou Bluetooth).');
+    }
     console.info('[sendToPrinter] Nenhuma impressora direta conectada ou ativa. Abrindo janela de visualização HTML...');
     printViaHtmlFallback(htmlFallback, title, targetPaperWidth);
   };
@@ -539,20 +545,38 @@ export function usePrinter() {
   const shouldQueue = (options?: { force?: boolean }) =>
     !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
 
-  const printOrder = async (order: any, options?: { force?: boolean; sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao' }): Promise<PrintResult> => {
+  const printOrder = async (order: any, options?: { force?: boolean; sector?: string }): Promise<PrintResult> => {
     if (shouldQueue(options)) return enqueuePrintJob('order', order);
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
     }
-    const sector = options?.sector || 'cozinha';
-    const targetPrinter = getPrinterForSector(sector);
-    const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const ps = await resolvePrintSettings(user?.tenantId);
-    console.log(`[printOrder] printSettings usados (setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, largura: ${targetPaperWidth}mm):`, JSON.stringify(ps));
-    const escpos = buildOrderReceipt(order, targetPaperWidth, ps);
-    const html = buildOrderHtml(order, ps);
-    await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
+
+    // Separa os itens por setor (produto > categoria > cozinha), salvo quando um setor foi forçado.
+    const groups = new Map<string, any[]>();
+    const items: any[] = Array.isArray(order?.items) ? order.items : [];
+    if (options?.sector || items.length === 0) {
+      groups.set(options?.sector || 'cozinha', items);
+    } else {
+      for (const it of items) {
+        const sec = resolveItemSector(it, storeProducts, storeCategories);
+        if (sec === 'none') continue;
+        if (!groups.has(sec)) groups.set(sec, []);
+        groups.get(sec)!.push(it);
+      }
+      if (groups.size === 0) return { ok: true };
+    }
+
+    for (const [sector, secItems] of groups) {
+      const secOrder = { ...order, items: secItems };
+      const targetPrinter = getPrinterForSector(sector);
+      const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
+      console.log(`[printOrder] setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, itens: ${secItems.length}`);
+      const escpos = buildOrderReceipt(secOrder, targetPaperWidth, ps);
+      const html = buildOrderHtml(secOrder, ps);
+      await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
+    }
     return { ok: true };
   };
 
@@ -588,7 +612,7 @@ export function usePrinter() {
     return { ok: true };
   };
 
-  const printTest = async (sector?: 'recibo' | 'cozinha' | 'bar' | 'balcao') => {
+  const printTest = async (sector?: string) => {
     const mockOrder = {
       id: `TESTE-${Date.now().toString().slice(-6)}`,
       orderType: 'mesa',
@@ -663,10 +687,16 @@ export function buildOrderHtml(order: any, ps: any = {}): string {
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
     let html = `<p class="bold" style="margin: 0 0 2px 0;">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
     const noteLines = getItemNoteLines(i);
-    noteLines.forEach((n: string) => {
-      html += `<p style="margin: 0 0 4px 12px; font-size: 12px; font-style: italic;">* ${n}</p>`;
-    });
+    if (noteLines.length === 1) {
+      html += `<p style="margin: 0 0 4px 12px; font-size: 12px; font-style: italic;"><strong>Obs:</strong> ${noteLines[0]}</p>`;
+    } else if (noteLines.length > 1) {
+      html += '<p style="margin: 0 0 2px 12px; font-size: 12px;"><strong>Observações:</strong></p>';
+      noteLines.forEach((n: string) => {
+        html += `<p style="margin: 0 0 2px 20px; font-size: 12px; font-style: italic;">• ${n}</p>`;
+      });
+    }
     if (i.selectedComplements && i.selectedComplements.length > 0) {
+      html += `<p style="margin: 0 0 2px 12px; font-size: 12px;"><strong>${i.selectedComplements.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
       i.selectedComplements.forEach((c: any) => {
         html += `<p style="margin: 0 0 2px 12px; font-size: 12px;">+ ${c.quantity}x ${c.name}</p>`;
       });
@@ -720,7 +750,17 @@ export function buildBillHtml(bill: any, ps: any = {}): string {
   const items = (bill.items || []).map((i: any) => {
     const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}x`;
     let html = `<div class="row"><span>${qty} ${i.name || 'Item'}</span><span>${fmtBRL(i.subtotal || 0)}</span></div>`;
+    const noteLines = getItemNoteLines(i);
+    if (noteLines.length === 1) {
+      html += `<p style="margin: 0 0 2px 12px; font-size: 11px; font-style: italic;"><strong>Obs:</strong> ${noteLines[0]}</p>`;
+    } else if (noteLines.length > 1) {
+      html += '<p style="margin: 0 0 2px 12px; font-size: 11px;"><strong>Observações:</strong></p>';
+      noteLines.forEach((note: string) => {
+        html += `<p style="margin: 0 0 2px 20px; font-size: 11px; font-style: italic;">• ${note}</p>`;
+      });
+    }
     if (i.selectedComplements && i.selectedComplements.length > 0) {
+      html += `<p style="margin: 0 0 2px 12px; font-size: 11px;"><strong>${i.selectedComplements.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
       i.selectedComplements.forEach((c: any) => {
         html += `<div class="row" style="font-size: 11px; padding-left: 12px;"><span>+ ${c.quantity}x ${c.name}</span><span>${fmtBRL(c.price * c.quantity * (i.weight ? 1 : i.quantity))}</span></div>`;
       });

@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { getOrderItemNoteLines } from '@/lib/utils';
 
 const ESC = 0x1B;
 const GS = 0x1D;
@@ -322,25 +323,7 @@ function leftRightAlign(left: string, right: string, cols: number): Uint8Array {
  * pipe-joined `notes` string for backward compatibility.
  */
 export function getItemNoteLines(item: { notes?: string; selectedNotes?: string[]; otherNotes?: string }): string[] {
-  const collected: string[] = [];
-  (item.selectedNotes || []).forEach(n => { const t = String(n ?? '').trim(); if (t) collected.push(t); });
-  if (item.otherNotes && String(item.otherNotes).trim()) collected.push(String(item.otherNotes).trim());
-
-  // Fallback to legacy pipe-joined `notes` ONLY when no structured line was produced.
-  if (collected.length === 0 && item.notes) {
-    String(item.notes).split('|').forEach(s => { const t = s.trim(); if (t) collected.push(t); });
-  }
-
-  // Case-insensitive dedupe preserving first occurrence.
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const l of collected) {
-    const key = l.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(l);
-  }
-  return out;
+  return getOrderItemNoteLines(item);
 }
 
 interface OrderItem {
@@ -642,10 +625,17 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
       normalTextMode()
     );
     const noteLines = getItemNoteLines(item);
-    for (const n of noteLines) {
-      parts.push(CMD_BOLD_ON, textOnlyWrap(`   * OBS: ${n.toUpperCase()}`, cols), CMD_BOLD_OFF);
+    if (noteLines.length === 1) {
+      parts.push(CMD_BOLD_ON, textOnlyWrap(`   OBS: ${noteLines[0].toUpperCase()}`, cols), CMD_BOLD_OFF);
+    } else if (noteLines.length > 1) {
+      parts.push(CMD_BOLD_ON, textOnlyWrap('   OBSERVACOES:', cols), CMD_BOLD_OFF);
+      for (const note of noteLines) {
+        parts.push(CMD_BOLD_ON, textOnlyWrap(`   * ${note.toUpperCase()}`, cols), CMD_BOLD_OFF);
+      }
     }
     if (item.selectedComplements && item.selectedComplements.length > 0) {
+      const complementTitle = item.selectedComplements.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
+      parts.push(textOnlyWrap(`   ${complementTitle}`, cols));
       for (const comp of item.selectedComplements) {
         parts.push(textOnlyWrap(`   + ${comp.quantity}x ${comp.name}`, cols));
       }
@@ -726,7 +716,16 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     parts.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    const noteLines = getItemNoteLines(item);
+    if (noteLines.length === 1) {
+      parts.push(textOnlyWrap(`  OBS: ${noteLines[0]}`, cols));
+    } else if (noteLines.length > 1) {
+      parts.push(textOnlyWrap('  OBSERVACOES:', cols));
+      for (const note of noteLines) parts.push(textOnlyWrap(`  * ${note}`, cols));
+    }
     if (item.selectedComplements && item.selectedComplements.length > 0) {
+      const complementTitle = item.selectedComplements.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
+      parts.push(textOnlyWrap(`  ${complementTitle}`, cols));
       for (const comp of item.selectedComplements) {
         const compQty = `${comp.quantity}x`;
         const compPrice = fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity));

@@ -2,13 +2,14 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useStore } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Order, PaymentMethod, PaymentSplit, Customer } from '@/types';
-import { fmt } from '@/lib/utils';
+import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
 import { generatePixPayload } from '@/lib/qrcode';
 import {
   CreditCard, QrCode, Wallet, Banknote, Plus, Trash2, Percent, DollarSign,
@@ -77,7 +78,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const [newCustName, setNewCustName] = useState('');
   const [newCustPhone, setNewCustPhone] = useState('');
   const [newCustAddress, setNewCustAddress] = useState('');
-  const [newCustCreditLimit, setNewCustCreditLimit] = useState('500.00');
 
   // Track SHIFT key state for quick bill summation
   useEffect(() => {
@@ -129,7 +129,9 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const subtotal = order?.total ?? 0;
 
   const discountAmount = useMemo(() => {
-    const val = parseFloat(discountValue.replace(',', '.')) || 0;
+    const val = discountType === 'fixed'
+      ? parseBRLInput(discountValue)
+      : parseFloat(discountValue.replace(',', '.')) || 0;
     if (appliedCoupon) {
       const coupon = coupons.find(c => c.id === appliedCoupon);
       if (coupon) {
@@ -142,7 +144,10 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   const serviceFeePercentage = settings.serviceFeePercentage ?? 0;
   const isMesa = order?.orderType === 'mesa';
-  const serviceFeeAmount = isMesa && serviceFeePercentage > 0 ? (subtotal * serviceFeePercentage) / 100 : 0;
+  const exemptAmount = (order?.items || []).reduce((s: number, it: any) =>
+    products.find(p => p.id === it.productId)?.serviceFeeExempt ? s + (Number(it.subtotal) || 0) : s, 0);
+  const serviceFeeBase = Math.max(0, subtotal - exemptAmount);
+  const serviceFeeAmount = isMesa && serviceFeePercentage > 0 ? (serviceFeeBase * serviceFeePercentage) / 100 : 0;
   const finalTotal = Math.max(0, subtotal - discountAmount + serviceFeeAmount);
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, finalTotal - totalAssigned);
@@ -190,7 +195,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   // Open specific payment sub-modal
   const openSubModal = (modal: SubModalType, cardType?: 'credito' | 'debito' | 'refeicao') => {
     setActiveSubModal(modal);
-    setSubAmountStr(remaining.toFixed(2).replace('.', ','));
+    setSubAmountStr(formatBRLInput(remaining));
     setSubNotes('');
     if (cardType) setCardSubtype(cardType);
     if (modal === 'fiado') {
@@ -200,18 +205,18 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   // Quick Bill buttons handler (Click = set, Shift+Click = sum)
   const handleQuickBillClick = (billVal: number) => {
-    const currentVal = parseFloat(subAmountStr.replace(',', '.')) || 0;
+    const currentVal = parseBRLInput(subAmountStr);
     if (shiftPressed) {
       const newVal = currentVal + billVal;
-      setSubAmountStr(newVal.toFixed(2).replace('.', ','));
+      setSubAmountStr(formatBRLInput(newVal));
     } else {
-      setSubAmountStr(billVal.toFixed(2).replace('.', ','));
+      setSubAmountStr(formatBRLInput(billVal));
     }
   };
 
   // Save Split from Dinheiro or Cartão Sub-modal
   const handleSaveSubSplit = (method: PaymentMethod) => {
-    const amt = parseFloat(subAmountStr.replace(',', '.')) || 0;
+    const amt = parseBRLInput(subAmountStr);
     if (amt <= 0) {
       toast.error('Informe um valor válido maior que zero.');
       return;
@@ -343,7 +348,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
 
   const cashSplit = splits.find(s => s.method === 'dinheiro');
-  const cashChange = cashSplit && cashGiven ? parseFloat(cashGiven.replace(',', '.')) - cashSplit.amount : 0;
+  const cashChange = cashSplit && cashGiven ? parseBRLInput(cashGiven) - cashSplit.amount : 0;
   const shortOrderId = order.id.slice(0, 4);
 
   // PIX key & QR code string
@@ -692,13 +697,11 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                   {cashSplit && (
                     <div className="p-3 bg-muted/30 border border-border rounded-md space-y-2 text-xs">
                       <Label className="text-xs font-semibold">Valor recebido em Dinheiro:</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">R$</span>
-                        <Input
-                          placeholder="0,00"
+                      <div>
+                        <CurrencyInput
                           value={cashGiven}
-                          onChange={e => setCashGiven(e.target.value)}
-                          className="pl-9 h-9 text-sm bg-background border-input text-foreground font-bold"
+                          onValueChange={setCashGiven}
+                          className="h-9 text-sm bg-background border-input text-foreground font-bold"
                         />
                       </div>
                       {cashChange > 0 && (
@@ -740,10 +743,9 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
               {/* Amount Display Input */}
               <div className="bg-background border border-input rounded-md p-3 text-center shadow-xs">
-                <Input
-                  type="text"
+                <CurrencyInput
                   value={subAmountStr}
-                  onChange={e => setSubAmountStr(e.target.value)}
+                  onValueChange={setSubAmountStr}
                   className="text-center font-extrabold text-2xl h-12 bg-primary/10 border-primary text-primary tracking-wider"
                 />
                 <span className="text-[11px] text-muted-foreground block mt-1">Auto preencher:</span>
@@ -752,7 +754,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setSubAmountStr(remaining.toFixed(2).replace('.', ','))}
+                  onClick={() => setSubAmountStr(formatBRLInput(remaining))}
                   className="w-full mt-1 bg-card hover:bg-muted font-bold text-xs h-9 border-border"
                 >
                   <strong className="text-primary mr-1">[A]</strong> R$ {fmt(remaining)} (Faltando)
@@ -787,7 +789,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSubAmountStr('0,00')}
+                    onClick={() => setSubAmountStr(formatBRLInput(0))}
                     className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
                   >
                     <Brush className="h-4 w-4" /> Limpar
@@ -842,17 +844,16 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                 {/* Left Side: Value & Quick Bills */}
                 <div className="space-y-4">
                   <div className="bg-background border border-input rounded-md p-3 text-center shadow-xs">
-                    <Input
-                      type="text"
+                    <CurrencyInput
                       value={subAmountStr}
-                      onChange={e => setSubAmountStr(e.target.value)}
+                      onValueChange={setSubAmountStr}
                       className="text-center font-extrabold text-2xl h-12 bg-primary/10 border-primary text-primary tracking-wider"
                     />
                     <span className="text-[11px] text-muted-foreground block mt-1">Auto preencher:</span>
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setSubAmountStr(remaining.toFixed(2).replace('.', ','))}
+                      onClick={() => setSubAmountStr(formatBRLInput(remaining))}
                       className="w-full mt-1 bg-card hover:bg-muted font-bold text-xs h-9 border-border"
                     >
                       <strong className="text-primary mr-1">[{cardSubtype[0].toUpperCase()}]</strong> R$ {fmt(remaining)} (Faltando)
@@ -879,7 +880,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => setSubAmountStr('0,00')}
+                      onClick={() => setSubAmountStr(formatBRLInput(0))}
                       className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
                     >
                       <Brush className="h-4 w-4" /> Limpar
@@ -1250,12 +1251,21 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Desconto (R$ ou %)</Label>
               <div className="flex gap-2">
-                <Input
-                  placeholder="Ex: 5,00"
-                  value={discountValue}
-                  onChange={e => setDiscountValue(e.target.value)}
-                  className="bg-background border-input text-foreground h-9"
-                />
+                {discountType === 'fixed' ? (
+                  <CurrencyInput
+                    value={discountValue}
+                    onValueChange={setDiscountValue}
+                    className="bg-background border-input text-foreground h-9"
+                  />
+                ) : (
+                  <Input
+                    inputMode="decimal"
+                    placeholder="Ex: 10"
+                    value={discountValue}
+                    onChange={e => setDiscountValue(e.target.value)}
+                    className="bg-background border-input text-foreground h-9"
+                  />
+                )}
               </div>
             </div>
             <Button

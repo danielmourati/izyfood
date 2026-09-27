@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle, Check, LockKeyhole } from 'lucide-react';
+import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle, Check, ListChecks, LockKeyhole } from 'lucide-react';
 import { Order, OrderItem, OrderType, Product, TableInfo } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,6 +20,7 @@ import { usePrinter, PRINT_QUEUED_MESSAGE } from '@/hooks/use-printer';
 import { supabase } from '@/integrations/supabase/client';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
 import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
+import { OrderItemDetails } from '@/components/OrderItemDetails';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -388,6 +389,16 @@ export function ConsumerOrderModal({
     i.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
   );
 
+  // Busca dinâmica: enquanto digita, sugere produtos do catálogo para lançar
+  const productSearchResults = itemSearchQuery.trim()
+    ? products
+        .filter(p => {
+          const q = itemSearchQuery.trim().toLowerCase();
+          return p.name.toLowerCase().includes(q) || (p.searchCode || '').toLowerCase().includes(q);
+        })
+        .slice(0, 8)
+    : [];
+
   const unprintedCount = items.filter(i => !i.printed).length;
 
   // Helper to add item directly without customization
@@ -492,6 +503,25 @@ export function ConsumerOrderModal({
     }
     setSelectedProduct(prod);
     setEditingItem(null);
+    setCustomizeOpen(true);
+  };
+
+  const handleCustomizeSelectedMobileProduct = () => {
+    if (!selectedMobileProduct) return;
+
+    const selectedItem = [...items].reverse().find(item =>
+      item.productId === selectedMobileProduct.id
+      && !item.printed
+      && !item.selectedNotes?.length
+      && !item.selectedComplements?.length
+      && !item.otherNotes
+    ) || [...items].reverse().find(item =>
+      item.productId === selectedMobileProduct.id && !item.printed
+    );
+
+    if (!selectedItem) return;
+    setSelectedProduct(selectedMobileProduct);
+    setEditingItem(selectedItem);
     setCustomizeOpen(true);
   };
 
@@ -652,50 +682,6 @@ export function ConsumerOrderModal({
     setPrintMenuOpen(false);
     setReprintSelectedIds(items.map(i => i.id));
     setReprintModalOpen(true);
-  };
-
-  // Actions for "Mais Opções"
-  const handlePrintConsumptionTickets = () => {
-    if (items.length === 0) {
-      toast.error('Nenhum item no pedido para imprimir.');
-      return;
-    }
-    const updatedItems = items.map(i => ({ ...i, printed: true }));
-    const updatedOrder: Order = { ...currentOrder, items: updatedItems };
-    setCurrentOrder(updatedOrder);
-    onSaveOrder(updatedOrder);
-    if (onPrintOrder) onPrintOrder(updatedOrder);
-    toast.success('Fichas de consumo impressas com sucesso!');
-    setMoreOptionsOpen(false);
-  };
-
-  const handleSendWhatsApp = () => {
-    const phone = currentOrder?.customerPhone || '5500000000000';
-    let text = `*PEDIDO #${currentOrder?.id ? currentOrder.id.slice(0, 4) : ''}*\n`;
-    text += `Mesa/Comanda: ${currentOrder.tableNumber || tableNumber || 1}\n\n`;
-    text += `*ITENS:*\n`;
-    items.forEach(i => {
-      text += `• ${i.quantity}x ${i.name} - R$ ${fmt(i.subtotal)}\n`;
-    });
-    text += `\n*TOTAL: R$ ${fmt(totalAmount)}*`;
-
-    const encoded = encodeURIComponent(text);
-    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`, '_blank');
-    toast.success('Abrindo WhatsApp...');
-    setMoreOptionsOpen(false);
-  };
-
-  const handleRecalculateOrder = () => {
-    const updatedItems = items.map(i => ({
-      ...i,
-      subtotal: i.price * i.quantity,
-    }));
-    const newTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
-    const updatedOrder: Order = { ...currentOrder, items: updatedItems, total: newTotal };
-    setCurrentOrder(updatedOrder);
-    onSaveOrder(updatedOrder);
-    toast.success('Pedido recalculado com sucesso!');
-    setMoreOptionsOpen(false);
   };
 
   const handleChangeOrderType = (newType: OrderType) => {
@@ -985,12 +971,16 @@ export function ConsumerOrderModal({
                     >
                       <Trash2 className="h-5 w-5" />
                     </button>
-                    <button
-                      onClick={() => setSelectedMobileProduct(null)}
-                      className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCustomizeSelectedMobileProduct}
+                      aria-label="Selecionar observações e complementos"
+                      title="Selecionar observações e complementos"
+                      className="w-full bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
                     >
-                      +
-                    </button>
+                      <ListChecks className="h-6 w-6" strokeWidth={3} />
+                    </Button>
                   </div>
 
                   {/* Control Action Buttons */}
@@ -1069,8 +1059,8 @@ export function ConsumerOrderModal({
                   </div>
                 ) : (
                   items.map(item => (
-                    <div key={item.id} className="bg-white border border-[#e8e4dc] p-2.5 rounded-lg shadow-xs flex justify-between items-center text-xs">
-                      <div>
+                    <div key={item.id} className="bg-white border border-[#e8e4dc] p-2.5 rounded-lg shadow-xs flex justify-between items-start gap-2 text-xs">
+                      <div className="min-w-0 flex-1">
                         <div className="font-bold text-[#3e2b20] flex items-center gap-1.5">
                           <span>{item.name}</span>
                           {item.printed ? (
@@ -1086,6 +1076,7 @@ export function ConsumerOrderModal({
                         <div className="text-[11px] text-muted-foreground">
                           {item.quantity}x R$ {fmt(item.price)}
                         </div>
+                        <OrderItemDetails item={item} compact />
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-extrabold text-[#3e2b20]">R$ {fmt(item.subtotal)}</span>
@@ -1334,6 +1325,14 @@ export function ConsumerOrderModal({
             </DialogContent>
           </Dialog>
         </div>
+
+        <ConsumerItemCustomizeModal
+          open={customizeOpen}
+          onClose={() => setCustomizeOpen(false)}
+          product={selectedProduct}
+          itemToEdit={editingItem}
+          onConfirm={handleConfirmCustomization}
+        />
       </>
     );
   }
@@ -1387,6 +1386,29 @@ export function ConsumerOrderModal({
                   onChange={e => setItemSearchQuery(e.target.value)}
                   className="pl-8 h-8 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                 />
+                {itemSearchQuery.trim() && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
+                    {productSearchResults.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum produto encontrado.</div>
+                    ) : (
+                      productSearchResults.map(prod => (
+                        <button
+                          key={prod.id}
+                          type="button"
+                          disabled={isLocked}
+                          onClick={() => {
+                            handleAddDirect(prod);
+                            setItemSearchQuery('');
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-muted/60 flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="font-bold text-foreground truncate">{prod.name}</span>
+                          <span className="text-primary font-bold shrink-0">R$ {fmt(prod.price)}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* + Produtos Button (disabled when table is locked) */}
@@ -1456,28 +1478,6 @@ export function ConsumerOrderModal({
                     }}
                     className="bg-background border-input text-xs text-foreground placeholder:text-muted-foreground h-9"
                   />
-                </div>
-
-                <hr className="border-border" />
-
-                {/* Table Indicator */}
-                <div className="space-y-2">
-                  <label className="text-muted-foreground font-medium block">
-                    🪑 Mesa onde a comanda está
-                  </label>
-                  <Input
-                    placeholder="Núm. da Mesa (Opcional)"
-                    value={displayMesaNum}
-                    readOnly
-                    className="bg-background border-input text-xs text-foreground h-8"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toast.info('Funcionalidade de transferência disponível em Mais Opções > Trocar para...')}
-                    className="text-primary hover:underline text-[11px] block mt-1"
-                  >
-                    Outras comandas nesta mesa
-                  </button>
                 </div>
 
                 {/* Lock Order Toggle */}
@@ -1570,22 +1570,7 @@ export function ConsumerOrderModal({
                               )}
                             </div>
 
-                            {/* Complements & Notes Detail */}
-                            {item.selectedComplements && item.selectedComplements.length > 0 && (
-                              <div className="text-[11px] text-muted-foreground mt-0.5">
-                                {item.selectedComplements.map((c, ci) => (
-                                  <span key={ci} className="mr-2">
-                                    + {c.quantity}x {c.name} ({fmt(c.price)})
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            {item.notes && (
-                              <div className="text-[11px] text-amber-600 dark:text-amber-400 italic mt-0.5">
-                                Obs: {item.notes}
-                              </div>
-                            )}
+                            <OrderItemDetails item={item} compact />
                           </td>
                           <td className="py-3 px-3 text-right font-medium text-muted-foreground">
                             R$ {fmt(item.price)}
@@ -1839,30 +1824,6 @@ export function ConsumerOrderModal({
 
             <button
               type="button"
-              onClick={handlePrintConsumptionTickets}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
-            >
-              Imprimir Fichas de Consumo ({unprintedCount > 0 ? `${unprintedCount} Itens novos` : '0 Itens novos'})
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSendWhatsApp}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
-            >
-              Enviar para WhatsApp
-            </button>
-
-            <button
-              type="button"
-              onClick={handleRecalculateOrder}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
-            >
-              Recalcular Pedido
-            </button>
-
-            <button
-              type="button"
               onClick={() => setDeleteConfirmOpen(true)}
               className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
             >
@@ -2047,7 +2008,7 @@ export function ConsumerOrderModal({
                         <div className="font-bold text-foreground">
                           {item.quantity}x {item.name}
                         </div>
-                        {item.notes && <p className="text-[10px] text-amber-600 dark:text-amber-400">Obs: {item.notes}</p>}
+                        <OrderItemDetails item={item} compact />
                       </div>
                     </div>
 

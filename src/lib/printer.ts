@@ -559,6 +559,28 @@ export async function getQzPrinters(): Promise<string[]> {
   }
 }
 
+const VIRTUAL_PRINTER_RE = /pdf|xps|onenote|fax|send to|enviar para|document writer|anydesk|print to file/i;
+export function isVirtualPrinter(name: string): boolean { return VIRTUAL_PRINTER_RE.test(name || ''); }
+
+/** Nome da última impressora do sistema usada com sucesso (para registrar na fila). */
+export let lastPrinterUsed: string | null = null;
+export function consumeLastPrinterUsed(): string | null { const v = lastPrinterUsed; lastPrinterUsed = null; return v; }
+
+/** Escolhe uma impressora REAL: configurada → padrão do Windows → única real. Nunca uma virtual. */
+export function resolveSystemPrinter(printers: string[], preferred?: string | null, sysDefault?: string | null): string {
+  const real = printers.filter(p => !isVirtualPrinter(p));
+  const want = preferred && preferred !== 'SYSTEM_BROWSER' ? preferred.trim().toLowerCase() : '';
+  if (want) {
+    const match = printers.find(p => p.toLowerCase() === want) || printers.find(p => p.toLowerCase().includes(want));
+    if (match && !isVirtualPrinter(match)) return match;
+    if (match) throw new Error(`A impressora "${match}" é virtual (salva arquivo). Selecione a impressora térmica em Configurações > Impressora.`);
+  }
+  if (sysDefault && !isVirtualPrinter(sysDefault) && printers.includes(sysDefault)) return sysDefault;
+  if (real.length === 1) return real[0];
+  if (want) throw new Error(`Impressora "${preferred}" não encontrada no Windows.`);
+  throw new Error('Nenhuma impressora térmica definida. Selecione a impressora em Configurações > Impressora.');
+}
+
 /**
  * Print ESC/POS bytes via Native Desktop Spooler/Socket or QZ Tray fallback.
  */
@@ -574,14 +596,9 @@ export async function printViaQzTray(data: Uint8Array, printerName?: string): Pr
     const printers = await getDesktopPrinters();
     if (printers.length === 0) throw new Error('Nenhuma impressora encontrada no sistema.');
 
-    let targetPrinter = printers[0];
-    if (printerName && printerName !== 'SYSTEM_BROWSER') {
-      const match = printers.find((p: string) => p.toLowerCase() === printerName.toLowerCase()) 
-        || printers.find((p: string) => p.toLowerCase().includes(printerName.toLowerCase()));
-      if (match) targetPrinter = match;
-    }
-
+    const targetPrinter = resolveSystemPrinter(printers, printerName, null);
     await printViaDesktopSpooler(data, targetPrinter);
+    lastPrinterUsed = targetPrinter;
     return;
   }
 
@@ -591,13 +608,9 @@ export async function printViaQzTray(data: Uint8Array, printerName?: string): Pr
   const printers = await qz.printers.find();
   if (printers.length === 0) throw new Error('Nenhuma impressora encontrada no sistema.');
 
-  let targetPrinter = printers[0]; // fallback to default
-  if (printerName && printerName !== 'SYSTEM_BROWSER') {
-    // try to match exactly or partially
-    const match = printers.find((p: string) => p.toLowerCase() === printerName.toLowerCase()) 
-      || printers.find((p: string) => p.toLowerCase().includes(printerName.toLowerCase()));
-    if (match) targetPrinter = match;
-  }
+  let sysDefault: string | null = null;
+  try { sysDefault = await qz.printers.getDefault(); } catch { sysDefault = null; }
+  const targetPrinter = resolveSystemPrinter(printers, printerName, sysDefault);
 
   // qz.print needs data in hex format for raw bytes
   const hexData = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -606,6 +619,7 @@ export async function printViaQzTray(data: Uint8Array, printerName?: string): Pr
   await qz.print(config, [
     { type: 'raw', format: 'hex', data: hexData }
   ]);
+  lastPrinterUsed = targetPrinter;
 }
 
 /**
