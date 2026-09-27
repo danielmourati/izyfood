@@ -727,20 +727,9 @@ Hortifruti / KG;Queijo Muçarela (KG);Queijo muçarela fatiado (venda por peso);
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
             <div>
-              <Label>Foto do Produto</Label>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-              {form.image ? (
-                <div className="relative mt-2 rounded-lg overflow-hidden aspect-video bg-slate-50 dark:bg-zinc-900/60 p-2 flex items-center justify-center">
-                  <img src={form.image} alt="Preview" className="w-full h-full object-contain object-center" />
-                  <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={() => setForm(f => ({ ...f, image: '' }))}>
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <div className="col-span-2">
-                  <Label>Nome *</Label>
-                  <Input ref={nameInputRef} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-                </div>
-              </div>
+              <Label>Nome *</Label>
+              <Input ref={nameInputRef} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
             <div>
               <Label>Categoria *</Label>
               <select className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
