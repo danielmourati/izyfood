@@ -87,6 +87,16 @@ serve(async (req) => {
       }
     }
 
+    const fail = (msg: string, status = 400) => new Response(JSON.stringify({ error: msg }), {
+      status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+    const email = String(admin_email).trim().toLowerCase();
+    if (String(admin_password).length < 6) return fail("A senha deve ter pelo menos 6 caracteres.");
+
+    // Pre-check email
+    const { data: existingProfile } = await supabase.from("profiles").select("id").ilike("email", email).maybeSingle();
+    if (existingProfile) return fail("Este e-mail já está cadastrado. Use outro e-mail para o administrador.");
+
     // 1. Create tenant
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
@@ -96,15 +106,42 @@ serve(async (req) => {
 
     if (tenantError) throw tenantError;
 
+    const rollback = async () => {
+      for (const t of ["store_tables", "tenant_plans", "store_settings", "printer_configs", "tenant_members"]) {
+        await supabase.from(t).delete().eq("tenant_id", tenant.id);
+      }
+      await supabase.from("tenants").delete().eq("id", tenant.id);
+    };
+
     // 2. Create admin user
     const { data: userData, error: userError } = await supabase.auth.admin.createUser({
-      email: admin_email,
+      email,
       password: admin_password,
       email_confirm: true,
       user_metadata: { name: admin_name, tenant_id: tenant.id, role: "admin" },
     });
 
-    if (userError) throw userError;
+    if (userError || !userData?.user) {
+      await rollback();
+      const m = (userError?.message || "").toLowerCase();
+      let msg = `Não foi possível criar o administrador: ${userError?.message || "erro desconhecido"}`;
+      if (m.includes("pwned") || m.includes("weak") || m.includes("password")) {
+        msg = "Senha recusada por ser fraca ou já vazada na internet. Escolha uma senha mais forte (letras, números e símbolos).";
+      } else if (m.includes("already") || m.includes("exists")) {
+        msg = "Este e-mail já está cadastrado. Use outro e-mail para o administrador.";
+      }
+      return fail(msg);
+    }
+
+    // Ensure membership and role
+    await supabase.from("tenant_members").upsert(
+      { user_id: userData.user.id, tenant_id: tenant.id, role: "admin" },
+      { onConflict: "user_id,tenant_id" },
+    );
+    await supabase.from("user_roles").upsert(
+      { user_id: userData.user.id, role: "admin" },
+      { onConflict: "user_id,role" },
+    );
 
     // 3. Create store_settings for the new tenant
     // First, get the default template tenant settings

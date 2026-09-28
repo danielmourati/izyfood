@@ -357,7 +357,11 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
       const { data, error } = await supabase.functions.invoke('create-tenant', {
         body: form,
       });
-      if (error) throw error;
+      if (error) {
+        let msg = error.message;
+        try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch {}
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
       toast.success(`Tenant "${data.tenant.name}" criado com slug "${data.tenant.slug}"!`);
       setForm({ name: '', slug: '', admin_name: '', admin_email: '', admin_password: '' });
