@@ -233,7 +233,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Preencha o e-mail e a senha.' };
     }
 
-    const isDemo = cleanEmail.includes('demo') || cleanEmail.includes('admin') || cleanEmail === 'admin@degust.com';
+    // Demo login fallback disabled: it masked real credential errors.
+    const isDemo = false;
 
     try {
       const res = await withRetry(async () => {
