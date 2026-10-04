@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { StoreProvider } from "@/contexts/StoreContext";
 import { useAttendantPermissions, AttendantPermissions } from "@/hooks/use-attendant-permissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Layout } from "@/components/Layout";
 import Login from "./pages/Login";
 import PDV from "./pages/PDV";
@@ -48,6 +49,18 @@ function SlugRedirectToLogin() {
   return <Navigate to={`/${slug}/login`} replace />;
 }
 
+function TenantStartPage() {
+  const isMobile = useIsMobile();
+  const { isAdmin } = useAuth();
+  const { permissions, loading } = useAttendantPermissions();
+
+  if (loading) return <AppSkeleton />;
+  if (isMobile && (isAdmin || permissions.manage_tables)) {
+    return <Navigate to="mesas" replace />;
+  }
+  return <Home />;
+}
+
 function TenantRoutes() {
   const { slug } = useParams<{ slug: string }>();
   const { user } = useAuth();
@@ -64,7 +77,7 @@ function TenantRoutes() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+        <Route path="/" element={<ProtectedRoute><TenantStartPage /></ProtectedRoute>} />
         <Route path="/mesas" element={<ProtectedRoute adminOnly permissionKey="manage_tables"><Mesas /></ProtectedRoute>} />
         <Route path="/login" element={<Navigate to={`/${slug}`} replace />} />
         <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />

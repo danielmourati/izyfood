@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { HeaderClock } from '@/components/HeaderClock';
-import degustLogoHorizontal from '@/assets/degust-logo-horizontal.png.asset.json';
+import degustLogoHorizontal from '@/assets/degust-logo-horizontal-v2.png.asset.json';
 
 const items = [
   { to: '/superadmin', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -34,7 +34,7 @@ export function SuperAdminLayout({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col gap-3">
             <img
               src={degustLogoHorizontal.url}
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = './assets/degust-logo-horizontal.jpg'; }}
+              onError={(event) => { event.currentTarget.src = `https://degust.app/${degustLogoHorizontal.url.replace(/^\.\//, '')}`; }}
               alt="Degust"
               className="h-9 object-contain self-start"
             />
