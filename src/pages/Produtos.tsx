@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Search, Tag, Building2, PackageOpen } from 'lucide-react';
 import { toast } from 'sonner';
@@ -77,7 +77,6 @@ const Produtos = () => {
   const [form, setForm] = useState(emptyProductForm);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [groupByCategory, setGroupByCategory] = useState(true);
   // Dedicated Category Management Modal state
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [deleteCatId, setDeleteCatId] = useState<string | null>(null);
@@ -376,10 +375,10 @@ const Produtos = () => {
                   <tr key={product.id} className="transition-colors hover:bg-muted/35">
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{product.searchCode || '—'}</td>
                     <td className="px-4 py-3">
-                      <button type="button" className="text-left" onClick={() => openEdit(product)}>
+                      <Button type="button" variant="link" className="h-auto max-w-md flex-col items-start whitespace-normal p-0 text-left text-foreground no-underline hover:no-underline" onClick={() => openEdit(product)}>
                         <span className="block font-semibold text-foreground">{product.name}</span>
                         {product.description && <span className="mt-0.5 block max-w-md truncate text-xs text-muted-foreground">{product.description}</span>}
-                      </button>
+                      </Button>
                     </td>
                     <td className="px-4 py-3 text-foreground">{cat?.name || 'Sem categoria'}</td>
                     <td className="px-4 py-3 text-right font-bold tabular-nums text-primary">R$ {fmt(product.price)}{product.type === 'weight' ? '/kg' : ''}</td>
