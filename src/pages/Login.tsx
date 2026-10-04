@@ -78,7 +78,7 @@ const Login = () => {
               src={degustLogoHorizontal.url}
               onError={(event) => { event.currentTarget.src = `https://degust.app/${degustLogoHorizontal.url.replace(/^\.\//, '')}`; }}
               alt="Degust"
-              className="mb-7 h-auto w-[250px] max-w-full object-contain"
+              className="mb-7 h-auto w-[125px] max-w-full object-contain"
             />
             <h1 className="text-3xl font-bold text-foreground">Bem-vindo</h1>
             <p className="mt-2 text-sm text-muted-foreground">Acesse sua conta para continuar</p>
