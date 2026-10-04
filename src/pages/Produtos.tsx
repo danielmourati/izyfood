@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Upload, X, Search, Tag, Building2, FileSpreadsheet, Download, CheckCircle2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Tag, Building2, PackageOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
 
@@ -81,13 +81,8 @@ const Produtos = () => {
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [groupByCategory, setGroupByCategory] = useState(true);
-  const [catDeleteBlocked, setCatDeleteBlocked] = useState(false);
-
   // Dedicated Category Management Modal state
-  const [catManagerOpen, setCatManagerOpen] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [editingCatName, setEditingCatName] = useState('');
   const [deleteCatId, setDeleteCatId] = useState<string | null>(null);
   const [catDeleteOpen, setCatDeleteOpen] = useState(false);
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -98,16 +93,12 @@ const Produtos = () => {
   const [optFormOpen, setOptFormOpen] = useState(false);
   const [editingOptId, setEditingOptId] = useState<string | null>(null);
   const [optForm, setOptForm] = useState(emptyNoteOptionForm);
-  const [optsTab, setOptsTab] = useState<'all' | 'note' | 'complement'>('all');
-  const [optsSearch, setOptsSearch] = useState('');
 
   // New supplier inline modal
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
   const [supplierForm, setSupplierForm] = useState({ name: '', contact: '' });
   const [supplierSaving, setSupplierSaving] = useState(false);
 
-  // CSV Import state
-  const csvInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [csvPreviewOpen, setCsvPreviewOpen] = useState(false);
   const [csvItems, setCsvItems] = useState<{
