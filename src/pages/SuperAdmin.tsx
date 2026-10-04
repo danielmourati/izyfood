@@ -317,6 +317,7 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
   });
   const [creating, setCreating] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
   const [available, setAvailable] = useState<boolean | null>(null);
 
   const slugify = (s: string) =>
@@ -343,15 +344,16 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.slug || !form.admin_email || !form.admin_password || !form.admin_name) {
-      toast.error('Preencha todos os campos');
+      setFeedback({ type: 'error', text: 'Preencha todos os campos' });
       return;
     }
-    if (slugError) { toast.error(slugError); return; }
-    if (available === false) { toast.error('Este slug já está em uso'); return; }
+    if (slugError) { setFeedback({ type: 'error', text: slugError }); return; }
+    if (available === false) { setFeedback({ type: 'error', text: 'Este slug já está em uso' }); return; }
     if (form.admin_password.length < 6) {
-      toast.error('Senha deve ter pelo menos 6 caracteres');
+      setFeedback({ type: 'error', text: 'Senha deve ter pelo menos 6 caracteres' });
       return;
     }
+    setFeedback(null);
     setCreating(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-tenant', {
@@ -363,11 +365,11 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
         throw new Error(msg);
       }
       if (data?.error) throw new Error(data.error);
-      toast.success(`Tenant "${data.tenant.name}" criado com slug "${data.tenant.slug}"!`);
+      setFeedback({ type: 'ok', text: `Tenant "${data.tenant.name}" criado com slug "${data.tenant.slug}"!` });
       setForm({ name: '', slug: '', admin_name: '', admin_email: '', admin_password: '' });
-      onCreated();
+      setTimeout(onCreated, 1500);
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao criar tenant');
+      setFeedback({ type: 'error', text: err.message || 'Erro ao criar tenant' });
     } finally {
       setCreating(false);
     }
@@ -419,6 +421,11 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
             </div>
           </div>
 
+          {feedback && (
+            <div role="alert" className={`rounded-md border px-3 py-2 text-sm ${feedback.type === 'ok' ? 'border-success/40 bg-success/10 text-success' : 'border-destructive/40 bg-destructive/10 text-destructive'}`}>
+              {feedback.text}
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={!canSubmit}>
             {creating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Criando...</> : <><Plus className="h-4 w-4 mr-2" /> Criar Estabelecimento</>}
           </Button>
