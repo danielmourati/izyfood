@@ -124,7 +124,7 @@
   }
 
   body, button, input, select, textarea, table, [role="dialog"], [data-radix-portal] {
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Figtree', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     font-feature-settings: "ss01", "cv11";
   }
 
@@ -137,16 +137,16 @@
   }
 
   h1, h2, h3, h4, h5, h6, [data-dialog-title] {
-    font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
-    letter-spacing: -0.02em;
+    font-family: 'Outfit', 'Figtree', system-ui, sans-serif;
+    letter-spacing: 0;
     @apply font-bold text-foreground;
   }
 }
 
 @layer utilities {
   .font-heading {
-    font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
-    letter-spacing: -0.02em;
+    font-family: 'Outfit', 'Figtree', system-ui, sans-serif;
+    letter-spacing: 0;
   }
   .text-display {
     @apply font-heading font-extrabold text-3xl md:text-4xl leading-tight;
@@ -155,7 +155,16 @@
     @apply font-heading font-bold text-xl md:text-2xl leading-tight;
   }
   .text-price {
-    @apply font-extrabold tabular-nums tracking-tight;
+    @apply font-extrabold tabular-nums;
+  }
+
+  .login-canvas {
+    background:
+      linear-gradient(145deg, hsl(var(--secondary)) 0%, hsl(var(--background)) 46%, hsl(var(--section-cadastros-soft)) 100%);
+  }
+
+  .login-panel {
+    border-radius: 1.5rem;
   }
 
   .pt-safe {
