@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { formatAuthError } from '@/lib/auth-errors';
-import degustLogoHorizontal from '@/assets/degust-logo-horizontal.png.asset.json';
+import degustLogoHorizontal from '@/assets/degust-logo-horizontal-cropped.jpg.asset.json';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -78,7 +78,7 @@ const Login = () => {
               src={degustLogoHorizontal.url}
               onError={(event) => { event.currentTarget.src = '/assets/degust-logo-horizontal.jpg'; }}
               alt="Degust"
-              className="mb-7 h-20 w-auto max-w-[250px] object-contain sm:h-24"
+              className="mb-7 h-auto w-[240px] max-w-full object-contain"
             />
             <h1 className="text-3xl font-bold text-foreground">Bem-vindo</h1>
             <p className="mt-2 text-sm text-muted-foreground">Acesse sua conta para continuar</p>
