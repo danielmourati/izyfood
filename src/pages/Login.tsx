@@ -76,7 +76,7 @@ const Login = () => {
           <div className="mb-8 flex flex-col items-center text-center">
             <img
               src={degustLogoHorizontal.url}
-              onError={(event) => { event.currentTarget.src = 'https://degust.app/logo.png'; }}
+              onError={(event) => { event.currentTarget.src = `https://degust.app/${degustLogoHorizontal.url.replace(/^\.\//, '')}`; }}
               alt="Degust"
               className="mb-7 h-auto w-[250px] max-w-full object-contain"
             />
