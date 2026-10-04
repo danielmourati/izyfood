@@ -34,6 +34,7 @@ export function SuperAdminLayout({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col gap-3">
             <img
               src={degustLogoHorizontal.url}
+              onError={(event) => { event.currentTarget.src = 'https://degust.app/logo.png'; }}
               alt="Degust"
               className="h-9 object-contain self-start"
             />
