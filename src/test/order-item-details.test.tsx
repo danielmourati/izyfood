@@ -15,18 +15,18 @@ describe('OrderItemDetails', () => {
       />,
     );
 
-    expect(screen.getByText('Bem passado')).toBeInTheDocument();
-    expect(screen.getByText('Sem cebola')).toBeInTheDocument();
+    expect(screen.getByText(/1x Bem passado/)).toBeInTheDocument();
+    expect(screen.getByText(/1x Sem cebola/)).toBeInTheDocument();
     expect(screen.getByText(/2x Arroz Integral/)).toBeInTheDocument();
-    expect(screen.getAllByText('Bem passado')).toHaveLength(1);
+    expect(screen.getAllByText(/Bem passado/)).toHaveLength(1);
     expect(screen.getByText('Adicionais:')).toBeInTheDocument();
     expect(screen.queryByText('Observações:')).not.toBeInTheDocument();
   });
 
   it('supports legacy pipe-separated observations', () => {
     render(<OrderItemDetails item={{ notes: 'Sem gelo | Limão à parte' }} />);
-    expect(screen.getByText('Sem gelo')).toBeInTheDocument();
-    expect(screen.getByText('Limão à parte')).toBeInTheDocument();
+    expect(screen.getByText(/1x Sem gelo/)).toBeInTheDocument();
+    expect(screen.getByText(/1x Limão à parte/)).toBeInTheDocument();
     expect(screen.getByText('Adicionais:')).toBeInTheDocument();
   });
 

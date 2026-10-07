@@ -652,7 +652,11 @@ const Produtos = () => {
   <Dialog open={optFormOpen} onOpenChange={setOptFormOpen}>
     <DialogContent className="max-w-md">
       <DialogHeader>
-        <DialogTitle>{editingOptId ? 'Editar Opção' : 'Nova Opção'}</DialogTitle>
+        <DialogTitle>
+          {editingOptId
+            ? `Editar ${optForm.type === 'note' ? 'Observação' : 'Adicional'}`
+            : `Nova ${optForm.type === 'note' ? 'Observação' : 'Adicional'}`}
+        </DialogTitle>
       </DialogHeader>
       <div className="space-y-4">
         <div className="flex gap-4">

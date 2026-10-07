@@ -33,12 +33,12 @@ import {
   getDevicePrinterConfig,
 } from '@/lib/printer';
 import { PRINT_HOST_PRESENCE_PREFIX, insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
+import { getOrderItemAdditionalLines } from '@/lib/utils';
 import {
   buildOrderReceipt,
   buildBillReceipt,
   buildCashCloseReceipt,
   fetchPrintSettings,
-  getItemNoteLines,
 } from '@/lib/escpos';
 import type { PrintSettings } from '@/lib/escpos';
 

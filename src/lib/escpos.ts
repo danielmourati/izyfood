@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { getOrderItemAdditionalLines } from '@/lib/utils';
+import { getOrderItemAdditionalLines, getOrderItemNoteLines } from '@/lib/utils';
 
 const ESC = 0x1B;
 const GS = 0x1D;
