@@ -123,7 +123,9 @@ const Mesas = () => {
     setOrders(prev => {
       const exists = prev.some(o => o.id === updatedOrder.id);
       if (exists) {
-        return prev.map(o => (o.id === updatedOrder.id ? updatedOrder : o));
+        return prev.map(o => (o.id === updatedOrder.id
+          ? { ...updatedOrder, paymentSplits: updatedOrder.paymentSplits ?? o.paymentSplits }
+          : o));
       }
       return [updatedOrder, ...prev];
     });
