@@ -467,17 +467,17 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                 <span className="text-[11px] font-bold text-foreground">CRÉDITO</span>
               </button>
 
-              <button
+              <Button
+                variant="outline"
                 onClick={() => {
-                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'fiado', amount: remaining > 0 ? remaining : finalTotal };
+                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'pix', amount: remaining > 0 ? remaining : finalTotal };
                   setSplits(prev => [...prev, split]);
-                  toast.success('Pagamento em Cheque/Fiado adicionado!');
                 }}
-                className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
+                className="h-auto whitespace-normal bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
               >
-                <Wallet className="h-6 w-6 text-foreground mb-1" />
-                <span className="text-[11px] font-bold text-foreground">CHEQUE</span>
-              </button>
+                <QrCode className="h-6 w-6 text-foreground mb-1" />
+                <span className="text-[11px] font-bold text-foreground">PIX</span>
+              </Button>
 
               <button
                 onClick={() => {
