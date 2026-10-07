@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { usePrinter } from '@/hooks/use-printer';
-import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
+import { fmt, formatBRLInput, parseBRLInput, sortAllAdditionalsFirst } from '@/lib/utils';
 import { sectorLabel, buildSectorOptions } from '@/lib/print-sectors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
