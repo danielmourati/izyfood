@@ -42,7 +42,7 @@ const paymentMethodsConfig: { key: PaymentMethod; cardSubtype?: 'credito' | 'deb
 
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
   const navigate = useTenantNavigate();
-  const { completeSale, customers, setCustomers, coupons, products, isCashRegisterOpen, settings, printSettings, setOrders } = useStore();
+  const { completeSale, customers, setCustomers, coupons, products, isCashRegisterOpen, settings, printSettings, setOrders, orders: storeOrders } = useStore();
 
   const [cashRegisterChecked, setCashRegisterChecked] = useState(false);
   const [localCashOpen, setLocalCashOpen] = useState(false);
@@ -105,32 +105,57 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, activeSubModal, showTaxDiscountModal, onClose]);
 
+  const splitsPersistedRef = useRef<string>('');
+  const splitsLoadedRef = useRef(false);
+  const [splitsSaveError, setSplitsSaveError] = useState<string | null>(null);
+
   useEffect(() => {
     if (open) {
       supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
         setLocalCashOpen(!!(data && data.length > 0));
         setCashRegisterChecked(true);
       });
-      const existing = order?.paymentSplits || [];
+      splitsLoadedRef.current = false;
+      setSplitsSaveError(null);
+      const storeOrder = order?.id ? storeOrders.find(o => o.id === order.id) : undefined;
+      const existing = storeOrder?.paymentSplits || order?.paymentSplits || [];
       splitsPersistedRef.current = JSON.stringify(existing);
       setSplits(existing);
       setActiveSubModal('list');
+      // Fonte da verdade: banco de dados
+      if (order?.id) {
+        const orderId = order.id;
+        supabase.from('orders').select('payment_splits').eq('id', orderId).maybeSingle().then(({ data }) => {
+          const dbSplits = (data?.payment_splits as unknown as PaymentSplit[] | null) || [];
+          if (dbSplits.length > 0) {
+            setSplits(prev => {
+              if (prev.length > 0 && JSON.stringify(prev) !== splitsPersistedRef.current) return prev;
+              splitsPersistedRef.current = JSON.stringify(dbSplits);
+              return dbSplits;
+            });
+          }
+          splitsLoadedRef.current = true;
+        }, () => { splitsLoadedRef.current = true; });
+      } else {
+        splitsLoadedRef.current = true;
+      }
     } else {
       setCashRegisterChecked(false);
     }
   }, [open]);
 
   // Persiste pagamentos parciais no pedido (banco de dados) a cada inclusão/remoção
-  const splitsPersistedRef = useRef<string>('');
   useEffect(() => {
     if (!open || !order?.id || finalizing) return;
     const key = JSON.stringify(splits);
     if (key === splitsPersistedRef.current) return;
     splitsPersistedRef.current = key;
     const orderId = order.id;
-    setOrders(prev => prev.map(o => o.id === orderId
-      ? { ...o, paymentSplits: splits.length > 0 ? splits : undefined }
-      : o));
+    const value = splits.length > 0 ? splits : undefined;
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, paymentSplits: value } : o));
+    supabase.from('orders').update({ payment_splits: (value as any) ?? null }).eq('id', orderId).then(({ error }) => {
+      setSplitsSaveError(error ? 'Não foi possível salvar o valor recebido. Verifique a conexão.' : null);
+    });
   }, [splits, open, order?.id, finalizing, setOrders]);
 
   const effectiveCashOpen = isCashRegisterOpen || (cashRegisterChecked && localCashOpen);
