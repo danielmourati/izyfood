@@ -46,4 +46,22 @@ describe('OrderItemDetails', () => {
     expect(screen.getByText(/1x Arroz/)).toBeInTheDocument();
     expect(screen.getByText(/2x Bacon/)).toBeInTheDocument();
   });
+
+  it('merges legacy observations with additional items under one title', () => {
+    render(
+      <OrderItemDetails
+        item={{
+          selectedNotes: ['Sem cebola'],
+          selectedComplements: [
+            { name: 'Todos os adicionais', price: 0, quantity: 1 },
+            { name: 'Sem cebola', price: 0, quantity: 1 },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText('Adicionais:')).toHaveLength(1);
+    expect(screen.getAllByText(/Sem cebola/)).toHaveLength(1);
+    expect(screen.getByText(/Todos os adicionais/)).toBeInTheDocument();
+  });
 });
