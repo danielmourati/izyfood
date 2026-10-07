@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,7 +42,7 @@ const paymentMethodsConfig: { key: PaymentMethod; cardSubtype?: 'credito' | 'deb
 
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
   const navigate = useTenantNavigate();
-  const { completeSale, customers, setCustomers, coupons, products, isCashRegisterOpen, settings, printSettings } = useStore();
+  const { completeSale, customers, setCustomers, coupons, products, isCashRegisterOpen, settings, printSettings, setOrders } = useStore();
 
   const [cashRegisterChecked, setCashRegisterChecked] = useState(false);
   const [localCashOpen, setLocalCashOpen] = useState(false);
@@ -111,12 +111,27 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
         setLocalCashOpen(!!(data && data.length > 0));
         setCashRegisterChecked(true);
       });
-      setSplits([]);
+      const existing = order?.paymentSplits || [];
+      splitsPersistedRef.current = JSON.stringify(existing);
+      setSplits(existing);
       setActiveSubModal('list');
     } else {
       setCashRegisterChecked(false);
     }
   }, [open]);
+
+  // Persiste pagamentos parciais no pedido (banco de dados) a cada inclusão/remoção
+  const splitsPersistedRef = useRef<string>('');
+  useEffect(() => {
+    if (!open || !order?.id || finalizing) return;
+    const key = JSON.stringify(splits);
+    if (key === splitsPersistedRef.current) return;
+    splitsPersistedRef.current = key;
+    const orderId = order.id;
+    setOrders(prev => prev.map(o => o.id === orderId
+      ? { ...o, paymentSplits: splits.length > 0 ? splits : undefined }
+      : o));
+  }, [splits, open, order?.id, finalizing, setOrders]);
 
   const effectiveCashOpen = isCashRegisterOpen || (cashRegisterChecked && localCashOpen);
 
