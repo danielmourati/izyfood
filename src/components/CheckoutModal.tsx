@@ -150,7 +150,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const serviceFeeAmount = isMesa && serviceFeePercentage > 0 ? (serviceFeeBase * serviceFeePercentage) / 100 : 0;
   const finalTotal = Math.max(0, subtotal - discountAmount + serviceFeeAmount);
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
-  const remaining = Math.max(0, finalTotal - totalAssigned);
+  const remaining = Math.max(0, Math.round((finalTotal - totalAssigned) * 100) / 100);
   const hasFiado = splits.some(s => s.method === 'fiado');
 
   const getValidSplitAmount = () => {
@@ -312,7 +312,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       toast.error('Adicione pelo menos uma forma de pagamento.');
       return;
     }
-    if (finalTotal > 0 && totalAssigned < finalTotal - 0.01) {
+    if (Math.round(finalTotal * 100) > 0 && Math.round(totalAssigned * 100) < Math.round(finalTotal * 100)) {
       toast.error('O valor pago é inferior ao total do pedido.');
       return;
     }
@@ -577,10 +577,10 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           </Button>
           <Button
             onClick={handleFinalize}
-            disabled={finalizing || !effectiveCashOpen || (finalTotal > 0 && remaining > 0.01)}
+            disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
             className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
           >
-            <Check className="h-4 w-4" /> {finalizing ? 'FINALIZANDO...' : remaining <= 0.01 ? 'FINALIZAR VENDA' : 'PAGAMENTO INCOMPLETO'}
+            <Check className="h-4 w-4" /> {finalizing ? 'FINALIZANDO...' : remaining <= 0 ? 'FINALIZAR VENDA' : 'PAGAMENTO INCOMPLETO'}
           </Button>
         </div>
       </div>
@@ -1305,14 +1305,14 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
               <Button
                 onClick={handleFinalize}
-                disabled={!effectiveCashOpen || (finalTotal > 0 && remaining > 0.01)}
+                disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
                 className={`font-extrabold h-10 px-6 text-xs shadow-md tracking-wide ${
-                  remaining <= 0.01
+                  remaining <= 0
                     ? 'bg-blue-600 hover:bg-blue-700 text-white'
                     : 'bg-muted text-muted-foreground opacity-70 cursor-not-allowed'
                 }`}
               >
-                {remaining <= 0.01 ? '✓ Finalizar Venda' : 'Aguardando Pagamento'}
+                {remaining <= 0 ? '✓ Finalizar Venda' : 'Aguardando Pagamento'}
               </Button>
             </div>
           </div>
