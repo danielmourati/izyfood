@@ -1305,14 +1305,14 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
               <Button
                 onClick={handleFinalize}
-                disabled={!effectiveCashOpen || (finalTotal > 0 && remaining > 0.01)}
+                disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
                 className={`font-extrabold h-10 px-6 text-xs shadow-md tracking-wide ${
-                  remaining <= 0.01
+                  remaining <= 0
                     ? 'bg-blue-600 hover:bg-blue-700 text-white'
                     : 'bg-muted text-muted-foreground opacity-70 cursor-not-allowed'
                 }`}
               >
-                {remaining <= 0.01 ? '✓ Finalizar Venda' : 'Aguardando Pagamento'}
+                {remaining <= 0 ? '✓ Finalizar Venda' : 'Aguardando Pagamento'}
               </Button>
             </div>
           </div>
