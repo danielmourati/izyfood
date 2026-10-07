@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { OrderItemDetails } from '@/components/OrderItemDetails';
 
 describe('OrderItemDetails', () => {
-  it('shows structured observations, free text, and complements without legacy duplicates', () => {
+  it('shows structured observations, free text, and additional items without legacy duplicates', () => {
     render(
       <OrderItemDetails
         item={{
@@ -31,7 +31,7 @@ describe('OrderItemDetails', () => {
     expect(screen.getByText('Observações:')).toBeInTheDocument();
   });
 
-  it('uses plural heading once for multiple complements', () => {
+  it('uses plural heading once for multiple additional items', () => {
     render(
       <OrderItemDetails
         item={{

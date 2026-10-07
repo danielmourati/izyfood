@@ -260,7 +260,7 @@ export function ConsumerProductFinderModal({
                                   onPersonalize(prod);
                                 }}
                                 className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-transform active:scale-95"
-                                title="Personalizar complementos e observações (Enter)"
+                                title="Personalizar adicionais e observações (Enter)"
                               >
                                 <MoreHorizontal className="h-4 w-4 stroke-[3]" />
                               </button>
