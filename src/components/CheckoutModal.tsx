@@ -447,7 +447,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                     onClick={() => {
                       if (activeSubModal === 'fiado') handleSaveFiadoSplit();
                       else if (activeSubModal === 'pix') handleSavePixSplit();
-                      else handleSaveSubSplit(activeSubModal);
+                      else if (activeSubModal === 'dinheiro' || activeSubModal === 'cartao') handleSaveSubSplit(activeSubModal);
                     }}
                   >
                     <Check className="h-4 w-4 mr-1" /> Adicionar
