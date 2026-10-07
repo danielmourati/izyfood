@@ -278,7 +278,7 @@ describe('ESC/POS bill receipt', () => {
     expect(lines[priceIdx - 1]).not.toMatch(/R\$/);
   });
 
-  it('58mm: complemento longo mantém indentação alinhada ao "+" nas linhas quebradas', () => {
+  it('58mm: adicional longo mantém indentação alinhada ao "+" nas linhas quebradas', () => {
     const receipt = decodeReceipt(buildBillReceipt({
       id: 'x3',
       orderType: 'balcao',
@@ -297,8 +297,8 @@ describe('ESC/POS bill receipt', () => {
     const lines = receipt.split('\n');
     const firstCompIdx = lines.findIndex(l => /^\s*\+ 1x Cobertura/.test(l));
     expect(firstCompIdx).toBeGreaterThan(-1);
-    // Ao menos uma linha subsequente do mesmo complemento (quebrada) deve começar com a indentação alinhada ao caractere após o "+"
-    // Prefixo do complemento é "  + " (4 chars) → linhas de continuação começam com 4 espaços.
+    // Ao menos uma linha subsequente do mesmo adicional (quebrada) deve começar com a indentação alinhada ao caractere após o "+"
+    // Prefixo do adicional é "  + " (4 chars) → linhas de continuação começam com 4 espaços.
     const nextLine = lines[firstCompIdx + 1];
     expect(nextLine).toBeDefined();
     expect(nextLine.startsWith('    ')).toBe(true);
@@ -468,7 +468,7 @@ describe('kitchen order notes rendering', () => {
     expect(noteIdx).toBeGreaterThan(itemIdx);
   });
 
-  it('buildOrderReceipt: keeps observation between item and complements', () => {
+  it('buildOrderReceipt: merges legacy observations and current additional items', () => {
     const receipt = decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
@@ -527,7 +527,7 @@ describe('kitchen order notes rendering', () => {
     expect(lines).toEqual(['Arroz Branco']);
   });
 
-  it('buildBillReceipt: prints observations and complements beneath the item', () => {
+  it('buildBillReceipt: prints legacy observations and current additional items beneath the item', () => {
     const receipt = decodeReceipt(buildBillReceipt({
       ...baseOrder,
       items: [{

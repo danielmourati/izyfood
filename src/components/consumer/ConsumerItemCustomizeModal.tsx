@@ -227,27 +227,27 @@ export function ConsumerItemCustomizeModal({
             </div>
           </div>
 
-          {/* Right Column: Complementos */}
+          {/* Right Column: Adicionais */}
           <div className="flex flex-col min-h-fit md:h-full md:overflow-hidden p-3 bg-muted/10">
             <h3 className="text-base font-bold text-foreground mb-2 flex items-center gap-2">
-              Complementos
+              Adicionais
             </h3>
 
             {/* Search Bar */}
             <div className="relative mb-3 shrink-0">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Pesquisar complementos..."
+                placeholder="Pesquisar adicionais..."
                 value={compSearch}
                 onChange={e => setCompSearch(e.target.value)}
                 className="pl-8 h-8 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
               />
             </div>
 
-            {/* Complements List */}
+            {/* Additional items list */}
             <div className="md:flex-1 md:overflow-y-auto space-y-1.5 pr-1 border border-border rounded bg-background p-2">
               {filteredComplements.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhum complemento disponível</p>
+                <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhum adicional disponível</p>
               ) : (
                 filteredComplements.map(comp => {
                   const qty = getCompQty(comp.name);

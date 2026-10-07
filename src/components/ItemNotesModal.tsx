@@ -134,11 +134,11 @@ export function ItemNotesModal({
                     />
                 </div>
 
-                {/* Complementos Section */}
+                {/* Adicionais Section */}
                 <div>
-                    <h3 className="text-primary font-bold text-lg mb-3">Complementos</h3>
+                    <h3 className="text-primary font-bold text-lg mb-3">Adicionais</h3>
                     <div className="flex flex-col gap-1 border-t">
-                        {availableComplements.length === 0 && <p className="text-sm text-muted-foreground italic py-3">Nenhum complemento disponível.</p>}
+                        {availableComplements.length === 0 && <p className="text-sm text-muted-foreground italic py-3">Nenhum adicional disponível.</p>}
                         {availableComplements.map(comp => {
                             const qty = getCompQty(comp.name);
                             return (

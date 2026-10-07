@@ -975,8 +975,8 @@ export function ConsumerOrderModal({
                       type="button"
                       variant="outline"
                       onClick={handleCustomizeSelectedMobileProduct}
-                      aria-label="Selecionar observações e complementos"
-                      title="Selecionar observações e complementos"
+                      aria-label="Selecionar observações e adicionais"
+                      title="Selecionar observações e adicionais"
                       className="w-full bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
                     >
                       <ListChecks className="h-6 w-6" strokeWidth={3} />

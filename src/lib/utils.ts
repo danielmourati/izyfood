@@ -39,6 +39,40 @@ export function getOrderItemNoteLines(item: {
   }, []);
 }
 
+export interface OrderItemAdditionalLine {
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+/** Merge legacy observations and current additional items into one display/print list. */
+export function getOrderItemAdditionalLines(item: {
+  notes?: string;
+  selectedNotes?: string[];
+  otherNotes?: string;
+  selectedComplements?: { name: string; price: number; quantity: number }[];
+}): OrderItemAdditionalLine[] {
+  const merged = new Map<string, OrderItemAdditionalLine>();
+
+  for (const name of getOrderItemNoteLines(item)) {
+    const key = name.toLocaleLowerCase('pt-BR');
+    merged.set(key, { name, quantity: 1, price: 0 });
+  }
+
+  for (const additional of item.selectedComplements || []) {
+    const name = String(additional.name || '').trim();
+    if (!name) continue;
+    const key = name.toLocaleLowerCase('pt-BR');
+    merged.set(key, {
+      name,
+      quantity: additional.quantity || 1,
+      price: additional.price || 0,
+    });
+  }
+
+  return [...merged.values()];
+}
+
 /** Format a numeric value for controlled BRL currency inputs. */
 export function formatBRLInput(value: number): string {
   if (!Number.isFinite(value)) return '';

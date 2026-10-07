@@ -1109,8 +1109,8 @@ function CartContent({
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label="Observações e complementos"
-                          title="Observações e complementos"
+                          aria-label="Observações e adicionais"
+                          title="Observações e adicionais"
                           className={`relative h-7 w-7 ${hasCustom ? 'text-primary' : 'text-muted-foreground'} hover:text-primary disabled:opacity-40`}
                           onClick={() => setEditingItemNotesId?.(item.id)}
                           disabled={item.printed}

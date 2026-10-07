@@ -307,7 +307,7 @@ const Produtos = () => {
         <h1 className="text-2xl font-bold text-foreground">Produtos</h1>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => { setOptsDialogOpen(true); }}>
-            <Tag className="h-4 w-4 mr-2" /> Obs & Complementos
+            <Tag className="h-4 w-4 mr-2" /> Observações & Adicionais
           </Button>
           <Button variant="outline" onClick={openCreateCat}>
             <Tag className="h-4 w-4 mr-2" /> Nova Categoria
@@ -565,14 +565,14 @@ const Produtos = () => {
   <Dialog open={optsDialogOpen} onOpenChange={setOptsDialogOpen}>
     <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
       <DialogHeader className="shrink-0 flex flex-row items-center justify-between">
-        <DialogTitle>Observações e Complementos</DialogTitle>
+        <DialogTitle>Observações e Adicionais</DialogTitle>
       </DialogHeader>
       <div className="flex gap-2 mb-2 shrink-0">
         <Button size="sm" variant="outline" className="flex-1" onClick={() => { setEditingOptId(null); setOptForm({ ...emptyNoteOptionForm, type: 'note' }); setOptFormOpen(true); }}>
           <Plus className="h-4 w-4 mr-1" /> Nova Observação
         </Button>
         <Button size="sm" onClick={() => { setEditingOptId(null); setOptForm({ ...emptyNoteOptionForm, type: 'complement' }); setOptFormOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Novo Complemento
+          <Plus className="h-4 w-4 mr-1" /> Novo Adicional
         </Button>
       </div>
       <div className="flex-1 overflow-auto p-1 space-y-5">
@@ -610,21 +610,21 @@ const Produtos = () => {
           )}
         </div>
 
-        {/* Complementos */}
+        {/* Adicionais */}
         <div>
           <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 px-1 flex items-center gap-1.5">
             <span className="inline-block w-2 h-2 rounded-full bg-primary" />
-            Complementos Pagos ({noteOptions.filter(o => o.type === 'complement').length})
+            Adicionais ({noteOptions.filter(o => o.type === 'complement').length})
           </h3>
           {noteOptions.filter(o => o.type === 'complement').length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhum complemento cadastrado.</p>
+            <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhum adicional cadastrado.</p>
           ) : (
             <div className="grid gap-2">
               {noteOptions.filter(o => o.type === 'complement').map(opt => (
                 <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="default">Complemento</Badge>
+                      <Badge variant="default">Adicional</Badge>
                       <span className="font-bold">{opt.name}</span>
                       {opt.price > 0 && <span className="text-sm text-primary font-bold">R$ {fmt(opt.price)}</span>}
                     </div>
@@ -652,7 +652,11 @@ const Produtos = () => {
   <Dialog open={optFormOpen} onOpenChange={setOptFormOpen}>
     <DialogContent className="max-w-md">
       <DialogHeader>
-        <DialogTitle>{editingOptId ? 'Editar Opção' : 'Nova Opção'}</DialogTitle>
+        <DialogTitle>
+          {editingOptId
+            ? `Editar ${optForm.type === 'note' ? 'Observação' : 'Adicional'}`
+            : `Nova ${optForm.type === 'note' ? 'Observação' : 'Adicional'}`}
+        </DialogTitle>
       </DialogHeader>
       <div className="space-y-4">
         <div className="flex gap-4">
@@ -662,7 +666,7 @@ const Produtos = () => {
           </label>
           <label className="flex items-center gap-2">
             <input type="radio" checked={optForm.type === 'complement'} onChange={() => setOptForm(f => ({ ...f, type: 'complement' }))} />
-            <span>Complemento Pago</span>
+            <span>Adicional</span>
           </label>
         </div>
 
