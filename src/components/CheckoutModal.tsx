@@ -829,6 +829,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                     <span className="text-2xl font-extrabold text-foreground">
                       R$ {fmt(remaining)}
                     </span>
+                    {splitsSaveError && <span className="text-xs text-destructive block">{splitsSaveError}</span>}
                   </div>
                 </div>
               </div>
