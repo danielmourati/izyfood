@@ -365,7 +365,8 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   // PIX key & QR code string
   const pixKey = printSettings?.pixKey || '';
-  const pixPayload = pixKey ? generatePixPayload(pixKey, remaining > 0 ? remaining : finalTotal, printSettings.storeName || 'IZYFOOD') : '';
+  const pixAmount = activeSubModal === 'pix' ? parseBRLInput(subAmountStr) : remaining;
+  const pixPayload = pixKey ? generatePixPayload(pixKey, pixAmount > 0 ? pixAmount : finalTotal, printSettings.storeName || 'IZYFOOD') : '';
 
   const isMobile = useIsMobile();
 
