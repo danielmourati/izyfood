@@ -1071,6 +1071,15 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                 </div>
               </div>
 
+              <div className="space-y-1 max-w-sm">
+                <Label className="text-xs font-semibold">Valor no Fiado</Label>
+                <CurrencyInput
+                  value={subAmountStr}
+                  onValueChange={setSubAmountStr}
+                  className="h-11 text-lg font-bold bg-background"
+                />
+              </div>
+
               {/* Customer Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1170,6 +1179,15 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                 <p className="text-xs text-muted-foreground">Escaneie o QR Code ou copie o código Pix</p>
               </div>
 
+              <div className="space-y-1 text-left">
+                <Label className="text-xs font-semibold">Valor no PIX</Label>
+                <CurrencyInput
+                  value={subAmountStr}
+                  onValueChange={setSubAmountStr}
+                  className="h-12 text-lg font-bold text-center bg-background"
+                />
+              </div>
+
               {!pixKey ? (
                 <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-md text-left space-y-3">
                   <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-xs">
@@ -1192,7 +1210,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                 <div className="space-y-4 bg-background border border-border p-4 rounded-md">
                   <div className="text-center">
                     <span className="text-xs text-muted-foreground block">Valor a pagar:</span>
-                    <span className="text-2xl font-extrabold text-primary">R$ {fmt(remaining)}</span>
+                    <span className="text-2xl font-extrabold text-primary">R$ {fmt(parseBRLInput(subAmountStr))}</span>
                   </div>
 
                   {/* Generated QR Code Image */}
