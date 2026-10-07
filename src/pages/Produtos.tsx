@@ -620,7 +620,7 @@ const Produtos = () => {
             <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhum adicional cadastrado.</p>
           ) : (
             <div className="grid gap-2">
-              {noteOptions.filter(o => o.type === 'complement').map(opt => (
+              {sortAllAdditionalsFirst(noteOptions.filter(o => o.type === 'complement')).map(opt => (
                 <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
                   <div>
                     <div className="flex items-center gap-2">
