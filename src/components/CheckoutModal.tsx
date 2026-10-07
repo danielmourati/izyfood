@@ -153,6 +153,19 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const remaining = Math.max(0, finalTotal - totalAssigned);
   const hasFiado = splits.some(s => s.method === 'fiado');
 
+  const getValidSplitAmount = () => {
+    const amount = Math.round(parseBRLInput(subAmountStr) * 100) / 100;
+    if (amount <= 0) {
+      toast.error('Informe um valor válido maior que zero.');
+      return null;
+    }
+    if (amount > remaining + 0.01) {
+      toast.error(`O valor não pode ultrapassar o saldo de R$ ${fmt(remaining)}.`);
+      return null;
+    }
+    return Math.min(amount, remaining);
+  };
+
   // Handle global shortcuts for opening sub-modals (A, P, C, B, D, F) when in 'list' mode
   useEffect(() => {
     if (!open || activeSubModal !== 'list') return;
@@ -216,11 +229,8 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   // Save Split from Dinheiro or Cartão Sub-modal
   const handleSaveSubSplit = (method: PaymentMethod) => {
-    const amt = parseBRLInput(subAmountStr);
-    if (amt <= 0) {
-      toast.error('Informe um valor válido maior que zero.');
-      return;
-    }
+    const amt = getValidSplitAmount();
+    if (amt == null) return;
 
     let notesFormatted = subNotes.trim();
     if (method === 'cartao') {
@@ -234,7 +244,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       notesFormatted = details.join(' | ');
     }
 
-    setSplits(prev => [...prev, { method, amount: Math.round(amt * 100) / 100, notes: notesFormatted || undefined }]);
+    setSplits(prev => [...prev, { id: crypto.randomUUID(), method, amount: amt, notes: notesFormatted || undefined }]);
     toast.success(`Pagamento de R$ ${fmt(amt)} adicionado em ${method.toUpperCase()}`);
     setActiveSubModal('list');
   };
@@ -245,18 +255,20 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       toast.error('Selecione um cliente para marcar Fiado.');
       return;
     }
-    const amt = remaining > 0 ? remaining : finalTotal;
+    const amt = getValidSplitAmount();
+    if (amt == null) return;
     const cust = customers.find(c => c.id === selectedFiadoCustomerId);
     setSelectedCustomer(selectedFiadoCustomerId);
-    setSplits(prev => [...prev, { method: 'fiado', amount: Math.round(amt * 100) / 100, notes: `Cliente: ${cust?.name || ''}` }]);
+    setSplits(prev => [...prev, { id: crypto.randomUUID(), method: 'fiado', amount: amt, notes: `Cliente: ${cust?.name || ''}` }]);
     toast.success(`Fiado no valor de R$ ${fmt(amt)} registrado para ${cust?.name || 'Cliente'}`);
     setActiveSubModal('list');
   };
 
   // Save PIX Split
   const handleSavePixSplit = () => {
-    const amt = remaining > 0 ? remaining : finalTotal;
-    setSplits(prev => [...prev, { method: 'pix', amount: Math.round(amt * 100) / 100 }]);
+    const amt = getValidSplitAmount();
+    if (amt == null) return;
+    setSplits(prev => [...prev, { id: crypto.randomUUID(), method: 'pix', amount: amt }]);
     toast.success(`Pagamento Pix de R$ ${fmt(amt)} adicionado!`);
     setActiveSubModal('list');
   };
@@ -377,6 +389,74 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
         {/* Content Container */}
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {activeSubModal !== 'list' ? (
+            <div className="space-y-4">
+              <div className="border border-border bg-card p-4 rounded-md space-y-3">
+                <div>
+                  <h3 className="font-bold text-foreground">
+                    {activeSubModal === 'dinheiro' && 'Pagamento em Dinheiro'}
+                    {activeSubModal === 'pix' && 'Pagamento por PIX'}
+                    {activeSubModal === 'cartao' && `Pagamento no Cartão (${cardSubtype})`}
+                    {activeSubModal === 'fiado' && 'Pagamento Fiado'}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Saldo restante: R$ {fmt(remaining)}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Valor desta forma de pagamento</Label>
+                  <CurrencyInput
+                    value={subAmountStr}
+                    onValueChange={setSubAmountStr}
+                    className="h-12 text-lg font-bold"
+                  />
+                </div>
+
+                {activeSubModal === 'fiado' && (
+                  <div className="space-y-2">
+                    <Label>Cliente</Label>
+                    <Input
+                      value={fiadoSearch}
+                      onChange={e => setFiadoSearch(e.target.value)}
+                      placeholder="Buscar cliente..."
+                    />
+                    <div className="max-h-48 overflow-y-auto border border-border rounded-md divide-y divide-border">
+                      {filteredCustomers.map(customer => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => setSelectedFiadoCustomerId(customer.id)}
+                          className={`w-full p-3 text-left text-sm ${selectedFiadoCustomerId === customer.id ? 'bg-primary/10 font-bold' : 'bg-card'}`}
+                        >
+                          {customer.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeSubModal === 'pix' && pixKey && (
+                  <p className="text-xs text-muted-foreground">Chave PIX: <strong>{pixKey}</strong></p>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setActiveSubModal('list')}>
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={() => {
+                      if (activeSubModal === 'fiado') handleSaveFiadoSplit();
+                      else if (activeSubModal === 'pix') handleSavePixSplit();
+                      else handleSaveSubSplit(activeSubModal);
+                    }}
+                  >
+                    <Check className="h-4 w-4 mr-1" /> Adicionar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* Yellow Summary Block (Anexo 5) */}
           <div className="bg-[#fff3d6] border border-[#ffe099] p-3 rounded text-xs font-mono font-bold text-[#553a00] space-y-1">
             <div className="flex justify-between">
@@ -432,11 +512,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           <div className="pt-2">
             <div className="grid grid-cols-3 gap-2">
               <button
-                onClick={() => {
-                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'dinheiro', amount: remaining > 0 ? remaining : finalTotal };
-                  setSplits(prev => [...prev, split]);
-                  toast.success('Pagamento em Dinheiro adicionado!');
-                }}
+                onClick={() => openSubModal('dinheiro')}
                 className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
               >
                 <Banknote className="h-6 w-6 text-foreground mb-1" />
@@ -444,11 +520,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </button>
 
               <button
-                onClick={() => {
-                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'cartao', amount: remaining > 0 ? remaining : finalTotal };
-                  setSplits(prev => [...prev, split]);
-                  toast.success('Pagamento no Débito adicionado!');
-                }}
+                onClick={() => openSubModal('cartao', 'debito')}
                 className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
               >
                 <CreditCard className="h-6 w-6 text-foreground mb-1" />
@@ -456,11 +528,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </button>
 
               <button
-                onClick={() => {
-                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'cartao', amount: remaining > 0 ? remaining : finalTotal };
-                  setSplits(prev => [...prev, split]);
-                  toast.success('Pagamento no Crédito adicionado!');
-                }}
+                onClick={() => openSubModal('cartao', 'credito')}
                 className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
               >
                 <CreditCard className="h-6 w-6 text-foreground mb-1" />
@@ -469,10 +537,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
               <Button
                 variant="outline"
-                onClick={() => {
-                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'pix', amount: remaining > 0 ? remaining : finalTotal };
-                  setSplits(prev => [...prev, split]);
-                }}
+                onClick={() => openSubModal('pix')}
                 className="h-auto whitespace-normal bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
               >
                 <QrCode className="h-6 w-6 text-foreground mb-1" />
@@ -480,11 +545,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </Button>
 
               <button
-                onClick={() => {
-                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'cartao', amount: remaining > 0 ? remaining : finalTotal };
-                  setSplits(prev => [...prev, split]);
-                  toast.success('Pagamento Vale Alim. adicionado!');
-                }}
+                onClick={() => openSubModal('cartao', 'refeicao')}
                 className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
               >
                 <ShoppingBag className="h-6 w-6 text-foreground mb-1" />
@@ -492,11 +553,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </button>
 
               <button
-                onClick={() => {
-                  const split: PaymentSplit = { id: crypto.randomUUID(), method: 'cartao', amount: remaining > 0 ? remaining : finalTotal };
-                  setSplits(prev => [...prev, split]);
-                  toast.success('Pagamento Vale Ref. adicionado!');
-                }}
+                onClick={() => openSubModal('cartao', 'refeicao')}
                 className="bg-card border border-border hover:bg-muted p-4 rounded-md flex flex-col items-center justify-center text-center shadow-xs active:scale-95"
               >
                 <ShoppingBag className="h-6 w-6 text-foreground mb-1" />
@@ -504,6 +561,8 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </button>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* Bottom Footer Action Bar matching Anexo 5 */}
@@ -517,9 +576,10 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           </Button>
           <Button
             onClick={handleFinalize}
+            disabled={finalizing || !effectiveCashOpen || (finalTotal > 0 && remaining > 0.01)}
             className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
           >
-            <Plus className="h-4 w-4" /> ADICIONAR PAGAMENTO
+            <Check className="h-4 w-4" /> {finalizing ? 'FINALIZANDO...' : remaining <= 0.01 ? 'FINALIZAR VENDA' : 'PAGAMENTO INCOMPLETO'}
           </Button>
         </div>
       </div>
@@ -1117,7 +1177,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                     <span>Nenhuma Chave PIX Cadastrada</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Para gerar o QR Code dinâmico do Pix, cadastre a Chave PIX do seu restaurante no menu Configurações.
+                    Você pode registrar o pagamento normalmente. Para gerar o QR Code dinâmico, cadastre a Chave PIX no menu Configurações.
                   </p>
                   <Button
                     type="button"
@@ -1178,7 +1238,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                 <Button
                   type="button"
                   onClick={handleSavePixSplit}
-                  disabled={!pixKey}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-6 text-xs shadow-md"
                 >
                   <Check className="h-4 w-4 mr-1" /> Confirmar Pagamento Pix
