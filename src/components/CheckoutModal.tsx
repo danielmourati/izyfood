@@ -577,10 +577,10 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           </Button>
           <Button
             onClick={handleFinalize}
-            disabled={finalizing || !effectiveCashOpen || (finalTotal > 0 && remaining > 0.01)}
+            disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
             className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
           >
-            <Check className="h-4 w-4" /> {finalizing ? 'FINALIZANDO...' : remaining <= 0.01 ? 'FINALIZAR VENDA' : 'PAGAMENTO INCOMPLETO'}
+            <Check className="h-4 w-4" /> {finalizing ? 'FINALIZANDO...' : remaining <= 0 ? 'FINALIZAR VENDA' : 'PAGAMENTO INCOMPLETO'}
           </Button>
         </div>
       </div>
