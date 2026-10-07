@@ -26,12 +26,12 @@ export function ItemNotesModal({
     const product = item ? products.find(p => p.id === item.productId) : null;
     const categoryId = product?.categoryId;
 
-    const availableNotes = useMemo(() => 
-        noteOptions.filter(o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId))),
+    const availableNotes = useMemo(() =>
+        sortAllAdditionalsFirst(noteOptions.filter(o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId)))),
     [noteOptions, categoryId]);
 
-    const availableComplements = useMemo(() => 
-        noteOptions.filter(o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId))),
+    const availableComplements = useMemo(() =>
+        sortAllAdditionalsFirst(noteOptions.filter(o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId)))),
     [noteOptions, categoryId]);
 
     useEffect(() => {

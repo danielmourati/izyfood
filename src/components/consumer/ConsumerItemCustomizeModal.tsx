@@ -38,15 +38,15 @@ export function ConsumerItemCustomizeModal({
   const categoryId = product?.categoryId;
 
   const availableNotes = useMemo(() => {
-    return noteOptions.filter(
+    return sortAllAdditionalsFirst(noteOptions.filter(
       o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId))
-    );
+    ));
   }, [noteOptions, categoryId]);
 
   const availableComplements = useMemo(() => {
-    return noteOptions.filter(
+    return sortAllAdditionalsFirst(noteOptions.filter(
       o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId))
-    );
+    ));
   }, [noteOptions, categoryId]);
 
   useEffect(() => {
