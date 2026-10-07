@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Minus, Plus, Check, ChevronLeft, Search, X } from 'lucide-react';
 import { Product, OrderItem } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
-import { fmt } from '@/lib/utils';
+import { fmt, sortAllAdditionalsFirst } from '@/lib/utils';
 
 interface ConsumerItemCustomizeModalProps {
   open: boolean;
