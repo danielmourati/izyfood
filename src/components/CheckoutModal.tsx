@@ -150,7 +150,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const serviceFeeAmount = isMesa && serviceFeePercentage > 0 ? (serviceFeeBase * serviceFeePercentage) / 100 : 0;
   const finalTotal = Math.max(0, subtotal - discountAmount + serviceFeeAmount);
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
-  const remaining = Math.max(0, finalTotal - totalAssigned);
+  const remaining = Math.max(0, Math.round((finalTotal - totalAssigned) * 100) / 100);
   const hasFiado = splits.some(s => s.method === 'fiado');
 
   const getValidSplitAmount = () => {
@@ -312,7 +312,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       toast.error('Adicione pelo menos uma forma de pagamento.');
       return;
     }
-    if (finalTotal > 0 && totalAssigned < finalTotal - 0.01) {
+    if (Math.round(finalTotal * 100) > 0 && Math.round(totalAssigned * 100) < Math.round(finalTotal * 100)) {
       toast.error('O valor pago é inferior ao total do pedido.');
       return;
     }
