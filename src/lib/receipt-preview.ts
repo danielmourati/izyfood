@@ -5,7 +5,7 @@
  */
 
 import type { PrintSettings } from './escpos';
-import { getOrderItemNoteLines } from './utils';
+import { getOrderItemAdditionalLines } from './utils';
 
 export interface PreviewItem {
   name: string;
@@ -224,19 +224,13 @@ export function buildBillPreviewText(
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     lines.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
-    const notes = getOrderItemNoteLines(item);
-    if (notes.length === 1) {
-      lines.push(...detailWrap('Obs: ', notes[0], cols));
-    } else if (notes.length > 1) {
-      lines.push('  Observações:');
-      for (const note of notes) lines.push(...detailWrap('  • ', note, cols));
-    }
-    if (item.selectedComplements && item.selectedComplements.length > 0) {
-      lines.push(`  ${item.selectedComplements.length === 1 ? 'Adicional:' : 'Adicionais:'}`);
-      for (const c of item.selectedComplements) {
-        const compQty = `${c.quantity}x`;
-        const compPrice = fmtBRL(c.price * c.quantity * (item.weight ? 1 : item.quantity));
-        lines.push(rowWrap(`  + ${compQty} ${c.name}`, compPrice, cols));
+    const additionalItems = getOrderItemAdditionalLines(item);
+    if (additionalItems.length > 0) {
+      lines.push(`  ${additionalItems.length === 1 ? 'Adicional:' : 'Adicionais:'}`);
+      for (const additional of additionalItems) {
+        const additionalQty = `${additional.quantity}x`;
+        const additionalPrice = fmtBRL(additional.price * additional.quantity * (item.weight ? 1 : item.quantity));
+        lines.push(rowWrap(`  + ${additionalQty} ${additional.name}`, additionalPrice, cols));
       }
     }
   }

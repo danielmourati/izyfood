@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { getOrderItemNoteLines } from '@/lib/utils';
+import { getOrderItemAdditionalLines } from '@/lib/utils';
 
 const ESC = 0x1B;
 const GS = 0x1D;
@@ -624,20 +624,12 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
       CMD_BOLD_OFF,
       normalTextMode()
     );
-    const noteLines = getItemNoteLines(item);
-    if (noteLines.length === 1) {
-      parts.push(CMD_BOLD_ON, textOnlyWrap(`   OBS: ${noteLines[0].toUpperCase()}`, cols), CMD_BOLD_OFF);
-    } else if (noteLines.length > 1) {
-      parts.push(CMD_BOLD_ON, textOnlyWrap('   OBSERVACOES:', cols), CMD_BOLD_OFF);
-      for (const note of noteLines) {
-        parts.push(CMD_BOLD_ON, textOnlyWrap(`   * ${note.toUpperCase()}`, cols), CMD_BOLD_OFF);
-      }
-    }
-    if (item.selectedComplements && item.selectedComplements.length > 0) {
-      const complementTitle = item.selectedComplements.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
-      parts.push(textOnlyWrap(`   ${complementTitle}`, cols));
-      for (const comp of item.selectedComplements) {
-        parts.push(textOnlyWrap(`   + ${comp.quantity}x ${comp.name}`, cols));
+    const additionalItems = getOrderItemAdditionalLines(item);
+    if (additionalItems.length > 0) {
+      const additionalTitle = additionalItems.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
+      parts.push(textOnlyWrap(`   ${additionalTitle}`, cols));
+      for (const additional of additionalItems) {
+        parts.push(textOnlyWrap(`   + ${additional.quantity}x ${additional.name}`, cols));
       }
     }
   }
@@ -716,20 +708,14 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     parts.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
-    const noteLines = getItemNoteLines(item);
-    if (noteLines.length === 1) {
-      parts.push(textOnlyWrap(`  OBS: ${noteLines[0]}`, cols));
-    } else if (noteLines.length > 1) {
-      parts.push(textOnlyWrap('  OBSERVACOES:', cols));
-      for (const note of noteLines) parts.push(textOnlyWrap(`  * ${note}`, cols));
-    }
-    if (item.selectedComplements && item.selectedComplements.length > 0) {
-      const complementTitle = item.selectedComplements.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
-      parts.push(textOnlyWrap(`  ${complementTitle}`, cols));
-      for (const comp of item.selectedComplements) {
-        const compQty = `${comp.quantity}x`;
-        const compPrice = fmtBRL(comp.price * comp.quantity * (item.weight ? 1 : item.quantity));
-        parts.push(rowWrap(`  + ${compQty} ${comp.name}`, compPrice, cols));
+    const additionalItems = getOrderItemAdditionalLines(item);
+    if (additionalItems.length > 0) {
+      const additionalTitle = additionalItems.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
+      parts.push(textOnlyWrap(`  ${additionalTitle}`, cols));
+      for (const additional of additionalItems) {
+        const additionalQty = `${additional.quantity}x`;
+        const additionalPrice = fmtBRL(additional.price * additional.quantity * (item.weight ? 1 : item.quantity));
+        parts.push(rowWrap(`  + ${additionalQty} ${additional.name}`, additionalPrice, cols));
       }
     }
   }

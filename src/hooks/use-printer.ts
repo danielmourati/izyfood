@@ -686,19 +686,11 @@ export function buildOrderHtml(order: any, ps: any = {}): string {
     totalItemsCount += i.quantity || 1;
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
     let html = `<p class="bold" style="margin: 0 0 2px 0;">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
-    const noteLines = getItemNoteLines(i);
-    if (noteLines.length === 1) {
-      html += `<p style="margin: 0 0 4px 12px; font-size: 12px; font-style: italic;"><strong>Obs:</strong> ${noteLines[0]}</p>`;
-    } else if (noteLines.length > 1) {
-      html += '<p style="margin: 0 0 2px 12px; font-size: 12px;"><strong>Observações:</strong></p>';
-      noteLines.forEach((n: string) => {
-        html += `<p style="margin: 0 0 2px 20px; font-size: 12px; font-style: italic;">• ${n}</p>`;
-      });
-    }
-    if (i.selectedComplements && i.selectedComplements.length > 0) {
-      html += `<p style="margin: 0 0 2px 12px; font-size: 12px;"><strong>${i.selectedComplements.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
-      i.selectedComplements.forEach((c: any) => {
-        html += `<p style="margin: 0 0 2px 12px; font-size: 12px;">+ ${c.quantity}x ${c.name}</p>`;
+    const additionalItems = getOrderItemAdditionalLines(i);
+    if (additionalItems.length > 0) {
+      html += `<p style="margin: 0 0 2px 12px; font-size: 12px;"><strong>${additionalItems.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
+      additionalItems.forEach((additional: any) => {
+        html += `<p style="margin: 0 0 2px 12px; font-size: 12px;">+ ${additional.quantity}x ${additional.name}</p>`;
       });
     }
     return html;
@@ -750,19 +742,11 @@ export function buildBillHtml(bill: any, ps: any = {}): string {
   const items = (bill.items || []).map((i: any) => {
     const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}x`;
     let html = `<div class="row"><span>${qty} ${i.name || 'Item'}</span><span>${fmtBRL(i.subtotal || 0)}</span></div>`;
-    const noteLines = getItemNoteLines(i);
-    if (noteLines.length === 1) {
-      html += `<p style="margin: 0 0 2px 12px; font-size: 11px; font-style: italic;"><strong>Obs:</strong> ${noteLines[0]}</p>`;
-    } else if (noteLines.length > 1) {
-      html += '<p style="margin: 0 0 2px 12px; font-size: 11px;"><strong>Observações:</strong></p>';
-      noteLines.forEach((note: string) => {
-        html += `<p style="margin: 0 0 2px 20px; font-size: 11px; font-style: italic;">• ${note}</p>`;
-      });
-    }
-    if (i.selectedComplements && i.selectedComplements.length > 0) {
-      html += `<p style="margin: 0 0 2px 12px; font-size: 11px;"><strong>${i.selectedComplements.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
-      i.selectedComplements.forEach((c: any) => {
-        html += `<div class="row" style="font-size: 11px; padding-left: 12px;"><span>+ ${c.quantity}x ${c.name}</span><span>${fmtBRL(c.price * c.quantity * (i.weight ? 1 : i.quantity))}</span></div>`;
+    const additionalItems = getOrderItemAdditionalLines(i);
+    if (additionalItems.length > 0) {
+      html += `<p style="margin: 0 0 2px 12px; font-size: 11px;"><strong>${additionalItems.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
+      additionalItems.forEach((additional: any) => {
+        html += `<div class="row" style="font-size: 11px; padding-left: 12px;"><span>+ ${additional.quantity}x ${additional.name}</span><span>${fmtBRL(additional.price * additional.quantity * (i.weight ? 1 : i.quantity))}</span></div>`;
       });
     }
     return html;
