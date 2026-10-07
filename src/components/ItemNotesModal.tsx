@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { OrderItem } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
+import { sortAllAdditionalsFirst } from '@/lib/utils';
 
 export function ItemNotesModal({
     open,
@@ -26,12 +27,12 @@ export function ItemNotesModal({
     const product = item ? products.find(p => p.id === item.productId) : null;
     const categoryId = product?.categoryId;
 
-    const availableNotes = useMemo(() => 
-        noteOptions.filter(o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId))),
+    const availableNotes = useMemo(() =>
+        sortAllAdditionalsFirst(noteOptions.filter(o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId)))),
     [noteOptions, categoryId]);
 
-    const availableComplements = useMemo(() => 
-        noteOptions.filter(o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId))),
+    const availableComplements = useMemo(() =>
+        sortAllAdditionalsFirst(noteOptions.filter(o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId)))),
     [noteOptions, categoryId]);
 
     useEffect(() => {

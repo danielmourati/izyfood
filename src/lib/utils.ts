@@ -15,6 +15,18 @@ export function fmtWeight(value: number): string {
   return value.toString().replace('.', ',');
 }
 
+/** The special "Todos os adicionais" option always sorts to the top of option lists. */
+export function isAllAdditionalsOption(name: string): boolean {
+  return name.trim().toLocaleLowerCase('pt-BR') === 'todos os adicionais';
+}
+
+/** Stable sort that keeps "Todos os adicionais" first, preserving the original order otherwise. */
+export function sortAllAdditionalsFirst<T extends { name: string }>(options: T[]): T[] {
+  return [...options].sort(
+    (a, b) => Number(isAllAdditionalsOption(b.name)) - Number(isAllAdditionalsOption(a.name))
+  );
+}
+
 /** Return item observations without duplicating structured and legacy values. */
 export function getOrderItemNoteLines(item: {
   notes?: string;

@@ -84,4 +84,19 @@ describe('ConsumerItemCustomizeModal', () => {
       selectedComplements: [{ name: 'Todos os adicionais', price: 0, quantity: 1 }],
     }));
   });
+
+  it('keeps Todos os adicionais at the top of the additions list', () => {
+    render(
+      <ConsumerItemCustomizeModal
+        open
+        onClose={() => undefined}
+        product={product}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const all = screen.getByText('Todos os adicionais');
+    const lime = screen.getByText(/Limão/);
+    expect(all.compareDocumentPosition(lime) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

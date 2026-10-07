@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Minus, Plus, Check, ChevronLeft, Search, X } from 'lucide-react';
 import { Product, OrderItem } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
-import { fmt } from '@/lib/utils';
+import { fmt, sortAllAdditionalsFirst } from '@/lib/utils';
 
 interface ConsumerItemCustomizeModalProps {
   open: boolean;
@@ -38,15 +38,15 @@ export function ConsumerItemCustomizeModal({
   const categoryId = product?.categoryId;
 
   const availableNotes = useMemo(() => {
-    return noteOptions.filter(
+    return sortAllAdditionalsFirst(noteOptions.filter(
       o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId))
-    );
+    ));
   }, [noteOptions, categoryId]);
 
   const availableComplements = useMemo(() => {
-    return noteOptions.filter(
+    return sortAllAdditionalsFirst(noteOptions.filter(
       o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId))
-    );
+    ));
   }, [noteOptions, categoryId]);
 
   useEffect(() => {

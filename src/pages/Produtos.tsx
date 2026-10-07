@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { usePrinter } from '@/hooks/use-printer';
-import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
+import { fmt, formatBRLInput, parseBRLInput, sortAllAdditionalsFirst } from '@/lib/utils';
 import { sectorLabel, buildSectorOptions } from '@/lib/print-sectors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -620,7 +620,7 @@ const Produtos = () => {
             <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-lg">Nenhum adicional cadastrado.</p>
           ) : (
             <div className="grid gap-2">
-              {noteOptions.filter(o => o.type === 'complement').map(opt => (
+              {sortAllAdditionalsFirst(noteOptions.filter(o => o.type === 'complement')).map(opt => (
                 <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
                   <div>
                     <div className="flex items-center gap-2">
