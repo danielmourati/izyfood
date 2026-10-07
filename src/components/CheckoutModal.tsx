@@ -118,7 +118,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     }
   }, [open]);
 
-  const effectiveCashOpen = cashRegisterChecked ? localCashOpen : isCashRegisterOpen;
+  const effectiveCashOpen = isCashRegisterOpen || (cashRegisterChecked && localCashOpen);
 
   useEffect(() => {
     if (open && selectedCustomerId) {
@@ -126,7 +126,8 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     }
   }, [open, selectedCustomerId]);
 
-  const subtotal = order?.total ?? 0;
+  const itemsSum = Math.round((order?.items || []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0) * 100) / 100;
+  const subtotal = itemsSum > 0 ? itemsSum : (order?.total ?? 0);
 
   const discountAmount = useMemo(() => {
     const val = discountType === 'fixed'
@@ -580,7 +581,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
             disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
             className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
           >
-            <Check className="h-4 w-4" /> {finalizing ? 'FINALIZANDO...' : remaining <= 0 ? 'FINALIZAR VENDA' : 'PAGAMENTO INCOMPLETO'}
+            <Check className="h-4 w-4" /> {finalizing ? 'FINALIZANDO...' : !effectiveCashOpen ? 'CAIXA FECHADO' : remaining <= 0 ? 'FINALIZAR VENDA' : 'PAGAMENTO INCOMPLETO'}
           </Button>
         </div>
       </div>
