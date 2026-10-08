@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, ExternalLink, RefreshCw, Loader2 } from 'lucide-react';
+import { Download, ExternalLink, RefreshCw, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchTenantCertPem, downloadDegustBat, downloadCertPem } from '@/lib/qz-installer';
-import { toast } from 'sonner';
 
 interface QzSetupModalProps {
   open: boolean;
@@ -17,6 +16,8 @@ export function QzSetupModal({ open, onOpenChange, onTestConnection }: QzSetupMo
   const [certLoading, setCertLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [diag, setDiag] = useState<{ version: string | null; certFingerprint: string | null; signatureOk: boolean | null; lastSignError: string | null } | null>(null);
 
   const withCert = async (fn: (pem: string, tenantName: string) => void) => {
     setCertLoading(true);
@@ -24,7 +25,7 @@ export function QzSetupModal({ open, onOpenChange, onTestConnection }: QzSetupMo
       const { pem, tenantName } = await fetchTenantCertPem(user?.tenantId);
       fn(pem, tenantName);
     } catch (e: any) {
-      toast.error('Falha ao obter certificado: ' + (e?.message || 'Erro de conexão'));
+      setLastError('Falha ao obter certificado: ' + (e?.message || 'Erro de conexão'));
     } finally {
       setCertLoading(false);
     }
@@ -35,20 +36,21 @@ export function QzSetupModal({ open, onOpenChange, onTestConnection }: QzSetupMo
 
   const handleTest = async () => {
     setTesting(true);
+    setSuccess(false);
     try {
       if (onTestConnection) {
         const result = await onTestConnection();
+        const { lastQzError, qzDiagnostics } = await import('@/lib/printer');
+        setDiag({ ...qzDiagnostics });
         if (result === false) {
-          const { lastQzError } = await import('@/lib/printer');
           setLastError(lastQzError || 'QZ Tray não respondeu. Confira se ele está aberto.');
         } else {
           setLastError(null);
-          toast.success('QZ Tray conectado e validado com sucesso!');
-          onOpenChange(false);
+          setSuccess(true);
         }
       }
     } catch (e: any) {
-      toast.error(e?.message || 'QZ Tray não respondendo.');
+      setLastError(e?.message || 'QZ Tray não respondendo.');
     } finally {
       setTesting(false);
     }
@@ -138,9 +140,50 @@ export function QzSetupModal({ open, onOpenChange, onTestConnection }: QzSetupMo
             <p className="text-xs text-muted-foreground">
               O configurador fecha e abre o QZ Tray sozinho. Se aparecer "Unrecognized Certificate", clique em <strong>Sim</strong> e autorize como administrador; depois feche e abra o QZ Tray. O certificado vale para todas as lojas Degust e Menuzin deste computador — uma única instalação configura os dois aplicativos.
             </p>
-            {lastError && <p className="text-xs text-destructive font-medium">{lastError}</p>}
           </div>
         </div>
+
+        {/* Manual fallback */}
+        <div className="rounded-2xl border border-border bg-muted/40 p-4 space-y-2">
+          <h3 className="font-semibold text-sm text-foreground">Se o alerta "Untrusted website" continuar</h3>
+          <ol className="list-decimal pl-5 space-y-1 text-xs text-muted-foreground">
+            <li>Baixe o <strong className="text-foreground">cert.pem</strong> (botão acima).</li>
+            <li>Clique com o botão direito no ícone do QZ Tray, perto do relógio do Windows.</li>
+            <li>Abra <strong className="text-foreground">Advanced &gt; Site Manager</strong>.</li>
+            <li>Na aba <strong className="text-foreground">Allowed</strong>, clique no <strong className="text-foreground">+</strong> azul e escolha o arquivo <strong className="text-foreground">cert.pem</strong>.</li>
+            <li>Clique em <strong className="text-foreground">Close</strong> e depois em <em>Testar de novo</em>.</li>
+          </ol>
+          <p className="text-[11px] text-muted-foreground">
+            O registro do configurador fica em <code className="font-mono">C:\ProgramData\Degust\qz-setup.log</code>.
+          </p>
+        </div>
+
+        {(lastError || success || diag) && (
+          <div className="rounded-2xl border border-border p-4 space-y-2 text-xs">
+            {success && (
+              <p className="flex items-center gap-2 font-semibold text-primary">
+                <CheckCircle2 className="h-4 w-4" /> QZ Tray conectado e validado com sucesso!
+              </p>
+            )}
+            {lastError && (
+              <p className="flex items-center gap-2 font-medium text-destructive">
+                <XCircle className="h-4 w-4 shrink-0" /> {lastError}
+              </p>
+            )}
+            {diag && (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-muted-foreground">
+                <dt>Versão do QZ Tray</dt>
+                <dd className="text-foreground">{diag.version || 'não conectado'}</dd>
+                <dt>Assinatura</dt>
+                <dd className={diag.signatureOk === false ? 'text-destructive' : 'text-foreground'}>
+                  {diag.signatureOk === true ? 'aceita' : diag.signatureOk === false ? `falhou${diag.lastSignError ? ` (${diag.lastSignError})` : ''}` : 'ainda não solicitada'}
+                </dd>
+                <dt>Certificado</dt>
+                <dd className="font-mono text-[10px] break-all text-foreground">{diag.certFingerprint || '—'}</dd>
+              </dl>
+            )}
+          </div>
+        )}
 
         {/* Footer Actions */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
