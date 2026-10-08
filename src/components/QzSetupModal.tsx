@@ -136,7 +136,7 @@ export function QzSetupModal({ open, onOpenChange, onTestConnection }: QzSetupMo
               Aguarde o QZ Tray reabrir e clique em <em>Testar de novo</em>
             </h3>
             <p className="text-xs text-muted-foreground">
-              O configurador fecha e abre o QZ Tray sozinho. Se aparecer "Unrecognized Certificate", clique em <strong>Sim</strong> e autorize como administrador; depois feche e abra o QZ Tray. O certificado vale para todas as lojas Degust deste computador.
+              O configurador fecha e abre o QZ Tray sozinho. Se aparecer "Unrecognized Certificate", clique em <strong>Sim</strong> e autorize como administrador; depois feche e abra o QZ Tray. O certificado vale para todas as lojas Degust e Menuzin deste computador — uma única instalação configura os dois aplicativos.
             </p>
             {lastError && <p className="text-xs text-destructive font-medium">{lastError}</p>}
           </div>
