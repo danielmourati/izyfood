@@ -394,7 +394,7 @@ const PDV = () => {
     if (enablePrinterDevice || hostOnline) {
       if (hasPrinterAvailable || hostOnline) {
         try {
-          const res = await printOrder(orderData);
+          const res = await printOrder(orderData, { intent: 'new' });
           if (res && res.ok === false) {
             setPrintPreview({ open: true, order: orderData, reason: res.reason || PRINT_DISABLED_REASON });
           } else if (res?.queued) {
@@ -471,7 +471,7 @@ const PDV = () => {
       return;
     }
     try {
-      const res = await printOrder(orderData);
+      const res = await printOrder(orderData, { intent: 'reprint' });
       if (res && res.ok === false) {
         setPrintWarning(res.reason || PRINT_DISABLED_REASON);
         return;

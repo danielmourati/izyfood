@@ -68,6 +68,8 @@ export function ImpressoraTab() {
     auto_connect_qz: true,
     escpos_profile: 'generic',
     feed_lines: 3,
+    double_font_orders: false,
+    duplicate_new_orders: false,
   });
 
   // Combine default and custom sectors, including any stored in DB
@@ -106,6 +108,8 @@ export function ImpressoraTab() {
         auto_connect_qz: currentPrinter.auto_connect_qz ?? true,
         escpos_profile: currentPrinter.escpos_profile || 'generic',
         feed_lines: initialFeed,
+        double_font_orders: currentPrinter.double_font_orders ?? false,
+        duplicate_new_orders: currentPrinter.duplicate_new_orders ?? false,
       });
     } else {
       const activeSectorDef = allSectors.find(s => s.key === selectedSector);
@@ -116,6 +120,8 @@ export function ImpressoraTab() {
         auto_connect_qz: true,
         escpos_profile: 'generic',
         feed_lines: initialFeed,
+        double_font_orders: false,
+        duplicate_new_orders: false,
       });
     }
   }, [selectedSector, currentPrinter, allSectors]);
@@ -166,6 +172,8 @@ export function ImpressoraTab() {
         paper_width: Number(form.paper_width),
         sector: selectedSector,
         tenant_id: user.tenantId,
+        double_font_orders: form.double_font_orders,
+        duplicate_new_orders: form.duplicate_new_orders,
       };
 
       // Save feed lines to local device storage & window cache
@@ -608,6 +616,38 @@ export function ImpressoraTab() {
                             value={form.feed_lines}
                             onChange={(e) => setForm(f => ({ ...f, feed_lines: Math.max(1, Number(e.target.value)) }))}
                             className="rounded-xl bg-background border-border"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-3 border-t border-border pt-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="space-y-0.5">
+                            <Label className="text-xs font-semibold" htmlFor="double-font-orders">
+                              Fonte dupla nas comandas
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Amplia produtos e adicionais para facilitar a leitura.
+                            </p>
+                          </div>
+                          <Switch
+                            id="double-font-orders"
+                            checked={form.double_font_orders}
+                            onCheckedChange={(val) => setForm(f => ({ ...f, double_font_orders: val }))}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="space-y-0.5">
+                            <Label className="text-xs font-semibold" htmlFor="duplicate-new-orders">
+                              Imprimir pedidos novos em duas vias
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Reimpressões, contas e testes continuam com uma via.
+                            </p>
+                          </div>
+                          <Switch
+                            id="duplicate-new-orders"
+                            checked={form.duplicate_new_orders}
+                            onCheckedChange={(val) => setForm(f => ({ ...f, duplicate_new_orders: val }))}
                           />
                         </div>
                       </div>

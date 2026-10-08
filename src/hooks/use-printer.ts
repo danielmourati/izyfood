@@ -139,7 +139,11 @@ export interface PrinterConfig {
   escpos_profile?: string;
   auto_connect_qz?: boolean;
   sector?: string;
+  double_font_orders?: boolean;
+  duplicate_new_orders?: boolean;
 }
+
+export type OrderPrintIntent = 'new' | 'reprint';
 
 export function usePrinter() {
   const { user } = useAuth();
@@ -545,8 +549,9 @@ export function usePrinter() {
   const shouldQueue = (options?: { force?: boolean }) =>
     !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
 
-  const printOrder = async (order: any, options?: { force?: boolean; sector?: string }): Promise<PrintResult> => {
-    if (shouldQueue(options)) return enqueuePrintJob('order', order);
+  const printOrder = async (order: any, options?: { force?: boolean; sector?: string; intent?: OrderPrintIntent }): Promise<PrintResult> => {
+    const intent = options?.intent ?? 'new';
+    if (shouldQueue(options)) return enqueuePrintJob('order', { ...order, __printIntent: intent });
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');
       return { ok: false, reason: PRINT_DISABLED_REASON };
@@ -573,9 +578,13 @@ export function usePrinter() {
       const targetPrinter = getPrinterForSector(sector);
       const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
       console.log(`[printOrder] setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, itens: ${secItems.length}`);
-      const escpos = buildOrderReceipt(secOrder, targetPaperWidth, ps);
-      const html = buildOrderHtml(secOrder, ps);
-      await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
+      const orderSettings = { ...ps, doubleFontOrders: targetPrinter?.double_font_orders === true };
+      const escpos = buildOrderReceipt(secOrder, targetPaperWidth, orderSettings);
+      const html = buildOrderHtml(secOrder, orderSettings);
+      const copies = intent === 'new' && targetPrinter?.duplicate_new_orders === true ? 2 : 1;
+      for (let copy = 0; copy < copies; copy += 1) {
+        await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
+      }
     }
     return { ok: true };
   };
@@ -681,35 +690,34 @@ const orderTypeLabels: Record<string, string> = { balcao: 'Balcão', mesa: 'Mesa
 const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX', cartao: 'Cartão', fiado: 'Fiado' };
 
 export function buildOrderHtml(order: any, ps: any = {}): string {
+  const doubleFont = ps.doubleFontOrders === true;
   let totalItemsCount = 0;
   const items = (order.items || []).map((i: any) => {
     totalItemsCount += i.quantity || 1;
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
-    let html = `<p class="bold" style="margin: 0 0 2px 0;">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
+    const itemFontSize = doubleFont ? '20px' : '13px';
+    const detailFontSize = doubleFont ? '18px' : '12px';
+    let html = `<p class="bold" style="margin: 0 0 2px 0; font-size: ${itemFontSize};">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
     const additionalItems = getOrderItemAdditionalLines(i);
     if (additionalItems.length > 0) {
-      html += `<p style="margin: 0 0 2px 12px; font-size: 12px;"><strong>${additionalItems.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
+      html += `<p style="margin: 0 0 2px 12px; font-size: ${detailFontSize};"><strong>${additionalItems.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
       additionalItems.forEach((additional: any) => {
-        html += `<p style="margin: 0 0 2px 12px; font-size: 12px;">+ ${additional.quantity}x ${additional.name}</p>`;
+        html += `<p style="margin: 0 0 2px 12px; font-size: ${detailFontSize};">+ ${additional.quantity}x ${additional.name}</p>`;
       });
     }
     return html;
   }).join('');
 
-  const orderNo = order.id ? order.id.slice(0, 4).toUpperCase() : '0000';
+  const orderNo = order.id ? order.id.slice(0, 6).toUpperCase() : '000000';
   const createdAt = order.createdAt || new Date().toISOString();
 
-  let tipoLabel = 'BALCÃO';
-  let tipoBorder = '1px solid #000';
-  let tipoColor = '#000';
+  let tipoLabel = 'COZINHA';
   if (order.orderType === 'delivery') {
-    tipoLabel = '\uD83D\uDEF5  DELIVERY';
-    tipoBorder = '2px solid #000';
+    tipoLabel = 'DELIVERY';
   } else if (order.orderType === 'retirada') {
-    tipoLabel = '\uD83D\uDCE6  RETIRADA';
-    tipoBorder = '2px solid #000';
-  } else if (order.tableNumber) {
-    tipoLabel = `MESA: ${String(order.tableNumber).padStart(3, '0')}`;
+    tipoLabel = 'RETIRADA';
+  } else if (order.orderType === 'mesa' || order.tableNumber) {
+    tipoLabel = 'CONSUMO';
   }
 
   const customerLine = order.orderType === 'delivery'
@@ -720,10 +728,9 @@ export function buildOrderHtml(order: any, ps: any = {}): string {
 
   // Comanda da cozinha: sem cabeçalho de loja e sem rodapé promocional.
   return `
-    <div class="center bold" style="font-size: 16px; margin-bottom: 8px;">Cozinha Principal</div>
-    <div style="margin-bottom: 8px;">${fmtDate(createdAt)} | Pedido: ${orderNo}</div>
-    <div class="center" style="margin-bottom: 4px; font-size: 12px;">* Senha: ${orderNo} *</div>
-    <div class="center bold" style="font-size: 20px; border: ${tipoBorder}; color: ${tipoColor}; padding: 6px 4px; margin: 10px 0; letter-spacing: 1px;">${tipoLabel}</div>
+    <div class="center bold" style="font-size: 24px; margin-bottom: 2px;">${tipoLabel}</div>
+    <div class="center bold" style="font-size: 24px; margin-bottom: 8px;">#${orderNo}</div>
+    <div style="margin-bottom: 8px;">${fmtDate(createdAt)}${order.tableNumber ? ` | Mesa: ${String(order.tableNumber).padStart(2, '0')}` : ''}</div>
 
     <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;">Cliente: <strong>${customerLine}</strong></div>
 

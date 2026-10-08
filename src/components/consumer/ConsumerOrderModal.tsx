@@ -28,7 +28,7 @@ interface ConsumerOrderModalProps {
   tableNumber?: number;
   order: Order | null;
   onSaveOrder: (updatedOrder: Order) => void;
-  onPrintOrder?: (order: Order) => void;
+  onPrintOrder?: (order: Order, intent?: 'new' | 'reprint') => void | Promise<void>;
   onPrintBill?: (order: Order) => void;
   onDiscardEmptyOrder?: (orderId: string, tableNumber?: number) => void;
   onDeleteOrder?: (orderId: string, tableNumber?: number) => void;
@@ -221,9 +221,9 @@ export function ConsumerOrderModal({
       try {
         const orderToPrintKitchen = { ...currentOrder, items: unprintedItems };
         if (onPrintOrder) {
-          await onPrintOrder(orderToPrintKitchen);
+          await onPrintOrder(orderToPrintKitchen, 'new');
         } else {
-          const res = await printOrder(orderToPrintKitchen);
+          const res = await printOrder(orderToPrintKitchen, { intent: 'new' });
           if (res && res.ok === false) blockedReason = res.reason || null;
         }
       } catch (err) {
@@ -323,9 +323,9 @@ export function ConsumerOrderModal({
       const orderToPrint = { ...updatedOrder, items: unprintedItems };
 
       if (onPrintOrder) {
-        await onPrintOrder(orderToPrint);
+        await onPrintOrder(orderToPrint, 'new');
       } else {
-        const res = await printOrder(orderToPrint);
+        const res = await printOrder(orderToPrint, { intent: 'new' });
         if (res && res.ok === false) blockedReason = res.reason || null;
         if (res?.queued) queuedAtHost = true;
       }
@@ -673,7 +673,7 @@ export function ConsumerOrderModal({
     const updatedOrder: Order = { ...currentOrder, items: updatedItems };
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
-    if (onPrintOrder) onPrintOrder({ ...updatedOrder, items: unprintedItems });
+    if (onPrintOrder) onPrintOrder({ ...updatedOrder, items: unprintedItems }, 'new');
     toast.success(`${unprintedItems.length} item(ns) novo(s) impresso(s) na cozinha!`);
     setPrintMenuOpen(false);
   };
@@ -2039,7 +2039,7 @@ export function ConsumerOrderModal({
                 onClick={() => {
                   const itemsToReprint = items.filter(i => reprintSelectedIds.includes(i.id));
                   if (onPrintOrder) {
-                    onPrintOrder({ ...currentOrder, items: itemsToReprint });
+                    onPrintOrder({ ...currentOrder, items: itemsToReprint }, 'reprint');
                   }
                   toast.success(`${itemsToReprint.length} item(ns) enviado(s) para reimpressão na cozinha!`);
                   setReprintModalOpen(false);
