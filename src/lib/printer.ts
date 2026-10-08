@@ -488,6 +488,25 @@ let _qzSecurityConfigured = false;
 
 export let lastQzError: string | null = null;
 
+/** Diagnóstico da última tentativa de conexão com o QZ Tray. */
+export const qzDiagnostics: {
+  version: string | null;
+  certFingerprint: string | null;
+  signatureOk: boolean | null;
+  lastSignError: string | null;
+} = { version: null, certFingerprint: null, signatureOk: null, lastSignError: null };
+
+async function sha256Fingerprint(pem: string): Promise<string | null> {
+  try {
+    const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+    const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const hash = await crypto.subtle.digest('SHA-256', bin);
+    return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+  } catch {
+    return null;
+  }
+}
+
 async function configureQzSecurity() {
   if (_qzSecurityConfigured) return;
   const { fetchTenantCertPem } = await import('./qz-installer');
@@ -497,6 +516,7 @@ async function configureQzSecurity() {
   if (!session) throw new Error('Entre no sistema antes de conectar o QZ Tray.');
   // Busca o certificado antes de conectar; se falhar, não conecta
   const { pem } = await fetchTenantCertPem('global');
+  qzDiagnostics.certFingerprint = await sha256Fingerprint(pem);
   _qzSecurityConfigured = true;
   try {
     qz.security.setCertificatePromise((resolve: any) => resolve(pem));
@@ -506,12 +526,26 @@ async function configureQzSecurity() {
       supabase.functions
         .invoke('qz-sign', { body: { request: toSign } })
         .then(({ data, error }) => {
-          if (error) return reject(error);
+          if (error) {
+            qzDiagnostics.signatureOk = false;
+            qzDiagnostics.lastSignError = error.message || 'Falha ao assinar.';
+            return reject(error);
+          }
           const sig = (data as any)?.signature;
-          if (!sig) return reject(new Error('Assinatura ausente na resposta.'));
+          if (!sig) {
+            qzDiagnostics.signatureOk = false;
+            qzDiagnostics.lastSignError = 'Assinatura ausente na resposta.';
+            return reject(new Error('Assinatura ausente na resposta.'));
+          }
+          qzDiagnostics.signatureOk = true;
+          qzDiagnostics.lastSignError = null;
           resolve(sig);
         })
-        .catch(reject);
+        .catch((e: any) => {
+          qzDiagnostics.signatureOk = false;
+          qzDiagnostics.lastSignError = e?.message || 'Falha ao assinar.';
+          reject(e);
+        });
     });
   } catch (e) {
     console.warn('Falha ao configurar assinatura QZ:', e);
@@ -537,6 +571,7 @@ export async function initQzTray(): Promise<boolean> {
     if (!qz.websocket.isActive()) {
       await qz.websocket.connect({ host: 'localhost', retries: 2, delay: 1 });
     }
+    try { qzDiagnostics.version = String(await qz.api.getVersion()); } catch { /* ignore */ }
     _qzConnected = true;
     lastQzError = null;
     return true;
