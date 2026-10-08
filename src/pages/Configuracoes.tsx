@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Skeleton } from '@/components/ui/skeleton';
 
 import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
+import { formatAuthError } from '@/lib/auth-errors';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, CreditCard, Sun
@@ -739,6 +740,7 @@ function UsuariosTab() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Usuários</CardTitle>
+          {userFormSuccess && !showForm && <p className="text-sm text-primary font-medium">{userFormSuccess}</p>}
           {!showForm && (
             <Button size="sm" onClick={() => setShowForm(true)}><Plus className="h-4 w-4 mr-1" /> Novo</Button>
           )}

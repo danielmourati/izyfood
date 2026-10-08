@@ -37,13 +37,20 @@ Deno.serve(async (req) => {
 
     if (action === 'create') {
       const { email, password, name, phone, role, tenant_id, commission } = body
-      if (!email || !password || !name || !role || !tenant_id) return json({ error: 'Campos obrigatórios: email, senha, nome, role, tenant_id' }, 400)
+      if (!email || !password || !name || !role || !tenant_id) return json({ error: 'Campos obrigatórios: email, senha, nome, função e loja' }, 400)
+      if (String(password).length < 6) return json({ error: 'A senha deve conter no mínimo 6 caracteres.' }, 400)
 
       const { data, error } = await adminClient.auth.admin.createUser({
         email, password, email_confirm: true,
         user_metadata: { name, role, tenant_id, phone: phone || null }
       })
-      if (error) return json({ error: error.message }, 400)
+      if (error) {
+        const m = (error.message || '').toLowerCase()
+        let msg = error.message
+        if (m.includes('weak') || m.includes('pwned') || m.includes('known')) msg = 'Senha recusada por ser fraca ou já vazada na internet. Use uma senha mais forte.'
+        else if (m.includes('already')) msg = 'Este e-mail já está cadastrado no sistema.'
+        return json({ error: msg }, 400)
+      }
 
       const uid = data.user!.id
       // Ensure profile has phone
