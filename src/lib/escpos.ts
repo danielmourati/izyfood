@@ -78,13 +78,12 @@ export function feedAndCut(lines = 4): Uint8Array {
 // ---------- text formatting helpers ----------
 
 function lineOf(char: string, cols: number): Uint8Array {
-  const lineCols = Math.min(cols, 27);
-  return text(char.repeat(lineCols) + '\n');
+  return text(char.repeat(cols) + '\n');
 }
 
 /** Reserved price zone (right) inside a wrapped row.
  *  58mm (27 useful cols): 17 for name + 9 for price.
- *  80mm (44 useful cols): 32 for name + 11 for price. */
+ *  80mm (42 useful cols): 29 for name + 12 for price. */
 function priceZone(cols: number): number {
   return cols <= 27 ? 9 : 12;
 }
@@ -340,7 +339,7 @@ export function receiptColumnsForWidth(paperWidth: number): number {
   return paperWidth <= 58 ? 27 : 42;
 }
 
-/** Kept for backward-compat callers; safe margin is already baked into colsForWidth. */
+/** Kept for backward-compat callers; safe margin is already baked into receiptColumnsForWidth. */
 function detailColsForWidth(paperWidth: number): number {
   return receiptColumnsForWidth(paperWidth);
 }

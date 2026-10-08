@@ -379,6 +379,7 @@ describe('ESC/POS bill receipt', () => {
       tableNumber: 4,
       items: [{ name: 'Produto com nome muito longo para validar a quebra', quantity: 2, price: 19.9, subtotal: 39.8 }],
       serviceFee: 3.98,
+      total: 43.78,
       createdAt: '2026-05-22T20:13:00.000Z',
       customerName: 'João da Conceição',
     };
@@ -393,6 +394,7 @@ describe('ESC/POS bill receipt', () => {
     const receipt = decodeReceipt(buildBillReceipt({
       id: 'utf8', orderType: 'balcao',
       items: [{ name: 'Açaí, pão, coração e maçã', quantity: 1, price: 12, subtotal: 12 }],
+      total: 12,
       createdAt: '2026-05-22T20:13:00.000Z',
     }, 80));
     expect(receipt).toContain('Açaí, pão, coração e maçã');
