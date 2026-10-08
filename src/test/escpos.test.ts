@@ -537,7 +537,7 @@ describe('kitchen order notes rendering', () => {
   });
 
   it('buildOrderReceipt: wraps enlarged items using half the paper columns', () => {
-    const receipt = normalizeReceiptWords(decodeReceipt(buildOrderReceipt({
+    const receipt = decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
         name: 'Produto com nome grande para testar quebra',
@@ -554,7 +554,7 @@ describe('kitchen order notes rendering', () => {
   });
 
   it('buildOrderReceipt: legacy items with only pipe-joined notes still print all lines', () => {
-    const receipt = decodeReceipt(buildOrderReceipt({
+    const receipt = normalizeReceiptWords(decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
         name: 'X-Burger',
@@ -634,7 +634,7 @@ describe('kitchen order notes rendering', () => {
   });
 
   it('buildOrderReceipt: prints all 3 lines when checkbox notes + input are set together', () => {
-    const receipt = decodeReceipt(buildOrderReceipt({
+    const receipt = normalizeReceiptWords(decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
         name: 'Arrumadinho de Carne de Sol',
@@ -644,7 +644,7 @@ describe('kitchen order notes rendering', () => {
         selectedNotes: ['Arroz Branco', 'Sem farofa'],
         otherNotes: 'Teste',
       }],
-    }, 58)).toUpperCase();
+    }, 58)).toUpperCase());
     const idxArroz = receipt.indexOf('ARROZ BRANCO');
     const idxFarofa = receipt.indexOf('SEM FAROFA');
     const idxTeste = receipt.indexOf('TESTE');
