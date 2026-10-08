@@ -4,7 +4,7 @@
  * respecting column width, line wrapping and alignment rules.
  */
 
-import { receiptColumnsForWidth, type PrintSettings } from './escpos';
+import { receiptColumnsForWidth, receiptPriceZone, type PrintSettings } from './escpos';
 import { getOrderItemAdditionalLines } from './utils';
 
 export interface PreviewItem {
@@ -40,10 +40,6 @@ const paymentLabels: Record<string, string> = {
 const orderTypeLabels: Record<string, string> = {
   balcao: 'Balcão', mesa: 'Mesa', delivery: 'Delivery', retirada: 'Retirada',
 };
-
-function priceZone(cols: number): number {
-  return cols <= 30 ? 8 : 12;
-}
 
 function fmtBRL(v: number): string {
   if (v === undefined || v === null || isNaN(v)) return 'R$ 0,00';
@@ -119,7 +115,7 @@ function rowWrap(label: string, value: string, cols: number): string {
   const rest = headMatch ? headMatch[2] : label;
   const words = rest.trim().split(/\s+/).filter(Boolean);
 
-  const price = Math.max(value.length, priceZone(cols));
+  const price = Math.max(value.length, receiptPriceZone(cols));
   const nameMax = Math.max(8, cols - price - 1);
 
   const lines: string[] = [];

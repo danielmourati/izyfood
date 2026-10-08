@@ -603,7 +603,7 @@ export function usePrinter() {
       const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
       console.log(`[printOrder] setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, itens: ${secItems.length}`);
       const orderSettings = { ...ps, doubleFontOrders: targetPrinter?.double_font_orders === true };
-      const escpos = buildOrderReceipt(secOrder, targetPaperWidth, orderSettings);
+      const escpos = buildOrderReceipt(secOrder, targetPaperWidth, orderSettings, targetPrinter?.escpos_profile);
       const html = buildOrderHtml(secOrder, orderSettings);
       const copies = getOrderPrintCopies(intent, targetPrinter);
       for (let copy = 0; copy < copies; copy += 1) {
@@ -624,7 +624,7 @@ export function usePrinter() {
     const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log(`[printBill] printSettings usados (setor: recibo, impressora: ${targetPrinter?.name || 'padrão'}, largura: ${targetPaperWidth}mm):`, JSON.stringify(ps));
-    const escpos = buildBillReceipt(bill, targetPaperWidth, ps);
+    const escpos = buildBillReceipt(bill, targetPaperWidth, ps, targetPrinter?.escpos_profile);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta', { ...options, targetPrinter, sector });
     return { ok: true };
@@ -639,7 +639,7 @@ export function usePrinter() {
     const sector = 'recibo';
     const targetPrinter = getPrinterForSector(sector);
     const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
-    const escpos = buildCashCloseReceipt(data, targetPaperWidth);
+    const escpos = buildCashCloseReceipt(data, targetPaperWidth, targetPrinter?.escpos_profile);
     const html = buildCashCloseHtml(data);
     await sendToPrinter(escpos, html, 'Fechamento de Caixa', { ...options, targetPrinter, sector });
     return { ok: true };
