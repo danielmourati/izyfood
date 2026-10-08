@@ -1,8 +1,9 @@
 /**
  * QZ Tray installer helpers.
  *
- * Generates a Windows .bat that copies the tenant cert.pem into the QZ Tray
- * `override.crt` file so the local agent auto-trusts messages signed by Degust.
+ * Generates a Windows .bat that trusts the platform certificate in QZ Tray via
+ * three methods (override.crt, authcert.override property, Site Manager allow list)
+ * and writes a log to %ProgramData%\Degust\qz-setup.log.
  * Also exposes a helper to fetch the tenant PEM from the qz-cert edge function.
  */
 import { supabase } from '@/integrations/supabase/client';
@@ -83,7 +84,7 @@ export function buildDegustBat(opts: { tenantName: string; certPem: string }): s
     'call :say "Fechando o QZ Tray..."',
     'taskkill /IM qz-tray.exe /F >nul 2>&1',
     'taskkill /IM qz-tray-console.exe /F >nul 2>&1',
-    'powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like \'*qz-tray*\' -or $_.CommandLine -like \'*qz.App*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1',
+    'powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like \'*qz-tray*\' -or $_.CommandLine -like \'*qz.App*\') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1',
     'timeout /t 3 /nobreak >nul',
     '',
     'REM ---- 3. Salvar o certificado ----',
