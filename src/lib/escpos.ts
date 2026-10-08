@@ -39,8 +39,13 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 
 /** Initialise printer */
 export const CMD_INIT = new Uint8Array([ESC, 0x40]);
-/** Select code page (UTF-8) */
-export const CMD_CODEPAGE_UTF8 = new Uint8Array([ESC, 0x74, 0xFF]);
+/** Select a valid character table for the configured printer profile. */
+export function codepageCommand(profile = 'generic'): Uint8Array {
+  // Bematech MP firmware exposes native UTF-8 as character table 8.
+  return profile === 'bematech_mp'
+    ? new Uint8Array([ESC, 0x74, 0x08])
+    : new Uint8Array(0);
+}
 /** Line feed */
 export const CMD_LF = new Uint8Array([0x0A]);
 /** Bold on */
@@ -83,8 +88,8 @@ function lineOf(char: string, cols: number): Uint8Array {
 
 /** Reserved price zone (right) inside a wrapped row.
  *  58mm (27 useful cols): 17 for name + 9 for price.
- *  80mm (42 useful cols): 29 for name + 12 for price. */
-function priceZone(cols: number): number {
+ *  80mm (40 useful cols): 27 for name + 12 for price. */
+export function receiptPriceZone(cols: number): number {
   return cols <= 27 ? 9 : 12;
 }
 
@@ -123,7 +128,7 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
 
   // Wrap the label within the "name area". When there's no value to place at
   // the right, use the full column width for the label (kitchen ticket lines).
-  const price = value.length === 0 ? 0 : Math.max(value.length, priceZone(cols));
+  const price = value.length === 0 ? 0 : Math.max(value.length, receiptPriceZone(cols));
   const nameMax = value.length === 0 ? cols : Math.max(8, cols - price - 1); // 1 char min gap
 
 
@@ -336,7 +341,7 @@ interface CashCloseData {
 
 /** Shared useful width for printed receipts and their on-screen preview. */
 export function receiptColumnsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 27 : 42;
+  return paperWidth <= 58 ? 27 : 40;
 }
 
 /** Kept for backward-compat callers; safe margin is already baked into receiptColumnsForWidth. */
@@ -515,7 +520,7 @@ function fmtDateCompact(iso: string): string {
 /**
  * Build a COMANDA (order ticket for kitchen / production).
  */
-export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
+export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSettings = {}, escposProfile = 'generic'): Uint8Array {
   const cols = receiptColumnsForWidth(paperWidth);
   const doubleFont = ps.doubleFontOrders === true;
   const orderNo = order.id ? order.id.slice(0, 6).toUpperCase() : '000000';
@@ -528,7 +533,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
         : 'COZINHA';
   const parts: Uint8Array[] = [
     CMD_INIT,
-    CMD_CODEPAGE_UTF8,
+    codepageCommand(escposProfile),
   ];
 
   parts.push(
@@ -621,11 +626,11 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
 /**
  * Build a CONTA (bill / receipt for customer after payment).
  */
-export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
+export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSettings = {}, escposProfile = 'generic'): Uint8Array {
   const cols = receiptColumnsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
-    CMD_CODEPAGE_UTF8,
+    codepageCommand(escposProfile),
     normalTextMode(),
   ];
 
@@ -774,11 +779,11 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 /**
  * Build FECHAMENTO DE CAIXA receipt.
  */
-export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80): Uint8Array {
+export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80, escposProfile = 'generic'): Uint8Array {
   const cols = receiptColumnsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
-    CMD_CODEPAGE_UTF8,
+    codepageCommand(escposProfile),
     CMD_ALIGN_CENTER,
     CMD_BOLD_ON, CMD_DOUBLE_ON,
     text('FECHAMENTO DE CAIXA\n'),

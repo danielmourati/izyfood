@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBillReceipt, buildOrderReceipt, getItemNoteLines } from '@/lib/escpos';
+import { buildBillReceipt, buildOrderReceipt, codepageCommand, getItemNoteLines } from '@/lib/escpos';
 import { buildBillPreviewText } from '@/lib/receipt-preview';
 
 const decodeReceipt = (data: Uint8Array) => new TextDecoder('utf-8').decode(data);
@@ -372,9 +372,9 @@ describe('ESC/POS bill receipt', () => {
     expect(priceLine.length).toBeLessThanOrEqual(30);
   });
 
-  it('80mm: impressão e prévia respeitam o limite de 42 colunas', () => {
+  it('80mm: impressão e prévia respeitam o limite de 40 colunas', () => {
     const bill = {
-      id: 'width-42',
+      id: 'width-40',
       orderType: 'mesa',
       tableNumber: 4,
       items: [{ name: 'Produto com nome muito longo para validar a quebra', quantity: 2, price: 19.9, subtotal: 39.8 }],
@@ -386,18 +386,21 @@ describe('ESC/POS bill receipt', () => {
     const receipt = decodeReceipt(buildBillReceipt(bill, 80));
     const preview = buildBillPreviewText(bill, 80);
 
-    expect(receipt).toContain('-'.repeat(42));
-    for (const line of preview.split('\n')) expect(line.length).toBeLessThanOrEqual(42);
+    expect(receipt).toContain('-'.repeat(40));
+    for (const line of preview.split('\n')) expect(line.length).toBeLessThanOrEqual(40);
   });
 
-  it('preserva caracteres portugueses em UTF-8', () => {
-    const receipt = decodeReceipt(buildBillReceipt({
+  it('Bematech seleciona a tabela UTF-8 e preserva caracteres portugueses', () => {
+    const bytes = buildBillReceipt({
       id: 'utf8', orderType: 'balcao',
-      items: [{ name: 'Açaí, pão, coração e maçã', quantity: 1, price: 12, subtotal: 12 }],
+      items: [{ name: 'Açaí, pão, coração, maçã e café', quantity: 1, price: 12, subtotal: 12 }],
       total: 12,
       createdAt: '2026-05-22T20:13:00.000Z',
-    }, 80));
-    expect(receipt).toContain('Açaí, pão, coração e maçã');
+    }, 80, {}, 'bematech_mp');
+    expect(Array.from(bytes.slice(2, 5))).toEqual(Array.from(codepageCommand('bematech_mp')));
+    const decoded = decodeReceipt(bytes);
+    expect(decoded).toContain('Açaí, pão, coração, maçã');
+    expect(decoded).toContain('e café');
   });
 });
 
