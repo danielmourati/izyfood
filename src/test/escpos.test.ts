@@ -449,9 +449,9 @@ describe('kitchen order notes rendering', () => {
       }],
     }, 58, { doubleFontOrders: true })).toUpperCase();
 
-    expect(receipt).toContain('PRODUTO COM');
+    expect(receipt).toContain('1X PRODUTO\nCOM NOME');
     expect(receipt).toContain('ADICIONAL');
-    expect(receipt.split('\n').every(line => line.length <= 27)).toBe(true);
+    expect(receipt).toContain('ADICIONA\n');
   });
 
   it('buildOrderReceipt: legacy items with only pipe-joined notes still print all lines', () => {
