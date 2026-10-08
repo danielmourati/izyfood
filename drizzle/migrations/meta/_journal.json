@@ -15,6 +15,13 @@
       "when": 1790431995276,
       "tag": "0001_product_print_sector_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791494395590,
+      "tag": "0002_add_printer_order_options",
+      "breakpoints": true
     }
   ]
 }
