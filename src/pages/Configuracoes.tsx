@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Skeleton } from '@/components/ui/skeleton';
 
 import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
+import { formatAuthError } from '@/lib/auth-errors';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, CreditCard, Sun
@@ -638,6 +639,9 @@ function UsuariosTab() {
   const { user } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [userFormError, setUserFormError] = useState<string | null>(null);
+  const [userFormSuccess, setUserFormSuccess] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', email: '', role: 'atendente' as AppRole, password: '', commission: '' });
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -674,114 +678,41 @@ function UsuariosTab() {
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.email) {
-      toast.error('Preencha nome e email');
-      return;
-    }
-
+    setUserFormError(null);
+    setUserFormSuccess(null);
+    const name = form.name.trim();
+    const email = form.email.trim();
+    if (!name || !email) { setUserFormError('Preencha nome e e-mail.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setUserFormError('E-mail inválido.'); return; }
     const commissionVal = parseFloat(form.commission.replace(',', '.')) || 0;
-
-    if (editingId) {
-      // Update profile name
-      await supabase.from('profiles').update({ name: form.name }).eq('id', editingId);
-      // Update role
-      const { data: existingRole } = await supabase.from('user_roles').select('id').eq('user_id', editingId).single();
-      if (existingRole) {
-        await supabase.from('user_roles').update({ role: form.role }).eq('user_id', editingId);
+    setSavingUser(true);
+    try {
+      if (editingId) {
+        await supabase.from('profiles').update({ name }).eq('id', editingId);
+        const { data: existingRole } = await supabase.from('user_roles').select('id').eq('user_id', editingId).maybeSingle();
+        if (existingRole) await supabase.from('user_roles').update({ role: form.role }).eq('user_id', editingId);
+        else await supabase.from('user_roles').insert({ user_id: editingId, role: form.role });
+        await supabase.from('tenant_members').update({ commission_percentage: commissionVal } as any).eq('user_id', editingId);
+        setUserFormSuccess('Usuário atualizado!');
       } else {
-        await supabase.from('user_roles').insert({ user_id: editingId, role: form.role });
-      }
-      // Update commission
-      await supabase.from('tenant_members').update({ commission_percentage: commissionVal } as any).eq('user_id', editingId);
-      toast.success('Usuário atualizado!');
-    } else {
-      if (!form.password || form.password.length < 4) {
-        toast.error('Senha deve ter no mínimo 4 caracteres');
-        return;
-      }
-      try {
-        const { data: createData, error } = await supabase.functions.invoke('manage-users', {
-          body: {
-            action: 'create',
-            email: form.email,
-            password: form.password,
-            name: form.name,
-            role: form.role,
-            tenant_id: user?.tenantId,
-            commission: commissionVal
-          }
+        if (!form.password || form.password.length < 6) { setUserFormError('A senha deve ter no mínimo 6 caracteres.'); return; }
+        const { data, error } = await supabase.functions.invoke('manage-users', {
+          body: { action: 'create', email, password: form.password, name, role: form.role, tenant_id: user?.tenantId, commission: commissionVal },
         });
-        if (error || createData?.error) {
-          throw error || new Error(createData?.error);
+        let msg: string | null = (data as any)?.error || null;
+        if (error) {
+          try { const body = await (error as any).context?.json?.(); msg = body?.error || error.message; } catch { msg = error.message; }
         }
-        toast.success('Usuário criado com sucesso!');
-      } catch (err: any) {
-        console.warn('[UserSave] Edge function falhou, executando rota direta de salvamento:', err);
-        try {
-          const tempAuthClient = createClient(
-            import.meta.env.VITE_SUPABASE_URL,
-            import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            { auth: { persistSession: false, autoRefreshToken: false } }
-          );
-
-          const { data: signUpData, error: signUpError } = await tempAuthClient.auth.signUp({
-            email: form.email.trim(),
-            password: form.password,
-            options: {
-              data: {
-                name: form.name.trim(),
-                role: form.role,
-                tenant_id: user?.tenantId
-              }
-            }
-          });
-
-          if (signUpError) {
-            if (signUpError.message.includes('already registered') || signUpError.message.includes('already exists')) {
-              throw new Error('Este e-mail já está cadastrado no sistema.');
-            }
-            throw signUpError;
-          }
-
-          const createdUserId = signUpData?.user?.id;
-          if (!createdUserId) {
-            throw new Error('Não foi possível cadastrar a conta do usuário.');
-          }
-
-          const { error: profErr } = await supabase.from('profiles').upsert({
-            id: createdUserId,
-            name: form.name.trim(),
-            email: form.email.trim()
-          } as any);
-          if (profErr) console.warn('[UserSave] Upsert profiles warning:', profErr);
-
-          const { error: roleErr } = await supabase.from('user_roles').upsert({
-            user_id: createdUserId,
-            role: form.role
-          } as any);
-          if (roleErr) console.warn('[UserSave] Upsert user_roles warning:', roleErr);
-
-          if (user?.tenantId) {
-            const { error: memberErr } = await supabase.from('tenant_members').upsert({
-              user_id: createdUserId,
-              tenant_id: user.tenantId,
-              role: form.role,
-              commission_percentage: commissionVal
-            } as any);
-            if (memberErr) console.warn('[UserSave] Upsert tenant_members warning:', memberErr);
-          }
-
-          toast.success('Usuário criado e salvo com sucesso!');
-        } catch (fallbackErr: any) {
-          console.error('[UserSave] Erro ao criar usuário:', fallbackErr);
-          toast.error(fallbackErr.message || err.message || 'Erro ao criar usuário');
-          return;
-        }
+        if (msg) { setUserFormError(formatAuthError(msg)); return; }
+        setUserFormSuccess(`Usuário ${name} criado!`);
       }
+      resetForm();
+      setTimeout(fetchUsers, 300);
+    } catch (e: any) {
+      setUserFormError(formatAuthError(e));
+    } finally {
+      setSavingUser(false);
     }
-    resetForm();
-    // Refetch after a short delay to allow trigger to create profile
-    setTimeout(fetchUsers, 500);
   };
 
   const handleEdit = (u: UserRow) => {
@@ -809,6 +740,7 @@ function UsuariosTab() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Usuários</CardTitle>
+          {userFormSuccess && !showForm && <p className="text-sm text-primary font-medium">{userFormSuccess}</p>}
           {!showForm && (
             <Button size="sm" onClick={() => setShowForm(true)}><Plus className="h-4 w-4 mr-1" /> Novo</Button>
           )}
@@ -849,8 +781,9 @@ function UsuariosTab() {
                   </div>
                 )}
               </div>
+              {userFormError && <p className="text-sm text-destructive font-medium">{userFormError}</p>}
               <div className="flex gap-2">
-                <Button size="sm" onClick={handleSave}><Check className="h-4 w-4 mr-1" /> {editingId ? 'Atualizar' : 'Criar'}</Button>
+                <Button size="sm" onClick={handleSave} disabled={savingUser}><Check className="h-4 w-4 mr-1" /> {savingUser ? 'Salvando...' : editingId ? 'Atualizar' : 'Criar'}</Button>
                 <Button size="sm" variant="ghost" onClick={resetForm}><X className="h-4 w-4 mr-1" /> Cancelar</Button>
               </div>
             </div>
