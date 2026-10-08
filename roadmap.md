@@ -10,3 +10,4 @@
 - [x] Validar cupons, prévia e compilação final.
 - [x] Acentuação por impressora (CP850 padrão) com folha de teste de calibração.
 - [x] Teste de acentuação na Bematech: linhas 1, 2 e 3 corretas; mantida a opção 1 (CP850).
+- [x] Substituir o ID pela mesa e fixar fonte dupla no cabeçalho, produtos e adicionais das comandas da cozinha.

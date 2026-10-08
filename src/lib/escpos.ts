@@ -533,8 +533,6 @@ function fmtDateCompact(iso: string): string {
  */
 function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSettings, charEncoding: string): Uint8Array {
   const cols = receiptColumnsForWidth(paperWidth);
-  const doubleFont = ps.doubleFontOrders === true;
-  const orderNo = order.id ? order.id.slice(0, 6).toUpperCase() : '000000';
   const orderTitle = order.orderType === 'mesa' || !!order.tableNumber
     ? 'CONSUMO'
     : order.orderType === 'delivery'
@@ -542,6 +540,9 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
       : order.orderType === 'retirada'
         ? 'RETIRADA'
         : 'COZINHA';
+  const tableHeading = order.tableNumber
+    ? `MESA: ${String(order.tableNumber).padStart(2, '0')}\n`
+    : '';
   const parts: Uint8Array[] = [
     CMD_INIT,
     codepageCommand(charEncoding),
@@ -552,7 +553,7 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
     CMD_BOLD_ON,
     CMD_DOUBLE_ON,
     text(`${orderTitle}\n`),
-    text(`#${orderNo}\n`),
+    ...(tableHeading ? [text(tableHeading)] : []),
     CMD_DOUBLE_OFF,
     CMD_BOLD_OFF,
     normalTextMode(),
@@ -602,26 +603,23 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
   for (const item of order.items) {
     totalItemsCount += item.quantity || 1;
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    const itemCols = doubleFont ? Math.max(12, Math.floor(cols / 2)) : cols;
+    const itemCols = Math.max(12, Math.floor(cols / 2));
     parts.push(
       CMD_ALIGN_LEFT,
       CMD_BOLD_ON,
-      ...(doubleFont ? [CMD_DOUBLE_ON] : []),
+      CMD_DOUBLE_ON,
       textOnlyWrap(`${qty} ${item.name.toUpperCase()}`, itemCols),
-      ...(doubleFont ? [CMD_DOUBLE_OFF] : []),
-      CMD_BOLD_OFF,
-      normalTextMode()
+      CMD_BOLD_OFF
     );
     const additionalItems = getOrderItemAdditionalLines(item);
     if (additionalItems.length > 0) {
       const additionalTitle = additionalItems.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
-      if (doubleFont) parts.push(CMD_DOUBLE_ON);
       parts.push(textOnlyWrap(`   ${additionalTitle}`, itemCols));
       for (const additional of additionalItems) {
         parts.push(textOnlyWrap(`   + ${additional.quantity}x ${additional.name}`, itemCols));
       }
-      if (doubleFont) parts.push(CMD_DOUBLE_OFF, normalTextMode());
     }
+    parts.push(CMD_DOUBLE_OFF, normalTextMode());
   }
 
   parts.push(lineOf('-', cols));

@@ -726,14 +726,13 @@ function fmtDate(iso: string) {
 const orderTypeLabels: Record<string, string> = { balcao: 'Balcão', mesa: 'Mesa', delivery: 'Delivery', retirada: 'Retirada' };
 const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX', cartao: 'Cartão', fiado: 'Fiado' };
 
-export function buildOrderHtml(order: any, ps: any = {}): string {
-  const doubleFont = ps.doubleFontOrders === true;
+export function buildOrderHtml(order: any, _ps: any = {}): string {
   let totalItemsCount = 0;
   const items = (order.items || []).map((i: any) => {
     totalItemsCount += i.quantity || 1;
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
-    const itemFontSize = doubleFont ? '20px' : '13px';
-    const detailFontSize = doubleFont ? '18px' : '12px';
+    const itemFontSize = '20px';
+    const detailFontSize = '18px';
     let html = `<p class="bold" style="margin: 0 0 2px 0; font-size: ${itemFontSize};">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
     const additionalItems = getOrderItemAdditionalLines(i);
     if (additionalItems.length > 0) {
@@ -745,7 +744,6 @@ export function buildOrderHtml(order: any, ps: any = {}): string {
     return html;
   }).join('');
 
-  const orderNo = order.id ? order.id.slice(0, 6).toUpperCase() : '000000';
   const createdAt = order.createdAt || new Date().toISOString();
 
   let tipoLabel = 'COZINHA';
@@ -764,9 +762,12 @@ export function buildOrderHtml(order: any, ps: any = {}): string {
       : (order.customerName || 'Sem Nome');
 
   // Comanda da cozinha: sem cabeçalho de loja e sem rodapé promocional.
+  const tableHeading = order.tableNumber
+    ? `<div class="center bold" style="font-size: 24px; margin-bottom: 8px;">MESA: ${String(order.tableNumber).padStart(2, '0')}</div>`
+    : '';
   return `
     <div class="center bold" style="font-size: 24px; margin-bottom: 2px;">${tipoLabel}</div>
-    <div class="center bold" style="font-size: 24px; margin-bottom: 8px;">#${orderNo}</div>
+    ${tableHeading}
     <div style="margin-bottom: 8px;">${fmtDate(createdAt)}${order.tableNumber ? ` | Mesa: ${String(order.tableNumber).padStart(2, '0')}` : ''}</div>
 
     <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;">Cliente: <strong>${customerLine}</strong></div>
