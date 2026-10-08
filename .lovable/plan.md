@@ -1,41 +1,25 @@
-# Impacto de remover a página PDV
+# Balcão no mesmo fluxo das Mesas
 
-## O que o PDV faz hoje (confirmado no código)
+## Objetivo
+Remover o PDV antigo e lançar pedidos de Balcão com a mesma janela usada nas Mesas. O pedido de balcão é aberto, recebe itens, é pago e finalizado na mesma sessão — o Balcão fica livre logo em seguida, sem ocupar nada com pedidos rápidos.
 
-O PDV **não é só uma tela de mesas** — ele é a única entrada para três tipos de pedido:
+## O que muda para o usuário
+- Na Home fica apenas o cartão **Balcão** (Delivery e Retirada saem da Home).
+- Ao tocar em Balcão, abre a mesma janela de pedido das Mesas (busca de produtos, adicionais, carrinho, impressão da comanda).
+- O rodapé mostra **Cobrar / Finalizar** em vez de Bloquear: abre o pagamento (múltiplas formas), e ao concluir o pedido é finalizado, registrado no caixa e a janela fecha, deixando o Balcão livre.
+- Fechar a janela sem pagar: se não houver itens, o pedido é apagado; se houver itens, pergunta "Descartar pedido?" (cancelar exige permissão, como hoje). Balcão nunca fica "segurado".
+- Caixa fechado: botão mostra "CAIXA FECHADO" e não permite finalizar (regra já existente).
+- Menu lateral: item "PDV" removido; a rota antiga `/pdv` passa a redirecionar para a Home.
 
-1. **Balcão** — pedidos rápidos de balcão (pagos ou cancelados na hora).
-2. **Delivery** — a página Entregas cria o pedido e redireciona para `/pdv?pedido=...` para lançar os itens (6 pontos de redirecionamento em `Entregas.tsx`).
-3. **Retirada** — mesma lógica via `/pdv?tipo=retirada`.
-
-A página **Mesas só trabalha com pedidos do tipo "mesa"** (confirmado: todos os filtros em `Mesas.tsx` exigem `orderType === 'mesa'`). Ela não cria nem edita pedidos de balcão, delivery ou retirada.
-
-## Impacto se remover o PDV sem substituir
-
-- **Balcão, Delivery e Retirada deixam de funcionar.** Os cartões da Home ("Balcão", "Delivery", "Retirada") e toda a página Entregas ficariam sem destino.
-- A tela de Entregas perde a função "abrir pedido para adicionar itens".
-- Menu lateral, botão voltar e layout têm tratamentos especiais para `/pdv` que precisariam ser limpos.
-
-## Cenários possíveis
-
-### Cenário A — Manter o PDV (recomendado se ainda há vendas de balcão/delivery)
-Nenhuma mudança. O PDV continua sendo a porta de entrada para balcão, delivery e retirada; Mesas cuida das mesas.
-
-### Cenário B — Remover o PDV e migrar balcão/delivery/retirada para um fluxo novo
-Trabalho maior:
-1. Criar fluxo de pedido rápido (balcão/delivery/retirada) dentro de Mesas ou em nova página, reaproveitando carrinho, busca de produtos, checkout e impressão.
-2. Redirecionar os cartões da Home e todos os `navigate('/pdv...')` de Entregas para o novo fluxo.
-3. Remover a rota `/pdv`, o item do menu lateral e os tratamentos especiais em Layout/BackButton.
-4. Remover `PDV.tsx` e ajustar textos em SuperAdmin que mencionam a URL `/pdv`.
-
-### Cenário C — Remover o PDV e abandonar balcão/delivery/retirada
-Só válido se a loja realmente não usa mais esses tipos. Mesmo assim, Entregas precisaria ser removida ou reescrita, pois depende do PDV.
-
-## Recomendação
-
-Antes de remover, confirmar: **a loja ainda faz vendas de balcão, delivery ou retirada?** Se sim, o Cenário B é o caminho — mas é uma refatoração relevante, não uma simples exclusão. Se a operação é 100% mesas, o Cenário C se aplica, com a remoção/adaptação da tela de Entregas incluída.
+## Fora do escopo / assumido
+- Delivery e Retirada deixam de ser criados (conforme "manter somente caixa/balcão"). A página Entregas continua acessível só para consultar pedidos antigos, com os botões que levavam ao PDV removidos. Se preferir apagar Entregas também, avise.
+- Mesas, contas, impressão e fechamento de caixa não mudam.
 
 ## Detalhes técnicos
-
-- Arquivos afetados: `src/pages/PDV.tsx`, `src/App.tsx` (rota), `src/components/AppSidebar.tsx` (menu), `src/components/Layout.tsx` e `BackButton.tsx` (tratamentos especiais), `src/pages/Home.tsx` (3 cartões), `src/pages/Entregas.tsx` (6 redirecionamentos), `src/pages/SuperAdmin.tsx` (textos de URL).
-- `CheckoutModal.tsx` e a lógica de impressão são compartilhados e **não** seriam removidos — Mesas também os usa.
+- `ConsumerOrderModal`: aceitar modo `orderType: 'balcao'` (sem número de mesa; título "Balcão"); no modo balcão trocar bloquear/reabrir por botão Cobrar que abre `CheckoutModal`; `onComplete` → `completeSale` + fechar modal.
+- Novo hook/handler em `Home.tsx` (ou componente `BalcaoLauncher`) que cria o pedido `balcao` via StoreContext e abre o modal; ao cancelar/fechar vazio, hard-delete (regra R$ 0,00).
+- Comanda da cozinha de balcão segue sem #ID e sem linha de mesa (já implementado).
+- Remover `src/pages/PDV.tsx`, rota em `App.tsx` (substituir por `<Navigate>` preservando slug), item em `AppSidebar.tsx`, tratamentos `/pdv` em `Layout.tsx` e `BackButton.tsx`, textos de URL em `SuperAdmin.tsx`; remover os 6 `navigate('/pdv...')` de `Entregas.tsx`.
+- Antes de apagar `PDV.tsx`, conferir se exporta algo usado em outro lugar; mover o que for compartilhado.
+- Atualizar `AGENTS.md` (regra: Balcão usa o modal de pedido das Mesas, finalizado na mesma sessão) e `roadmap.md`.
+- Validar com tsgo, testes existentes e Playwright (abrir Balcão, lançar item, pagar, confirmar que o pedido some e o caixa soma).
