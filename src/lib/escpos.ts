@@ -9,19 +9,6 @@ import { getOrderItemAdditionalLines, getOrderItemNoteLines } from '@/lib/utils'
 const ESC = 0x1B;
 const GS = 0x1D;
 
-/**
- * Code Page 860 (PC860 Portuguese) mapping dictionary.
- * Maps ABNT PT-BR accented characters and symbols (ç, ã, é, ô, Á, Ç, etc.) to CP860 byte values.
- */
-const CP860_MAP: Record<string, number> = {
-  'Ç': 0x80, 'ü': 0x81, 'é': 0x82, 'â': 0x83, 'ã': 0x84, 'à': 0x85, 'Á': 0x86, 'ç': 0x87,
-  'ê': 0x88, 'Ê': 0x89, 'è': 0x8A, 'Í': 0x8B, 'Ô': 0x8C, 'ì': 0x8D, 'Ã': 0x8E, 'Â': 0x8F,
-  'É': 0x90, 'À': 0x91, 'È': 0x92, 'ô': 0x93, 'õ': 0x94, 'ò': 0x95, 'Ú': 0x96, 'ù': 0x97,
-  'Ì': 0x98, 'Õ': 0x99, 'Ü': 0x9A, 'á': 0xA0, 'í': 0xA1, 'ó': 0xA2, 'ú': 0xA3, 'ñ': 0xA4,
-  'Ñ': 0xA5, 'ª': 0xA6, 'º': 0xA7, '¿': 0xA8, '®': 0xA9, '¬': 0xAA, '½': 0xAB, '¼': 0xAC,
-  '¡': 0xAD, '«': 0xAE, '»': 0xAF,
-};
-
 const utf8Encoder = new TextEncoder();
 
 
@@ -31,28 +18,6 @@ const utf8Encoder = new TextEncoder();
 export function encodeUtf8(s: string): Uint8Array {
   if (!s) return new Uint8Array(0);
   return utf8Encoder.encode(s);
-}
-
-/**
- * Encode string to Code Page 860 (PC860 Portuguese) bytes for thermal printing.
- * Guarantees that ABNT PT-BR accents and (ç) print perfectly without corrupting bytes.
- */
-export function encodeCp860(s: string): Uint8Array {
-  if (!s) return new Uint8Array(0);
-  const out = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    const code = ch.charCodeAt(0);
-    if (code <= 0x7F) {
-      out[i] = code;
-    } else if (CP860_MAP[ch] !== undefined) {
-      out[i] = CP860_MAP[ch];
-    } else {
-      const norm = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      out[i] = norm.length > 0 ? norm.charCodeAt(0) : 0x3F;
-    }
-  }
-  return out;
 }
 
 function text(s: string): Uint8Array {
@@ -76,8 +41,6 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 export const CMD_INIT = new Uint8Array([ESC, 0x40]);
 /** Select code page (UTF-8) */
 export const CMD_CODEPAGE_UTF8 = new Uint8Array([ESC, 0x74, 0xFF]);
-/** Select code page (PC860: Portuguese) */
-export const CMD_CODEPAGE_PC860 = new Uint8Array([ESC, 0x74, 0x03]);
 /** Line feed */
 export const CMD_LF = new Uint8Array([0x0A]);
 /** Bold on */
@@ -372,16 +335,14 @@ interface CashCloseData {
   totalSales: number;
 }
 
-/** Useful column width for the given paper size.
- *  58mm: 27 columns (strictly limited to 27 printable character limit per line for 58mm printers).
- *  80mm: 44 columns (standard 80mm POS thermal printers). */
-function colsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 27 : 44;
+/** Shared useful width for printed receipts and their on-screen preview. */
+export function receiptColumnsForWidth(paperWidth: number): number {
+  return paperWidth <= 58 ? 27 : 42;
 }
 
 /** Kept for backward-compat callers; safe margin is already baked into colsForWidth. */
 function detailColsForWidth(paperWidth: number): number {
-  return colsForWidth(paperWidth);
+  return receiptColumnsForWidth(paperWidth);
 }
 
 function normalTextMode(): Uint8Array {
@@ -556,7 +517,7 @@ function fmtDateCompact(iso: string): string {
  * Build a COMANDA (order ticket for kitchen / production).
  */
 export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
-  const cols = colsForWidth(paperWidth);
+  const cols = receiptColumnsForWidth(paperWidth);
   const doubleFont = ps.doubleFontOrders === true;
   const orderNo = order.id ? order.id.slice(0, 6).toUpperCase() : '000000';
   const orderTitle = order.orderType === 'mesa' || !!order.tableNumber
@@ -662,7 +623,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
  * Build a CONTA (bill / receipt for customer after payment).
  */
 export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
-  const cols = colsForWidth(paperWidth);
+  const cols = receiptColumnsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
     CMD_CODEPAGE_UTF8,
@@ -815,7 +776,7 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
  * Build FECHAMENTO DE CAIXA receipt.
  */
 export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80): Uint8Array {
-  const cols = colsForWidth(paperWidth);
+  const cols = receiptColumnsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
     CMD_CODEPAGE_UTF8,

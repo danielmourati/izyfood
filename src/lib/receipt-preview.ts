@@ -4,7 +4,7 @@
  * respecting column width, line wrapping and alignment rules.
  */
 
-import type { PrintSettings } from './escpos';
+import { receiptColumnsForWidth, type PrintSettings } from './escpos';
 import { getOrderItemAdditionalLines } from './utils';
 
 export interface PreviewItem {
@@ -40,11 +40,6 @@ const paymentLabels: Record<string, string> = {
 const orderTypeLabels: Record<string, string> = {
   balcao: 'Balcão', mesa: 'Mesa', delivery: 'Delivery', retirada: 'Retirada',
 };
-
-function colsForWidth(paperWidth: number): number {
-  // Safe useful width: 58mm=30 (32-margin), 80mm=44 (48-margin)
-  return paperWidth <= 58 ? 30 : 44;
-}
 
 function priceZone(cols: number): number {
   return cols <= 30 ? 8 : 12;
@@ -188,7 +183,7 @@ export function buildBillPreviewText(
   paperWidth: 58 | 80,
   ps: PrintSettings = {},
 ): string {
-  const cols = colsForWidth(paperWidth);
+  const cols = receiptColumnsForWidth(paperWidth);
   const lines: string[] = [];
 
   // Header

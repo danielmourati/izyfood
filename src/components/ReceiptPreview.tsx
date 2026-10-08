@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Receipt } from 'lucide-react';
 import { buildBillPreviewText, type PreviewBill } from '@/lib/receipt-preview';
-import { getCachedPrintSettings } from '@/lib/escpos';
+import { getCachedPrintSettings, receiptColumnsForWidth } from '@/lib/escpos';
 
 const MOCK_BILL: PreviewBill = {
   id: 'preview-0001',
@@ -45,7 +45,7 @@ export function ReceiptPreview({ defaultPaperWidth = 58 }: Props) {
     [paperWidth, ps],
   );
 
-  const cols = paperWidth === 58 ? 30 : 44;
+  const cols = receiptColumnsForWidth(paperWidth);
 
   return (
     <Card>
