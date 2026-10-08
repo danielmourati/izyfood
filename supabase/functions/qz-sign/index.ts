@@ -9,23 +9,31 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return json({ error: 'Unauthorized' }, 401);
-    }
-
-    const anonClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } },
+    // Autorização: login de usuário do Degust OU segredo compartilhado (Menuzin)
+    const sharedSecret = Deno.env.get('QZ_SHARED_SECRET');
+    const providedSecret = req.headers.get('x-qz-shared-secret') || '';
+    const hasSharedSecret = Boolean(
+      sharedSecret && providedSecret && sharedSecret === providedSecret,
     );
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims?.sub) {
-      return json({ error: 'Unauthorized' }, 401);
+    if (!hasSharedSecret) {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader?.startsWith('Bearer ')) {
+        return json({ error: 'Unauthorized' }, 401);
+      }
+
+      const anonClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+
+      const token = authHeader.replace('Bearer ', '');
+      const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(token);
+      if (claimsErr || !claimsData?.claims?.sub) {
+        return json({ error: 'Unauthorized' }, 401);
+      }
     }
-    const userId = claimsData.claims.sub as string;
 
     let body: any = {};
     try { body = await req.json(); } catch { /* ignore */ }
@@ -36,17 +44,6 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
-
-    const { data: member } = await admin
-      .from('tenant_members')
-      .select('tenant_id')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    const tenantId = member?.tenant_id as string | undefined;
-    if (!tenantId) return json({ error: 'Tenant não encontrado.' }, 400);
 
     const { data: certRow } = await admin
       .from('qz_tray_certs')
