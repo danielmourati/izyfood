@@ -414,7 +414,7 @@ describe('ESC/POS bill receipt', () => {
     expect(Array.from(bytes.slice(2, 5))).toEqual(Array.from(codepageCommand('cp860_bematech')));
     expect(Array.from(bytes.slice(2, 5))).toEqual([0x1b, 0x74, 4]);
     expect(Array.from(bytes)).toContain(0x84); // ã em CP860
-    expect(decodeText(bytes, 'cp860')).toContain('Maçã');
+    expect(decodeText(bytes, 'cp860_bematech')).toContain('Maçã');
   });
 });
 
