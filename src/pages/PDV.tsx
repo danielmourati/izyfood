@@ -75,7 +75,7 @@ const PDV = () => {
     }
   }, [mobileView]);
 
-  const { printOrder, printBill, hasPrinterAvailable, defaultPrinter, enablePrinterDevice, hostOnline } = usePrinter();
+  const { printers, printOrder, printBill, hasPrinterAvailable, defaultPrinter, enablePrinterDevice, hostOnline } = usePrinter();
   const previewPaperWidth = defaultPrinter?.paper_width || 58;
 
   useEffect(() => {
@@ -392,7 +392,7 @@ const PDV = () => {
 
     // 1. Enviar para a impressora local, ou para o aparelho do caixa (fila compartilhada)
     if (enablePrinterDevice || hostOnline) {
-      if (hasPrinterAvailable || hostOnline) {
+      if (hasPrinterAvailable || hostOnline || (enablePrinterDevice && printers.length > 0)) {
         try {
           const res = await printOrder(orderData, { intent: 'new' });
           if (res && res.ok === false) {
@@ -402,8 +402,8 @@ const PDV = () => {
           } else {
             toast.success('Comanda enviada para impressão!');
           }
-        } catch (err) {
-          toast.error('Erro na impressão, mas o pedido será salvo.');
+        } catch (err: any) {
+          setPrintPreview({ open: true, order: orderData, reason: `A comanda não foi impressa: ${err?.message || 'falha na impressora'}. O pedido foi salvo.` });
         }
       } else {
         setPrintPreview({
