@@ -96,9 +96,7 @@ const Home: React.FC = () => {
   // Vendas (always visible on top)
   const vendas: Shortcut[] = [
     { key: 'mesa', label: 'Mesa', icon: Utensils, to: '/mesas', show: true },
-    { key: 'balcao', label: 'Balcão', icon: Store, to: '/pdv?tipo=balcao', show: true },
-    { key: 'delivery', label: 'Delivery', icon: Bike, to: '/pdv?tipo=delivery', show: true },
-    { key: 'retirada', label: 'Retirada', icon: ShoppingBag, to: '/pdv?tipo=retirada', show: true },
+    { key: 'balcao', label: 'Balcão', icon: Store, to: '/balcao', show: true },
   ];
 
   // Outros atalhos (escondidos em sanfona)

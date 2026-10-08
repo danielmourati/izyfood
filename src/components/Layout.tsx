@@ -15,7 +15,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const slug = user?.tenantSlug || '';
   const stripped = location.pathname.replace(new RegExp(`^/${slug}`), '') || '/';
   const isHome = stripped === '/' || stripped === '';
-  const isPDV = stripped.startsWith('/pdv');
+  const isPDV = stripped.startsWith('/balcao');
   const showDesktopBar = !isHome && !isPDV;
 
   return (
