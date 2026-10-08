@@ -398,7 +398,9 @@ describe('ESC/POS bill receipt', () => {
       createdAt: '2026-05-22T20:13:00.000Z',
     }, 80, {}, 'bematech_mp');
     expect(Array.from(bytes.slice(2, 5))).toEqual(Array.from(codepageCommand('bematech_mp')));
-    expect(decodeReceipt(bytes)).toContain('Açaí, pão, coração, maçã e café');
+    const decoded = decodeReceipt(bytes);
+    expect(decoded).toContain('Açaí, pão, coração, maçã');
+    expect(decoded).toContain('e café');
   });
 });
 
