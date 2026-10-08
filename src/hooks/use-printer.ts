@@ -726,7 +726,7 @@ function fmtDate(iso: string) {
 const orderTypeLabels: Record<string, string> = { balcao: 'Balcão', mesa: 'Mesa', delivery: 'Delivery', retirada: 'Retirada' };
 const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX', cartao: 'Cartão', fiado: 'Fiado' };
 
-export function buildOrderHtml(order: any, ps: any = {}): string {
+export function buildOrderHtml(order: any, _ps: any = {}): string {
   let totalItemsCount = 0;
   const items = (order.items || []).map((i: any) => {
     totalItemsCount += i.quantity || 1;

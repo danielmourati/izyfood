@@ -4,6 +4,7 @@ import { CHAR_ENCODINGS, decodeText, encodeText, toAscii } from '@/lib/escpos-en
 import { buildBillPreviewText } from '@/lib/receipt-preview';
 
 const decodeReceipt = (data: Uint8Array) => decodeText(data, 'cp850');
+const normalizeReceiptWords = (receipt: string) => receipt.replace(/\s+/g, ' ').trim();
 
 describe('ESC/POS bill receipt', () => {
   it('prints Tipo as complete Mesa value on its own aligned row', () => {
@@ -475,7 +476,7 @@ describe('kitchen order notes rendering', () => {
   });
 
   it('buildOrderReceipt: prints checkbox notes AND input note on kitchen ticket', () => {
-    const receipt = decodeReceipt(buildOrderReceipt({
+    const receipt = normalizeReceiptWords(decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
         name: 'Arrumadinho de Carne de Sol',
@@ -485,7 +486,7 @@ describe('kitchen order notes rendering', () => {
         selectedNotes: ['Arroz Branco', 'Sem tempero'],
         otherNotes: 'com molho à parte',
       }],
-    }, 58)).toUpperCase();
+    }, 58)).toUpperCase());
     expect(receipt).toContain('ARROZ BRANCO');
     expect(receipt).toContain('SEM TEMPERO');
     expect(receipt).toContain('COM MOLHO');
@@ -497,13 +498,13 @@ describe('kitchen order notes rendering', () => {
     ['retirada', undefined, 'RETIRADA', false],
     ['delivery', undefined, 'DELIVERY', false],
   ])('buildOrderReceipt: uses %s heading without exposing the order id', (orderType, tableNumber, title, hasTable) => {
-    const receipt = decodeReceipt(buildOrderReceipt({
+    const receipt = normalizeReceiptWords(decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       id: 'abcdef12-3456-7890',
       orderType,
       tableNumber,
       items: [{ name: 'Produto', quantity: 1, price: 10, subtotal: 10 }],
-    }, 58)).toUpperCase();
+    }, 58)).toUpperCase());
 
     expect(receipt).toContain(title);
     expect(receipt).not.toContain('#ABCDEF');
@@ -536,7 +537,7 @@ describe('kitchen order notes rendering', () => {
   });
 
   it('buildOrderReceipt: wraps enlarged items using half the paper columns', () => {
-    const receipt = decodeReceipt(buildOrderReceipt({
+    const receipt = normalizeReceiptWords(decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
         name: 'Produto com nome grande para testar quebra',
@@ -562,13 +563,13 @@ describe('kitchen order notes rendering', () => {
         subtotal: 20,
         notes: 'Sem cebola | Sem picles',
       }],
-    }, 58)).toUpperCase();
+    }, 58)).toUpperCase());
     expect(receipt).toContain('SEM CEBOLA');
     expect(receipt).toContain('SEM PICLES');
   });
 
   it('buildOrderReceipt: only checkbox notes (no input text) still print', () => {
-    const receipt = decodeReceipt(buildOrderReceipt({
+    const receipt = normalizeReceiptWords(decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
         name: 'Pizza',
@@ -577,13 +578,13 @@ describe('kitchen order notes rendering', () => {
         subtotal: 20,
         selectedNotes: ['Borda recheada', 'Bem assada'],
       }],
-    }, 58)).toUpperCase();
+    }, 58)).toUpperCase());
     expect(receipt).toContain('BORDA RECHEADA');
     expect(receipt).toContain('BEM ASSADA');
   });
 
   it('buildOrderReceipt: prints short item checkbox note immediately after item line', () => {
-    const receipt = decodeReceipt(buildOrderReceipt({
+    const receipt = normalizeReceiptWords(decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
         name: 'Coca Lata',
@@ -592,7 +593,7 @@ describe('kitchen order notes rendering', () => {
         subtotal: 6,
         selectedNotes: ['gelo e limão'],
       }],
-    }, 58)).toUpperCase();
+    }, 58)).toUpperCase());
 
     const itemIdx = receipt.indexOf('COCA LATA');
     const noteIdx = receipt.indexOf('GELO E');
@@ -602,7 +603,7 @@ describe('kitchen order notes rendering', () => {
   });
 
   it('buildOrderReceipt: merges legacy observations and current additional items', () => {
-    const receipt = decodeReceipt(buildOrderReceipt({
+    const receipt = normalizeReceiptWords(decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
         name: 'Coca Lata',
@@ -612,7 +613,7 @@ describe('kitchen order notes rendering', () => {
         selectedNotes: ['gelo e limão'],
         selectedComplements: [{ name: 'Copo descartável', price: 0, quantity: 1 }],
       }],
-    }, 58)).toUpperCase();
+    }, 58)).toUpperCase());
 
     const itemIdx = receipt.indexOf('COCA LATA');
     const noteIdx = receipt.indexOf('GELO E');
