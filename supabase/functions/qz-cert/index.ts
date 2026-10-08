@@ -4,26 +4,36 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import forge from 'npm:node-forge@1.3.1';
 
 const GLOBAL_ID = '00000000-0000-0000-0000-000000000000';
+const PLATFORM_NAME = 'Degust / Menuzin';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return json({ error: 'Unauthorized' }, 401);
-    }
-
-    const anonClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } },
+    // Autorização: login de usuário do Degust OU segredo compartilhado (Menuzin)
+    const sharedSecret = Deno.env.get('QZ_SHARED_SECRET');
+    const providedSecret = req.headers.get('x-qz-shared-secret') || '';
+    const hasSharedSecret = Boolean(
+      sharedSecret && providedSecret && sharedSecret === providedSecret,
     );
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims?.sub) {
-      return json({ error: 'Unauthorized' }, 401);
+    if (!hasSharedSecret) {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader?.startsWith('Bearer ')) {
+        return json({ error: 'Unauthorized' }, 401);
+      }
+
+      const anonClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+
+      const token = authHeader.replace('Bearer ', '');
+      const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(token);
+      if (claimsErr || !claimsData?.claims?.sub) {
+        return json({ error: 'Unauthorized' }, 401);
+      }
     }
 
     const admin = createClient(
@@ -31,15 +41,14 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // Certificado único da plataforma (vale para todas as lojas)
+    // Certificado único da plataforma (vale para Degust e Menuzin, todas as lojas)
     const { data: existing } = await admin
       .from('qz_tray_certs')
       .select('cert_pem')
       .eq('tenant_id', GLOBAL_ID)
       .maybeSingle();
-    const tenantName = 'Degust';
     if (existing?.cert_pem) {
-      return json({ cert_pem: existing.cert_pem, tenant_name: tenantName });
+      return json({ cert_pem: existing.cert_pem, tenant_name: PLATFORM_NAME });
     }
 
     // Generate a self-signed RSA cert
@@ -73,7 +82,7 @@ Deno.serve(async (req) => {
       private_key_pem: privateKeyPem,
     });
 
-    return json({ cert_pem: certPem, tenant_name: tenantName });
+    return json({ cert_pem: certPem, tenant_name: PLATFORM_NAME });
   } catch (err: any) {
     console.error('[qz-cert] error', err);
     return json({ error: err?.message || 'Erro ao gerar certificado.' }, 500);
