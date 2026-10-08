@@ -654,6 +654,7 @@ export type Database = {
         Row: {
           address: string
           auto_connect_qz: boolean
+          char_encoding: string
           connection_type: string
           created_at: string
           double_font_orders: boolean
@@ -670,6 +671,7 @@ export type Database = {
         Insert: {
           address?: string
           auto_connect_qz?: boolean
+          char_encoding?: string
           connection_type: string
           created_at?: string
           double_font_orders?: boolean
@@ -686,6 +688,7 @@ export type Database = {
         Update: {
           address?: string
           auto_connect_qz?: boolean
+          char_encoding?: string
           connection_type?: string
           created_at?: string
           double_font_orders?: boolean
