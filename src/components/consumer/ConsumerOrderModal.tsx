@@ -67,6 +67,7 @@ export function ConsumerOrderModal({
   const isMobile = useIsMobile();
 
   const [currentOrder, setCurrentOrder] = useState<Order | null>(order);
+  const isBalcao = (currentOrder?.orderType ?? order?.orderType) === 'balcao';
   const [mobileStep, setMobileStep] = useState<'review' | 'categories' | 'products'>('review');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -142,6 +143,17 @@ export function ConsumerOrderModal({
 
     const mesaNum = currentOrder.tableNumber || tableNumber;
     const hasItems = items.length > 0 || totalAmount > 0;
+
+    if (hasItems && isBalcao) {
+      if (!canCancelOrDeleteMesa) {
+        setPrintNotice('Pedido de balcão precisa ser pago ou descartado por quem tem permissão de cancelar.');
+        return;
+      }
+      if (!window.confirm('Descartar este pedido do balcão? Os itens lançados serão apagados.')) return;
+      onDeleteOrder?.(currentOrder.id);
+      onClose();
+      return;
+    }
 
     if (hasItems) {
       const updatedOrder: Order = {
@@ -1099,7 +1111,7 @@ export function ConsumerOrderModal({
               )}
 
               {/* Bottom Footer Action Bar matching Anexo 2 */}
-              <div className={`p-2 bg-white border-t border-[#e8e4dc] grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 shrink-0`}>
+              <div className={`p-2 bg-white border-t border-[#e8e4dc] grid ${isAdmin && !isBalcao ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 shrink-0`}>
                 {/* White Voltar Button -> Returns to categories */}
                 <Button
                   variant="outline"
@@ -1109,7 +1121,15 @@ export function ConsumerOrderModal({
                   <ChevronLeft className="h-4 w-4 mb-0.5" /> VOLTAR
                 </Button>
                 {/* Green Fechar Button -> becomes REABRIR when the table is locked */}
-                {isLocked ? (
+                {isBalcao ? (
+                  <Button
+                    onClick={() => setCheckoutOpen(true)}
+                    disabled={items.length === 0 || totalAmount <= 0}
+                    className="h-12 text-[10px] font-black bg-[#800080] hover:bg-[#6a006a] text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm"
+                  >
+                    <CreditCard className="h-4 w-4 mb-0.5" /> COBRAR
+                  </Button>
+                ) : isLocked ? (
                   <Button
                     onClick={handleReabrirOrder}
                     className="h-12 text-[10px] font-black text-white flex flex-col items-center justify-center p-1 rounded-lg shadow-sm transition-all bg-[#00b050] hover:bg-[#009544] cursor-pointer"
@@ -1152,7 +1172,7 @@ export function ConsumerOrderModal({
                 </Button>
 
                 {/* Purple Pagar Button -> Shown ONLY to Admin users */}
-                {isAdmin && (
+                {isAdmin && !isBalcao && (
                   <Button
                     onClick={() => {
                       if (items.length === 0 || totalAmount <= 0) {
@@ -1252,7 +1272,7 @@ export function ConsumerOrderModal({
                   </div>
 
                   {/* Bloquear / Desbloquear Pedido */}
-                  <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/40 text-foreground pt-2">
+                  {!isBalcao && <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/40 text-foreground pt-2">
                     <div className="flex items-center gap-2 font-semibold">
                       <Lock className="h-4 w-4 text-amber-500" />
                       <span>Bloquear Pedido</span>
@@ -1269,7 +1289,7 @@ export function ConsumerOrderModal({
                         }
                       }}
                     />
-                  </div>
+                  </div>}
 
                   {/* Trocar Tipo de Pedido / Mesa */}
                   <button
@@ -1354,7 +1374,7 @@ export function ConsumerOrderModal({
             <div className="flex items-center gap-3">
               {/* Table Number Icon */}
               <div className={`text-2xl font-black px-1 ${isLocked ? 'text-[#d9a036]' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                {String(displayMesaNum).padStart(2, '0')}
+                {isBalcao ? 'BALCÃO' : String(displayMesaNum).padStart(2, '0')}
               </div>
 
               {/* Status Badge */}
@@ -1616,7 +1636,7 @@ export function ConsumerOrderModal({
                 {/* Main Action Buttons */}
                 <div className="flex items-center gap-2.5">
                   {/* FECHAR / REABRIR Button */}
-                  {isLocked ? (
+                  {isBalcao ? null : isLocked ? (
                     <Button
                       onClick={handleReabrirOrder}
                       className="bg-[#00b050] hover:bg-[#009544] text-white h-11 px-4 text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"

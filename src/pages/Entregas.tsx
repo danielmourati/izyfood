@@ -152,7 +152,7 @@ const Entregas = () => {
     setPickupNotes('');
     setNewOrderOpen(false);
 
-    navigate(`/pdv?pedido=${newOrder.id}`);
+    
   };
 
   const changeStatus = (orderId: string, newStatus: DeliveryStatus) => {
@@ -350,21 +350,13 @@ const Entregas = () => {
                   {ds !== 'finalizado' && (
                     <>
                       <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-[11px]"
-                        onClick={() => navigate(`/pdv?pedido=${order.id}`)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
                         size="sm"
                         className="h-7 px-2 text-[11px] gap-1"
                         onClick={() => {
                           if (ds === 'pendente') {
                             changeStatus(order.id, 'pronto');
                           } else if (ds === 'pronto' && !order.paymentMethod) {
-                            navigate(`/pdv?pedido=${order.id}`);
+                            changeStatus(order.id, 'finalizado');
                           } else {
                             changeStatus(order.id, 'finalizado');
                           }
@@ -414,7 +406,7 @@ const Entregas = () => {
                     if (!statusDialogOrder) return;
                     if (s === 'finalizado' && !statusDialogOrder.paymentMethod) {
                       setStatusDialogOrder(null);
-                      navigate(`/pdv?pedido=${statusDialogOrder.id}`);
+                      changeStatus(statusDialogOrder.id, 'finalizado');
                       return;
                     }
                     changeStatus(statusDialogOrder.id, s);
@@ -761,20 +753,13 @@ const Entregas = () => {
                   {ds !== 'finalizado' && (
                     <div className="flex gap-2 pt-1">
                       <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => { setSelectedOrderDetail(null); navigate(`/pdv?pedido=${o.id}`); }}
-                      >
-                        Editar Pedido
-                      </Button>
-                      <Button
                         className="flex-1 gap-1"
                         onClick={() => {
                           if (ds === 'pendente') {
                             changeStatus(o.id, 'pronto');
                           } else if (ds === 'pronto' && !o.paymentMethod) {
                             setSelectedOrderDetail(null);
-                            navigate(`/pdv?pedido=${o.id}`);
+                            changeStatus(o.id, 'finalizado');
                           } else {
                             changeStatus(o.id, 'finalizado');
                           }
