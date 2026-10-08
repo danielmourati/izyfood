@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildBillReceipt, buildOrderReceipt, codepageCommand, getItemNoteLines } from '@/lib/escpos';
+import { buildBillReceipt, buildOrderReceipt, buildEncodingTestReceipt, codepageCommand, getItemNoteLines } from '@/lib/escpos';
+import { CHAR_ENCODINGS, decodeText, encodeText, toAscii } from '@/lib/escpos-encoding';
 import { buildBillPreviewText } from '@/lib/receipt-preview';
 
-const decodeReceipt = (data: Uint8Array) => new TextDecoder('utf-8').decode(data);
+const decodeReceipt = (data: Uint8Array) => decodeText(data, 'cp850');
 
 describe('ESC/POS bill receipt', () => {
   it('prints Tipo as complete Mesa value on its own aligned row', () => {
@@ -390,17 +391,57 @@ describe('ESC/POS bill receipt', () => {
     for (const line of preview.split('\n')) expect(line.length).toBeLessThanOrEqual(40);
   });
 
-  it('Bematech seleciona a tabela UTF-8 e preserva caracteres portugueses', () => {
+  it('padrão CP850: envia ESC t 2 e 1 byte por letra acentuada', () => {
     const bytes = buildBillReceipt({
-      id: 'utf8', orderType: 'balcao',
+      id: 'cp850', orderType: 'balcao',
       items: [{ name: 'Açaí, pão, coração, maçã e café', quantity: 1, price: 12, subtotal: 12 }],
       total: 12,
       createdAt: '2026-05-22T20:13:00.000Z',
-    }, 80, {}, 'bematech_mp');
-    expect(Array.from(bytes.slice(2, 5))).toEqual(Array.from(codepageCommand('bematech_mp')));
+    }, 80);
+    expect(Array.from(bytes.slice(2, 5))).toEqual([0x1b, 0x74, 2]);
+    expect(Array.from(bytes)).toContain(0x87); // ç
+    expect(Array.from(bytes)).toContain(0xc6); // ã
     const decoded = decodeReceipt(bytes);
     expect(decoded).toContain('Açaí, pão, coração, maçã');
-    expect(decoded).toContain('e café');
+  });
+
+  it('CP860 Bematech usa ESC t 4 e bytes CP860', () => {
+    const bytes = buildBillReceipt({
+      id: 'cp860', orderType: 'balcao',
+      items: [{ name: 'Maçã', quantity: 1, price: 1, subtotal: 1 }],
+      total: 1, createdAt: '2026-05-22T20:13:00.000Z',
+    }, 80, {}, 'cp860_bematech');
+    expect(Array.from(bytes.slice(2, 5))).toEqual(Array.from(codepageCommand('cp860_bematech')));
+    expect(Array.from(bytes.slice(2, 5))).toEqual([0x1b, 0x74, 4]);
+    expect(Array.from(bytes)).toContain(0x84); // ã em CP860
+    expect(decodeText(bytes, 'cp860_bematech')).toContain('Maçã');
+  });
+});
+
+describe('char encodings', () => {
+  it('Sem acentos gera apenas ASCII', () => {
+    const bytes = encodeText('Ação Pão Coração – Ônibus nº 1 🍔', 'ascii');
+    expect(Array.from(bytes).every(b => b < 0x80)).toBe(true);
+    expect(toAscii('Ação Pão Coração – Ônibus')).toBe('Acao Pao Coracao - Onibus');
+  });
+
+  it('caracteres fora da tabela viram equivalentes simples', () => {
+    expect(decodeText(encodeText('A – B “x”', 'cp850'), 'cp850')).toBe('A - B "x"');
+  });
+
+  it('todas as tabelas de 1 byte mantêm o português', () => {
+    for (const enc of CHAR_ENCODINGS) {
+      if (enc.table === 'ascii' || enc.table === 'utf8') continue;
+      const s = 'Ação Pão Coração Maçã Café Açaí Ônibus ÇÃÉÊÍÓÔÕÚ';
+      const bytes = encodeText(s, enc);
+      expect(bytes.length).toBe(s.length);
+      expect(decodeText(bytes, enc)).toBe(s);
+    }
+  });
+
+  it('folha de teste contém todas as opções', () => {
+    const decoded = decodeText(buildEncodingTestReceipt(80), 'ascii');
+    CHAR_ENCODINGS.forEach((enc, i) => expect(decoded).toContain(`${i + 1}) ${enc.testLabel}`));
   });
 });
 

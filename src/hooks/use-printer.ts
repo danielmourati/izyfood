@@ -38,6 +38,7 @@ import {
   buildOrderReceipt,
   buildBillReceipt,
   buildCashCloseReceipt,
+  buildEncodingTestReceipt,
   fetchPrintSettings,
 } from '@/lib/escpos';
 import type { PrintSettings } from '@/lib/escpos';
@@ -141,6 +142,7 @@ export interface PrinterConfig {
   is_default: boolean;
   model?: string;
   escpos_profile?: string;
+  char_encoding?: string;
   auto_connect_qz?: boolean;
   sector?: string;
   double_font_orders?: boolean;
@@ -603,7 +605,7 @@ export function usePrinter() {
       const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
       console.log(`[printOrder] setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, itens: ${secItems.length}`);
       const orderSettings = { ...ps, doubleFontOrders: targetPrinter?.double_font_orders === true };
-      const escpos = buildOrderReceipt(secOrder, targetPaperWidth, orderSettings, targetPrinter?.escpos_profile);
+      const escpos = buildOrderReceipt(secOrder, targetPaperWidth, orderSettings, targetPrinter?.char_encoding);
       const html = buildOrderHtml(secOrder, orderSettings);
       const copies = getOrderPrintCopies(intent, targetPrinter);
       for (let copy = 0; copy < copies; copy += 1) {
@@ -624,7 +626,7 @@ export function usePrinter() {
     const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log(`[printBill] printSettings usados (setor: recibo, impressora: ${targetPrinter?.name || 'padrão'}, largura: ${targetPaperWidth}mm):`, JSON.stringify(ps));
-    const escpos = buildBillReceipt(bill, targetPaperWidth, ps, targetPrinter?.escpos_profile);
+    const escpos = buildBillReceipt(bill, targetPaperWidth, ps, targetPrinter?.char_encoding);
     const html = buildBillHtml(bill, ps);
     await sendToPrinter(escpos, html, 'Conta', { ...options, targetPrinter, sector });
     return { ok: true };
@@ -639,10 +641,20 @@ export function usePrinter() {
     const sector = 'recibo';
     const targetPrinter = getPrinterForSector(sector);
     const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
-    const escpos = buildCashCloseReceipt(data, targetPaperWidth, targetPrinter?.escpos_profile);
+    const escpos = buildCashCloseReceipt(data, targetPaperWidth, targetPrinter?.char_encoding);
     const html = buildCashCloseHtml(data);
     await sendToPrinter(escpos, html, 'Fechamento de Caixa', { ...options, targetPrinter, sector });
     return { ok: true };
+  };
+
+  /** Prints the calibration page with every character table, numbered. */
+  const printEncodingTest = async (sector?: string): Promise<PrintResult> => {
+    const targetPrinter = getPrinterForSector(sector);
+    const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
+    const bytes = buildEncodingTestReceipt(targetPaperWidth);
+    const html = '<pre style="font-family:monospace">TESTE DE ACENTUACAO\n\nEste teste so funciona em impressora termica conectada (USB/QZ Tray ou Bluetooth).</pre>';
+    const channel = await sendToPrinter(bytes, html, 'Teste de acentuação', { force: true, targetPrinter, sector });
+    return { ok: channel !== 'html' && channel !== 'disabled', channel };
   };
 
   const printTest = async (sector?: string) => {
@@ -694,6 +706,7 @@ export function usePrinter() {
     printBill,
     printCashClose,
     printTest,
+    printEncodingTest,
     printHostEnabled,
     togglePrintHost,
     hostOnline,

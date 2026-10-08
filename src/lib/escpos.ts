@@ -5,23 +5,37 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { getOrderItemAdditionalLines, getOrderItemNoteLines } from '@/lib/utils';
+import {
+  CHAR_ENCODINGS,
+  DEFAULT_CHAR_ENCODING,
+  ENCODING_TEST_SAMPLE,
+  encodeText,
+  getCharEncoding,
+  type CharEncoding,
+} from '@/lib/escpos-encoding';
 
 const ESC = 0x1B;
 const GS = 0x1D;
 
-const utf8Encoder = new TextEncoder();
-
-
 /**
- * Encode string to standard UTF-8 bytes for thermal printing.
+ * Encoding used by `text()` while a receipt is being built. Builders are
+ * synchronous and set/restore it via `withEncoding`, so concurrent prints
+ * never interleave.
  */
-export function encodeUtf8(s: string): Uint8Array {
-  if (!s) return new Uint8Array(0);
-  return utf8Encoder.encode(s);
+let activeEncoding: CharEncoding = getCharEncoding(DEFAULT_CHAR_ENCODING);
+
+function withEncoding<T>(encodingId: string | null | undefined, fn: (enc: CharEncoding) => T): T {
+  const prev = activeEncoding;
+  activeEncoding = getCharEncoding(encodingId);
+  try {
+    return fn(activeEncoding);
+  } finally {
+    activeEncoding = prev;
+  }
 }
 
 function text(s: string): Uint8Array {
-  return encodeUtf8(s);
+  return encodeText(s, activeEncoding);
 }
 
 function concat(...parts: Uint8Array[]): Uint8Array {
@@ -39,12 +53,9 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 
 /** Initialise printer */
 export const CMD_INIT = new Uint8Array([ESC, 0x40]);
-/** Select a valid character table for the configured printer profile. */
-export function codepageCommand(profile = 'generic'): Uint8Array {
-  // Bematech MP firmware exposes native UTF-8 as character table 8.
-  return profile === 'bematech_mp'
-    ? new Uint8Array([ESC, 0x74, 0x08])
-    : new Uint8Array(0);
+/** `ESC t n` command for the printer's calibrated character encoding. */
+export function codepageCommand(encodingId?: string | null): Uint8Array {
+  return getCharEncoding(encodingId).command;
 }
 /** Line feed */
 export const CMD_LF = new Uint8Array([0x0A]);
@@ -520,7 +531,7 @@ function fmtDateCompact(iso: string): string {
 /**
  * Build a COMANDA (order ticket for kitchen / production).
  */
-export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSettings = {}, escposProfile = 'generic'): Uint8Array {
+function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSettings, charEncoding: string): Uint8Array {
   const cols = receiptColumnsForWidth(paperWidth);
   const doubleFont = ps.doubleFontOrders === true;
   const orderNo = order.id ? order.id.slice(0, 6).toUpperCase() : '000000';
@@ -533,7 +544,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
         : 'COZINHA';
   const parts: Uint8Array[] = [
     CMD_INIT,
-    codepageCommand(escposProfile),
+    codepageCommand(charEncoding),
   ];
 
   parts.push(
@@ -626,11 +637,11 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
 /**
  * Build a CONTA (bill / receipt for customer after payment).
  */
-export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSettings = {}, escposProfile = 'generic'): Uint8Array {
+function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSettings, charEncoding: string): Uint8Array {
   const cols = receiptColumnsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
-    codepageCommand(escposProfile),
+    codepageCommand(charEncoding),
     normalTextMode(),
   ];
 
@@ -779,11 +790,11 @@ export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSetti
 /**
  * Build FECHAMENTO DE CAIXA receipt.
  */
-export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80, escposProfile = 'generic'): Uint8Array {
+function buildCashCloseReceiptImpl(data: CashCloseData, paperWidth: number, charEncoding: string): Uint8Array {
   const cols = receiptColumnsForWidth(paperWidth);
   const parts: Uint8Array[] = [
     CMD_INIT,
-    codepageCommand(escposProfile),
+    codepageCommand(charEncoding),
     CMD_ALIGN_CENTER,
     CMD_BOLD_ON, CMD_DOUBLE_ON,
     text('FECHAMENTO DE CAIXA\n'),
@@ -821,5 +832,56 @@ export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80, escp
   parts.push(lineOf('=', cols));
   parts.push(feedAndCut());
 
+  return concat(...parts);
+}
+
+/**
+ * Build a COMANDA (order ticket for kitchen / production).
+ * `charEncoding` is the printer's calibrated `printer_configs.char_encoding`.
+ */
+export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSettings = {}, charEncoding: string | null = DEFAULT_CHAR_ENCODING): Uint8Array {
+  return withEncoding(charEncoding, (enc) => buildOrderReceiptImpl(order, paperWidth, ps, enc.id));
+}
+
+/** Build a CONTA (customer bill). */
+export function buildBillReceipt(bill: BillData, paperWidth = 80, ps: PrintSettings = {}, charEncoding: string | null = DEFAULT_CHAR_ENCODING): Uint8Array {
+  return withEncoding(charEncoding, (enc) => buildBillReceiptImpl(bill, paperWidth, ps, enc.id));
+}
+
+/** Build FECHAMENTO DE CAIXA receipt. */
+export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80, charEncoding: string | null = DEFAULT_CHAR_ENCODING): Uint8Array {
+  return withEncoding(charEncoding, (enc) => buildCashCloseReceiptImpl(data, paperWidth, enc.id));
+}
+
+/**
+ * Calibration page: prints the same accented sample once per supported
+ * encoding, each preceded by its own `ESC t n`. The operator picks the
+ * numbered line that printed correctly.
+ */
+export function buildEncodingTestReceipt(paperWidth = 80): Uint8Array {
+  const cols = receiptColumnsForWidth(paperWidth);
+  const ascii = (s: string) => encodeText(s, 'ascii');
+  const parts: Uint8Array[] = [
+    CMD_INIT,
+    CMD_ALIGN_CENTER, CMD_BOLD_ON,
+    ascii('TESTE DE ACENTUACAO\n'),
+    CMD_BOLD_OFF, CMD_ALIGN_LEFT,
+    ascii('='.repeat(cols) + '\n'),
+    ascii('Escolha o numero da linha que\nsaiu correta e selecione a mesma\nopcao em Acentuacao.\n'),
+    ascii('-'.repeat(cols) + '\n'),
+  ];
+  // Factory-table options first, right after ESC @ resets the table.
+  const ordered = [
+    ...CHAR_ENCODINGS.filter(e => e.command.length === 0),
+    ...CHAR_ENCODINGS.filter(e => e.command.length > 0),
+  ];
+  // Number by position in CHAR_ENCODINGS so it matches the select order.
+  for (const enc of ordered) {
+    const n = CHAR_ENCODINGS.indexOf(enc) + 1;
+    if (enc.command.length === 0) parts.push(CMD_INIT);
+    parts.push(CMD_BOLD_ON, ascii(`${n}) ${enc.testLabel}\n`), CMD_BOLD_OFF);
+    parts.push(enc.command, encodeText(ENCODING_TEST_SAMPLE + '\n', enc), ascii('\n'));
+  }
+  parts.push(CMD_INIT, ascii('-'.repeat(cols) + '\n'), feedAndCut());
   return concat(...parts);
 }

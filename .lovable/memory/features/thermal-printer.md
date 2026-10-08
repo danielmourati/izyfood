@@ -18,6 +18,8 @@ O módulo de impressão térmica suporta dois métodos de conexão:
 
 **Tipos de documento:** Comanda (itens para cozinha), Conta (recibo do cliente), Fechamento de Caixa.
 
-**Largura do papel:** 58mm (32 colunas) ou 80mm (48 colunas), configurável por impressora.
+**Largura do papel:** 58mm (27 colunas) ou 80mm (40 colunas).
+
+**Acentuação:** por impressora (`char_encoding`, padrão CP850). Botão "Imprimir teste de acentuação" imprime todas as tabelas numeradas; o usuário escolhe a que saiu correta. UTF-8 não funcionou na Bematech do Quintal de Casa.
 
 **Setor por item:** produto.print_sector > categoria.print_sector > 'cozinha'; 'none' = não imprime. `printOrder` gera uma comanda por setor (`src/lib/print-sectors.ts`). Fotos de produto desativadas (coluna image deprecated).

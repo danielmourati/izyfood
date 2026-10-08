@@ -1,0 +1,2 @@
+ALTER TABLE public.printer_configs ADD COLUMN IF NOT EXISTS char_encoding text NOT NULL DEFAULT 'cp850';
+COMMENT ON COLUMN public.printer_configs.char_encoding IS 'Calibrated ESC/POS character table id (cp850, cp860_epson, cp860_bematech, cp1252, cp850_raw, utf8, ascii).';
