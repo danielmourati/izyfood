@@ -1,3 +1,6 @@
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { MoreVertical, Pencil, Trash2 as TrashIcon2 } from 'lucide-react';
+import { isMobileDevice } from '@/lib/printer';
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -58,6 +61,24 @@ export function ImpressoraTab() {
   const [showAddLocalModal, setShowAddLocalModal] = useState(false);
   const [newLocalName, setNewLocalName] = useState('');
 
+  const [sectorNames, setSectorNames] = useState<Record<string, string>>({});
+  const [hiddenSectors, setHiddenSectors] = useState<string[]>([]);
+  const [renameTarget, setRenameTarget] = useState<SectorItem | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<SectorItem | null>(null);
+  const [deleteUsage, setDeleteUsage] = useState<{ products: number; categories: number } | null>(null);
+  const [sectorBusy, setSectorBusy] = useState(false);
+  const [sectorError, setSectorError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.tenantId) return;
+    supabase.from('store_settings').select('print_settings').eq('tenant_id', user.tenantId).maybeSingle().then(({ data }) => {
+      const ps: any = (data as any)?.print_settings || {};
+      setSectorNames(ps.sectorNames || {});
+      setHiddenSectors(Array.isArray(ps.hiddenSectors) ? ps.hiddenSectors : []);
+    });
+  }, [user?.tenantId]);
+
   // Form state
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -75,7 +96,7 @@ export function ImpressoraTab() {
   // Combine default and custom sectors, including any stored in DB
   const allSectors = React.useMemo(() => {
     const map = new Map<string, SectorItem>();
-    DEFAULT_SECTORS.forEach(s => map.set(s.key, s));
+    DEFAULT_SECTORS.forEach(s => { if (!hiddenSectors.includes(s.key)) map.set(s.key, s); });
     customSectors.forEach(s => map.set(s.key, s));
 
     // Incorporate any sector from printers array that is not default
@@ -90,8 +111,69 @@ export function ImpressoraTab() {
       }
     });
 
-    return Array.from(map.values());
-  }, [customSectors, printers]);
+    return Array.from(map.values())
+      .filter(s => s.key === 'recibo' || !hiddenSectors.includes(s.key) || printers.some(p => (p as any).sector === s.key))
+      .map(s => sectorNames[s.key] ? { ...s, name: sectorNames[s.key] } : s);
+  }, [customSectors, printers, hiddenSectors, sectorNames]);
+
+  // ---- CRUD de locais (nomes e ocultos salvos em store_settings.print_settings)
+  const persistSectorPrefs = async (names: Record<string, string>, hidden: string[]) => {
+    if (!user?.tenantId) return;
+    const { data } = await supabase.from('store_settings').select('id, print_settings').eq('tenant_id', user.tenantId).maybeSingle();
+    if (!data) return;
+    const ps = { ...((data as any).print_settings || {}), sectorNames: names, hiddenSectors: hidden };
+    const { error } = await supabase.from('store_settings').update({ print_settings: ps } as any).eq('id', (data as any).id);
+    if (error) throw error;
+  };
+
+  const handleRenameSector = async () => {
+    if (!renameTarget || !renameValue.trim()) return;
+    const newName = renameValue.trim();
+    setSectorBusy(true); setSectorError(null);
+    try {
+      const names = { ...sectorNames, [renameTarget.key]: newName };
+      await persistSectorPrefs(names, hiddenSectors);
+      const bound = printers.find(p => (p as any).sector === renameTarget.key);
+      if (bound?.id) await supabase.from('printer_configs').update({ name: newName }).eq('id', bound.id);
+      setCustomSectors(prev => prev.map(c => c.key === renameTarget.key ? { ...c, name: newName } : c));
+      setSectorNames(names);
+      await fetchPrinters();
+      setRenameTarget(null);
+    } catch (e: any) {
+      setSectorError(e?.message || 'Não foi possível renomear.');
+    } finally { setSectorBusy(false); }
+  };
+
+  const openDeleteSector = async (sec: SectorItem) => {
+    setSectorError(null);
+    setDeleteTarget(sec);
+    setDeleteUsage(null);
+    if (!user?.tenantId) return;
+    const [{ count: pc }, { count: cc }] = await Promise.all([
+      supabase.from('products').select('id', { count: 'exact', head: true }).eq('tenant_id', user.tenantId).eq('print_sector', sec.key),
+      supabase.from('categories').select('id', { count: 'exact', head: true }).eq('tenant_id', user.tenantId).eq('print_sector', sec.key),
+    ]);
+    setDeleteUsage({ products: pc || 0, categories: cc || 0 });
+  };
+
+  const handleDeleteSector = async () => {
+    if (!deleteTarget || deleteTarget.key === 'recibo' || !user?.tenantId) return;
+    setSectorBusy(true); setSectorError(null);
+    try {
+      const { error } = await supabase.from('printer_configs').delete().eq('tenant_id', user.tenantId).eq('sector', deleteTarget.key);
+      if (error) throw error;
+      const hidden = Array.from(new Set([...hiddenSectors, deleteTarget.key]));
+      const names = { ...sectorNames }; delete names[deleteTarget.key];
+      await persistSectorPrefs(names, hidden);
+      setHiddenSectors(hidden); setSectorNames(names);
+      setCustomSectors(prev => prev.filter(c => c.key !== deleteTarget.key));
+      if (selectedSector === deleteTarget.key) setSelectedSector('recibo');
+      await fetchPrinters();
+      setDeleteTarget(null);
+    } catch (e: any) {
+      setSectorError(e?.message || 'Não foi possível excluir.');
+    } finally { setSectorBusy(false); }
+  };
 
   // Find printer config for selected sector
   const currentPrinter = printers.find(p => (p as any).sector === selectedSector) || null;
@@ -269,6 +351,7 @@ export function ImpressoraTab() {
         </div>
       </div>
 
+      {isMobileDevice() && (
       {/* Device Printer Toggle Card */}
       <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 space-y-3 font-sans">
         <div className="flex items-center justify-between gap-4">
@@ -291,6 +374,7 @@ export function ImpressoraTab() {
           />
         </div>
       </Card>
+      )}
 
       {/* Impressão centralizada: aparelho "Caixa" + fila de cupons */}
       <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 font-sans">
@@ -410,9 +494,10 @@ export function ImpressoraTab() {
                     const hasConfig = !!boundPrinter;
 
                     return (
-                      <button
+                      <div
                         key={sec.key}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSelectedSector(sec.key)}
                         className={`w-full text-left p-4 rounded-2xl transition-all duration-200 border ${
                           isSelected
@@ -435,13 +520,32 @@ export function ImpressoraTab() {
                             </div>
                           </div>
 
+                          <div className="flex items-center gap-1">
                           {hasConfig && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                               Ativa
                             </span>
                           )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Opções de ${sec.name}`}>
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenuItem onClick={() => { setSectorError(null); setRenameTarget(sec); setRenameValue(sec.name); }}>
+                                <Pencil className="h-4 w-4 mr-2" /> Renomear
+                              </DropdownMenuItem>
+                              {sec.key !== 'recibo' && (
+                                <DropdownMenuItem className="text-destructive" onClick={() => openDeleteSector(sec)}>
+                                  <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          </div>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -560,23 +664,6 @@ export function ImpressoraTab() {
                           <SelectItem value="210">A4 / Folha inteira (impressora padrão)</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-
-                    {/* Form Field 3: Imprimir e aceitar pedidos automaticamente */}
-                    <div className="rounded-2xl border border-border p-4 bg-muted/10 flex items-center justify-between gap-4">
-                      <div className="space-y-0.5">
-                        <Label className="text-sm font-bold text-foreground cursor-pointer" htmlFor="auto-print-switch">
-                          Imprimir e aceitar pedidos automaticamente
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          O pedido é aceito assim que chega e o cupom sai na hora.
-                        </p>
-                      </div>
-                      <Switch
-                        id="auto-print-switch"
-                        checked={form.auto_connect_qz}
-                        onCheckedChange={(val) => setForm(f => ({ ...f, auto_connect_qz: val }))}
-                      />
                     </div>
 
                     {/* Form Field 4: Opções avançadas Accordion */}
@@ -762,6 +849,34 @@ export function ImpressoraTab() {
             >
               Adicionar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!renameTarget} onOpenChange={(v) => !v && setRenameTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Renomear local</DialogTitle></DialogHeader>
+          <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} autoFocus />
+          {sectorError && <p className="text-xs text-destructive">{sectorError}</p>}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRenameTarget(null)} disabled={sectorBusy}>Cancelar</Button>
+            <Button onClick={handleRenameSector} disabled={sectorBusy || !renameValue.trim()}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Excluir "{deleteTarget?.name}"?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            O local e a impressora vinculada serão removidos.
+            {deleteUsage && (deleteUsage.products + deleteUsage.categories > 0)
+              ? ` ${deleteUsage.products} produto(s) e ${deleteUsage.categories} categoria(s) usam este local e passarão a imprimir na Cozinha.`
+              : ''}
+          </p>
+          {sectorError && <p className="text-xs text-destructive">{sectorError}</p>}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={sectorBusy}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDeleteSector} disabled={sectorBusy}>Excluir</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
