@@ -6,5 +6,6 @@
 - Product administration uses a compact, image-free table while the existing StoreContext setters remain the single CRUD synchronization path.
 - On mobile browsers, the tenant root opens Mesas when the signed-in user has table access; desktop keeps Home as the root.
 - Production printing carries an explicit `new` or `reprint` intent, so per-printer duplicate-copy settings never affect manual reprints.
+- Kitchen tickets identify table orders by table number, omit order IDs, and always enlarge headings, products, and additions for production readability.
 - Receipt generation and preview share one column-width rule: 27 columns for 58mm and 40 for 80mm, so preview wrapping matches printed output.
 - Printed text is encoded with each printer's calibrated `char_encoding` (single-byte table + its `ESC t n`, from `src/lib/escpos-encoding.ts`), never with the ESC/POS profile, because table indexes differ across brands/firmwares and only the printed calibration page can confirm the right one.
