@@ -352,7 +352,6 @@ export function ImpressoraTab() {
       </div>
 
       {isMobileDevice() && (
-      {/* Device Printer Toggle Card */}
       <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 space-y-3 font-sans">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
