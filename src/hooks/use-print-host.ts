@@ -45,7 +45,8 @@ export function usePrintHost() {
     const payload = job.payload || {};
     if (job.kind === 'bill') return printBill(payload, { force: true });
     if (job.kind === 'cash_close') return printCashClose(payload, { force: true });
-    return printOrder(payload, { force: true });
+    const intent = payload.__printIntent === 'reprint' ? 'reprint' : 'new';
+    return printOrder(payload, { force: true, intent });
   }, [printOrder, printBill, printCashClose]);
 
   const drain = useCallback(async () => {

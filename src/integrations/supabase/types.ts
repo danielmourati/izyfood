@@ -656,6 +656,8 @@ export type Database = {
           auto_connect_qz: boolean
           connection_type: string
           created_at: string
+          double_font_orders: boolean
+          duplicate_new_orders: boolean
           escpos_profile: string
           id: string
           is_default: boolean
@@ -670,6 +672,8 @@ export type Database = {
           auto_connect_qz?: boolean
           connection_type: string
           created_at?: string
+          double_font_orders?: boolean
+          duplicate_new_orders?: boolean
           escpos_profile?: string
           id?: string
           is_default?: boolean
@@ -684,6 +688,8 @@ export type Database = {
           auto_connect_qz?: boolean
           connection_type?: string
           created_at?: string
+          double_font_orders?: boolean
+          duplicate_new_orders?: boolean
           escpos_profile?: string
           id?: string
           is_default?: boolean

@@ -404,6 +404,8 @@ export interface PrintSettings {
   showInstagram?: boolean;
   showThankMessage?: boolean;
   feedLines?: number;
+  /** Per-printer runtime option; not stored in store_settings. */
+  doubleFontOrders?: boolean;
 }
 
 /** Safe defaults: all toggles false, all text empty — no field ever undefined */
@@ -423,6 +425,7 @@ const PRINT_SETTINGS_DEFAULTS: Required<PrintSettings> = {
   showInstagram: false,
   showThankMessage: false,
   feedLines: 4,
+  doubleFontOrders: false,
 };
 
 let _cachedPrintSettings: PrintSettings | null = null;
@@ -554,6 +557,15 @@ function fmtDateCompact(iso: string): string {
  */
 export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSettings = {}): Uint8Array {
   const cols = colsForWidth(paperWidth);
+  const doubleFont = ps.doubleFontOrders === true;
+  const orderNo = order.id ? order.id.slice(0, 6).toUpperCase() : '000000';
+  const orderTitle = order.orderType === 'mesa' || !!order.tableNumber
+    ? 'CONSUMO'
+    : order.orderType === 'delivery'
+      ? 'DELIVERY'
+      : order.orderType === 'retirada'
+        ? 'RETIRADA'
+        : 'COZINHA';
   const parts: Uint8Array[] = [
     CMD_INIT,
     CMD_CODEPAGE_UTF8,
@@ -563,15 +575,14 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
     CMD_ALIGN_CENTER,
     CMD_BOLD_ON,
     CMD_DOUBLE_ON,
-    text('*** COZINHA ***\n'),
+    text(`${orderTitle}\n`),
+    text(`#${orderNo}\n`),
     CMD_DOUBLE_OFF,
     CMD_BOLD_OFF,
     normalTextMode(),
     CMD_ALIGN_LEFT,
     lineOf('-', cols)
   );
-
-  const orderNo = order.id ? order.id.slice(0, 6).toUpperCase() : '0000';
 
   let tipoPedido = 'BALCÃO';
   if (order.orderType === 'delivery') {
@@ -584,9 +595,7 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
     tipoPedido = orderTypeLabels[order.orderType].toUpperCase();
   }
 
-  // Row 1: PEDIDO #38CC            MESA: 01
-  const pedLabel = `PEDIDO: #${orderNo}`;
-  parts.push(CMD_BOLD_ON, leftRightAlign(pedLabel, tipoPedido, cols), CMD_BOLD_OFF);
+  parts.push(CMD_BOLD_ON, kvRow('Tipo:', tipoPedido, cols), CMD_BOLD_OFF);
 
   // Row 2: Data
   const dateFormatted = fmtDateCompact(order.createdAt);
@@ -617,20 +626,25 @@ export function buildOrderReceipt(order: OrderData, paperWidth = 80, ps: PrintSe
   for (const item of order.items) {
     totalItemsCount += item.quantity || 1;
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
+    const itemCols = doubleFont ? Math.max(12, Math.floor(cols / 2)) : cols;
     parts.push(
       CMD_ALIGN_LEFT,
       CMD_BOLD_ON,
-      textOnlyWrap(`${qty} ${item.name.toUpperCase()}`, cols),
+      ...(doubleFont ? [CMD_DOUBLE_ON] : []),
+      textOnlyWrap(`${qty} ${item.name.toUpperCase()}`, itemCols),
+      ...(doubleFont ? [CMD_DOUBLE_OFF] : []),
       CMD_BOLD_OFF,
       normalTextMode()
     );
     const additionalItems = getOrderItemAdditionalLines(item);
     if (additionalItems.length > 0) {
       const additionalTitle = additionalItems.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
-      parts.push(textOnlyWrap(`   ${additionalTitle}`, cols));
+      if (doubleFont) parts.push(CMD_DOUBLE_ON);
+      parts.push(textOnlyWrap(`   ${additionalTitle}`, itemCols));
       for (const additional of additionalItems) {
-        parts.push(textOnlyWrap(`   + ${additional.quantity}x ${additional.name}`, cols));
+        parts.push(textOnlyWrap(`   + ${additional.quantity}x ${additional.name}`, itemCols));
       }
+      if (doubleFont) parts.push(CMD_DOUBLE_OFF, normalTextMode());
     }
   }
 

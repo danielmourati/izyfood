@@ -419,6 +419,41 @@ describe('kitchen order notes rendering', () => {
     expect(receipt).toContain('COM MOLHO');
   });
 
+  it.each([
+    ['mesa', 7, 'CONSUMO'],
+    ['balcao', undefined, 'COZINHA'],
+    ['retirada', undefined, 'RETIRADA'],
+    ['delivery', undefined, 'DELIVERY'],
+  ])('buildOrderReceipt: uses %s order title %s', (orderType, tableNumber, title) => {
+    const receipt = decodeReceipt(buildOrderReceipt({
+      ...baseOrder,
+      id: 'abcdef12-3456-7890',
+      orderType,
+      tableNumber,
+      items: [{ name: 'Produto', quantity: 1, price: 10, subtotal: 10 }],
+    }, 58)).toUpperCase();
+
+    expect(receipt).toContain(title);
+    expect(receipt).toContain('#ABCDEF');
+  });
+
+  it('buildOrderReceipt: wraps enlarged items using half the paper columns', () => {
+    const receipt = decodeReceipt(buildOrderReceipt({
+      ...baseOrder,
+      items: [{
+        name: 'Produto com nome grande para testar quebra',
+        quantity: 1,
+        price: 10,
+        subtotal: 10,
+        selectedComplements: [{ name: 'Adicional muito comprido', price: 0, quantity: 1 }],
+      }],
+    }, 58, { doubleFontOrders: true })).toUpperCase();
+
+    expect(receipt).toContain('1X PRODUTO\nCOM NOME');
+    expect(receipt).toContain('ADICIONAL');
+    expect(receipt).toContain('ADICIONA\n');
+  });
+
   it('buildOrderReceipt: legacy items with only pipe-joined notes still print all lines', () => {
     const receipt = decodeReceipt(buildOrderReceipt({
       ...baseOrder,

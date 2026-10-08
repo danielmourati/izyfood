@@ -153,9 +153,9 @@ const Mesas = () => {
     try { await supabase.from('orders').delete().eq('id', orderId); } catch {}
   };
 
-  const handlePrintConsumerKitchen = async (orderToPrint: Order) => {
+  const handlePrintConsumerKitchen = async (orderToPrint: Order, intent: 'new' | 'reprint' = 'new') => {
     try {
-      await printOrder(orderToPrint);
+      await printOrder(orderToPrint, { intent });
       toast.success('Comanda enviada para a Cozinha!');
     } catch (err: any) {
       toast.error('Erro ao imprimir comanda da cozinha.');
