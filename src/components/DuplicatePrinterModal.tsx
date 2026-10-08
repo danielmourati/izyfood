@@ -40,6 +40,7 @@ export function DuplicatePrinterModal({ open, source, onClose, onSaved }: Props)
         name: (name || `${source.name} — ${SECTORS.find(s => s.value === sector)?.label}`).trim(),
         model: (source as any).model || 'ESC/POS compatível',
         escpos_profile: (source as any).escpos_profile || 'generic',
+        char_encoding: (source as any).char_encoding || 'cp850',
         auto_connect_qz: (source as any).auto_connect_qz ?? true,
         connection_type: source.connection_type,
         address: source.address || '',

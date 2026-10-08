@@ -1,5 +1,6 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Pencil, Trash2 as TrashIcon2 } from 'lucide-react';
+import { CHAR_ENCODINGS, DEFAULT_CHAR_ENCODING } from '@/lib/escpos-encoding';
 import { isMobileDevice } from '@/lib/printer';
 import { receiptColumnsForWidth } from '@/lib/escpos';
 import React, { useEffect, useState } from 'react';
@@ -48,7 +49,7 @@ export function ImpressoraTab() {
   const navigate = useNavigate();
 
   const {
-    printers, loading, qzConnected, retryQzConnection, fetchPrinters, printTest,
+    printers, loading, qzConnected, retryQzConnection, fetchPrinters, printTest, printEncodingTest,
     btConnected, btDeviceName, lastPairedName, pairBluetooth, reconnectPrinter, forgetPrinter,
     btPriorityDefault, toggleBluetoothPriorityDefault,
     enablePrinterDevice, toggleEnablePrinterDevice,
@@ -89,6 +90,7 @@ export function ImpressoraTab() {
     paper_width: 80,
     auto_connect_qz: true,
     escpos_profile: 'generic',
+    char_encoding: DEFAULT_CHAR_ENCODING,
     feed_lines: 3,
     double_font_orders: false,
     duplicate_new_orders: false,
@@ -190,6 +192,7 @@ export function ImpressoraTab() {
         paper_width: currentPrinter.paper_width || 80,
         auto_connect_qz: currentPrinter.auto_connect_qz ?? true,
         escpos_profile: currentPrinter.escpos_profile || 'generic',
+        char_encoding: currentPrinter.char_encoding || DEFAULT_CHAR_ENCODING,
         feed_lines: initialFeed,
         double_font_orders: currentPrinter.double_font_orders ?? false,
         duplicate_new_orders: currentPrinter.duplicate_new_orders ?? false,
@@ -202,6 +205,7 @@ export function ImpressoraTab() {
         paper_width: 80,
         auto_connect_qz: true,
         escpos_profile: 'generic',
+        char_encoding: DEFAULT_CHAR_ENCODING,
         feed_lines: initialFeed,
         double_font_orders: false,
         duplicate_new_orders: false,
@@ -249,6 +253,7 @@ export function ImpressoraTab() {
         name: nameToSave,
         model: 'ESC/POS compatível',
         escpos_profile: form.escpos_profile,
+        char_encoding: form.char_encoding,
         auto_connect_qz: form.auto_connect_qz,
         connection_type: 'network',
         address: form.address ? `SYSTEM:${form.address}` : 'SYSTEM:DEFAULT',
@@ -317,6 +322,23 @@ export function ImpressoraTab() {
     setShowAddLocalModal(false);
     setNewLocalName('');
     toast.success(`Local "${cleanName}" adicionado. Configure os detalhes e clique em Salvar.`);
+  };
+
+  const [encodingTesting, setEncodingTesting] = useState(false);
+  const [encodingTestMsg, setEncodingTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const handleRunEncodingTest = async () => {
+    setEncodingTesting(true);
+    setEncodingTestMsg(null);
+    try {
+      const res = await printEncodingTest(selectedSector);
+      setEncodingTestMsg(res.ok
+        ? { ok: true, text: 'Folha enviada. Veja qual número saiu com os acentos corretos, selecione-o acima e clique em Salvar.' }
+        : { ok: false, text: 'Nenhuma impressora térmica conectada neste aparelho (QZ Tray/USB ou Bluetooth).' });
+    } catch (e: any) {
+      setEncodingTestMsg({ ok: false, text: 'Falha ao imprimir o teste: ' + (e?.message || 'verifique a impressora') });
+    } finally {
+      setEncodingTesting(false);
+    }
   };
 
   const handleRunTest = async () => {
@@ -582,6 +604,40 @@ export function ImpressoraTab() {
                       </span>
                     </AccordionTrigger>
                     <AccordionContent className="pt-2 pb-4 space-y-4 text-xs">
+                      <div className="space-y-1.5 rounded-xl border border-border p-3">
+                        <Label className="text-xs font-medium">Acentuação</Label>
+                        <Select
+                          value={form.char_encoding}
+                          onValueChange={(val) => setForm(f => ({ ...f, char_encoding: val }))}
+                        >
+                          <SelectTrigger className="rounded-xl bg-background border-border">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CHAR_ENCODINGS.map((enc, i) => (
+                              <SelectItem key={enc.id} value={enc.id}>{i + 1}) {enc.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                          Imprima o teste, veja qual linha numerada saiu com "ç", "ã" e "é" corretos e escolha o mesmo número aqui.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full text-xs"
+                          onClick={handleRunEncodingTest}
+                          disabled={encodingTesting}
+                        >
+                          {encodingTesting ? 'Imprimindo...' : 'Imprimir teste de acentuação'}
+                        </Button>
+                        {encodingTestMsg && (
+                          <p className={`text-[11px] ${encodingTestMsg.ok ? 'text-primary' : 'text-destructive'}`}>
+                            {encodingTestMsg.text}
+                          </p>
+                        )}
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <Label className="text-xs font-medium">Perfil ESC/POS</Label>
