@@ -346,7 +346,12 @@ export function ConsumerOrderModal({
       setPrintNotice(`Pedido salvo, mas a comanda NÃO foi impressa: ${blockedReason}`);
     } else {
       if (queuedAtHost) toast.success(PRINT_QUEUED_MESSAGE);
-      onClose();
+      // Balcão: a janela só fecha após o pagamento (ou descarte), nunca no envio.
+      if (currentOrder.orderType === 'balcao') {
+        toast.success('Comanda enviada para a cozinha. Finalize no PAGAMENTO para liberar o balcão.');
+      } else {
+        onClose();
+      }
     }
   };
 
