@@ -76,7 +76,7 @@ const PDV = () => {
   }, [mobileView]);
 
   const { printers, printOrder, printBill, hasPrinterAvailable, defaultPrinter, enablePrinterDevice, hostOnline } = usePrinter();
-  const previewPaperWidth = defaultPrinter?.paper_width || 58;
+  const previewPaperWidth = defaultPrinter?.paper_width || 80;
 
   useEffect(() => {
     if (initialized) return;

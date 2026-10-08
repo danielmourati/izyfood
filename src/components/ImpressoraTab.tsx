@@ -1,6 +1,7 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Pencil, Trash2 as TrashIcon2 } from 'lucide-react';
 import { isMobileDevice } from '@/lib/printer';
+import { receiptColumnsForWidth } from '@/lib/escpos';
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -567,6 +568,9 @@ export function ImpressoraTab() {
                           <SelectItem value="210">A4 / Folha inteira (impressora padrão)</SelectItem>
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Cupom impresso com {receiptColumnsForWidth(Number(form.paper_width))} colunas por linha.
+                      </p>
                     </div>
 
                     {/* Form Field 4: Opções avançadas Accordion */}
