@@ -34,7 +34,7 @@ function escapeBatLine(line: string): string {
 }
 
 export function buildDegustBat(opts: { tenantName: string; certPem: string }): string {
-  const { tenantName, certPem } = opts;
+  const { certPem } = opts;
   const lines = certPem
     .replace(/\r/g, '')
     .split('\n')
