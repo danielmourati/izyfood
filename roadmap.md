@@ -9,4 +9,4 @@
 - [x] Aplicar UTF-8 compatível com o perfil Bematech e largura compartilhada de 27/40 colunas.
 - [x] Validar cupons, prévia e compilação final.
 - [x] Acentuação por impressora (CP850 padrão) com folha de teste de calibração.
-- [ ] Imprimir o teste de acentuação na Bematech e escolher a linha correta (aguarda teste físico do usuário).
+- [x] Teste de acentuação na Bematech: linhas 1, 2 e 3 corretas; mantida a opção 1 (CP850).
