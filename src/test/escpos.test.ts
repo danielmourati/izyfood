@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildBillReceipt, buildOrderReceipt, getItemNoteLines } from '@/lib/escpos';
 import { buildBillPreviewText } from '@/lib/receipt-preview';
 
-const decodeReceipt = (data: Uint8Array) => new TextDecoder('latin1').decode(data);
+const decodeReceipt = (data: Uint8Array) => new TextDecoder('utf-8').decode(data);
 
 describe('ESC/POS bill receipt', () => {
   it('prints Tipo as complete Mesa value on its own aligned row', () => {
@@ -19,7 +19,7 @@ describe('ESC/POS bill receipt', () => {
 
     expect(receipt).toMatch(/Tipo: +Mesa\n/);
     expect(receipt).not.toContain('Tipo:                     sa\n');
-    expect(receipt).toMatch(/Taxa de Servi.o: +R\$ 4,80\n/);
+    expect(receipt).toMatch(/Taxa de Serviço: +R\$ 4,80\n/);
   });
 
   it('wraps long item names across multiple lines with price right-aligned on the LAST line (58mm)', () => {
@@ -119,8 +119,8 @@ describe('ESC/POS bill receipt', () => {
     expect(parts[0]).toContain('NOME DA LOJA');
     expect(parts[1]).toContain('CONTA');
     expect(parts[2]).toContain('Tipo:');
-    expect(parts[3]).toMatch(/1x A.a. 500ml/);
-    expect(parts[4]).toMatch(/Taxa de Servi.o:/);
+    expect(parts[3]).toMatch(/1x Açaí 500ml/);
+    expect(parts[4]).toMatch(/Taxa de Serviço:/);
     expect(parts[5]).toContain('TOTAL');
     expect(parts[6]).toContain('PAGAMENTO:');
   });
@@ -172,8 +172,8 @@ describe('ESC/POS bill receipt', () => {
     expect(receipt).toMatch(/Mesa: +5\n/);
     expect(receipt).toMatch(/Cliente: +Consumidor\n/);
     // Itens, ajustes e total
-    expect(receipt).toMatch(/1x A.a. 500ml +R\$48,00\n/);
-    expect(receipt).toMatch(/Taxa de Servi.o: +R\$ 4,80\n/);
+    expect(receipt).toMatch(/1x Açaí 500ml +R\$48,00\n/);
+    expect(receipt).toMatch(/Taxa de Serviço: +R\$ 4,80\n/);
     expect(receipt).toContain('TOTAL');
     // Pagamento
     expect(receipt).toContain('PAGAMENTO:');
@@ -207,7 +207,7 @@ describe('ESC/POS bill receipt', () => {
 
     const tipoRow = matchLabelRow('Tipo', 'Mesa');
     const mesaRow = matchLabelRow('Mesa', '12');
-    const clienteRow = matchLabelRow('Cliente', 'Jo.o');
+    const clienteRow = matchLabelRow('Cliente', 'João');
     const dataRow = matchLabelRow('Data', '[0-9/\\s,:]+');
 
     // Cada rótulo deve estar presente como uma linha completa
@@ -305,7 +305,7 @@ describe('ESC/POS bill receipt', () => {
     expect(nextLine.length).toBeLessThanOrEqual(30);
   });
 
-  it('58mm: NENHUMA linha da prévia excede 30 colunas úteis', () => {
+  it('58mm: NENHUMA linha da prévia excede 27 colunas úteis', () => {
     const text = buildBillPreviewText({
       id: 'safe-w',
       orderType: 'mesa',
@@ -341,7 +341,7 @@ describe('ESC/POS bill receipt', () => {
     }
   });
 
-  it('58mm: nome de loja longo é quebrado em múltiplas linhas centralizadas <=30 col', () => {
+  it('58mm: nome de loja longo é quebrado em múltiplas linhas centralizadas <=27 col', () => {
     const receipt = decodeReceipt(buildBillReceipt({
       id: 'store-wrap',
       orderType: 'balcao',
@@ -370,6 +370,34 @@ describe('ESC/POS bill receipt', () => {
     const priceLine = lines.find(l => /R\$100,00\s*$/.test(l))!;
     expect(priceLine).toBeDefined();
     expect(priceLine.length).toBeLessThanOrEqual(30);
+  });
+
+  it('80mm: impressão e prévia respeitam o limite de 42 colunas', () => {
+    const bill = {
+      id: 'width-42',
+      orderType: 'mesa',
+      tableNumber: 4,
+      items: [{ name: 'Produto com nome muito longo para validar a quebra', quantity: 2, price: 19.9, subtotal: 39.8 }],
+      serviceFee: 3.98,
+      total: 43.78,
+      createdAt: '2026-05-22T20:13:00.000Z',
+      customerName: 'João da Conceição',
+    };
+    const receipt = decodeReceipt(buildBillReceipt(bill, 80));
+    const preview = buildBillPreviewText(bill, 80);
+
+    expect(receipt).toContain('-'.repeat(42));
+    for (const line of preview.split('\n')) expect(line.length).toBeLessThanOrEqual(42);
+  });
+
+  it('preserva caracteres portugueses em UTF-8', () => {
+    const receipt = decodeReceipt(buildBillReceipt({
+      id: 'utf8', orderType: 'balcao',
+      items: [{ name: 'Açaí, pão, coração e maçã', quantity: 1, price: 12, subtotal: 12 }],
+      total: 12,
+      createdAt: '2026-05-22T20:13:00.000Z',
+    }, 80));
+    expect(receipt).toContain('Açaí, pão, coração e maçã');
   });
 });
 
