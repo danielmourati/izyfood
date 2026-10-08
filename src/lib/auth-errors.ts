@@ -47,6 +47,14 @@ export function formatAuthError(error: any): string {
   if (lower.includes('password should be at least')) {
     return 'A senha deve conter no mínimo 6 caracteres.';
   }
+  if (lower.includes('weak') || lower.includes('pwned') || lower.includes('leaked') || lower.includes('known to be')) {
+    return 'Senha recusada por ser fraca ou já vazada na internet. Use uma senha mais forte, ex.: Nome#2026Loja.';
+  }
+  if (lower.includes('already registered') || lower.includes('already exists') || lower.includes('already been registered')) {
+    return 'Este e-mail já está cadastrado no sistema.';
+  }
+  if (lower.includes('forbidden')) return 'Você não tem permissão para criar usuários.';
+  if (lower.includes('unauthorized')) return 'Sessão expirada. Entre novamente.';
 
   return message;
 }
