@@ -528,13 +528,21 @@ export async function initQzTray(): Promise<boolean> {
 
   try {
     await configureQzSecurity();
+  } catch (err: any) {
+    lastQzError = err?.message || 'Não foi possível obter o certificado de impressão.';
+    _qzConnected = false;
+    return false;
+  }
+  try {
     if (!qz.websocket.isActive()) {
       await qz.websocket.connect({ host: 'localhost', retries: 2, delay: 1 });
     }
     _qzConnected = true;
+    lastQzError = null;
     return true;
   } catch (err) {
     console.warn('QZ Tray não está em execução ou acessível:', err);
+    lastQzError = 'QZ Tray não está aberto neste computador.';
     _qzConnected = false;
     return false;
   }
