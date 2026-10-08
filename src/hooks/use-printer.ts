@@ -354,6 +354,11 @@ export function usePrinter() {
    * Identifica a impressora configurada para um setor específico (ex: 'recibo' para o Caixa, 'cozinha' para a Cozinha).
    */
   const getPrinterForSector = useCallback((sector?: string): PrinterConfig | null => {
+    const targetSector = sector || 'recibo';
+    const sectorSettings = printers.find(p => p.sector === targetSector)
+      || printers.find(p => p.sector === 'recibo')
+      || defaultPrinter;
+
     // 1. Configuração local salva no próprio dispositivo (override local)
     const deviceConfig = getDevicePrinterConfig();
     if (deviceConfig && deviceConfig.name) {
@@ -364,11 +369,11 @@ export function usePrinter() {
         address: deviceConfig.address || deviceConfig.name,
         paper_width: deviceConfig.paperWidth || 80,
         is_default: true,
-        sector: sector || 'recibo',
+        sector: targetSector,
+        double_font_orders: sectorSettings?.double_font_orders ?? false,
+        duplicate_new_orders: sectorSettings?.duplicate_new_orders ?? false,
       };
     }
-
-    const targetSector = sector || 'recibo';
 
     // 2. Procurar impressora cadastrada no banco de dados para o setor solicitado
     const exactMatch = printers.find(p => p.sector === targetSector);

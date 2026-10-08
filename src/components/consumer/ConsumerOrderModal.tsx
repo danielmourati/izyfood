@@ -640,7 +640,7 @@ export function ConsumerOrderModal({
     if (onPrintBill) {
       onPrintBill(currentOrder);
     } else if (onPrintOrder) {
-      onPrintBill ? onPrintBill(currentOrder) : onPrintOrder(currentOrder);
+      onPrintBill ? onPrintBill(currentOrder) : onPrintOrder(currentOrder, 'reprint');
     }
     toast.success('Imprimindo Conta do Cliente...');
     setPrintMenuOpen(false);
@@ -655,7 +655,7 @@ export function ConsumerOrderModal({
       if (onPrintBill) {
         onPrintBill(updatedOrder);
       } else if (onPrintOrder) {
-        onPrintOrder(updatedOrder);
+        onPrintOrder(updatedOrder, 'reprint');
       }
     }
     toast.success('Conta impressa e pedido bloqueado!');
