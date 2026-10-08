@@ -166,7 +166,9 @@ export function usePrinter() {
   const [lastPairedName, setLastPairedName] = useState<string | null>(() => getLastPairedDeviceName());
   const [qzConnected, setQzConnected] = useState(false);
   const [btPriorityDefault, setBtPriorityDefaultState] = useState<boolean>(() => getBluetoothPriorityDefault());
-  const [enablePrinterDevice, setEnablePrinterDeviceState] = useState<boolean>(() => getEnablePrinterDevice());
+  const [enablePrinterDeviceRaw, setEnablePrinterDeviceState] = useState<boolean>(() => getEnablePrinterDevice());
+  // Em computadores a impressão fica sempre ativa; a chave só existe no celular.
+  const enablePrinterDevice = !isMobileDevice() || enablePrinterDeviceRaw;
   const [printHostEnabled, setPrintHostEnabledState] = useState<boolean>(() => getPrintHostEnabled());
   const [hostOnline, setHostOnline] = useState(false);
   const hostOnlineRef = useRef(false);
