@@ -145,6 +145,13 @@ export interface PrinterConfig {
 
 export type OrderPrintIntent = 'new' | 'reprint';
 
+export function getOrderPrintCopies(
+  intent: OrderPrintIntent,
+  printer?: Pick<PrinterConfig, 'duplicate_new_orders'> | null,
+): number {
+  return intent === 'new' && printer?.duplicate_new_orders === true ? 2 : 1;
+}
+
 export function usePrinter() {
   const { user } = useAuth();
   const { printSettings, products: storeProducts, categories: storeCategories } = useStore();
@@ -586,7 +593,7 @@ export function usePrinter() {
       const orderSettings = { ...ps, doubleFontOrders: targetPrinter?.double_font_orders === true };
       const escpos = buildOrderReceipt(secOrder, targetPaperWidth, orderSettings);
       const html = buildOrderHtml(secOrder, orderSettings);
-      const copies = intent === 'new' && targetPrinter?.duplicate_new_orders === true ? 2 : 1;
+      const copies = getOrderPrintCopies(intent, targetPrinter);
       for (let copy = 0; copy < copies; copy += 1) {
         await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
       }
