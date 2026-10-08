@@ -28,7 +28,7 @@ interface ConsumerOrderModalProps {
   tableNumber?: number;
   order: Order | null;
   onSaveOrder: (updatedOrder: Order) => void;
-  onPrintOrder?: (order: Order, intent?: 'new' | 'reprint') => void | Promise<void>;
+  onPrintOrder?: (order: Order, intent?: 'new' | 'reprint') => void | Promise<void | { ok: boolean; reason?: string }>;
   onPrintBill?: (order: Order) => void;
   onDiscardEmptyOrder?: (orderId: string, tableNumber?: number) => void;
   onDeleteOrder?: (orderId: string, tableNumber?: number) => void;
@@ -220,14 +220,13 @@ export function ConsumerOrderModal({
     if (unprintedItems.length > 0) {
       try {
         const orderToPrintKitchen = { ...currentOrder, items: unprintedItems };
-        if (onPrintOrder) {
-          await onPrintOrder(orderToPrintKitchen, 'new');
-        } else {
-          const res = await printOrder(orderToPrintKitchen, { intent: 'new' });
-          if (res && res.ok === false) blockedReason = res.reason || null;
-        }
-      } catch (err) {
-        console.warn('[handleFecharOrder] Impressão da cozinha ignorada ou falhou:', err);
+        const res: any = onPrintOrder
+          ? await onPrintOrder(orderToPrintKitchen, 'new')
+          : await printOrder(orderToPrintKitchen, { intent: 'new' });
+        if (res && res.ok === false) blockedReason = res.reason || 'Falha ao imprimir.';
+      } catch (err: any) {
+        console.warn('[handleFecharOrder] Impressão da cozinha falhou:', err);
+        blockedReason = err?.message || 'Falha ao imprimir.';
       }
     }
 
@@ -237,7 +236,7 @@ export function ConsumerOrderModal({
       isLocked: true,
       status: 'segurado',
       heldAt: currentOrder.heldAt || new Date().toISOString(),
-      items: items.map(i => ({ ...i, printed: true })),
+      items: items.map(i => ({ ...i, printed: blockedReason ? !!i.printed : true })),
     };
 
     setIsLocked(true);
@@ -308,42 +307,34 @@ export function ConsumerOrderModal({
     setSendingOrder(true);
     const mesaNum = currentOrder.tableNumber || tableNumber;
 
-    // 1. Marcar itens novos como impressos e salvar pedido
-    const updatedItems = items.map(i => ({ ...i, printed: true }));
-    const updatedOrder: Order = { ...currentOrder, items: updatedItems };
-
-    setCurrentOrder(updatedOrder);
-    onSaveOrder(updatedOrder);
-
-    // 2. Imprimir SOMENTE os novos itens lançados na cozinha
+    // 1. Imprimir SOMENTE os novos itens lançados na cozinha
     let blockedReason: string | null = null;
     let queuedAtHost = false;
     setPrintNotice(null);
     try {
-      const orderToPrint = { ...updatedOrder, items: unprintedItems };
-
-      if (onPrintOrder) {
-        await onPrintOrder(orderToPrint, 'new');
-      } else {
-        const res = await printOrder(orderToPrint, { intent: 'new' });
-        if (res && res.ok === false) blockedReason = res.reason || null;
-        if (res?.queued) queuedAtHost = true;
-      }
-      if (!blockedReason) {
-        toast.success(queuedAtHost
-          ? `${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s). ${PRINT_QUEUED_MESSAGE}`
-          : `${unprintedItems.length} novo(s) item(ns) da Mesa ${mesaNum || ''} enviado(s) e impresso(s)!`);
-      }
+      const orderToPrint = { ...currentOrder, items: unprintedItems };
+      const res: any = onPrintOrder
+        ? await onPrintOrder(orderToPrint, 'new')
+        : await printOrder(orderToPrint, { intent: 'new' });
+      if (res && res.ok === false) blockedReason = res.reason || 'Falha ao imprimir.';
+      if (res?.queued) queuedAtHost = true;
     } catch (printErr: any) {
-      console.warn('[handleEnviarOrder] Tentativa de impressão concluída ou ignorada:', printErr);
-      toast.success(`Pedido da Mesa ${mesaNum || ''} enviado!`);
-    } finally {
-      setSendingOrder(false);
-      if (blockedReason) {
-        setPrintNotice(blockedReason);
-      } else {
-        onClose(); // Redireciona o usuário para as mesas
-      }
+      console.warn('[handleEnviarOrder] Falha na impressão:', printErr);
+      blockedReason = printErr?.message || 'Falha ao imprimir.';
+    }
+
+    // 2. Salvar pedido; itens só ficam "Impresso" se o cupom saiu (ou foi para o caixa)
+    const updatedItems = items.map(i => ({ ...i, printed: blockedReason ? !!i.printed : true }));
+    const updatedOrder: Order = { ...currentOrder, items: updatedItems };
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    setSendingOrder(false);
+
+    if (blockedReason) {
+      setPrintNotice(`Pedido salvo, mas a comanda NÃO foi impressa: ${blockedReason}`);
+    } else {
+      if (queuedAtHost) toast.success(PRINT_QUEUED_MESSAGE);
+      onClose();
     }
   };
 

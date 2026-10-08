@@ -121,7 +121,11 @@ export interface PrintResult {
   /** true quando o cupom foi enviado para o aparelho do caixa imprimir. */
   queued?: boolean;
   jobId?: string;
+  /** Canal usado: bluetooth, qz, html (visualização) ou disabled. */
+  channel?: PrintChannel;
 }
+
+export type PrintChannel = 'bluetooth' | 'qz' | 'html' | 'disabled';
 
 export const PRINT_DISABLED_REASON =
   'Impressão desativada neste aparelho. Ative "Usar impressora neste dispositivo" na seção Impressora Bluetooth (ou em Configurações > Impressora).';
@@ -459,10 +463,10 @@ export function usePrinter() {
     htmlFallback: string,
     title: string,
     options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: string }
-  ) => {
+  ): Promise<PrintChannel> => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[sendToPrinter] Impressão desativada neste dispositivo. Ignorando envio.');
-      return;
+      return 'disabled';
     }
 
     const resolvedPrinter = options?.targetPrinter || getPrinterForSector(options?.sector);
@@ -479,7 +483,7 @@ export function usePrinter() {
         if (isBluetoothConnected()) {
           console.log('[sendToPrinter] Enviando comando ESC/POS via Bluetooth para:', resolvedPrinter?.name || 'Bluetooth');
           await printViaBluetooth(data);
-          return; // Sucesso, imprimiu via Bluetooth!
+          return 'bluetooth'; // Sucesso, imprimiu via Bluetooth!
         }
       } catch (err) {
         console.warn('[sendToPrinter] Tentativa Bluetooth falhou, verificando canais alternativos:', err);
@@ -487,15 +491,19 @@ export function usePrinter() {
     }
 
     // 2. QZ Tray / Desktop System Spooler / Socket (para o endereço da impressora do setor configurado)
-    if (!isMobileDevice() && (connectionType === 'system' || connectionType === 'network' || defaultPrinter?.connection_type === 'system' || defaultPrinter?.connection_type === 'network') && (isQzConnected() || isDesktopApp())) {
+    const wantsSystem = connectionType === 'system' || connectionType === 'network' || printers.some(p => p.connection_type === 'system' || p.connection_type === 'network');
+    if (!isMobileDevice() && wantsSystem && !isQzConnected() && !isDesktopApp()) {
+      try { await retryQzConnection(); } catch { /* segue para o fallback */ }
+    }
+    if (!isMobileDevice() && wantsSystem && (isQzConnected() || isDesktopApp())) {
       try {
         const destAddress = printerAddress || defaultPrinter?.address;
         console.log('[sendToPrinter] Enviando para impressora do setor/caixa:', resolvedPrinter?.name, '->', destAddress);
         await printViaQzTray(data, destAddress);
-        return; // Sucesso, imprimiu via QZ Tray / Desktop Spooler!
+        return 'qz'; // Sucesso, imprimiu via QZ Tray / Desktop Spooler!
       } catch (err) {
         console.error('[sendToPrinter] Erro no QZ Tray:', err);
-        if (options?.force) throw err; // host da fila: marcar como Falhou, não fingir impresso
+        throw err instanceof Error ? err : new Error('Falha ao enviar para a impressora (QZ Tray).');
       }
     }
 
@@ -505,6 +513,7 @@ export function usePrinter() {
     }
     console.info('[sendToPrinter] Nenhuma impressora direta conectada ou ativa. Abrindo janela de visualização HTML...');
     printViaHtmlFallback(htmlFallback, title, targetPaperWidth);
+    return 'html';
   };
 
   /**
@@ -585,6 +594,7 @@ export function usePrinter() {
       if (groups.size === 0) return { ok: true };
     }
 
+    let lastChannel: PrintChannel | undefined;
     for (const [sector, secItems] of groups) {
       const secOrder = { ...order, items: secItems };
       const targetPrinter = getPrinterForSector(sector);
@@ -595,10 +605,10 @@ export function usePrinter() {
       const html = buildOrderHtml(secOrder, orderSettings);
       const copies = getOrderPrintCopies(intent, targetPrinter);
       for (let copy = 0; copy < copies; copy += 1) {
-        await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
+        lastChannel = await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
       }
     }
-    return { ok: true };
+    return { ok: true, channel: lastChannel };
   };
 
   const printBill = async (bill: any, options?: { force?: boolean }): Promise<PrintResult> => {

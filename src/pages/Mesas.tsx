@@ -155,10 +155,10 @@ const Mesas = () => {
 
   const handlePrintConsumerKitchen = async (orderToPrint: Order, intent: 'new' | 'reprint' = 'new') => {
     try {
-      await printOrder(orderToPrint, { intent });
-      toast.success('Comanda enviada para a Cozinha!');
+      return await printOrder(orderToPrint, { intent });
     } catch (err: any) {
-      toast.error('Erro ao imprimir comanda da cozinha.');
+      console.error('[Mesas] Falha ao imprimir comanda:', err);
+      return { ok: false, reason: err?.message || 'Erro ao imprimir comanda da cozinha.' };
     }
   };
 
