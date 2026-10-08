@@ -486,18 +486,20 @@ export async function printViaBluetooth(data: Uint8Array): Promise<void> {
 let _qzConnected = false;
 let _qzSecurityConfigured = false;
 
+export let lastQzError: string | null = null;
+
 async function configureQzSecurity() {
   if (_qzSecurityConfigured) return;
+  const { fetchTenantCertPem } = await import('./qz-installer');
+  const { supabase } = await import('@/integrations/supabase/client');
+  // Sem login não há certificado: não conectar como "anônimo"
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Entre no sistema antes de conectar o QZ Tray.');
+  // Busca o certificado antes de conectar; se falhar, não conecta
+  const { pem } = await fetchTenantCertPem('global');
   _qzSecurityConfigured = true;
   try {
-    const { fetchTenantCertPem } = await import('./qz-installer');
-    const { supabase } = await import('@/integrations/supabase/client');
-
-    qz.security.setCertificatePromise((resolve: any, reject: any) => {
-      fetchTenantCertPem()
-        .then(({ pem }) => resolve(pem))
-        .catch(reject);
-    });
+    qz.security.setCertificatePromise((resolve: any) => resolve(pem));
 
     qz.security.setSignatureAlgorithm('SHA512');
     qz.security.setSignaturePromise((toSign: string) => (resolve: any, reject: any) => {
@@ -526,13 +528,21 @@ export async function initQzTray(): Promise<boolean> {
 
   try {
     await configureQzSecurity();
+  } catch (err: any) {
+    lastQzError = err?.message || 'Não foi possível obter o certificado de impressão.';
+    _qzConnected = false;
+    return false;
+  }
+  try {
     if (!qz.websocket.isActive()) {
       await qz.websocket.connect({ host: 'localhost', retries: 2, delay: 1 });
     }
     _qzConnected = true;
+    lastQzError = null;
     return true;
   } catch (err) {
     console.warn('QZ Tray não está em execução ou acessível:', err);
+    lastQzError = 'QZ Tray não está aberto neste computador.';
     _qzConnected = false;
     return false;
   }

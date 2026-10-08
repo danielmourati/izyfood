@@ -16,6 +16,7 @@ export function QzSetupModal({ open, onOpenChange, onTestConnection }: QzSetupMo
   const { user } = useAuth();
   const [certLoading, setCertLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   const withCert = async (fn: (pem: string, tenantName: string) => void) => {
     setCertLoading(true);
@@ -37,7 +38,11 @@ export function QzSetupModal({ open, onOpenChange, onTestConnection }: QzSetupMo
     try {
       if (onTestConnection) {
         const result = await onTestConnection();
-        if (result !== false) {
+        if (result === false) {
+          const { lastQzError } = await import('@/lib/printer');
+          setLastError(lastQzError || 'QZ Tray não respondeu. Confira se ele está aberto.');
+        } else {
+          setLastError(null);
           toast.success('QZ Tray conectado e validado com sucesso!');
           onOpenChange(false);
         }
@@ -128,11 +133,12 @@ export function QzSetupModal({ open, onOpenChange, onTestConnection }: QzSetupMo
           </div>
           <div className="space-y-1 flex-1 pt-0.5">
             <h3 className="font-semibold text-base text-foreground">
-              Volte aqui e clique em <em>Testar de novo</em>
+              Aguarde o QZ Tray reabrir e clique em <em>Testar de novo</em>
             </h3>
             <p className="text-xs text-muted-foreground">
-              Assim que a conexão for reconhecida e validada sem pop-ups, a janela de escolha de impressora será aberta automaticamente.
+              O configurador fecha e abre o QZ Tray sozinho. Se aparecer "Unrecognized Certificate", clique em <strong>Sim</strong> e autorize como administrador; depois feche e abra o QZ Tray. O certificado vale para todas as lojas Degust deste computador.
             </p>
+            {lastError && <p className="text-xs text-destructive font-medium">{lastError}</p>}
           </div>
         </div>
 
