@@ -5,23 +5,37 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { getOrderItemAdditionalLines, getOrderItemNoteLines } from '@/lib/utils';
+import {
+  CHAR_ENCODINGS,
+  DEFAULT_CHAR_ENCODING,
+  ENCODING_TEST_SAMPLE,
+  encodeText,
+  getCharEncoding,
+  type CharEncoding,
+} from '@/lib/escpos-encoding';
 
 const ESC = 0x1B;
 const GS = 0x1D;
 
-const utf8Encoder = new TextEncoder();
-
-
 /**
- * Encode string to standard UTF-8 bytes for thermal printing.
+ * Encoding used by `text()` while a receipt is being built. Builders are
+ * synchronous and set/restore it via `withEncoding`, so concurrent prints
+ * never interleave.
  */
-export function encodeUtf8(s: string): Uint8Array {
-  if (!s) return new Uint8Array(0);
-  return utf8Encoder.encode(s);
+let activeEncoding: CharEncoding = getCharEncoding(DEFAULT_CHAR_ENCODING);
+
+function withEncoding<T>(encodingId: string | null | undefined, fn: (enc: CharEncoding) => T): T {
+  const prev = activeEncoding;
+  activeEncoding = getCharEncoding(encodingId);
+  try {
+    return fn(activeEncoding);
+  } finally {
+    activeEncoding = prev;
+  }
 }
 
 function text(s: string): Uint8Array {
-  return encodeUtf8(s);
+  return encodeText(s, activeEncoding);
 }
 
 function concat(...parts: Uint8Array[]): Uint8Array {
@@ -39,12 +53,9 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 
 /** Initialise printer */
 export const CMD_INIT = new Uint8Array([ESC, 0x40]);
-/** Select a valid character table for the configured printer profile. */
-export function codepageCommand(profile = 'generic'): Uint8Array {
-  // Bematech MP firmware exposes native UTF-8 as character table 8.
-  return profile === 'bematech_mp'
-    ? new Uint8Array([ESC, 0x74, 0x08])
-    : new Uint8Array(0);
+/** `ESC t n` command for the printer's calibrated character encoding. */
+export function codepageCommand(encodingId?: string | null): Uint8Array {
+  return getCharEncoding(encodingId).command;
 }
 /** Line feed */
 export const CMD_LF = new Uint8Array([0x0A]);
