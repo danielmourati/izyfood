@@ -9,7 +9,7 @@ import { useAttendantPermissions, AttendantPermissions } from "@/hooks/use-atten
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Layout } from "@/components/Layout";
 import Login from "./pages/Login";
-import PDV from "./pages/PDV";
+import Balcao from "./pages/Balcao";
 import Home from "./pages/Home";
 import Mesas from "./pages/Mesas";
 import Pedidos from "./pages/Pedidos";
@@ -80,7 +80,8 @@ function TenantRoutes() {
         <Route path="/" element={<ProtectedRoute><TenantStartPage /></ProtectedRoute>} />
         <Route path="/mesas" element={<ProtectedRoute adminOnly permissionKey="manage_tables"><Mesas /></ProtectedRoute>} />
         <Route path="/login" element={<Navigate to={`/${slug}`} replace />} />
-        <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
+        <Route path="/balcao" element={<ProtectedRoute><Balcao /></ProtectedRoute>} />
+        <Route path="/pdv" element={<Navigate to={`/${slug}`} replace />} />
         <Route path="/pedidos" element={<ProtectedRoute adminOnly permissionKey="view_orders_history"><Pedidos /></ProtectedRoute>} />
         <Route path="/entregas" element={<ProtectedRoute adminOnly permissionKey="manage_deliveries"><Entregas /></ProtectedRoute>} />
         <Route path="/caixa" element={<ProtectedRoute adminOnly permissionKey="view_cash_register"><Caixa /></ProtectedRoute>} />

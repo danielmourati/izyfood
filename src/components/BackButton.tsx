@@ -23,7 +23,7 @@ export const BackButton: React.FC<BackButtonProps> = ({ className, to = '/', lab
   const slug = user?.tenantSlug || '';
   const stripped = location.pathname.replace(new RegExp(`^/${slug}`), '') || '/';
 
-  if (stripped === '/' || stripped === '' || stripped.startsWith('/pdv')) return null;
+  if (stripped === '/' || stripped === '' || stripped.startsWith('/balcao')) return null;
 
   return (
     <button

@@ -286,7 +286,7 @@ function EditTenantDialog({ tenant, onClose, onSaved }: { tenant: Tenant | null;
               )}
               {serverError && <span className="text-destructive">{serverError}</span>}
             </div>
-            <p className="text-xs text-muted-foreground">Nova URL: /{slug || '…'}/pdv</p>
+            <p className="text-xs text-muted-foreground">Nova URL: /{slug || '…'}</p>
           </div>
           <div className="space-y-2">
             <Label>Logo (URL)</Label>
@@ -400,7 +400,7 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
                 : null
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Será usado na URL: /{form.slug || 'slug'}/pdv</p>
+            <p className="text-xs text-muted-foreground">Será usado na URL: /{form.slug || 'slug'}</p>
           </div>
 
           <div className="pt-2 border-t">
