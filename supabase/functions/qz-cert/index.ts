@@ -3,6 +3,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import forge from 'npm:node-forge@1.3.1';
 
+const GLOBAL_ID = '00000000-0000-0000-0000-000000000000';
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -23,39 +25,19 @@ Deno.serve(async (req) => {
     if (claimsErr || !claimsData?.claims?.sub) {
       return json({ error: 'Unauthorized' }, 401);
     }
-    const userId = claimsData.claims.sub as string;
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // Resolve tenant_id and tenant name
-    const { data: member } = await admin
-      .from('tenant_members')
-      .select('tenant_id')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    const tenantId = member?.tenant_id as string | undefined;
-    if (!tenantId) return json({ error: 'Tenant não encontrado para este usuário.' }, 400);
-
-    const { data: tenantRow } = await admin
-      .from('tenants')
-      .select('name, slug')
-      .eq('id', tenantId)
-      .maybeSingle();
-    const tenantName = tenantRow?.name || 'Degust';
-
-    // Existing cert?
+    // Certificado único da plataforma (vale para todas as lojas)
     const { data: existing } = await admin
       .from('qz_tray_certs')
       .select('cert_pem')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', GLOBAL_ID)
       .maybeSingle();
-
+    const tenantName = 'Degust';
     if (existing?.cert_pem) {
       return json({ cert_pem: existing.cert_pem, tenant_name: tenantName });
     }
@@ -69,7 +51,7 @@ Deno.serve(async (req) => {
     cert.validity.notAfter = new Date();
     cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 10);
     const attrs = [
-      { name: 'commonName', value: `Degust · ${tenantName}` },
+      { name: 'commonName', value: 'Degust PDV' },
       { name: 'organizationName', value: 'Degust' },
       { name: 'organizationalUnitName', value: 'QZ Tray Signing' },
       { name: 'countryName', value: 'BR' },
@@ -86,7 +68,7 @@ Deno.serve(async (req) => {
     const privateKeyPem = forge.pki.privateKeyToPem(keys.privateKey);
 
     await admin.from('qz_tray_certs').insert({
-      tenant_id: tenantId,
+      tenant_id: GLOBAL_ID,
       cert_pem: certPem,
       private_key_pem: privateKeyPem,
     });

@@ -3,6 +3,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import forge from 'npm:node-forge@1.3.1';
 
+const GLOBAL_ID = '00000000-0000-0000-0000-000000000000';
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -49,7 +51,7 @@ Deno.serve(async (req) => {
     const { data: certRow } = await admin
       .from('qz_tray_certs')
       .select('private_key_pem')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', GLOBAL_ID)
       .maybeSingle();
 
     const privateKeyPem = certRow?.private_key_pem as string | undefined;
