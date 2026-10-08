@@ -28,7 +28,7 @@ interface ConsumerOrderModalProps {
   tableNumber?: number;
   order: Order | null;
   onSaveOrder: (updatedOrder: Order) => void;
-  onPrintOrder?: (order: Order, intent?: 'new' | 'reprint') => void | Promise<void>;
+  onPrintOrder?: (order: Order, intent?: 'new' | 'reprint') => void | Promise<void | { ok: boolean; reason?: string }>;
   onPrintBill?: (order: Order) => void;
   onDiscardEmptyOrder?: (orderId: string, tableNumber?: number) => void;
   onDeleteOrder?: (orderId: string, tableNumber?: number) => void;
@@ -220,14 +220,13 @@ export function ConsumerOrderModal({
     if (unprintedItems.length > 0) {
       try {
         const orderToPrintKitchen = { ...currentOrder, items: unprintedItems };
-        if (onPrintOrder) {
-          await onPrintOrder(orderToPrintKitchen, 'new');
-        } else {
-          const res = await printOrder(orderToPrintKitchen, { intent: 'new' });
-          if (res && res.ok === false) blockedReason = res.reason || null;
-        }
-      } catch (err) {
-        console.warn('[handleFecharOrder] Impressão da cozinha ignorada ou falhou:', err);
+        const res: any = onPrintOrder
+          ? await onPrintOrder(orderToPrintKitchen, 'new')
+          : await printOrder(orderToPrintKitchen, { intent: 'new' });
+        if (res && res.ok === false) blockedReason = res.reason || 'Falha ao imprimir.';
+      } catch (err: any) {
+        console.warn('[handleFecharOrder] Impressão da cozinha falhou:', err);
+        blockedReason = err?.message || 'Falha ao imprimir.';
       }
     }
 
@@ -237,7 +236,7 @@ export function ConsumerOrderModal({
       isLocked: true,
       status: 'segurado',
       heldAt: currentOrder.heldAt || new Date().toISOString(),
-      items: items.map(i => ({ ...i, printed: true })),
+      items: items.map(i => ({ ...i, printed: blockedReason ? !!i.printed : true })),
     };
 
     setIsLocked(true);
