@@ -8,7 +8,7 @@ import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from '@/components/ui/accordion';
 import {
-  Utensils, Store, Bike, ShoppingBag, ClipboardList, Truck, DollarSign,
+  Utensils, Store, Bike, ShoppingBag, ClipboardList, DollarSign,
   Package, Boxes, Users, BarChart3, Settings, Lock, Unlock, ChevronRight,
 } from 'lucide-react';
 
@@ -106,7 +106,6 @@ const Home: React.FC = () => {
       color: 'vendas',
       items: [
         { key: 'pedidos', label: 'Pedidos', icon: ClipboardList, to: '/pedidos', show: true },
-        { key: 'entregas', label: 'Entregas', icon: Truck, to: '/entregas', show: true },
         { key: 'caixa', label: 'Caixa', icon: DollarSign, to: '/caixa', show: true },
       ],
     },

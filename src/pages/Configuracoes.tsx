@@ -1021,7 +1021,6 @@ const permissionLabels: Record<string, string> = {
   close_cash_register: 'Fechar caixa (encerrar turno)',
   view_cash_register: 'Ver caixa',
   manage_tables: 'Gerenciar mesas',
-  manage_deliveries: 'Gerenciar entregas / motoboys',
   view_reports: 'Ver relatórios e faturamento',
   manage_printers: 'Configurar impressoras',
 };
@@ -1030,7 +1029,7 @@ const permissionGroups: { key: string; label: string; icon: React.ElementType; i
   { key: 'caixa', label: 'Caixa', icon: Wallet, items: ['open_cash_register','close_cash_register','view_cash_register','manage_cash'] },
   { key: 'pedidos', label: 'Pedidos & Vendas', icon: Receipt, items: ['remove_order_items','cancel_orders','apply_discounts','view_orders_history'] },
   { key: 'catalogo', label: 'Catálogo & Estoque', icon: PackageIcon, items: ['manage_categories','manage_products','edit_prices','manage_stock','manage_suppliers'] },
-  { key: 'salao', label: 'Salão & Entregas', icon: Truck, items: ['manage_tables','manage_deliveries'] },
+  { key: 'salao', label: 'Salão', icon: Truck, items: ['manage_tables'] },
   { key: 'clientes', label: 'Clientes & Promoções', icon: Users, items: ['manage_customers','manage_coupons'] },
   { key: 'relatorios', label: 'Relatórios', icon: BarChart3, items: ['view_reports'] },
   { key: 'sistema', label: 'Sistema', icon: Settings, items: ['manage_printers'] },
