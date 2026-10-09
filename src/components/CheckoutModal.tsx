@@ -827,6 +827,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
             <Check className="h-4 w-4" /> {finalizing ? 'FINALIZANDO...' : !effectiveCashOpen ? 'CAIXA FECHADO' : remaining <= 0 ? 'FINALIZAR VENDA' : 'PAGAMENTO INCOMPLETO'}
           </Button>
         </div>
+        {newCustomerDialog}
       </div>
     );
   }
@@ -1292,130 +1293,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           )}
 
           {/* VIEW 4: Fiado Sub-Modal (Matching Anexo Image 3) */}
-          {activeSubModal === 'fiado' && (
-            <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-4 bg-card text-card-foreground">
-              
-              {/* Fiado Header Bar */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-border">
-                <div>
-                  <h4 className="text-base font-extrabold text-foreground">Marcar Fiado - Selecione um Contato</h4>
-                  <p className="text-xs text-muted-foreground">Escolha o cliente para registrar a venda a prazo</p>
-                </div>
-
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <span className="text-xs font-extrabold text-amber-600 dark:text-amber-400 uppercase">
-                    TOTAL (FALTANDO): R$ {fmt(remaining)}
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => setNewCustomerOpen(true)}
-                    className="bg-primary text-primary-foreground font-bold text-xs gap-1 h-9"
-                  >
-                    <UserPlus className="h-3.5 w-3.5" /> Novo Cliente
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-1 max-w-sm">
-                <Label className="text-xs font-semibold">Valor no Fiado</Label>
-                <CurrencyInput
-                  value={subAmountStr}
-                  onValueChange={setSubAmountStr}
-                  className="h-11 text-lg font-bold bg-background"
-                />
-              </div>
-
-              {/* Customer Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar cliente por nome ou telefone..."
-                  value={fiadoSearch}
-                  onChange={e => setFiadoSearch(e.target.value)}
-                  className="pl-9 h-10 bg-background border-input text-xs"
-                />
-              </div>
-
-              {/* Customers Table */}
-              <div className="border border-border rounded-md overflow-hidden bg-background max-h-72 overflow-y-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="sticky top-0 bg-muted text-foreground border-b border-border font-bold">
-                    <tr>
-                      <th className="py-2.5 px-3 w-16 text-center">Selecionar</th>
-                      <th className="py-2.5 px-3">Nome</th>
-                      <th className="py-2.5 px-3">Fone Principal</th>
-                      <th className="py-2.5 px-3">Celular</th>
-                      <th className="py-2.5 px-3 text-right">Saldo Atual</th>
-                      <th className="py-2.5 px-3 text-right">Limite de Crédito</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {filteredCustomers.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-8 text-center text-muted-foreground italic">
-                          Não há registros para mostrar.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredCustomers.map(c => {
-                        const isSelected = selectedFiadoCustomerId === c.id;
-                        return (
-                          <tr
-                            key={c.id}
-                            onClick={() => setSelectedFiadoCustomerId(c.id)}
-                            className={`cursor-pointer transition-colors ${
-                              isSelected ? 'bg-primary/15 font-bold text-foreground' : 'hover:bg-muted/40 text-foreground'
-                            }`}
-                          >
-                            <td className="py-2.5 px-3 text-center">
-                              <input
-                                type="radio"
-                                name="fiadoCustomer"
-                                checked={isSelected}
-                                onChange={() => setSelectedFiadoCustomerId(c.id)}
-                                className="accent-primary h-4 w-4"
-                              />
-                            </td>
-                            <td className="py-2.5 px-3 font-semibold">{c.name}</td>
-                            <td className="py-2.5 px-3 text-muted-foreground">{c.phone || '-'}</td>
-                            <td className="py-2.5 px-3 text-muted-foreground">{c.phone || '-'}</td>
-                            <td className="py-2.5 px-3 text-right font-bold text-amber-600 dark:text-amber-400">
-                              R$ {fmt(c.creditBalance || 0)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right text-muted-foreground">
-                              R$ 500,00
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Actions */}
-              <div className="flex justify-between items-center pt-4 border-t border-border">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setActiveSubModal('list')}
-                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold h-10 px-5 text-xs border-border"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
-                </Button>
-
-                <Button
-                  type="button"
-                  onClick={handleSaveFiadoSplit}
-                  disabled={!selectedFiadoCustomerId}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-6 text-xs shadow-md"
-                >
-                  <Check className="h-4 w-4 mr-1" /> Selecionar
-                </Button>
-              </div>
-            </div>
-          )}
+          {activeSubModal === 'fiado' && renderFiadoView()}
 
           {/* VIEW 5: PIX Sub-Modal */}
           {activeSubModal === 'pix' && (
@@ -1604,60 +1482,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
         </DialogContent>
       </Dialog>
 
-      {/* Quick New Customer Dialog (for Fiado) */}
-      <Dialog open={newCustomerOpen} onOpenChange={setNewCustomerOpen}>
-        <DialogContent className="bg-card text-card-foreground border-border max-w-sm p-4 font-sans">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-bold">Cadastrar Novo Cliente</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Nome Completo *</Label>
-              <Input
-                placeholder="Ex: João da Silva"
-                value={newCustName}
-                onChange={e => setNewCustName(e.target.value)}
-                className="bg-background border-input text-foreground h-9"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Telefone / WhatsApp</Label>
-              <Input
-                placeholder="(00) 00000-0000"
-                value={newCustPhone}
-                onChange={e => setNewCustPhone(e.target.value)}
-                className="bg-background border-input text-foreground h-9"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Endereço</Label>
-              <Input
-                placeholder="Rua, número, bairro"
-                value={newCustAddress}
-                onChange={e => setNewCustAddress(e.target.value)}
-                className="bg-background border-input text-foreground h-9"
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1 h-9 text-xs"
-                onClick={() => setNewCustomerOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                className="flex-1 h-9 text-xs font-bold bg-primary text-primary-foreground"
-                onClick={handleCreateCustomer}
-              >
-                Salvar Cliente
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {newCustomerDialog}
     </Dialog>
   );
 }
