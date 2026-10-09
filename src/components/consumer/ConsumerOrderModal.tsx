@@ -1904,10 +1904,10 @@ export function ConsumerOrderModal({
           <div className="space-y-1 py-2">
             <button
               type="button"
-              onClick={() => handleChangeOrderType('mesa')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'mesa' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
+              onClick={() => setTablePickerOpen(true)}
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors text-foreground"
             >
-              Mesa/Comanda {currentOrder.orderType === 'mesa' ? '(Atual)' : ''}
+              Mesa/Comanda
             </button>
 
             <button
@@ -1916,22 +1916,6 @@ export function ConsumerOrderModal({
               className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'balcao' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
             >
               Balcão {currentOrder.orderType === 'balcao' ? '(Atual)' : ''}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleChangeOrderType('retirada')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'retirada' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
-            >
-              Retirada {currentOrder.orderType === 'retirada' ? '(Atual)' : ''}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleChangeOrderType('delivery')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'delivery' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
-            >
-              Delivery {currentOrder.orderType === 'delivery' ? '(Atual)' : ''}
             </button>
 
             <div className="pt-2">
