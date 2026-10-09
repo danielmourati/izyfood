@@ -643,8 +643,8 @@ export function usePrinter() {
     const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const escpos = buildCashCloseReceipt(data, targetPaperWidth, targetPrinter?.char_encoding);
     const html = buildCashCloseHtml(data);
-    await sendToPrinter(escpos, html, 'Fechamento de Caixa', { ...options, targetPrinter, sector });
-    return { ok: true };
+    const channel = await sendToPrinter(escpos, html, 'Fechamento de Caixa', { ...options, targetPrinter, sector });
+    return { ok: true, channel };
   };
 
   /** Prints the calibration page with every character table, numbered. */
