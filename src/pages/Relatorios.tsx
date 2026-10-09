@@ -506,6 +506,7 @@ const Relatorios = () => {
             </CardHeader>
             <CardContent>
               {customerStats.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -574,6 +575,7 @@ const Relatorios = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <p className="text-center text-muted-foreground py-12">Nenhuma venda vinculada a clientes no período selecionado</p>
               )}
@@ -634,6 +636,7 @@ const Relatorios = () => {
             </CardHeader>
             <CardContent>
               {productReport.list.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -670,6 +673,7 @@ const Relatorios = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <p className="text-center text-muted-foreground py-12">Sem produtos para os filtros selecionados</p>
               )}
