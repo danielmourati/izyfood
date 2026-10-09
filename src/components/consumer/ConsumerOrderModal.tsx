@@ -88,6 +88,7 @@ export function ConsumerOrderModal({
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [changeTypeOpen, setChangeTypeOpen] = useState(false);
+  const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reprintModalOpen, setReprintModalOpen] = useState(false);
   const [reprintSelectedIds, setReprintSelectedIds] = useState<string[]>([]);
@@ -366,6 +367,7 @@ export function ConsumerOrderModal({
         if (customerModalOpen) { setCustomerModalOpen(false); return; }
         if (checkoutOpen) { setCheckoutOpen(false); return; }
         if (printMenuOpen) { setPrintMenuOpen(false); return; }
+        if (tablePickerOpen) { setTablePickerOpen(false); return; }
         if (changeTypeOpen) { setChangeTypeOpen(false); return; }
         if (deleteConfirmOpen) { setDeleteConfirmOpen(false); return; }
         if (moreOptionsOpen) { setMoreOptionsOpen(false); return; }
@@ -389,7 +391,7 @@ export function ConsumerOrderModal({
   }, [
     open, currentOrder, items, totalAmount,
     finderOpen, customizeOpen, customerModalOpen, checkoutOpen,
-    printMenuOpen, changeTypeOpen, deleteConfirmOpen, moreOptionsOpen, reprintModalOpen, unsentAlertOpen,
+    printMenuOpen, changeTypeOpen, tablePickerOpen, deleteConfirmOpen, moreOptionsOpen, reprintModalOpen, unsentAlertOpen,
     handleEnviarOrder, handleCloseAndSaveOrDiscard
   ]);
 
