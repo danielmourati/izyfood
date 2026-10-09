@@ -335,7 +335,7 @@ const Relatorios = () => {
   );
 
   return (
-    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+    <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
         {datePickerUI}
@@ -443,24 +443,26 @@ const Relatorios = () => {
               <CardHeader><CardTitle>Top Produtos</CardTitle></CardHeader>
               <CardContent>
                 {salesByProduct.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Produto</TableHead>
-                        <TableHead>Qtd</TableHead>
-                        <TableHead>Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {salesByProduct.map(p => (
-                        <TableRow key={p.name}>
-                          <TableCell>{p.name}</TableCell>
-                          <TableCell>{p.qty}</TableCell>
-                          <TableCell className="font-semibold">R$ {fmt(p.total)}</TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produto</TableHead>
+                          <TableHead className="text-right">Qtd</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {salesByProduct.map(p => (
+                          <TableRow key={p.name}>
+                            <TableCell className="max-w-[180px] truncate" title={p.name}>{p.name}</TableCell>
+                            <TableCell className="text-right">{p.qty}</TableCell>
+                            <TableCell className="font-semibold text-right whitespace-nowrap">R$ {fmt(p.total)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 ) : <p className="text-center text-muted-foreground py-8">Sem dados no período</p>}
               </CardContent>
             </Card>
@@ -469,24 +471,26 @@ const Relatorios = () => {
               <CardHeader><CardTitle>Clientes com Fiado</CardTitle></CardHeader>
               <CardContent>
                 {creditCustomers.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Telefone</TableHead>
-                        <TableHead>Débito</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {creditCustomers.map(c => (
-                        <TableRow key={c.id}>
-                          <TableCell>{c.name}</TableCell>
-                          <TableCell>{c.phone}</TableCell>
-                          <TableCell className="font-semibold text-destructive">R$ {fmt(c.creditBalance)}</TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Telefone</TableHead>
+                          <TableHead className="text-right">Débito</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {creditCustomers.map(c => (
+                          <TableRow key={c.id}>
+                            <TableCell className="max-w-[160px] truncate" title={c.name}>{c.name}</TableCell>
+                            <TableCell className="whitespace-nowrap">{c.phone}</TableCell>
+                            <TableCell className="font-semibold text-destructive text-right whitespace-nowrap">R$ {fmt(c.creditBalance)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 ) : <p className="text-center text-muted-foreground py-8">Nenhum fiado aberto</p>}
               </CardContent>
             </Card>
@@ -502,6 +506,7 @@ const Relatorios = () => {
             </CardHeader>
             <CardContent>
               {customerStats.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -570,6 +575,7 @@ const Relatorios = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <p className="text-center text-muted-foreground py-12">Nenhuma venda vinculada a clientes no período selecionado</p>
               )}
@@ -630,6 +636,7 @@ const Relatorios = () => {
             </CardHeader>
             <CardContent>
               {productReport.list.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -666,6 +673,7 @@ const Relatorios = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               ) : (
                 <p className="text-center text-muted-foreground py-12">Sem produtos para os filtros selecionados</p>
               )}
