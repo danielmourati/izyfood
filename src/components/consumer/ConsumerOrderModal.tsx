@@ -1945,7 +1945,7 @@ export function ConsumerOrderModal({
               <div className="grid grid-cols-4 gap-2">
                 {freeTablesForMove.map(t => (
                   <button
-                    key={t.id}
+                    key={t.number}
                     type="button"
                     onClick={() => handleMoveToTable(t.number)}
                     className="py-3 rounded border border-border bg-muted/30 hover:bg-muted text-sm font-bold text-foreground transition-colors"
