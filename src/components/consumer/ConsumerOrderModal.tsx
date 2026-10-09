@@ -703,6 +703,42 @@ export function ConsumerOrderModal({
     toast.success(`Tipo de pedido alterado para: ${newType.toUpperCase()}`);
   };
 
+  // Mesas livres para mover o pedido (mesma regra da tela de Mesas), excluindo a mesa atual.
+  const freeTablesForMove = useMemo(() => {
+    const activeMesaTableNumbers = new Set(
+      storeOrders
+        .filter(o => o.orderType === 'mesa' && o.status !== 'finalizado' && o.status !== 'cancelado')
+        .map(o => Number(o.tableNumber))
+    );
+    return tables
+      .filter(t => t.number !== Number(currentOrder?.tableNumber))
+      .filter(t => {
+        if (activeMesaTableNumbers.has(t.number)) return false;
+        if (t.status !== 'occupied') return true;
+        const linked = t.orderId ? storeOrders.find(o => o.id === t.orderId) : undefined;
+        return !linked || linked.status === 'finalizado' || linked.status === 'cancelado';
+      })
+      .sort((a, b) => a.number - b.number);
+  }, [tables, storeOrders, currentOrder?.tableNumber]);
+
+  const handleMoveToTable = async (toTableNum: number) => {
+    if (!currentOrder) return;
+    const fromNum = currentOrder.tableNumber ? Number(currentOrder.tableNumber) : null;
+    const updatedOrder: Order = { ...currentOrder, orderType: 'mesa', tableNumber: toTableNum };
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    try {
+      if (fromNum && fromNum !== toTableNum) await freeTable(fromNum);
+      await occupyTable(toTableNum, updatedOrder.id);
+    } catch (err) {
+      console.error('[ConsumerOrderModal] Falha ao mover mesa:', err);
+    }
+    setTablePickerOpen(false);
+    setChangeTypeOpen(false);
+    setMoreOptionsOpen(false);
+    toast.success(`Pedido movido para Mesa ${toTableNum}`);
+  };
+
   const [adminPasswordForDelete, setAdminPasswordForDelete] = useState('');
   const [adminDeleting, setAdminDeleting] = useState(false);
 
