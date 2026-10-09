@@ -664,7 +664,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                     {activeSubModal === 'dinheiro' && 'Pagamento em Dinheiro'}
                     {activeSubModal === 'pix' && 'Pagamento por PIX'}
                     {activeSubModal === 'cartao' && `Pagamento no Cartão (${cardSubtype})`}
-                    {activeSubModal === 'fiado' && 'Pagamento Fiado'}
                   </h3>
                   <p className="text-xs text-muted-foreground">Saldo restante: R$ {fmt(remaining)}</p>
                 </div>
@@ -690,8 +689,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
                   <Button
                     className="flex-1"
                     onClick={() => {
-                      if (activeSubModal === 'fiado') handleSaveFiadoSplit();
-                      else if (activeSubModal === 'pix') handleSavePixSplit();
+                      if (activeSubModal === 'pix') handleSavePixSplit();
                       else if (activeSubModal === 'dinheiro' || activeSubModal === 'cartao') handleSaveSubSplit(activeSubModal);
                     }}
                   >
