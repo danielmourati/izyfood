@@ -88,6 +88,7 @@ export function ConsumerOrderModal({
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [changeTypeOpen, setChangeTypeOpen] = useState(false);
+  const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reprintModalOpen, setReprintModalOpen] = useState(false);
   const [reprintSelectedIds, setReprintSelectedIds] = useState<string[]>([]);
@@ -366,6 +367,7 @@ export function ConsumerOrderModal({
         if (customerModalOpen) { setCustomerModalOpen(false); return; }
         if (checkoutOpen) { setCheckoutOpen(false); return; }
         if (printMenuOpen) { setPrintMenuOpen(false); return; }
+        if (tablePickerOpen) { setTablePickerOpen(false); return; }
         if (changeTypeOpen) { setChangeTypeOpen(false); return; }
         if (deleteConfirmOpen) { setDeleteConfirmOpen(false); return; }
         if (moreOptionsOpen) { setMoreOptionsOpen(false); return; }
@@ -389,7 +391,7 @@ export function ConsumerOrderModal({
   }, [
     open, currentOrder, items, totalAmount,
     finderOpen, customizeOpen, customerModalOpen, checkoutOpen,
-    printMenuOpen, changeTypeOpen, deleteConfirmOpen, moreOptionsOpen, reprintModalOpen, unsentAlertOpen,
+    printMenuOpen, changeTypeOpen, tablePickerOpen, deleteConfirmOpen, moreOptionsOpen, reprintModalOpen, unsentAlertOpen,
     handleEnviarOrder, handleCloseAndSaveOrDiscard
   ]);
 
@@ -699,6 +701,42 @@ export function ConsumerOrderModal({
     setChangeTypeOpen(false);
     setMoreOptionsOpen(false);
     toast.success(`Tipo de pedido alterado para: ${newType.toUpperCase()}`);
+  };
+
+  // Mesas livres para mover o pedido (mesma regra da tela de Mesas), excluindo a mesa atual.
+  const freeTablesForMove = useMemo(() => {
+    const activeMesaTableNumbers = new Set(
+      storeOrders
+        .filter(o => o.orderType === 'mesa' && o.status !== 'finalizado' && o.status !== 'cancelado')
+        .map(o => Number(o.tableNumber))
+    );
+    return tables
+      .filter(t => t.number !== Number(currentOrder?.tableNumber))
+      .filter(t => {
+        if (activeMesaTableNumbers.has(t.number)) return false;
+        if (t.status !== 'occupied') return true;
+        const linked = t.orderId ? storeOrders.find(o => o.id === t.orderId) : undefined;
+        return !linked || linked.status === 'finalizado' || linked.status === 'cancelado';
+      })
+      .sort((a, b) => a.number - b.number);
+  }, [tables, storeOrders, currentOrder?.tableNumber]);
+
+  const handleMoveToTable = async (toTableNum: number) => {
+    if (!currentOrder) return;
+    const fromNum = currentOrder.tableNumber ? Number(currentOrder.tableNumber) : null;
+    const updatedOrder: Order = { ...currentOrder, orderType: 'mesa', tableNumber: toTableNum };
+    setCurrentOrder(updatedOrder);
+    onSaveOrder(updatedOrder);
+    try {
+      if (fromNum && fromNum !== toTableNum) await freeTable(fromNum);
+      await occupyTable(toTableNum, updatedOrder.id);
+    } catch (err) {
+      console.error('[ConsumerOrderModal] Falha ao mover mesa:', err);
+    }
+    setTablePickerOpen(false);
+    setChangeTypeOpen(false);
+    setMoreOptionsOpen(false);
+    toast.success(`Pedido movido para Mesa ${toTableNum}`);
   };
 
   const [adminPasswordForDelete, setAdminPasswordForDelete] = useState('');
@@ -1866,10 +1904,10 @@ export function ConsumerOrderModal({
           <div className="space-y-1 py-2">
             <button
               type="button"
-              onClick={() => handleChangeOrderType('mesa')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'mesa' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
+              onClick={() => setTablePickerOpen(true)}
+              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors text-foreground"
             >
-              Mesa/Comanda {currentOrder.orderType === 'mesa' ? '(Atual)' : ''}
+              Mesa/Comanda
             </button>
 
             <button
@@ -1878,22 +1916,6 @@ export function ConsumerOrderModal({
               className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'balcao' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
             >
               Balcão {currentOrder.orderType === 'balcao' ? '(Atual)' : ''}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleChangeOrderType('retirada')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'retirada' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
-            >
-              Retirada {currentOrder.orderType === 'retirada' ? '(Atual)' : ''}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleChangeOrderType('delivery')}
-              className={`w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm transition-colors ${currentOrder.orderType === 'delivery' ? 'text-muted-foreground cursor-default font-semibold' : 'text-foreground'}`}
-            >
-              Delivery {currentOrder.orderType === 'delivery' ? '(Atual)' : ''}
             </button>
 
             <div className="pt-2">
@@ -1906,6 +1928,43 @@ export function ConsumerOrderModal({
                 Cancelar (ESC)
               </button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Table Picker Dialog (mover pedido para mesa livre) */}
+      <Dialog open={tablePickerOpen} onOpenChange={setTablePickerOpen}>
+        <DialogContent className="bg-card text-card-foreground border-border max-w-sm p-4 font-sans shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold text-center">Mover para mesa livre</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 max-h-80 overflow-y-auto">
+            {freeTablesForMove.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic text-center py-4">Nenhuma mesa livre no momento.</p>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                {freeTablesForMove.map(t => (
+                  <button
+                    key={t.number}
+                    type="button"
+                    onClick={() => handleMoveToTable(t.number)}
+                    className="py-3 rounded border border-border bg-muted/30 hover:bg-muted text-sm font-bold text-foreground transition-colors"
+                  >
+                    {String(t.number).padStart(2, '0')}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="pt-2">
+            <hr className="border-border mb-2" />
+            <button
+              type="button"
+              onClick={() => setTablePickerOpen(false)}
+              className="w-full text-center py-2 px-3 rounded hover:bg-muted text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancelar (ESC)
+            </button>
           </div>
         </DialogContent>
       </Dialog>
