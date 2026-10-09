@@ -1,8 +1,9 @@
 import { CashRegister } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Printer, X } from 'lucide-react';
-import { useRef } from 'react';
+import { Printer, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { usePrinter } from '@/hooks/use-printer';
 
 interface Props {
   register: CashRegister;
@@ -21,28 +22,43 @@ function fmtDate(iso: string) {
 
 export function CashRegisterReceipt({ register, operatorName, open, onClose }: Props) {
   const receiptRef = useRef<HTMLDivElement>(null);
+  const { printCashClose } = usePrinter();
+  const [printing, setPrinting] = useState(false);
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
-  const handlePrint = () => {
-    const content = receiptRef.current;
-    if (!content) return;
-    const win = window.open('', '_blank', 'width=320,height=600');
-    if (!win) return;
-    win.document.write(`
-      <html><head><title>Fechamento de Caixa</title>
-      <style>
-        body { font-family: 'Courier New', monospace; font-size: 12px; margin: 0; padding: 16px; width: 280px; }
-        .line { border-top: 1px dashed #000; margin: 6px 0; }
-        .double { border-top: 2px solid #000; margin: 6px 0; }
-        .center { text-align: center; }
-        .row { display: flex; justify-content: space-between; }
-        .bold { font-weight: bold; }
-        @media print { body { width: auto; } }
-      </style></head><body>${content.innerHTML}</body></html>
-    `);
-    win.document.close();
-    win.focus();
-    win.print();
-    win.close();
+  const handlePrint = async () => {
+    if (printing) return;
+    setPrinting(true);
+    setFeedback(null);
+    try {
+      const result = await printCashClose({
+        openedAt: register.openedAt,
+        closedAt: register.closedAt,
+        operatorName,
+        initialAmount: register.initialAmount,
+        totalCash: register.totalCash,
+        totalPix: register.totalPix,
+        totalCard: register.totalCard,
+        totalFiado: register.totalFiado,
+        totalSales: register.totalSales,
+      });
+      if (result.ok) {
+        setFeedback({
+          kind: 'ok',
+          text: result.queued
+            ? (result.reason || 'Cupom enviado para a impressora do caixa.')
+            : result.channel === 'html'
+              ? 'Nenhuma impressora configurada encontrada; o cupom foi aberto para impressão pelo navegador.'
+              : 'Cupom enviado para a impressora do caixa.',
+        });
+      } else {
+        setFeedback({ kind: 'error', text: result.reason || 'Não foi possível imprimir o cupom.' });
+      }
+    } catch (err: any) {
+      setFeedback({ kind: 'error', text: err?.message || 'Falha inesperada ao imprimir o cupom.' });
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const saldoCaixa = register.initialAmount + register.totalCash;
@@ -83,9 +99,27 @@ export function CashRegisterReceipt({ register, operatorName, open, onClose }: P
           <div className="double" />
         </div>
 
+        {feedback && (
+          <div
+            className={`mx-4 mb-1 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${
+              feedback.kind === 'ok'
+                ? 'border-primary/30 bg-primary/10 text-foreground'
+                : 'border-destructive/40 bg-destructive/10 text-foreground'
+            }`}
+          >
+            {feedback.kind === 'ok' ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+            )}
+            <span>{feedback.text}</span>
+          </div>
+        )}
+
         <div className="flex gap-2 p-4 border-t border-border">
-          <Button onClick={handlePrint} className="flex-1 gap-2">
-            <Printer className="h-4 w-4" /> Imprimir
+          <Button onClick={handlePrint} disabled={printing} className="flex-1 gap-2">
+            {printing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+            {printing ? 'Imprimindo…' : 'Imprimir'}
           </Button>
           <Button variant="outline" onClick={onClose} className="gap-2">
             <X className="h-4 w-4" /> Fechar
