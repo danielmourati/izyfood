@@ -8,7 +8,7 @@ import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from '@/components/ui/accordion';
 import {
-  Utensils, Store, Bike, ShoppingBag, ClipboardList, Truck, DollarSign,
+  Utensils, Store, Bike, ShoppingBag, ClipboardList, DollarSign,
   Package, Boxes, Users, BarChart3, Settings, Lock, Unlock, ChevronRight,
 } from 'lucide-react';
 
