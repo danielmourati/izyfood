@@ -106,7 +106,6 @@ const Home: React.FC = () => {
       color: 'vendas',
       items: [
         { key: 'pedidos', label: 'Pedidos', icon: ClipboardList, to: '/pedidos', show: true },
-        { key: 'entregas', label: 'Entregas', icon: Truck, to: '/entregas', show: true },
         { key: 'caixa', label: 'Caixa', icon: DollarSign, to: '/caixa', show: true },
       ],
     },

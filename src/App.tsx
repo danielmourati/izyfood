@@ -17,7 +17,6 @@ import Clientes from "./pages/Clientes";
 import Estoque from "./pages/Estoque";
 import Produtos from "./pages/Produtos";
 import Relatorios from "./pages/Relatorios";
-import Entregas from "./pages/Entregas";
 import Caixa from "./pages/Caixa";
 import Configuracoes from "./pages/Configuracoes";
 import { SuperAdminRoutes } from "./pages/superadmin/SuperAdminRoutes";
@@ -83,7 +82,6 @@ function TenantRoutes() {
         <Route path="/balcao" element={<ProtectedRoute><Balcao /></ProtectedRoute>} />
         <Route path="/pdv" element={<Navigate to={`/${slug}`} replace />} />
         <Route path="/pedidos" element={<ProtectedRoute adminOnly permissionKey="view_orders_history"><Pedidos /></ProtectedRoute>} />
-        <Route path="/entregas" element={<ProtectedRoute adminOnly permissionKey="manage_deliveries"><Entregas /></ProtectedRoute>} />
         <Route path="/caixa" element={<ProtectedRoute adminOnly permissionKey="view_cash_register"><Caixa /></ProtectedRoute>} />
         <Route path="/clientes" element={<ProtectedRoute adminOnly permissionKey="manage_customers"><Clientes /></ProtectedRoute>} />
         <Route path="/produtos" element={<ProtectedRoute adminOnly permissionKey="manage_products"><Produtos /></ProtectedRoute>} />

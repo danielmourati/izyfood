@@ -39,7 +39,6 @@ const navItems: NavItem[] = [
   { title: 'Mesas', path: '/mesas', icon: Grid3X3, adminOnly: true, permissionKey: 'manage_tables' },
   { title: 'Balcão', path: '/balcao', icon: ShoppingCart, adminOnly: false },
   { title: 'Pedidos', path: '/pedidos', icon: ClipboardList, adminOnly: true, permissionKey: 'view_orders_history' },
-  { title: 'Delivery', path: '/entregas', icon: Truck, adminOnly: true, permissionKey: 'manage_deliveries' },
   { title: 'Caixa', path: '/caixa', icon: DollarSign, adminOnly: true, permissionKey: 'view_cash_register' },
   { title: 'Clientes', path: '/clientes', icon: Users, adminOnly: true, permissionKey: 'manage_customers' },
   { title: 'Produtos', path: '/produtos', icon: UtensilsCrossed, adminOnly: true, permissionKey: 'manage_products' },
