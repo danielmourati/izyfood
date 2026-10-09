@@ -1932,6 +1932,43 @@ export function ConsumerOrderModal({
         </DialogContent>
       </Dialog>
 
+      {/* Table Picker Dialog (mover pedido para mesa livre) */}
+      <Dialog open={tablePickerOpen} onOpenChange={setTablePickerOpen}>
+        <DialogContent className="bg-card text-card-foreground border-border max-w-sm p-4 font-sans shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold text-center">Mover para mesa livre</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 max-h-80 overflow-y-auto">
+            {freeTablesForMove.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic text-center py-4">Nenhuma mesa livre no momento.</p>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                {freeTablesForMove.map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => handleMoveToTable(t.number)}
+                    className="py-3 rounded border border-border bg-muted/30 hover:bg-muted text-sm font-bold text-foreground transition-colors"
+                  >
+                    {String(t.number).padStart(2, '0')}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="pt-2">
+            <hr className="border-border mb-2" />
+            <button
+              type="button"
+              onClick={() => setTablePickerOpen(false)}
+              className="w-full text-center py-2 px-3 rounded hover:bg-muted text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancelar (ESC)
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={(val) => { setDeleteConfirmOpen(val); if (!val) setAdminPasswordForDelete(''); }}>
         <DialogContent className="bg-card text-card-foreground border-border max-w-md p-5 font-sans">
