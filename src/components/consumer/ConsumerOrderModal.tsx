@@ -35,6 +35,12 @@ interface ConsumerOrderModalProps {
   onDeleteOrder?: (orderId: string, tableNumber?: number) => void;
 }
 
+interface OrderResponsibleOption {
+  id: string;
+  name: string;
+  role: 'admin' | 'atendente';
+}
+
 export function ConsumerOrderModal({
   open,
   onClose,
@@ -46,7 +52,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders, lastSyncError } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const hasAllPermissions = PERMISSION_KEYS.every(k => permissions[k]);
@@ -86,7 +92,9 @@ export function ConsumerOrderModal({
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
   const [isLocked, setIsLocked] = useState(false);
-  const [assignedWaiter, setAssignedWaiter] = useState<string>(user?.name || 'Daniel');
+  const [orderResponsibles, setOrderResponsibles] = useState<OrderResponsibleOption[]>([]);
+  const [responsiblesLoading, setResponsiblesLoading] = useState(false);
+  const [responsiblesError, setResponsiblesError] = useState<string | null>(null);
 
   // Modals for Print Options, Mais Opções and Sub-menus
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
@@ -105,7 +113,6 @@ export function ConsumerOrderModal({
       const attributedOrder = ensureOrderOpener(order, user);
       setCurrentOrder(attributedOrder);
       setGeneralNotes(order.pickupNotes || '');
-      setAssignedWaiter(attributedOrder.openedByName || user?.name || 'Daniel');
       setIsLocked(order.isLocked ?? false);
 
       const hasExistingItems = order.items && order.items.length > 0;
@@ -119,17 +126,87 @@ export function ConsumerOrderModal({
     }
   }, [open, order, user]);
 
+  useEffect(() => {
+    if (!open || !user?.tenantId) return;
+    let active = true;
+
+    const loadOrderResponsibles = async () => {
+      setResponsiblesLoading(true);
+      setResponsiblesError(null);
+      try {
+        const { data: members, error: membersError } = await supabase
+          .from('tenant_members')
+          .select('user_id, role')
+          .eq('tenant_id', user.tenantId)
+          .in('role', ['admin', 'atendente']);
+        if (membersError) throw membersError;
+
+        const memberIds = [...new Set((members || []).map(member => member.user_id))];
+        if (memberIds.length === 0) {
+          if (active) setOrderResponsibles([]);
+          return;
+        }
+
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, name')
+          .in('id', memberIds);
+        if (profilesError) throw profilesError;
+
+        const profileNames = new Map((profiles || []).map(profile => [profile.id, profile.name]));
+        const options = (members || [])
+          .map(member => ({
+            id: member.user_id,
+            name: profileNames.get(member.user_id)?.trim() || '',
+            role: member.role as 'admin' | 'atendente',
+          }))
+          .filter(option => option.name)
+          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+        if (active) setOrderResponsibles(options);
+      } catch (error) {
+        console.error('[ConsumerOrderModal] Falha ao carregar responsáveis:', error);
+        if (active) setResponsiblesError('Não foi possível carregar os atendentes cadastrados.');
+      } finally {
+        if (active) setResponsiblesLoading(false);
+      }
+    };
+
+    loadOrderResponsibles();
+    return () => { active = false; };
+  }, [open, user?.tenantId]);
+
+  const handleResponsibleChange = (responsibleId: string) => {
+    if (!isAdmin || !currentOrder) return;
+    const responsible = orderResponsibles.find(option => option.id === responsibleId);
+    if (!responsible) return;
+    const updated: Order = {
+      ...currentOrder,
+      openedBy: responsible.id,
+      openedByName: responsible.name,
+    };
+    setCurrentOrder(updated);
+    onSaveOrder(updated);
+  };
+
   // Reflete em tempo real o bloqueio/desbloqueio feito em outro dispositivo
   useEffect(() => {
     if (!open || !currentOrder) return;
     const remote = storeOrders.find(o => o.id === currentOrder.id);
     if (!remote) return;
     const remoteLocked = remote.isLocked === true || remote.status === 'segurado';
-    if (remoteLocked !== isLocked) {
-      setIsLocked(remoteLocked);
-      setCurrentOrder(prev => (prev ? { ...prev, isLocked: remoteLocked, status: remote.status } : prev));
+    const responsibleChanged = remote.openedBy !== currentOrder.openedBy
+      || remote.openedByName !== currentOrder.openedByName;
+    if (remoteLocked !== isLocked) setIsLocked(remoteLocked);
+    if (remoteLocked !== isLocked || responsibleChanged) {
+      setCurrentOrder(prev => (prev ? {
+        ...prev,
+        isLocked: remoteLocked,
+        status: remote.status,
+        openedBy: remote.openedBy || prev.openedBy,
+        openedByName: remote.openedByName || prev.openedByName,
+      } : prev));
     }
-  }, [open, storeOrders, currentOrder?.id, isLocked]);
+  }, [open, storeOrders, currentOrder?.id, currentOrder?.openedBy, currentOrder?.openedByName, isLocked]);
 
 
 
@@ -1529,22 +1606,38 @@ export function ConsumerOrderModal({
                   </div>
                   <div className="flex items-center gap-2">
                     <span>👤</span>
-                    <span>Criado por: <strong className="text-foreground">{user?.name || 'Edvaldo'}</strong></span>
+                    <span>Criado por: <strong className="text-foreground">{currentOrder.openedByName || 'Não informado'}</strong></span>
                   </div>
                 </div>
 
-                {/* Waiter Select Dropdown */}
-                <div>
-                  <select
-                    value={assignedWaiter}
-                    onChange={e => setAssignedWaiter(e.target.value)}
-                    className="w-full bg-background border border-input text-foreground text-xs rounded p-2 focus:outline-none focus:border-primary"
-                  >
-                    <option value="Daniel">Daniel</option>
-                    <option value="Edvaldo">Edvaldo</option>
-                    <option value="Atendente 1">Atendente 1</option>
-                    <option value="Caixa">Caixa</option>
-                  </select>
+                {/* Order responsible: admins can change; attendants only see the saved opener. */}
+                <div className="space-y-1.5">
+                  <span className="font-semibold text-foreground">Responsável pelo pedido</span>
+                  {isAdmin ? (
+                    <select
+                      value={currentOrder.openedBy || '__legacy'}
+                      onChange={e => handleResponsibleChange(e.target.value)}
+                      disabled={responsiblesLoading || orderResponsibles.length === 0}
+                      className="w-full bg-background border border-input text-foreground text-xs rounded p-2 focus:outline-none focus:border-primary disabled:opacity-60"
+                    >
+                      {currentOrder.openedBy && !orderResponsibles.some(option => option.id === currentOrder.openedBy) && (
+                        <option value={currentOrder.openedBy}>{currentOrder.openedByName || 'Responsável atual'}</option>
+                      )}
+                      {!currentOrder.openedBy && (
+                        <option value="__legacy" disabled>{currentOrder.openedByName || 'Selecione um responsável'}</option>
+                      )}
+                      {orderResponsibles.map(option => (
+                        <option key={option.id} value={option.id}>{option.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full bg-muted/40 border border-border text-foreground text-xs rounded p-2">
+                      {currentOrder.openedByName || 'Não informado'}
+                    </div>
+                  )}
+                  {responsiblesLoading && <p className="text-[11px] text-muted-foreground">Carregando equipe...</p>}
+                  {responsiblesError && <p role="alert" className="text-[11px] text-destructive">{responsiblesError}</p>}
+                  {lastSyncError && <p role="alert" className="text-[11px] text-destructive">A alteração não pôde ser salva. Tente novamente.</p>}
                 </div>
 
                 {/* General Observation Input */}
