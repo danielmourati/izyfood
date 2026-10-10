@@ -423,6 +423,8 @@ export type Database = {
           items: Json
           loyalty_redemptions: number | null
           motoboy_name: string | null
+          opened_by: string | null
+          opened_by_name: string | null
           order_source: Database["public"]["Enums"]["order_source"] | null
           order_type: Database["public"]["Enums"]["order_type"]
           payment_method: Database["public"]["Enums"]["payment_method"] | null
@@ -456,6 +458,8 @@ export type Database = {
           items?: Json
           loyalty_redemptions?: number | null
           motoboy_name?: string | null
+          opened_by?: string | null
+          opened_by_name?: string | null
           order_source?: Database["public"]["Enums"]["order_source"] | null
           order_type?: Database["public"]["Enums"]["order_type"]
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -489,6 +493,8 @@ export type Database = {
           items?: Json
           loyalty_redemptions?: number | null
           motoboy_name?: string | null
+          opened_by?: string | null
+          opened_by_name?: string | null
           order_source?: Database["public"]["Enums"]["order_source"] | null
           order_type?: Database["public"]["Enums"]["order_type"]
           payment_method?: Database["public"]["Enums"]["payment_method"] | null

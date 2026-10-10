@@ -61,6 +61,8 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
+  openedBy?: string;
+  openedByName?: string;
   items: OrderItem[];
   total: number;
   orderType: OrderType;

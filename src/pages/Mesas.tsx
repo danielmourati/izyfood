@@ -86,6 +86,8 @@ const Mesas = () => {
       const existingId = activeOrderForTable?.id || table?.orderId;
       targetOrder = orders.find(o => o.id === existingId) || activeOrderForTable || {
         id: existingId || crypto.randomUUID(),
+        openedBy: user?.id,
+        openedByName: user?.name,
         items: [],
         total: 0,
         orderType: 'mesa',
@@ -96,6 +98,8 @@ const Mesas = () => {
     } else {
       targetOrder = {
         id: crypto.randomUUID(),
+        openedBy: user?.id,
+        openedByName: user?.name,
         items: [],
         total: 0,
         orderType: 'mesa' as const,

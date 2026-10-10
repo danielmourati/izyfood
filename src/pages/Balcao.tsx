@@ -5,6 +5,7 @@ import { usePrinter } from '@/hooks/use-printer';
 import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 import { supabase } from '@/integrations/supabase/client';
 import { Order } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Balcão: abre um pedido rápido na mesma janela usada pelas Mesas.
@@ -12,17 +13,20 @@ import { Order } from '@/types';
  */
 const Balcao = () => {
   const { setOrders } = useStore();
+  const { user } = useAuth();
   const { printOrder, printBill } = usePrinter();
   const navigate = useTenantNavigate();
 
   const order = useMemo<Order>(() => ({
     id: crypto.randomUUID(),
+    openedBy: user?.id,
+    openedByName: user?.name,
     items: [],
     total: 0,
     orderType: 'balcao',
     status: 'aberto',
     createdAt: new Date().toISOString(),
-  }), []);
+  }), [user?.id, user?.name]);
 
   const removeOrder = async (orderId: string) => {
     setOrders(prev => prev.filter(o => o.id !== orderId));

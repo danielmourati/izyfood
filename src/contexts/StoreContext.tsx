@@ -77,7 +77,8 @@ function dbToSupplier(r: any): Supplier {
 }
 function dbToOrder(r: any): Order {
   return {
-    id: r.id, items: r.items as OrderItem[], total: Number(r.total), orderType: r.order_type, status: r.status,
+    id: r.id, openedBy: r.opened_by || undefined, openedByName: r.opened_by_name || undefined,
+    items: r.items as OrderItem[], total: Number(r.total), orderType: r.order_type, status: r.status,
     tableNumber: r.table_number || undefined, customerId: r.customer_id || undefined,
     customerName: r.customer_name || undefined, customerPhone: r.customer_phone || undefined,
     customerAddress: r.customer_address || undefined, deliveryFee: r.delivery_fee ? Number(r.delivery_fee) : undefined,
@@ -1264,7 +1265,8 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
         : (lockAware ? null : o.heldAt || null);
 
       const orderPayload: any = {
-        id: o.id, items: o.items as any, total: o.total, order_type: o.orderType, status: persistedStatus,
+        id: o.id, opened_by: o.openedBy || null, opened_by_name: o.openedByName || null,
+        items: o.items as any, total: o.total, order_type: o.orderType, status: persistedStatus,
         table_number: o.tableNumber || null, customer_id: o.customerId || null,
         customer_name: o.customerName || null, customer_phone: o.customerPhone || null,
         customer_address: o.customerAddress || null, delivery_fee: o.deliveryFee || null,

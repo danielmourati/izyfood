@@ -5,10 +5,11 @@
  */
 
 import { receiptColumnsForWidth, receiptPriceZone, type PrintSettings } from './escpos';
-import { getOrderItemAdditionalLines } from './utils';
+import { getOrderAttendantName, getOrderItemAdditionalLines } from './utils';
 
 export interface PreviewItem {
   name: string;
+  addedByName?: string;
   quantity: number;
   weight?: number;
   price: number;
@@ -25,6 +26,7 @@ export interface PreviewBill {
   tableNumber?: number;
   items: PreviewItem[];
   customerName?: string;
+  openedByName?: string;
   createdAt: string;
   paymentMethod?: string;
   paymentSplits?: { method: string; amount: number }[];
@@ -210,6 +212,7 @@ export function buildBillPreviewText(
   }
   lines.push(row('Cliente:', bill.customerName?.trim() || 'Consumidor', cols));
   lines.push(row('Data:', fmtDate(bill.createdAt), cols));
+  lines.push(row('Atendente:', getOrderAttendantName(bill), cols));
   lines.push(lineOf('-', cols));
 
   for (const item of bill.items) {

@@ -12,7 +12,7 @@ import { ConsumerProductFinderModal } from './ConsumerProductFinderModal';
 import { ConsumerItemCustomizeModal } from './ConsumerItemCustomizeModal';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { fmt } from '@/lib/utils';
+import { ensureOrderOpener, fmt } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -102,9 +102,10 @@ export function ConsumerOrderModal({
 
   useEffect(() => {
     if (open && order) {
-      setCurrentOrder(order);
+      const attributedOrder = ensureOrderOpener(order, user);
+      setCurrentOrder(attributedOrder);
       setGeneralNotes(order.pickupNotes || '');
-      setAssignedWaiter(order.customerName || user?.name || 'Daniel');
+      setAssignedWaiter(attributedOrder.openedByName || user?.name || 'Daniel');
       setIsLocked(order.isLocked ?? false);
 
       const hasExistingItems = order.items && order.items.length > 0;
