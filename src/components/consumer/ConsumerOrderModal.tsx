@@ -35,6 +35,12 @@ interface ConsumerOrderModalProps {
   onDeleteOrder?: (orderId: string, tableNumber?: number) => void;
 }
 
+interface OrderResponsibleOption {
+  id: string;
+  name: string;
+  role: 'admin' | 'atendente';
+}
+
 export function ConsumerOrderModal({
   open,
   onClose,
@@ -46,7 +52,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders, lastSyncError } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const hasAllPermissions = PERMISSION_KEYS.every(k => permissions[k]);
@@ -86,7 +92,9 @@ export function ConsumerOrderModal({
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [generalNotes, setGeneralNotes] = useState('');
   const [isLocked, setIsLocked] = useState(false);
-  const [assignedWaiter, setAssignedWaiter] = useState<string>(user?.name || 'Daniel');
+  const [orderResponsibles, setOrderResponsibles] = useState<OrderResponsibleOption[]>([]);
+  const [responsiblesLoading, setResponsiblesLoading] = useState(false);
+  const [responsiblesError, setResponsiblesError] = useState<string | null>(null);
 
   // Modals for Print Options, Mais Opções and Sub-menus
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
@@ -105,7 +113,6 @@ export function ConsumerOrderModal({
       const attributedOrder = ensureOrderOpener(order, user);
       setCurrentOrder(attributedOrder);
       setGeneralNotes(order.pickupNotes || '');
-      setAssignedWaiter(attributedOrder.openedByName || user?.name || 'Daniel');
       setIsLocked(order.isLocked ?? false);
 
       const hasExistingItems = order.items && order.items.length > 0;
@@ -118,6 +125,68 @@ export function ConsumerOrderModal({
       setSelectedMobileProduct(null);
     }
   }, [open, order, user]);
+
+  useEffect(() => {
+    if (!open || !user?.tenantId) return;
+    let active = true;
+
+    const loadOrderResponsibles = async () => {
+      setResponsiblesLoading(true);
+      setResponsiblesError(null);
+      try {
+        const { data: members, error: membersError } = await supabase
+          .from('tenant_members')
+          .select('user_id, role')
+          .eq('tenant_id', user.tenantId)
+          .in('role', ['admin', 'atendente']);
+        if (membersError) throw membersError;
+
+        const memberIds = [...new Set((members || []).map(member => member.user_id))];
+        if (memberIds.length === 0) {
+          if (active) setOrderResponsibles([]);
+          return;
+        }
+
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, name')
+          .in('id', memberIds);
+        if (profilesError) throw profilesError;
+
+        const profileNames = new Map((profiles || []).map(profile => [profile.id, profile.name]));
+        const options = (members || [])
+          .map(member => ({
+            id: member.user_id,
+            name: profileNames.get(member.user_id)?.trim() || '',
+            role: member.role as 'admin' | 'atendente',
+          }))
+          .filter(option => option.name)
+          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+        if (active) setOrderResponsibles(options);
+      } catch (error) {
+        console.error('[ConsumerOrderModal] Falha ao carregar responsáveis:', error);
+        if (active) setResponsiblesError('Não foi possível carregar os atendentes cadastrados.');
+      } finally {
+        if (active) setResponsiblesLoading(false);
+      }
+    };
+
+    loadOrderResponsibles();
+    return () => { active = false; };
+  }, [open, user?.tenantId]);
+
+  const handleResponsibleChange = (responsibleId: string) => {
+    if (!isAdmin || !currentOrder) return;
+    const responsible = orderResponsibles.find(option => option.id === responsibleId);
+    if (!responsible) return;
+    const updated: Order = {
+      ...currentOrder,
+      openedBy: responsible.id,
+      openedByName: responsible.name,
+    };
+    setCurrentOrder(updated);
+    onSaveOrder(updated);
+  };
 
   // Reflete em tempo real o bloqueio/desbloqueio feito em outro dispositivo
   useEffect(() => {
