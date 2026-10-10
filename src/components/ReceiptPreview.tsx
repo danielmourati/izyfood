@@ -10,6 +10,7 @@ const MOCK_BILL: PreviewBill = {
   orderType: 'mesa',
   tableNumber: 7,
   customerName: 'João da Silva',
+  openedByName: 'Maria Atendente',
   createdAt: new Date().toISOString(),
   items: [
     { name: 'Coca 350ml', quantity: 2, price: 7.5, subtotal: 15 },

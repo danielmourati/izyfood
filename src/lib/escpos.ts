@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { getOrderItemAdditionalLines, getOrderItemNoteLines } from '@/lib/utils';
+import { getOrderAttendantName, getOrderItemAdditionalLines, getOrderItemNoteLines } from '@/lib/utils';
 import {
   CHAR_ENCODINGS,
   DEFAULT_CHAR_ENCODING,
@@ -327,6 +327,7 @@ interface OrderData {
   customerAddress?: string;
   createdAt: string;
   operatorName?: string;
+  openedByName?: string;
   pickupNotes?: string;
 }
 
@@ -591,7 +592,7 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
     parts.push(kvRow('Telefone:', order.customerPhone, cols));
   }
 
-  const operator = order.operatorName || 'Nao informado';
+  const operator = getOrderAttendantName(order);
   parts.push(kvRow('Atendente:', operator, cols));
 
   // Divider
@@ -701,6 +702,7 @@ function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSetti
   }
   parts.push(kvRow('Cliente:', bill.customerName?.trim() || 'Consumidor', cols));
   parts.push(kvRow('Data:', fmtDateCompact(bill.createdAt), cols));
+  parts.push(kvRow('Atendente:', getOrderAttendantName(bill), cols));
   parts.push(lineOf('-', cols));
 
   // Items with price — each item as a rowWrap() so long names break into multiple lines.

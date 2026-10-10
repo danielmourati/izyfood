@@ -1,8 +1,33 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { Order } from '@/types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+/** Keep the original order opener stable, with a legacy fallback to the first item author. */
+export function ensureOrderOpener(
+  order: Order,
+  user?: { id: string; name: string } | null,
+): Order {
+  const firstAuthoredItem = order.items?.find(item => item.addedByName?.trim());
+  return {
+    ...order,
+    openedBy: order.openedBy || firstAuthoredItem?.addedBy || user?.id,
+    openedByName: order.openedByName?.trim() || firstAuthoredItem?.addedByName?.trim() || user?.name?.trim(),
+  };
+}
+
+export function getOrderAttendantName(order: {
+  openedByName?: string;
+  operatorName?: string;
+  items?: Array<{ addedByName?: string }>;
+}): string {
+  return order.openedByName?.trim()
+    || order.items?.find(item => item.addedByName?.trim())?.addedByName?.trim()
+    || order.operatorName?.trim()
+    || 'Não informado';
 }
 
 /** Format number to BRL string with comma as decimal separator */

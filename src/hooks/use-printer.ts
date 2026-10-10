@@ -33,7 +33,7 @@ import {
   getDevicePrinterConfig,
 } from '@/lib/printer';
 import { PRINT_HOST_PRESENCE_PREFIX, insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
-import { getOrderItemAdditionalLines } from '@/lib/utils';
+import { getOrderAttendantName, getOrderItemAdditionalLines } from '@/lib/utils';
 import {
   buildOrderReceipt,
   buildBillReceipt,
@@ -779,7 +779,7 @@ export function buildOrderHtml(order: any, _ps: any = {}): string {
 
     <div class="line" style="margin-top: 12px;"></div>
     <div style="margin-top: 6px; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; white-space: nowrap;"><span>QTD. TOTAL ITENS:</span><span>${totalItemsCount}</span></div>
-    <div style="margin-top: 4px; font-size: 11px; color: #444;">Atendente: ${order.operatorName || 'Não informado'}</div>
+    <div style="margin-top: 4px; font-size: 11px; color: #444;">Atendente: ${getOrderAttendantName(order)}</div>
   `;
 }
 
@@ -879,6 +879,7 @@ export function buildBillHtml(bill: any, ps: any = {}): string {
     ${(bill.tableNumber || htmlRawOrderType === 'mesa') ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber || 'N/A'}</span></div>` : ''}
     <div class="row"><span>Cliente:</span><span>${bill.customerName?.trim() || 'Consumidor'}</span></div>
     <div class="row"><span>Data:</span><span>${fmtDate(createdAt)}</span></div>
+    <div class="row"><span>Atendente:</span><span>${getOrderAttendantName(bill)}</span></div>
     <div class="line"></div>
     <div style="margin: 10px 0;">
       ${items || '<p class="center">Nenhum item</p>'}

@@ -12,3 +12,4 @@
 - [x] Teste de acentuação na Bematech: linhas 1, 2 e 3 corretas; mantida a opção 1 (CP850).
 - [x] Substituir o ID pela mesa e fixar fonte dupla no cabeçalho, produtos e adicionais das comandas da cozinha.
 - [x] Balcão no fluxo das Mesas; PDV removido
+- [x] Fixar o atendente que abriu o pedido e exibi-lo nas comandas e contas.
