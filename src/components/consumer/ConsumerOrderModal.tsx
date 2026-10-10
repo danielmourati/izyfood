@@ -236,7 +236,7 @@ export function ConsumerOrderModal({
     const unprintedItems = items.filter(i => !i.printed);
     if (unprintedItems.length > 0) {
       try {
-        const orderToPrintKitchen = { ...currentOrder, items: unprintedItems };
+        const orderToPrintKitchen = { ...currentOrder, pickupNotes: generalNotes || currentOrder.pickupNotes, items: unprintedItems };
         const res: any = onPrintOrder
           ? await onPrintOrder(orderToPrintKitchen, 'new')
           : await printOrder(orderToPrintKitchen, { intent: 'new' });
@@ -329,7 +329,7 @@ export function ConsumerOrderModal({
     let queuedAtHost = false;
     setPrintNotice(null);
     try {
-      const orderToPrint = { ...currentOrder, items: unprintedItems };
+      const orderToPrint = { ...currentOrder, pickupNotes: generalNotes || currentOrder.pickupNotes, items: unprintedItems };
       const res: any = onPrintOrder
         ? await onPrintOrder(orderToPrint, 'new')
         : await printOrder(orderToPrint, { intent: 'new' });
@@ -1101,7 +1101,11 @@ export function ConsumerOrderModal({
                     value={generalNotes}
                     onChange={e => {
                       setGeneralNotes(e.target.value);
-                      if (currentOrder) onSaveOrder({ ...currentOrder, pickupNotes: e.target.value });
+                      if (currentOrder) {
+                        const updated = { ...currentOrder, pickupNotes: e.target.value };
+                        setCurrentOrder(updated);
+                        onSaveOrder(updated);
+                      }
                     }}
                     className="min-h-[56px] text-xs bg-background border-input text-foreground"
                   />
@@ -1325,7 +1329,11 @@ export function ConsumerOrderModal({
                       value={generalNotes}
                       onChange={e => {
                         setGeneralNotes(e.target.value);
-                        onSaveOrder({ ...currentOrder, pickupNotes: e.target.value });
+                        if (currentOrder) {
+                          const updated = { ...currentOrder, pickupNotes: e.target.value };
+                          setCurrentOrder(updated);
+                          onSaveOrder(updated);
+                        }
                       }}
                       className="bg-background border-input text-xs text-foreground min-h-[64px]"
                     />
@@ -1545,7 +1553,11 @@ export function ConsumerOrderModal({
                     value={generalNotes}
                     onChange={e => {
                       setGeneralNotes(e.target.value);
-                      onSaveOrder({ ...currentOrder, pickupNotes: e.target.value });
+                      if (currentOrder) {
+                        const updated = { ...currentOrder, pickupNotes: e.target.value };
+                        setCurrentOrder(updated);
+                        onSaveOrder(updated);
+                      }
                     }}
                     className="bg-background border-input text-xs text-foreground placeholder:text-muted-foreground min-h-[64px]"
                   />
