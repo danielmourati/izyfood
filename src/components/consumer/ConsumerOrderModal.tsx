@@ -206,7 +206,7 @@ export function ConsumerOrderModal({
         openedByName: remote.openedByName || prev.openedByName,
       } : prev));
     }
-  }, [open, storeOrders, currentOrder?.id, isLocked]);
+  }, [open, storeOrders, currentOrder?.id, currentOrder?.openedBy, currentOrder?.openedByName, isLocked]);
 
 
 
