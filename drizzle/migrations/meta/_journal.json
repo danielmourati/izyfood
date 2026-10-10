@@ -29,6 +29,13 @@
       "when": 1791500978170,
       "tag": "0003_printer_char_encoding",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791601079464,
+      "tag": "0004_add_order_opened_by_attendant",
+      "breakpoints": true
     }
   ]
 }
