@@ -306,6 +306,7 @@ export function getItemNoteLines(item: { notes?: string; selectedNotes?: string[
 
 interface OrderItem {
   name: string;
+  addedByName?: string;
   quantity: number;
   weight?: number;
   price: number;

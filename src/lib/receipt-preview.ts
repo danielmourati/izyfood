@@ -9,6 +9,7 @@ import { getOrderAttendantName, getOrderItemAdditionalLines } from './utils';
 
 export interface PreviewItem {
   name: string;
+  addedByName?: string;
   quantity: number;
   weight?: number;
   price: number;

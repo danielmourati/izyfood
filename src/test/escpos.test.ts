@@ -454,7 +454,31 @@ describe('kitchen order notes rendering', () => {
     total: 20,
     createdAt: '2026-05-22T20:13:00.000Z',
     customerName: 'Cliente',
+    openedByName: 'Ana Atendente',
   };
+
+  it('prints the original attendant on both kitchen ticket and bill', () => {
+    const order = {
+      ...baseOrder,
+      items: [{ name: 'Produto', quantity: 1, price: 10, subtotal: 10 }],
+    };
+    const kitchen = normalizeReceiptWords(decodeReceipt(buildOrderReceipt(order, 58)));
+    const bill = normalizeReceiptWords(decodeReceipt(buildBillReceipt(order, 58)));
+
+    expect(kitchen).toContain('Atendente: Ana Atendente');
+    expect(bill).toContain('Atendente: Ana Atendente');
+  });
+
+  it('keeps the original attendant instead of the current printing operator', () => {
+    const receipt = normalizeReceiptWords(decodeReceipt(buildBillReceipt({
+      ...baseOrder,
+      operatorName: 'Usuário que imprimiu',
+      items: [{ name: 'Produto', quantity: 1, price: 10, subtotal: 10 }],
+    }, 58)));
+
+    expect(receipt).toContain('Atendente: Ana Atendente');
+    expect(receipt).not.toContain('Usuário que imprimiu');
+  });
 
   it('getItemNoteLines: prefers structured fields (selectedNotes + otherNotes)', () => {
     const lines = getItemNoteLines({
