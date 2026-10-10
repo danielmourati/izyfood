@@ -13,3 +13,4 @@
 - [x] Substituir o ID pela mesa e fixar fonte dupla no cabeçalho, produtos e adicionais das comandas da cozinha.
 - [x] Balcão no fluxo das Mesas; PDV removido
 - [x] Fixar o atendente que abriu o pedido e exibi-lo nas comandas e contas.
+- [x] Listar administradores e atendentes cadastrados e permitir troca do responsável somente por admin.

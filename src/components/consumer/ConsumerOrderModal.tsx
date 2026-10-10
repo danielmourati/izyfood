@@ -194,9 +194,17 @@ export function ConsumerOrderModal({
     const remote = storeOrders.find(o => o.id === currentOrder.id);
     if (!remote) return;
     const remoteLocked = remote.isLocked === true || remote.status === 'segurado';
-    if (remoteLocked !== isLocked) {
-      setIsLocked(remoteLocked);
-      setCurrentOrder(prev => (prev ? { ...prev, isLocked: remoteLocked, status: remote.status } : prev));
+    const responsibleChanged = remote.openedBy !== currentOrder.openedBy
+      || remote.openedByName !== currentOrder.openedByName;
+    if (remoteLocked !== isLocked) setIsLocked(remoteLocked);
+    if (remoteLocked !== isLocked || responsibleChanged) {
+      setCurrentOrder(prev => (prev ? {
+        ...prev,
+        isLocked: remoteLocked,
+        status: remote.status,
+        openedBy: remote.openedBy || prev.openedBy,
+        openedByName: remote.openedByName || prev.openedByName,
+      } : prev));
     }
   }, [open, storeOrders, currentOrder?.id, isLocked]);
 
@@ -1598,22 +1606,38 @@ export function ConsumerOrderModal({
                   </div>
                   <div className="flex items-center gap-2">
                     <span>👤</span>
-                    <span>Criado por: <strong className="text-foreground">{user?.name || 'Edvaldo'}</strong></span>
+                    <span>Criado por: <strong className="text-foreground">{currentOrder.openedByName || 'Não informado'}</strong></span>
                   </div>
                 </div>
 
-                {/* Waiter Select Dropdown */}
-                <div>
-                  <select
-                    value={assignedWaiter}
-                    onChange={e => setAssignedWaiter(e.target.value)}
-                    className="w-full bg-background border border-input text-foreground text-xs rounded p-2 focus:outline-none focus:border-primary"
-                  >
-                    <option value="Daniel">Daniel</option>
-                    <option value="Edvaldo">Edvaldo</option>
-                    <option value="Atendente 1">Atendente 1</option>
-                    <option value="Caixa">Caixa</option>
-                  </select>
+                {/* Order responsible: admins can change; attendants only see the saved opener. */}
+                <div className="space-y-1.5">
+                  <span className="font-semibold text-foreground">Responsável pelo pedido</span>
+                  {isAdmin ? (
+                    <select
+                      value={currentOrder.openedBy || '__legacy'}
+                      onChange={e => handleResponsibleChange(e.target.value)}
+                      disabled={responsiblesLoading || orderResponsibles.length === 0}
+                      className="w-full bg-background border border-input text-foreground text-xs rounded p-2 focus:outline-none focus:border-primary disabled:opacity-60"
+                    >
+                      {currentOrder.openedBy && !orderResponsibles.some(option => option.id === currentOrder.openedBy) && (
+                        <option value={currentOrder.openedBy}>{currentOrder.openedByName || 'Responsável atual'}</option>
+                      )}
+                      {!currentOrder.openedBy && (
+                        <option value="__legacy" disabled>{currentOrder.openedByName || 'Selecione um responsável'}</option>
+                      )}
+                      {orderResponsibles.map(option => (
+                        <option key={option.id} value={option.id}>{option.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full bg-muted/40 border border-border text-foreground text-xs rounded p-2">
+                      {currentOrder.openedByName || 'Não informado'}
+                    </div>
+                  )}
+                  {responsiblesLoading && <p className="text-[11px] text-muted-foreground">Carregando equipe...</p>}
+                  {responsiblesError && <p role="alert" className="text-[11px] text-destructive">{responsiblesError}</p>}
+                  {lastSyncError && <p role="alert" className="text-[11px] text-destructive">A alteração não pôde ser salva. Tente novamente.</p>}
                 </div>
 
                 {/* General Observation Input */}
