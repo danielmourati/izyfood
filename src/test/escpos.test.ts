@@ -687,3 +687,15 @@ describe('kitchen order notes rendering', () => {
 });
 
 
+
+import { buildOrderReceipt as _bor } from '@/lib/escpos';
+import { describe as _d, it as _it, expect as _e } from 'vitest';
+_d('kitchen order notes', () => {
+  _it('prints multi-line order notes', () => {
+    const out = _bor({ id: 'x', orderType: 'mesa', tableNumber: 2, items: [{ id: '1', productId: 'p', name: 'Pastel', price: 1, quantity: 1, subtotal: 1 }] as any, total: 1, createdAt: new Date().toISOString(), pickupNotes: 'sem cebola\nbem passado' }, 80);
+    const txt = new TextDecoder('latin1').decode(out);
+    _e(txt).toContain('OBS:');
+    _e(txt).toContain('sem cebola');
+    _e(txt).toContain('bem passado');
+  });
+});

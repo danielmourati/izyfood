@@ -775,6 +775,7 @@ export function buildOrderHtml(order: any, _ps: any = {}): string {
     <div style="margin-top: 6px;">
       ${items || '<p class="center">Nenhum item</p>'}
     </div>
+    ${String(order.pickupNotes || '').trim() ? `<div class="line" style="margin-top: 8px;"></div><div class="bold" style="font-size: 18px; margin-top: 6px; white-space: pre-wrap;">OBS:\n${String(order.pickupNotes).trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : ''}
 
     <div class="line" style="margin-top: 12px;"></div>
     <div style="margin-top: 6px; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; white-space: nowrap;"><span>QTD. TOTAL ITENS:</span><span>${totalItemsCount}</span></div>
