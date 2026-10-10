@@ -327,6 +327,7 @@ interface OrderData {
   customerAddress?: string;
   createdAt: string;
   operatorName?: string;
+  pickupNotes?: string;
 }
 
 interface BillData extends OrderData {
@@ -620,6 +621,16 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
       }
     }
     parts.push(CMD_DOUBLE_OFF, normalTextMode());
+  }
+
+  const orderNotes = (order.pickupNotes || '').trim();
+  if (orderNotes) {
+    const noteCols = Math.max(12, Math.floor(cols / 2));
+    parts.push(lineOf('-', cols), CMD_BOLD_ON, CMD_DOUBLE_ON, textOnlyWrap('OBS:', noteCols));
+    for (const line of orderNotes.split(/\r?\n/)) {
+      if (line.trim()) parts.push(textOnlyWrap(line.trim(), noteCols));
+    }
+    parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF, normalTextMode());
   }
 
   parts.push(lineOf('-', cols));

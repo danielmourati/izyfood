@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle, Check, ListChecks, LockKeyhole } from 'lucide-react';
 import { Order, OrderItem, OrderType, Product, TableInfo } from '@/types';
@@ -18,7 +19,7 @@ import { format } from 'date-fns';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePrinter, PRINT_QUEUED_MESSAGE } from '@/hooks/use-printer';
 import { supabase } from '@/integrations/supabase/client';
-import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
+import { useAttendantPermissions, PERMISSION_KEYS } from '@/hooks/use-attendant-permissions';
 import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
 import { OrderItemDetails } from '@/components/OrderItemDetails';
 
@@ -48,8 +49,11 @@ export function ConsumerOrderModal({
   const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
-  const canManageMesa = isAdmin || permissions.manage_tables || permissions.cancel_orders;
-  const canCancelOrDeleteMesa = isAdmin || permissions.cancel_orders;
+  const hasAllPermissions = PERMISSION_KEYS.every(k => permissions[k]);
+  const effectiveAdmin = isAdmin || hasAllPermissions;
+  const canManageMesa = effectiveAdmin || permissions.manage_tables || permissions.cancel_orders;
+  const canCancelOrDeleteMesa = effectiveAdmin || permissions.cancel_orders;
+  const canReceivePayment = effectiveAdmin || permissions.manage_cash;
 
   const {
     printOrder,
@@ -1088,7 +1092,20 @@ export function ConsumerOrderModal({
               {/* Info Block */}
               <div className="p-3 bg-white border-b border-[#e8e4dc] space-y-1 text-xs text-[#4a3b32] shrink-0">
                 <div>Cliente: <span className="font-bold">{custName ? `${custName} (${custPhone})` : 'Não informado'}</span></div>
-                <div>Observações: <span className="font-bold">{generalNotes || 'Nenhuma'}</span></div>
+                <div className="space-y-1">
+                  <label htmlFor="mobile-order-notes" className="block">Observações do pedido:</label>
+                  <Textarea
+                    id="mobile-order-notes"
+                    rows={2}
+                    placeholder="Ex: sem cebola, servir junto..."
+                    value={generalNotes}
+                    onChange={e => {
+                      setGeneralNotes(e.target.value);
+                      if (currentOrder) onSaveOrder({ ...currentOrder, pickupNotes: e.target.value });
+                    }}
+                    className="min-h-[56px] text-xs bg-background border-input text-foreground"
+                  />
+                </div>
                 <div>Qtd. Pessoas: <span className="font-bold">1</span></div>
               </div>
 
@@ -1154,7 +1171,7 @@ export function ConsumerOrderModal({
               )}
 
               {/* Bottom Footer Action Bar matching Anexo 2 */}
-              <div className={`p-2 bg-white border-t border-[#e8e4dc] grid ${isAdmin && !isBalcao ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 shrink-0`}>
+              <div className={`p-2 bg-white border-t border-[#e8e4dc] grid ${canReceivePayment && !isBalcao ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 shrink-0`}>
                 {/* White Voltar Button -> Returns to categories */}
                 <Button
                   variant="outline"
@@ -1215,7 +1232,7 @@ export function ConsumerOrderModal({
                 </Button>
 
                 {/* Purple Pagar Button -> Shown ONLY to Admin users */}
-                {isAdmin && !isBalcao && (
+                {canReceivePayment && !isBalcao && (
                   <Button
                     onClick={() => {
                       if (items.length === 0 || totalAmount <= 0) {
@@ -1303,14 +1320,14 @@ export function ConsumerOrderModal({
                   {/* Observações do Pedido */}
                   <div className="space-y-1 pt-1">
                     <label className="text-[11px] font-semibold text-muted-foreground">Observações Gerais do Pedido</label>
-                    <Input
+                    <Textarea rows={3}
                       placeholder="Ex: Sem gelo, mesa externa..."
                       value={generalNotes}
                       onChange={e => {
                         setGeneralNotes(e.target.value);
                         onSaveOrder({ ...currentOrder, pickupNotes: e.target.value });
                       }}
-                      className="bg-background border-input text-xs text-foreground h-9"
+                      className="bg-background border-input text-xs text-foreground min-h-[64px]"
                     />
                   </div>
 
@@ -1523,14 +1540,14 @@ export function ConsumerOrderModal({
 
                 {/* General Observation Input */}
                 <div>
-                  <Input
+                  <Textarea rows={3}
                     placeholder="Anotar observação..."
                     value={generalNotes}
                     onChange={e => {
                       setGeneralNotes(e.target.value);
                       onSaveOrder({ ...currentOrder, pickupNotes: e.target.value });
                     }}
-                    className="bg-background border-input text-xs text-foreground placeholder:text-muted-foreground h-9"
+                    className="bg-background border-input text-xs text-foreground placeholder:text-muted-foreground min-h-[64px]"
                   />
                 </div>
 
