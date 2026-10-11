@@ -64,6 +64,12 @@ export function setDevicePrinterConfig(config: DevicePrinterConfig): void {
 
 const LS_ENABLE_PRINTER = 'enable_printer_device';
 
+function enablePrinterStorageKey(userId?: string, role?: string): string {
+  return role === 'atendente' && userId
+    ? `${LS_ENABLE_PRINTER}:${userId}`
+    : LS_ENABLE_PRINTER;
+}
+
 /** Nome do evento que sincroniza as preferências de impressora entre telas/abas. */
 export const PRINTER_PREFS_EVENT = 'printer_prefs_changed';
 
@@ -81,14 +87,15 @@ export function isMobileDevice(): boolean {
   return isMobileUA || isSmallScreen;
 }
 
-export function getEnablePrinterDevice(): boolean {
-  try { return localStorage.getItem(LS_ENABLE_PRINTER) === '1'; } catch { return false; }
+export function getEnablePrinterDevice(userId?: string, role?: string): boolean {
+  try { return localStorage.getItem(enablePrinterStorageKey(userId, role)) === '1'; } catch { return false; }
 }
 
-export function setEnablePrinterDevice(v: boolean): void {
+export function setEnablePrinterDevice(v: boolean, userId?: string, role?: string): void {
   try {
-    if (v) localStorage.setItem(LS_ENABLE_PRINTER, '1');
-    else localStorage.removeItem(LS_ENABLE_PRINTER);
+    const key = enablePrinterStorageKey(userId, role);
+    if (v) localStorage.setItem(key, '1');
+    else localStorage.removeItem(key);
   } catch { /* ignore */ }
   emitPrinterPrefsChanged();
 }
