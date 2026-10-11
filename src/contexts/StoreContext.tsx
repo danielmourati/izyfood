@@ -152,6 +152,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const broadcastSubscribedRef = useRef(false);
   const dbChannelRef = useRef<RealtimeChannel | null>(null);
   const tenantIdRef = useRef<string | undefined>(undefined);
   const tabIdRef = useRef<string>(Math.random().toString(36).slice(2));
@@ -553,6 +554,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       })
       .subscribe((status) => {
+        broadcastSubscribedRef.current = status === 'SUBSCRIBED';
         if (status === 'SUBSCRIBED') {
           retryDelayRef.current = 1000;
           fetchAll();
