@@ -1,10 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { buildBillReceipt, buildOrderReceipt, buildEncodingTestReceipt, CMD_DOUBLE_OFF, CMD_DOUBLE_ON, codepageCommand, getItemNoteLines } from '@/lib/escpos';
+import { buildBillReceipt, buildOrderReceipt, buildEncodingTestReceipt, CMD_DOUBLE_OFF, CMD_DOUBLE_ON, codepageCommand, getItemNoteLines, kitchenItemColumns } from '@/lib/escpos';
 import { CHAR_ENCODINGS, decodeText, encodeText, toAscii } from '@/lib/escpos-encoding';
 import { buildBillPreviewText } from '@/lib/receipt-preview';
 
 const decodeReceipt = (data: Uint8Array) => decodeText(data, 'cp850');
 const normalizeReceiptWords = (receipt: string) => receipt.replace(/\s+/g, ' ').trim();
+const decodeReceiptText = (data: Uint8Array) => {
+  const printable: number[] = [];
+  for (let index = 0; index < data.length;) {
+    const byte = data[index];
+    if (byte === 0x1b) {
+      index += data[index + 1] === 0x40 ? 2 : 3;
+      continue;
+    }
+    if (byte === 0x1d) {
+      index += 3;
+      continue;
+    }
+    printable.push(byte);
+    index += 1;
+  }
+  return decodeText(new Uint8Array(printable), 'cp850');
+};
 
 describe('ESC/POS bill receipt', () => {
   it('prints Tipo as complete Mesa value on its own aligned row', () => {
@@ -535,32 +552,52 @@ describe('kitchen order notes rendering', () => {
     if (hasTable) expect(receipt).toContain('MESA: 07');
   });
 
-  it('buildOrderReceipt: always uses double size for heading, products and additions', () => {
+  it.each([
+    [58, false, 27, 1],
+    [58, true, 13, 2],
+    [80, false, 40, 1],
+    [80, true, 20, 2],
+  ])('buildOrderReceipt: %imm with double font=%s uses %i item columns', (paperWidth, doubleFontOrders, activeCols, minimumDoubleCommands) => {
     const receipt = buildOrderReceipt({
       ...baseOrder,
       orderType: 'mesa',
       tableNumber: 2,
-      items: [{
-        name: 'Produto',
-        quantity: 1,
-        price: 10,
-        subtotal: 10,
-        selectedComplements: [{ name: 'Adicional', price: 0, quantity: 1 }],
-      }],
-    }, 58, { doubleFontOrders: false });
+      items: [
+        {
+          name: 'Produto especial com nome longo',
+          quantity: 1,
+          price: 10,
+          subtotal: 10,
+          selectedComplements: [{ name: 'Adicional muito comprido', price: 0, quantity: 1 }],
+        },
+        { name: 'Segundo produto', quantity: 1, price: 8, subtotal: 8 },
+      ],
+    }, paperWidth, { doubleFontOrders });
     const bytes = Array.from(receipt);
+    const decoded = decodeReceiptText(receipt);
     const doubleOn = Array.from(CMD_DOUBLE_ON);
-    const doubleOff = Array.from(CMD_DOUBLE_OFF);
     const countSequence = (sequence: number[]) => bytes.reduce((count, _, index) => (
       sequence.every((byte, offset) => bytes[index + offset] === byte) ? count + 1 : count
     ), 0);
 
-    expect(countSequence(doubleOn)).toBeGreaterThanOrEqual(2);
-    expect(countSequence(doubleOff)).toBeGreaterThanOrEqual(2);
-    expect(decodeReceipt(receipt)).toContain('MESA: 02');
+    expect(kitchenItemColumns(paperWidth, doubleFontOrders)).toBe(activeCols);
+    expect(countSequence(doubleOn)).toBeGreaterThanOrEqual(minimumDoubleCommands);
+    if (!doubleFontOrders) expect(countSequence(doubleOn)).toBe(1);
+    expect(decoded).toContain('MESA: 02');
+    expect(decoded).toContain('-'.repeat(activeCols));
+
+    const itemSection = decoded
+      .slice(decoded.indexOf('ITENS DO PEDIDO:') + 'ITENS DO PEDIDO:\n'.length)
+      .split('QTD. TOTAL ITENS:')[0]
+      .trimEnd();
+    const contentLines = itemSection.split('\n').filter((line) => line);
+    for (const line of contentLines) {
+      if (/^-+$/.test(line) && line.length > activeCols) continue;
+      expect(line.length).toBeLessThanOrEqual(activeCols);
+    }
   });
 
-  it('buildOrderReceipt: wraps enlarged items using half the paper columns', () => {
+  it('buildOrderReceipt: wraps enlarged items on word boundaries', () => {
     const receipt = decodeReceipt(buildOrderReceipt({
       ...baseOrder,
       items: [{
@@ -570,7 +607,7 @@ describe('kitchen order notes rendering', () => {
         subtotal: 10,
         selectedComplements: [{ name: 'Adicional muito comprido', price: 0, quantity: 1 }],
       }],
-    }, 58, { doubleFontOrders: false })).toUpperCase();
+    }, 58, { doubleFontOrders: true })).toUpperCase();
 
     expect(receipt).toContain('1X PRODUTO\nCOM NOME');
     expect(receipt).toContain('ADICIONAL');
