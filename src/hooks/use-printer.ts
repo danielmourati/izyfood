@@ -726,13 +726,15 @@ function fmtDate(iso: string) {
 const orderTypeLabels: Record<string, string> = { balcao: 'Balcão', mesa: 'Mesa', delivery: 'Delivery', retirada: 'Retirada' };
 const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX', cartao: 'Cartão', fiado: 'Fiado' };
 
-export function buildOrderHtml(order: any, _ps: any = {}): string {
+export function buildOrderHtml(order: any, ps: any = {}): string {
   let totalItemsCount = 0;
-  const items = (order.items || []).map((i: any) => {
+  const doubleFontItems = ps.doubleFontOrders === true;
+  const itemFontSize = doubleFontItems ? '20px' : '14px';
+  const detailFontSize = doubleFontItems ? '18px' : '13px';
+  const orderItems = order.items || [];
+  const items = orderItems.map((i: any, itemIndex: number) => {
     totalItemsCount += i.quantity || 1;
     const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
-    const itemFontSize = '20px';
-    const detailFontSize = '18px';
     let html = `<p class="bold" style="margin: 0 0 2px 0; font-size: ${itemFontSize};">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
     const additionalItems = getOrderItemAdditionalLines(i);
     if (additionalItems.length > 0) {
@@ -740,6 +742,9 @@ export function buildOrderHtml(order: any, _ps: any = {}): string {
       additionalItems.forEach((additional: any) => {
         html += `<p style="margin: 0 0 2px 12px; font-size: ${detailFontSize};">+ ${additional.quantity}x ${additional.name}</p>`;
       });
+    }
+    if (itemIndex < orderItems.length - 1) {
+      html += '<div class="line" style="margin: 5px 0;"></div>';
     }
     return html;
   }).join('');
@@ -775,7 +780,7 @@ export function buildOrderHtml(order: any, _ps: any = {}): string {
     <div style="margin-top: 6px;">
       ${items || '<p class="center">Nenhum item</p>'}
     </div>
-    ${String(order.pickupNotes || '').trim() ? `<div class="line" style="margin-top: 8px;"></div><div class="bold" style="font-size: 18px; margin-top: 6px; white-space: pre-wrap;">OBS:\n${String(order.pickupNotes).trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : ''}
+    ${String(order.pickupNotes || '').trim() ? `<div class="line" style="margin-top: 8px;"></div><div class="bold" style="font-size: ${detailFontSize}; margin-top: 6px; white-space: pre-wrap; overflow-wrap: break-word;">OBS:\n${String(order.pickupNotes).trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : ''}
 
     <div class="line" style="margin-top: 12px;"></div>
     <div style="margin-top: 6px; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; white-space: nowrap;"><span>QTD. TOTAL ITENS:</span><span>${totalItemsCount}</span></div>

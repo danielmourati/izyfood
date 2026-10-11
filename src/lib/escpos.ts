@@ -358,6 +358,12 @@ export function receiptColumnsForWidth(paperWidth: number): number {
   return paperWidth <= 58 ? 27 : 40;
 }
 
+/** Columns physically available while printing kitchen item blocks. */
+export function kitchenItemColumns(paperWidth: number, doubleFont: boolean): number {
+  const paperColumns = receiptColumnsForWidth(paperWidth);
+  return doubleFont ? Math.floor(paperColumns / 2) : paperColumns;
+}
+
 /** Kept for backward-compat callers; safe margin is already baked into receiptColumnsForWidth. */
 function detailColsForWidth(paperWidth: number): number {
   return receiptColumnsForWidth(paperWidth);
@@ -536,6 +542,8 @@ function fmtDateCompact(iso: string): string {
  */
 function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSettings, charEncoding: string): Uint8Array {
   const cols = receiptColumnsForWidth(paperWidth);
+  const doubleFontItems = ps.doubleFontOrders === true;
+  const itemCols = kitchenItemColumns(paperWidth, doubleFontItems);
   const orderTitle = order.orderType === 'mesa' || !!order.tableNumber
     ? 'CONSUMO'
     : order.orderType === 'delivery'
@@ -603,16 +611,15 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
   parts.push(CMD_BOLD_ON, text('ITENS DO PEDIDO:\n'), CMD_BOLD_OFF);
 
   let totalItemsCount = 0;
-  for (const item of order.items) {
+  order.items.forEach((item, itemIndex) => {
     totalItemsCount += item.quantity || 1;
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    const itemCols = Math.max(12, Math.floor(cols / 2));
     parts.push(
       CMD_ALIGN_LEFT,
       CMD_BOLD_ON,
-      CMD_DOUBLE_ON,
+      ...(doubleFontItems ? [CMD_DOUBLE_ON] : [CMD_DOUBLE_OFF]),
       textOnlyWrap(`${qty} ${item.name.toUpperCase()}`, itemCols),
-      CMD_BOLD_OFF
+      CMD_BOLD_OFF,
     );
     const additionalItems = getOrderItemAdditionalLines(item);
     if (additionalItems.length > 0) {
@@ -622,15 +629,22 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
         parts.push(textOnlyWrap(`   + ${additional.quantity}x ${additional.name}`, itemCols));
       }
     }
+    if (itemIndex < order.items.length - 1) {
+      parts.push(lineOf('-', itemCols));
+    }
     parts.push(CMD_DOUBLE_OFF, normalTextMode());
-  }
+  });
 
   const orderNotes = (order.pickupNotes || '').trim();
   if (orderNotes) {
-    const noteCols = Math.max(12, Math.floor(cols / 2));
-    parts.push(lineOf('-', cols), CMD_BOLD_ON, CMD_DOUBLE_ON, textOnlyWrap('OBS:', noteCols));
+    parts.push(
+      lineOf('-', cols),
+      CMD_BOLD_ON,
+      ...(doubleFontItems ? [CMD_DOUBLE_ON] : [CMD_DOUBLE_OFF]),
+      textOnlyWrap('OBS:', itemCols),
+    );
     for (const line of orderNotes.split(/\r?\n/)) {
-      if (line.trim()) parts.push(textOnlyWrap(line.trim(), noteCols));
+      if (line.trim()) parts.push(textOnlyWrap(line.trim(), itemCols));
     }
     parts.push(CMD_DOUBLE_OFF, CMD_BOLD_OFF, normalTextMode());
   }
