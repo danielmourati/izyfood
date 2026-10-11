@@ -5,6 +5,23 @@ import { buildBillPreviewText } from '@/lib/receipt-preview';
 
 const decodeReceipt = (data: Uint8Array) => decodeText(data, 'cp850');
 const normalizeReceiptWords = (receipt: string) => receipt.replace(/\s+/g, ' ').trim();
+const decodeReceiptText = (data: Uint8Array) => {
+  const printable: number[] = [];
+  for (let index = 0; index < data.length;) {
+    const byte = data[index];
+    if (byte === 0x1b) {
+      index += data[index + 1] === 0x40 ? 2 : 3;
+      continue;
+    }
+    if (byte === 0x1d) {
+      index += 3;
+      continue;
+    }
+    printable.push(byte);
+    index += 1;
+  }
+  return decodeText(new Uint8Array(printable), 'cp850');
+};
 
 describe('ESC/POS bill receipt', () => {
   it('prints Tipo as complete Mesa value on its own aligned row', () => {
@@ -557,7 +574,7 @@ describe('kitchen order notes rendering', () => {
       ],
     }, paperWidth, { doubleFontOrders });
     const bytes = Array.from(receipt);
-    const decoded = decodeReceipt(receipt);
+    const decoded = decodeReceiptText(receipt);
     const doubleOn = Array.from(CMD_DOUBLE_ON);
     const countSequence = (sequence: number[]) => bytes.reduce((count, _, index) => (
       sequence.every((byte, offset) => bytes[index + offset] === byte) ? count + 1 : count
@@ -572,7 +589,7 @@ describe('kitchen order notes rendering', () => {
     const itemSection = decoded
       .slice(decoded.indexOf('ITENS DO PEDIDO:') + 'ITENS DO PEDIDO:\n'.length)
       .split('QTD. TOTAL ITENS:')[0]
-      .replace(/[\x00-\x09\x0B-\x1F]/g, '');
+      .trimEnd();
     const contentLines = itemSection.split('\n').filter((line) => line);
     for (const line of contentLines) {
       if (/^-+$/.test(line) && line.length > activeCols) continue;
