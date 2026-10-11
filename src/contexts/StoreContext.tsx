@@ -222,7 +222,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
     } catch { }
     try {
-      if (channelRef.current) {
+      if (channelRef.current && broadcastSubscribedRef.current) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'store_update',
