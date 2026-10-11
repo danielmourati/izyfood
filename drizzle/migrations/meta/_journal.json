@@ -36,6 +36,13 @@
       "when": 1791601079464,
       "tag": "0004_add_order_opened_by_attendant",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791755208639,
+      "tag": "0005_purge_stale_failed_print_jobs",
+      "breakpoints": true
     }
   ]
 }

@@ -1346,6 +1346,7 @@ export type Database = {
         Returns: undefined
       }
       purge_print_jobs: { Args: never; Returns: undefined }
+      purge_stale_failed_print_jobs: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "atendente" | "motoboy" | "superadmin"

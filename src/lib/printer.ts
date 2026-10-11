@@ -563,10 +563,33 @@ async function configureQzSecurity() {
 /**
  * Check if QZ Tray or Native Desktop Printing is available.
  */
-export async function initQzTray(): Promise<boolean> {
-  if (isDesktopApp()) return true;
-  if (_qzConnected && qz.websocket.isActive()) return true;
+/**
+ * Pronto de verdade: socket ABERTO e handshake concluído (`established`).
+ * `qz.websocket.isActive()` também é true em CONNECTING, antes de `sendData`
+ * existir — usar aquilo causava "sendData is not a function".
+ */
+function qzReady(): boolean {
+  const conn: any = (qz as any)?.websocket ? (qz as any).websocket : null;
+  if (!conn) return false;
+  try {
+    // acesso interno: o objeto de conexão fica em qz.websocket via isActive/getConnectionInfo
+    const active = qz.websocket.isActive();
+    if (!active) return false;
+    const info: any = (qz.websocket as any).getConnectionInfo?.();
+    // getConnectionInfo lança/retorna vazio enquanto não houver conexão estabelecida
+    return !!info && _qzEstablished;
+  } catch {
+    return false;
+  }
+}
 
+let _qzEstablished = false;
+let _qzConnecting: Promise<boolean> | null = null;
+let _qzCallbacksSet = false;
+
+function waitMs(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+async function connectQzOnce(): Promise<boolean> {
   try {
     await configureQzSecurity();
   } catch (err: any) {
@@ -574,11 +597,31 @@ export async function initQzTray(): Promise<boolean> {
     _qzConnected = false;
     return false;
   }
+  if (!_qzCallbacksSet) {
+    _qzCallbacksSet = true;
+    try {
+      qz.websocket.setClosedCallbacks(() => { _qzConnected = false; _qzEstablished = false; });
+    } catch { /* ignore */ }
+  }
   try {
+    if (qz.websocket.isActive()) {
+      // Conexão em andamento (ou aberta sem handshake): aguarda até 10s ficar pronta
+      const deadline = Date.now() + 10000;
+      while (Date.now() < deadline) {
+        try {
+          await qz.api.getVersion();
+          break;
+        } catch (e: any) {
+          if (!qz.websocket.isActive()) break;
+          await waitMs(250);
+        }
+      }
+    }
     if (!qz.websocket.isActive()) {
       await qz.websocket.connect({ host: 'localhost', retries: 2, delay: 1 });
     }
-    try { qzDiagnostics.version = String(await qz.api.getVersion()); } catch { /* ignore */ }
+    qzDiagnostics.version = String(await qz.api.getVersion());
+    _qzEstablished = true;
     _qzConnected = true;
     lastQzError = null;
     return true;
@@ -586,13 +629,24 @@ export async function initQzTray(): Promise<boolean> {
     console.warn('QZ Tray não está em execução ou acessível:', err);
     lastQzError = 'QZ Tray não está aberto neste computador.';
     _qzConnected = false;
+    _qzEstablished = false;
     return false;
   }
 }
 
+export async function initQzTray(): Promise<boolean> {
+  if (isDesktopApp()) return true;
+  if (_qzConnected && qzReady()) return true;
+  // Uma única tentativa de conexão por vez, compartilhada por chamadas simultâneas
+  if (!_qzConnecting) {
+    _qzConnecting = connectQzOnce().finally(() => { _qzConnecting = null; });
+  }
+  return _qzConnecting;
+}
+
 export function isQzConnected(): boolean {
   if (isDesktopApp()) return true;
-  return _qzConnected && qz.websocket.isActive();
+  return _qzConnected && qzReady();
 }
 
 /**

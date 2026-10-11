@@ -124,6 +124,8 @@ export async function purgeOldPrintJobs(): Promise<void> {
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     await table().delete().eq('status', 'done').lt('printed_at', cutoff);
     await (supabase as any).rpc('purge_print_jobs');
+    // Cupons que falharam de pedidos já finalizados/cancelados não servem mais
+    await (supabase as any).rpc('purge_stale_failed_print_jobs');
   } catch (err) {
     console.warn('[print-queue] limpeza automática falhou', err);
   }
