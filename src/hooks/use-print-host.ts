@@ -146,6 +146,7 @@ export function usePrintHost() {
       .subscribe();
 
     return () => {
+      window.clearInterval(purgeTimer);
       active = false;
       supabase.removeChannel(channel);
     };
