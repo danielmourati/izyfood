@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Minus, Plus, Check, ChevronLeft, Search, X } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Minus, Plus, Check, ChevronLeft, X } from 'lucide-react';
 import { Product, OrderItem } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt, sortAllAdditionalsFirst } from '@/lib/utils';
@@ -32,8 +32,6 @@ export function ConsumerItemCustomizeModal({
   const [selectedObs, setSelectedObs] = useState<string[]>([]);
   const [otherNotes, setOtherNotes] = useState<string>('');
   const [complements, setComplements] = useState<{ name: string; price: number; quantity: number }[]>([]);
-  const [obsSearch, setObsSearch] = useState<string>('');
-  const [compSearch, setCompSearch] = useState<string>('');
 
   const categoryId = product?.categoryId;
 
@@ -62,15 +60,10 @@ export function ConsumerItemCustomizeModal({
         setOtherNotes('');
         setComplements([]);
       }
-      setObsSearch('');
-      setCompSearch('');
     }
   }, [open, itemToEdit]);
 
   if (!open || !product) return null;
-
-  const filteredNotes = availableNotes.filter(n => n.name.toLowerCase().includes(obsSearch.toLowerCase()));
-  const filteredComplements = availableComplements.filter(c => c.name.toLowerCase().includes(compSearch.toLowerCase()));
 
   const toggleObs = (name: string) => {
     setSelectedObs(prev =>
@@ -95,6 +88,23 @@ export function ConsumerItemCustomizeModal({
   const getCompQty = (name: string) => {
     return complements.find(c => c.name === name)?.quantity || 0;
   };
+
+  const freeOptions = sortAllAdditionalsFirst([
+    ...availableComplements.filter(c => !(c.price > 0)),
+    ...availableNotes.filter(n => !availableComplements.some(c => c.name === n.name)),
+  ]);
+  const paidOptions = availableComplements.filter(c => c.price > 0);
+  const isFreeSelected = (opt: { name: string; type: string }) =>
+    opt.type === 'note' ? selectedObs.includes(opt.name) : getCompQty(opt.name) > 0;
+  const toggleFree = (opt: { name: string; type: string; price: number }) => {
+    if (opt.type === 'note') { toggleObs(opt.name); return; }
+    setComplements(prev => prev.some(c => c.name === opt.name)
+      ? prev.filter(c => c.name !== opt.name)
+      : [...prev, { name: opt.name, price: 0, quantity: 1 }]);
+  };
+  const freeSelectedCount = freeOptions.filter(isFreeSelected).length;
+  const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name) > 0).length;
+
 
   const compsTotalUnit = complements.reduce((sum, c) => sum + c.price * c.quantity, 0);
   const unitPrice = (product.price || 0) + compsTotalUnit;
@@ -167,130 +177,71 @@ export function ConsumerItemCustomizeModal({
           </div>
         </div>
 
-        {/* Body Split (2 Columns) */}
-        <div className="flex-1 flex flex-col md:grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border overflow-y-auto md:overflow-hidden bg-background">
-          
-          {/* Left Column: Observações */}
-          <div className="flex flex-col min-h-fit md:h-full md:overflow-hidden p-3 bg-muted/10">
-            <h3 className="text-base font-bold text-foreground mb-2 flex items-center gap-2">
-              Observações
-            </h3>
-
-            {/* Search Bar */}
-            <div className="relative mb-3 shrink-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar observações..."
-                value={obsSearch}
-                onChange={e => setObsSearch(e.target.value)}
-                className="pl-8 h-8 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
-              />
-            </div>
-
-            {/* Checkbox List */}
-            <div className="md:flex-1 md:overflow-y-auto space-y-1 pr-1 border border-border rounded bg-background p-2 mb-3">
-              {filteredNotes.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhuma observação cadastrada</p>
-              ) : (
-                filteredNotes.map(obs => {
-                  const isChecked = selectedObs.includes(obs.name);
-                  return (
-                    <label
-                      key={obs.id}
-                      onClick={() => toggleObs(obs.name)}
-                      className={`flex items-center gap-3 p-2 rounded cursor-pointer text-xs font-semibold transition-colors border ${
-                        isChecked
-                          ? 'bg-primary/15 border-primary text-foreground'
-                          : 'bg-card border-border/60 hover:bg-muted text-foreground'
-                      }`}
-                    >
-                      <Checkbox
-                        checked={isChecked}
-                        onCheckedChange={() => toggleObs(obs.name)}
-                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                      />
-                      <span>{obs.name}</span>
-                    </label>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Additional Text Input */}
-            <div className="shrink-0">
-              <Input
-                placeholder="Digite aqui outras observações..."
-                value={otherNotes}
-                onChange={e => setOtherNotes(e.target.value)}
-                className="h-9 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
-              />
-            </div>
-          </div>
-
-          {/* Right Column: Adicionais */}
-          <div className="flex flex-col min-h-fit md:h-full md:overflow-hidden p-3 bg-muted/10">
-            <h3 className="text-base font-bold text-foreground mb-2 flex items-center gap-2">
-              Adicionais
-            </h3>
-
-            {/* Search Bar */}
-            <div className="relative mb-3 shrink-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar adicionais..."
-                value={compSearch}
-                onChange={e => setCompSearch(e.target.value)}
-                className="pl-8 h-8 text-xs bg-background border-input text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
-              />
-            </div>
-
-            {/* Additional items list */}
-            <div className="md:flex-1 md:overflow-y-auto space-y-1.5 pr-1 border border-border rounded bg-background p-2">
-              {filteredComplements.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhum adicional disponível</p>
-              ) : (
-                filteredComplements.map(comp => {
-                  const qty = getCompQty(comp.name);
-                  return (
-                    <div
-                      key={comp.id}
-                      className={`flex justify-between items-center p-2 rounded text-xs border transition-colors ${
-                        qty > 0 ? 'bg-primary/10 border-primary/50' : 'bg-card border-border/60 hover:bg-muted'
-                      }`}
-                    >
-                      <span className="font-semibold text-foreground truncate max-w-[200px]">
-                        {comp.name} {comp.price > 0 ? `(R$ ${fmt(comp.price)})` : ''}
-                      </span>
-
-                      {/* Quantity Selector */}
-                      <div className="flex items-center bg-background border border-input rounded">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => updateCompQty(comp, -1)}
-                          disabled={qty <= 0}
-                          className="w-7 h-7 rounded-none text-destructive hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent font-bold border-r border-input"
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="w-8 text-center font-bold text-foreground">{qty}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => updateCompQty(comp, 1)}
-                          className="w-7 h-7 rounded-none text-success hover:bg-muted font-bold border-l border-input"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
+        <div className="flex-1 overflow-y-auto bg-background p-3 space-y-3">
+          <Accordion type="multiple" defaultValue={['free', 'paid']} className="space-y-2">
+            {freeOptions.length > 0 && (
+              <AccordionItem value="free" className="border border-border rounded bg-card px-3">
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
+                  Adicionais (Grátis){freeSelectedCount > 0 ? ` · ${freeSelectedCount}` : ''}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-1 pb-3">
+                  {freeOptions.map(opt => {
+                    const checked = isFreeSelected(opt);
+                    return (
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        key={opt.id}
+                        onClick={() => toggleFree(opt)}
+                        className={`w-full flex items-center gap-3 p-2 rounded text-left text-xs font-semibold border transition-colors ${checked ? 'bg-primary/15 border-primary' : 'bg-background border-border/60 hover:bg-muted'}`}
+                      >
+                        <span className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${checked ? 'border-primary' : 'border-muted-foreground'}`}>
+                          {checked && <span className="h-2 w-2 rounded-full bg-primary" />}
+                        </span>
+                        <span className="text-foreground">{opt.name}</span>
+                      </button>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            )}
+            {paidOptions.length > 0 && (
+              <AccordionItem value="paid" className="border border-border rounded bg-card px-3">
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
+                  Adicionais (Pagos){paidSelectedCount > 0 ? ` · ${paidSelectedCount}` : ''}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-1.5 pb-3">
+                  {paidOptions.map(comp => {
+                    const qty = getCompQty(comp.name);
+                    return (
+                      <div key={comp.id} className={`flex justify-between items-center gap-2 p-2 rounded text-xs border ${qty > 0 ? 'bg-primary/10 border-primary/50' : 'bg-background border-border/60'}`}>
+                        <span className="font-semibold text-foreground min-w-0 truncate">{comp.name} <span className="text-primary">R$ {fmt(comp.price)}</span></span>
+                        <div className="flex items-center bg-background border border-input rounded shrink-0">
+                          <Button type="button" variant="ghost" size="icon" onClick={() => updateCompQty(comp, -1)} disabled={qty <= 0} className="w-7 h-7 rounded-none text-destructive disabled:opacity-30 border-r border-input">
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-8 text-center font-bold text-foreground">{qty}</span>
+                          <Button type="button" variant="ghost" size="icon" onClick={() => updateCompQty(comp, 1)} className="w-7 h-7 rounded-none text-success border-l border-input">
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            )}
+          </Accordion>
+          {freeOptions.length === 0 && paidOptions.length === 0 && (
+            <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhum adicional disponível</p>
+          )}
+          <Input
+            placeholder="Digite aqui outras observações..."
+            value={otherNotes}
+            onChange={e => setOtherNotes(e.target.value)}
+            className="h-9 text-xs bg-background"
+          />
         </div>
 
         {/* Footer Action Buttons */}

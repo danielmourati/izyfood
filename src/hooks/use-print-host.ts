@@ -114,6 +114,7 @@ export function usePrintHost() {
       }
       purgeOldPrintJobs();
     })();
+    const purgeTimer = window.setInterval(() => { purgeOldPrintJobs(); }, 15 * 60 * 1000);
 
     const channelName = `print-jobs-host:${tenantId}:${getDeviceId()}`;
     const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
@@ -145,6 +146,7 @@ export function usePrintHost() {
       .subscribe();
 
     return () => {
+      window.clearInterval(purgeTimer);
       active = false;
       supabase.removeChannel(channel);
     };

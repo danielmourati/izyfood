@@ -52,7 +52,7 @@ describe('ConsumerItemCustomizeModal', () => {
     expect(screen.queryByText('Sem cebola')).not.toBeInTheDocument();
     expect(screen.queryByText('Inativo')).not.toBeInTheDocument();
 
-    const additionalRow = screen.getByText(/Limão/).parentElement;
+    const additionalRow = screen.getByText(/Limão/).parentElement?.parentElement;
     const additionalButtons = additionalRow?.querySelectorAll('button');
     expect(additionalButtons).toHaveLength(2);
     fireEvent.click(additionalButtons?.[1] as HTMLButtonElement);
@@ -74,9 +74,7 @@ describe('ConsumerItemCustomizeModal', () => {
       />,
     );
 
-    const allAdditionalRow = screen.getByText('Todos os adicionais').parentElement;
-    const buttons = allAdditionalRow?.querySelectorAll('button');
-    fireEvent.click(buttons?.[1] as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('radio', { name: /Todos os adicionais/ }));
     fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
 
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
