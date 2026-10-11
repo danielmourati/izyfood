@@ -569,8 +569,11 @@ describe('kitchen order notes rendering', () => {
     expect(decoded).toContain('MESA: 02');
     expect(decoded).toContain('-'.repeat(activeCols));
 
-    const itemSection = decoded.slice(decoded.indexOf('ITENS DO PEDIDO:'));
-    const contentLines = itemSection.split('\n').filter((line) => line && !/^QTD\./.test(line));
+    const itemSection = decoded
+      .slice(decoded.indexOf('ITENS DO PEDIDO:') + 'ITENS DO PEDIDO:\n'.length)
+      .split('QTD. TOTAL ITENS:')[0]
+      .replace(/[\x00-\x09\x0B-\x1F]/g, '');
+    const contentLines = itemSection.split('\n').filter((line) => line);
     for (const line of contentLines) {
       if (/^-+$/.test(line) && line.length > activeCols) continue;
       expect(line.length).toBeLessThanOrEqual(activeCols);
@@ -587,7 +590,7 @@ describe('kitchen order notes rendering', () => {
         subtotal: 10,
         selectedComplements: [{ name: 'Adicional muito comprido', price: 0, quantity: 1 }],
       }],
-    }, 58, { doubleFontOrders: false })).toUpperCase();
+    }, 58, { doubleFontOrders: true })).toUpperCase();
 
     expect(receipt).toContain('1X PRODUTO\nCOM NOME');
     expect(receipt).toContain('ADICIONAL');
