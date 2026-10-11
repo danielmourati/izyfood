@@ -15,3 +15,4 @@
 - [x] Fixar o atendente que abriu o pedido e exibi-lo nas comandas e contas.
 - [x] Listar administradores e atendentes cadastrados e permitir troca do responsável somente por admin.
 - [x] Adequar comandas compactas às colunas ativas, fonte configurada e separadores entre itens.
+- [x] Desativar por padrão e isolar por atendente/aparelho a opção de usar impressora neste dispositivo.

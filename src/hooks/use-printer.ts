@@ -168,9 +168,14 @@ export function usePrinter() {
   const [lastPairedName, setLastPairedName] = useState<string | null>(() => getLastPairedDeviceName());
   const [qzConnected, setQzConnected] = useState(false);
   const [btPriorityDefault, setBtPriorityDefaultState] = useState<boolean>(() => getBluetoothPriorityDefault());
-  const [enablePrinterDeviceRaw, setEnablePrinterDeviceState] = useState<boolean>(() => getEnablePrinterDevice());
-  // Em computadores a impressão fica sempre ativa; a chave só existe no celular.
-  const enablePrinterDevice = !isMobileDevice() || enablePrinterDeviceRaw;
+  const [enablePrinterDeviceRaw, setEnablePrinterDeviceState] = useState<boolean>(() =>
+    getEnablePrinterDevice(user?.id, user?.role),
+  );
+  // Em computadores, admins continuam com impressão ativa. Atendentes respeitam
+  // a escolha individual deste usuário neste aparelho e começam desativados.
+  const enablePrinterDevice = user?.role === 'atendente'
+    ? enablePrinterDeviceRaw
+    : !isMobileDevice() || enablePrinterDeviceRaw;
   const [printHostEnabled, setPrintHostEnabledState] = useState<boolean>(() => getPrintHostEnabled());
   const [hostOnline, setHostOnline] = useState(false);
   const hostOnlineRef = useRef(false);
@@ -181,9 +186,9 @@ export function usePrinter() {
   }, []);
 
   const toggleEnablePrinterDevice = useCallback((v: boolean) => {
-    setEnablePrinterDevice(v);
+    setEnablePrinterDevice(v, user?.id, user?.role);
     setEnablePrinterDeviceState(v);
-  }, []);
+  }, [user?.id, user?.role]);
 
   const togglePrintHost = useCallback((v: boolean) => {
     setPrintHostEnabled(v);
@@ -194,7 +199,7 @@ export function usePrinter() {
   // e a seção do menu do pedido) e entre abas abertas no mesmo aparelho.
   useEffect(() => {
     const sync = () => {
-      setEnablePrinterDeviceState(getEnablePrinterDevice());
+      setEnablePrinterDeviceState(getEnablePrinterDevice(user?.id, user?.role));
       setBtPriorityDefaultState(getBluetoothPriorityDefault());
       setLastPairedName(getLastPairedDeviceName());
       setPrintHostEnabledState(getPrintHostEnabled());
@@ -205,7 +210,7 @@ export function usePrinter() {
       window.removeEventListener(PRINTER_PREFS_EVENT, sync);
       window.removeEventListener('storage', sync);
     };
-  }, []);
+  }, [user?.id, user?.role]);
 
   // Presença: existe algum aparelho "Caixa" online para imprimir por nós?
   useEffect(() => {
