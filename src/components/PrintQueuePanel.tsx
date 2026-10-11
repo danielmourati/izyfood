@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePrinter } from '@/hooks/use-printer';
 import {
   clearDonePrintJobs,
+  purgeOldPrintJobs,
   fetchPrintJobs,
   printJobKindLabels,
   printJobStatusLabels,
@@ -43,7 +44,7 @@ export default function PrintQueuePanel() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { purgeOldPrintJobs().finally(load); }, [load]);
 
   useEffect(() => {
     const tenantId = user?.tenantId;

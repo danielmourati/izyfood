@@ -992,6 +992,7 @@ export function ConsumerOrderModal({
                 </Button>
                 <Button
                   onClick={handleRevisar}
+                  disabled={items.length === 0}
                   className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
                 >
                   <Check className="h-4 w-4" /> REVISAR
@@ -1125,6 +1126,7 @@ export function ConsumerOrderModal({
                     </Button>
                     <Button
                       onClick={handleRevisar}
+                  disabled={items.length === 0}
                       className="flex-1 h-11 text-xs font-black bg-[#ffc107] hover:bg-[#e0a800] text-[#1a1a1a] border border-[#e0a800] flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
                     >
                       <Check className="h-4 w-4 text-[#1a1a1a]" /> REVISAR
@@ -1142,6 +1144,7 @@ export function ConsumerOrderModal({
                   </Button>
                   <Button
                     onClick={handleRevisar}
+                  disabled={items.length === 0}
                     className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
                   >
                     <Check className="h-4 w-4" /> REVISAR

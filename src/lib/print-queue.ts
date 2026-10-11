@@ -121,6 +121,8 @@ export async function clearDonePrintJobs(): Promise<void> {
 
 export async function purgeOldPrintJobs(): Promise<void> {
   try {
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    await table().delete().eq('status', 'done').lt('printed_at', cutoff);
     await (supabase as any).rpc('purge_print_jobs');
   } catch (err) {
     console.warn('[print-queue] limpeza automática falhou', err);
