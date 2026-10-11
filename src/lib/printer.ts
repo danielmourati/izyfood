@@ -569,15 +569,8 @@ async function configureQzSecurity() {
  * existir — usar aquilo causava "sendData is not a function".
  */
 function qzReady(): boolean {
-  const conn: any = (qz as any)?.websocket ? (qz as any).websocket : null;
-  if (!conn) return false;
   try {
-    // acesso interno: o objeto de conexão fica em qz.websocket via isActive/getConnectionInfo
-    const active = qz.websocket.isActive();
-    if (!active) return false;
-    const info: any = (qz.websocket as any).getConnectionInfo?.();
-    // getConnectionInfo lança/retorna vazio enquanto não houver conexão estabelecida
-    return !!info && _qzEstablished;
+    return _qzEstablished && qz.websocket.isActive();
   } catch {
     return false;
   }
@@ -708,7 +701,7 @@ export async function printViaQzTray(data: Uint8Array, printerName?: string): Pr
     return;
   }
 
-  if (!isQzConnected()) throw new Error('QZ Tray não conectado.');
+  if (!isQzConnected() && !(await initQzTray())) throw new Error('QZ Tray não conectado.');
 
   // Find the printer
   const printers = await qz.printers.find();
