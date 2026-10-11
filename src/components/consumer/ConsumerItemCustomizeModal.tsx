@@ -65,22 +65,6 @@ export function ConsumerItemCustomizeModal({
 
   if (!open || !product) return null;
 
-  const freeOptions = sortAllAdditionalsFirst([
-    ...availableComplements.filter(c => !(c.price > 0)),
-    ...availableNotes.filter(n => !availableComplements.some(c => c.name === n.name)),
-  ]);
-  const paidOptions = availableComplements.filter(c => c.price > 0);
-  const isFreeSelected = (opt: { name: string; type: string }) =>
-    opt.type === 'note' ? selectedObs.includes(opt.name) : getCompQty(opt.name) > 0;
-  const toggleFree = (opt: { name: string; type: string; price: number }) => {
-    if (opt.type === 'note') { toggleObs(opt.name); return; }
-    setComplements(prev => prev.some(c => c.name === opt.name)
-      ? prev.filter(c => c.name !== opt.name)
-      : [...prev, { name: opt.name, price: 0, quantity: 1 }]);
-  };
-  const freeSelectedCount = freeOptions.filter(isFreeSelected).length;
-  const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name) > 0).length;
-
   const toggleObs = (name: string) => {
     setSelectedObs(prev =>
       prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
@@ -104,6 +88,23 @@ export function ConsumerItemCustomizeModal({
   const getCompQty = (name: string) => {
     return complements.find(c => c.name === name)?.quantity || 0;
   };
+
+  const freeOptions = sortAllAdditionalsFirst([
+    ...availableComplements.filter(c => !(c.price > 0)),
+    ...availableNotes.filter(n => !availableComplements.some(c => c.name === n.name)),
+  ]);
+  const paidOptions = availableComplements.filter(c => c.price > 0);
+  const isFreeSelected = (opt: { name: string; type: string }) =>
+    opt.type === 'note' ? selectedObs.includes(opt.name) : getCompQty(opt.name) > 0;
+  const toggleFree = (opt: { name: string; type: string; price: number }) => {
+    if (opt.type === 'note') { toggleObs(opt.name); return; }
+    setComplements(prev => prev.some(c => c.name === opt.name)
+      ? prev.filter(c => c.name !== opt.name)
+      : [...prev, { name: opt.name, price: 0, quantity: 1 }]);
+  };
+  const freeSelectedCount = freeOptions.filter(isFreeSelected).length;
+  const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name) > 0).length;
+
 
   const compsTotalUnit = complements.reduce((sum, c) => sum + c.price * c.quantity, 0);
   const unitPrice = (product.price || 0) + compsTotalUnit;
