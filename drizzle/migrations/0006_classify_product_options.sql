@@ -1,0 +1,1 @@
+ALTER TABLE public.product_note_options ADD COLUMN classification text NOT NULL DEFAULT 'additional' CHECK (classification IN ('flavor','additional'));
