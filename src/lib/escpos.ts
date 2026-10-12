@@ -631,7 +631,7 @@ function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSetti
     normalTextMode(),
     CMD_ALIGN_LEFT,
     lineOf('-', cols),
-    CMD_ALIGN_CENTER, center('*** NÃO É DOCUMENTO FISCAL ***', cols),
+    CMD_ALIGN_CENTER, center(cols <= 27 ? 'NÃO É DOCUMENTO FISCAL' : '*** NÃO É DOCUMENTO FISCAL ***', cols),
     CMD_ALIGN_LEFT, lineOf('=', cols)
   );
 
@@ -658,8 +658,9 @@ function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSetti
       parts.push(textOnlyWrap(`  ${additionalTitle}`, cols));
       for (const additional of additionalItems) {
         const additionalQty = `${additional.quantity}x`;
-        const additionalPrice = fmtBRL(additional.price * additional.quantity * (item.weight ? 1 : item.quantity));
-        parts.push(rowWrap(`  + ${additionalQty} ${additional.name}`, additionalPrice, cols));
+        const additionalValue = additional.price * additional.quantity * (item.weight ? 1 : item.quantity);
+        const label = `  + ${additionalQty} ${additional.name}`;
+        parts.push(additionalValue > 0 ? rowWrap(label, fmtBRL(additionalValue), cols) : textOnlyWrap(label, cols));
       }
     }
     const itemTotal = item.subtotal ?? item.price * (item.weight ?? item.quantity);
