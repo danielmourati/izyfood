@@ -130,6 +130,24 @@ export function getCharEncoding(id?: string | null): CharEncoding {
   return CHAR_ENCODINGS.find(e => e.id === id) ?? CHAR_ENCODINGS[0];
 }
 
+/** `FS .` — cancels Chinese/Kanji double-byte mode on generic printers that
+ * boot (and reset on `ESC @`) into it, where each accented byte would swallow
+ * the next one and `ESC t n` is ignored. Harmless on printers without it. */
+export const CMD_CANCEL_MULTIBYTE = new Uint8Array([0x1C, 0x2E]);
+
+/** Bytes to send right after every `ESC @`: cancel multibyte mode, then select the table. */
+export function encodingSetupCommand(encoding: CharEncoding | string | null | undefined): Uint8Array {
+  let enc: CharEncoding;
+  if (typeof encoding === 'string') enc = getCharEncoding(encoding);
+  else if (encoding) enc = encoding;
+  else enc = getCharEncoding(null);
+  if (enc.table === 'utf8') return enc.command;
+  const out = new Uint8Array(CMD_CANCEL_MULTIBYTE.length + enc.command.length);
+  out.set(CMD_CANCEL_MULTIBYTE, 0);
+  out.set(enc.command, CMD_CANCEL_MULTIBYTE.length);
+  return out;
+}
+
 export function isValidCharEncoding(id: string): boolean {
   return CHAR_ENCODINGS.some(enc => enc.id === id) || getCharEncoding(id).id === id;
 }

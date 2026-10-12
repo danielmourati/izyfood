@@ -22,6 +22,12 @@ export function receiptLines(bytes: Uint8Array): ReceiptLine[] {
   };
   for (let i = 0; i < bytes.length; i += 1) {
     const byte = bytes[i];
+    if (byte === 0x1c) {
+      // FS commands: FS . / FS & (2 bytes), FS C n / FS ! n (3 bytes)
+      const command = bytes[i + 1];
+      i += command === 0x43 || command === 0x21 ? 2 : 1;
+      continue;
+    }
     if (byte === 0x1b || byte === 0x1d) {
       const command = bytes[i + 1];
       const value = bytes[i + 2];
