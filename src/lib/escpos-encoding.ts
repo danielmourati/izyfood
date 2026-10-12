@@ -137,7 +137,10 @@ export const CMD_CANCEL_MULTIBYTE = new Uint8Array([0x1C, 0x2E]);
 
 /** Bytes to send right after every `ESC @`: cancel multibyte mode, then select the table. */
 export function encodingSetupCommand(encoding: CharEncoding | string | null | undefined): Uint8Array {
-  const enc: CharEncoding = encoding && typeof encoding === 'object' ? encoding : getCharEncoding(encoding as string | null | undefined);
+  let enc: CharEncoding;
+  if (typeof encoding === 'string') enc = getCharEncoding(encoding);
+  else if (encoding) enc = encoding;
+  else enc = getCharEncoding(null);
   if (enc.table === 'utf8') return enc.command;
   const out = new Uint8Array(CMD_CANCEL_MULTIBYTE.length + enc.command.length);
   out.set(CMD_CANCEL_MULTIBYTE, 0);
