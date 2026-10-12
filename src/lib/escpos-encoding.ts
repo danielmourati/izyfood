@@ -51,7 +51,7 @@ const utf8Encoder = new TextEncoder();
 export function toAscii(s: string): string {
   let out = '';
   for (const ch of s.normalize('NFC')) {
-    const code = ch.codePointAt(0)!;
+    const code = ch.codePointAt(0) ?? 0;
     if (code < 0x80) { out += ch; continue; }
     if (FALLBACKS[ch] !== undefined) { out += FALLBACKS[ch]; continue; }
     const stripped = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -78,7 +78,7 @@ function encodeWithTable(s: string, table: TableName): Uint8Array {
   const map = MAPS[table];
   const bytes: number[] = [];
   for (const ch of s.normalize('NFC')) {
-    const code = ch.codePointAt(0)!;
+    const code = ch.codePointAt(0) ?? 0;
     if (code < 0x80) { bytes.push(code); continue; }
     const b = map.get(ch);
     if (b !== undefined) { bytes.push(b); continue; }
@@ -116,13 +116,29 @@ export const CHAR_ENCODINGS: CharEncoding[] = [
   { id: 'cp860_bematech', label: 'CP860 Português (Bematech)', testLabel: 'CP860 Bematech (ESC t 4)', table: 'cp860', command: new Uint8Array([ESC, 0x74, 4]) },
   { id: 'cp1252', label: 'Windows-1252', testLabel: 'Windows-1252 (ESC t 16)', table: 'cp1252', command: new Uint8Array([ESC, 0x74, 16]) },
   { id: 'cp850_raw', label: 'CP850 sem comando (tabela de fábrica)', testLabel: 'CP850 tabela de fabrica', table: 'cp850', command: new Uint8Array(0) },
-  { id: 'utf8', label: 'UTF-8 (somente impressoras compatíveis)', testLabel: 'UTF-8 (ESC t 8)', table: 'utf8', command: new Uint8Array([ESC, 0x74, 8]) },
+  { id: 'utf8', label: 'UTF-8 (exige modo UTF-8 na impressora)', testLabel: 'UTF-8 (modo nativo)', table: 'utf8', command: new Uint8Array(0) },
   { id: 'ascii', label: 'Sem acentos (funciona em qualquer impressora)', testLabel: 'Sem acentos', table: 'ascii', command: new Uint8Array(0) },
 ];
 
 export function getCharEncoding(id?: string | null): CharEncoding {
-  return CHAR_ENCODINGS.find(e => e.id === id)
-    ?? CHAR_ENCODINGS.find(e => e.id === DEFAULT_CHAR_ENCODING)!;
+  const custom = /^(cp850|cp860|cp1252)@(\d{1,3})$/.exec(id || '');
+  if (custom && Number(custom[2]) <= 255) {
+    const table = custom[1] as 'cp850' | 'cp860' | 'cp1252';
+    const index = Number(custom[2]);
+    return { id: `${table}@${index}`, label: `${table.toUpperCase()} — ESC t ${index}`, testLabel: `${table.toUpperCase()} ESC t ${index}`, table, command: new Uint8Array([ESC, 0x74, index]) };
+  }
+  return CHAR_ENCODINGS.find(e => e.id === id) ?? CHAR_ENCODINGS[0];
+}
+
+export function isValidCharEncoding(id: string): boolean {
+  return CHAR_ENCODINGS.some(enc => enc.id === id) || getCharEncoding(id).id === id;
+}
+
+/** Diagnostic candidates, not claims of compatibility with every firmware. */
+export function encodingCalibrationCandidates(id: string): CharEncoding[] {
+  const table = getCharEncoding(id).table;
+  const singleByteTable = table === 'cp860' || table === 'cp1252' ? table : 'cp850';
+  return [...Array.from({ length: 32 }, (_, i) => i), 40, 41, 46, 47, 48].map(index => getCharEncoding(`${singleByteTable}@${index}`));
 }
 
 export function encodeText(s: string, encoding: CharEncoding | string = DEFAULT_CHAR_ENCODING): Uint8Array {

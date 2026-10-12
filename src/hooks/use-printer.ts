@@ -39,6 +39,7 @@ import {
   buildBillReceipt,
   buildCashCloseReceipt,
   buildEncodingTestReceipt,
+  buildEncodingVerificationReceipt,
   fetchPrintSettings,
   receiptColumnsForWidth,
 } from '@/lib/escpos';
@@ -654,10 +655,12 @@ export function usePrinter() {
   };
 
   /** Prints the calibration page with every character table, numbered. */
-  const printEncodingTest = async (sector?: string): Promise<PrintResult> => {
+  const printEncodingTest = async (sector?: string, expandedEncoding?: string, verify = false): Promise<PrintResult> => {
     const targetPrinter = getPrinterForSector(sector);
     const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
-    const bytes = buildEncodingTestReceipt(targetPaperWidth);
+    const bytes = verify
+      ? buildEncodingVerificationReceipt(targetPaperWidth, targetPrinter?.char_encoding || 'cp850')
+      : buildEncodingTestReceipt(targetPaperWidth, expandedEncoding);
     const html = '<pre style="font-family:monospace">TESTE DE ACENTUACAO\n\nEste teste so funciona em impressora termica conectada (USB/QZ Tray ou Bluetooth).</pre>';
     const channel = await sendToPrinter(bytes, html, 'Teste de acentuação', { force: true, targetPrinter, sector });
     return { ok: channel !== 'html' && channel !== 'disabled', channel };

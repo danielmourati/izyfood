@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Ampliar calibração de acentos, permitir índice por impressora e validar amostra salva; confirmação física aguarda foto e modelo real.
+
 - [x] Destacar o tipo e o número do pedido na comanda.
 - [x] Adicionar fonte dupla por impressora.
 - [x] Adicionar duas vias somente para pedidos novos.

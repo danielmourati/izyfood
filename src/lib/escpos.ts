@@ -10,6 +10,7 @@ import {
   CHAR_ENCODINGS,
   DEFAULT_CHAR_ENCODING,
   ENCODING_TEST_SAMPLE,
+  encodingCalibrationCandidates,
   encodeText,
   getCharEncoding,
   type CharEncoding,
@@ -819,7 +820,7 @@ export function buildCashCloseReceipt(data: CashCloseData, paperWidth = 80, char
  * encoding, each preceded by its own `ESC t n`. The operator picks the
  * numbered line that printed correctly.
  */
-export function buildEncodingTestReceipt(paperWidth = 80): Uint8Array {
+export function buildEncodingTestReceipt(paperWidth = 80, expandedEncoding?: string): Uint8Array {
   const cols = receiptColumnsForWidth(paperWidth);
   const ascii = (s: string) => encodeText(s, 'ascii');
   const parts: Uint8Array[] = [
@@ -832,17 +833,27 @@ export function buildEncodingTestReceipt(paperWidth = 80): Uint8Array {
     ascii('-'.repeat(cols) + '\n'),
   ];
   // Factory-table options first, right after ESC @ resets the table.
-  const ordered = [
+  const ordered = expandedEncoding ? encodingCalibrationCandidates(expandedEncoding) : [
     ...CHAR_ENCODINGS.filter(e => e.command.length === 0),
     ...CHAR_ENCODINGS.filter(e => e.command.length > 0),
   ];
   // Number by position in CHAR_ENCODINGS so it matches the select order.
   for (const enc of ordered) {
     const n = CHAR_ENCODINGS.indexOf(enc) + 1;
-    if (enc.command.length === 0) parts.push(CMD_INIT);
-    parts.push(CMD_BOLD_ON, ascii(`${n}) ${enc.testLabel}\n`), CMD_BOLD_OFF);
-    parts.push(enc.command, encodeText(ENCODING_TEST_SAMPLE + '\n', enc), ascii('\n'));
+    parts.push(CMD_INIT, normalTextMode(), CMD_ALIGN_LEFT);
+    const label = expandedEncoding ? enc.testLabel : `${n}) ${enc.testLabel}`;
+    parts.push(CMD_BOLD_ON, ascii(wrapReceiptText(label, cols).join('\n') + '\n'), CMD_BOLD_OFF);
+    const sample = expandedEncoding ? 'Ação Maçã Café Ç Ã É' : ENCODING_TEST_SAMPLE;
+    parts.push(enc.command, encodeText(wrapReceiptText(sample, cols).join('\n') + '\n', enc), ascii('\n'));
   }
   parts.push(CMD_INIT, ascii('-'.repeat(cols) + '\n'), feedAndCut());
   return concat(...parts);
+}
+
+export function buildEncodingVerificationReceipt(paperWidth: number, encoding: string): Uint8Array {
+  const enc = getCharEncoding(encoding);
+  const cols = receiptColumnsForWidth(paperWidth);
+  return concat(CMD_INIT, normalTextMode(), CMD_ALIGN_LEFT,
+    encodeText(wrapReceiptText(`CONFIRMACAO ${enc.testLabel}`, cols).join('\n') + '\n', 'ascii'),
+    enc.command, encodeText('Ação, Maçã, Café, Ç, Ã, É\n', enc), feedAndCut());
 }
