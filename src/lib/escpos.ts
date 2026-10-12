@@ -12,6 +12,7 @@ import {
   ENCODING_TEST_SAMPLE,
   encodingCalibrationCandidates,
   encodeText,
+  encodingSetupCommand,
   getCharEncoding,
   type CharEncoding,
 } from '@/lib/escpos-encoding';
@@ -55,9 +56,9 @@ function concat(...parts: Uint8Array[]): Uint8Array {
 
 /** Initialise printer */
 export const CMD_INIT = new Uint8Array([ESC, 0x40]);
-/** `ESC t n` command for the printer's calibrated character encoding. */
+/** `FS .` + `ESC t n` for the printer's calibrated character encoding (sent after every `ESC @`). */
 export function codepageCommand(encodingId?: string | null): Uint8Array {
-  return getCharEncoding(encodingId).command;
+  return encodingSetupCommand(encodingId);
 }
 /** Line feed */
 export const CMD_LF = new Uint8Array([0x0A]);
@@ -827,6 +828,15 @@ export function buildEncodingTestReceipt(paperWidth = 80, expandedEncoding?: str
     ascii('Escolha o numero da linha que\nsaiu correta e selecione a mesma\nopcao em Acentuacao.\n'),
     ascii('-'.repeat(cols) + '\n'),
   ];
+  // A/B comparison: same CP850 sample without and with the multibyte cancel.
+  // If only B prints correctly, the printer was in Chinese/Kanji mode.
+  const cp850 = getCharEncoding('cp850');
+  const abSample = 'Ação Maçã Café Ç Ã É';
+  parts.push(CMD_INIT, normalTextMode(), CMD_ALIGN_LEFT, CMD_BOLD_ON, ascii('A) CP850 sem desligar modo chines\n'), CMD_BOLD_OFF,
+    cp850.command, encodeText(wrapReceiptText(abSample, cols).join('\n') + '\n', cp850), ascii('\n'));
+  parts.push(CMD_INIT, normalTextMode(), CMD_ALIGN_LEFT, CMD_BOLD_ON, ascii('B) CP850 desligando modo chines\n'), CMD_BOLD_OFF,
+    encodingSetupCommand(cp850), encodeText(wrapReceiptText(abSample, cols).join('\n') + '\n', cp850), ascii('\n'),
+    ascii('-'.repeat(cols) + '\n'));
   // Factory-table options first, right after ESC @ resets the table.
   const ordered = expandedEncoding ? encodingCalibrationCandidates(expandedEncoding) : [
     ...CHAR_ENCODINGS.filter(e => e.command.length === 0),
@@ -839,7 +849,7 @@ export function buildEncodingTestReceipt(paperWidth = 80, expandedEncoding?: str
     const label = expandedEncoding ? enc.testLabel : `${n}) ${enc.testLabel}`;
     parts.push(CMD_BOLD_ON, ascii(wrapReceiptText(label, cols).join('\n') + '\n'), CMD_BOLD_OFF);
     const sample = expandedEncoding ? 'Ação Maçã Café Ç Ã É' : ENCODING_TEST_SAMPLE;
-    parts.push(enc.command, encodeText(wrapReceiptText(sample, cols).join('\n') + '\n', enc), ascii('\n'));
+    parts.push(encodingSetupCommand(enc), encodeText(wrapReceiptText(sample, cols).join('\n') + '\n', enc), ascii('\n'));
   }
   parts.push(CMD_INIT, ascii('-'.repeat(cols) + '\n'), feedAndCut());
   return concat(...parts);
@@ -850,5 +860,5 @@ export function buildEncodingVerificationReceipt(paperWidth: number, encoding: s
   const cols = receiptColumnsForWidth(paperWidth);
   return concat(CMD_INIT, normalTextMode(), CMD_ALIGN_LEFT,
     encodeText(wrapReceiptText(`CONFIRMACAO ${enc.testLabel}`, cols).join('\n') + '\n', 'ascii'),
-    enc.command, encodeText('Ação, Maçã, Café, Ç, Ã, É\n', enc), feedAndCut());
+    encodingSetupCommand(enc), encodeText('Ação, Maçã, Café, Ç, Ã, É\n', enc), feedAndCut());
 }
