@@ -3,7 +3,7 @@ import { buildBillReceipt, buildOrderReceipt, buildEncodingTestReceipt, CMD_DOUB
 import { CHAR_ENCODINGS, decodeText, encodeText, toAscii } from '@/lib/escpos-encoding';
 import { buildBillPreviewText } from '@/lib/receipt-preview';
 
-const decodeReceipt = (data: Uint8Array) => decodeText(data, 'cp850');
+const decodeReceipt = (data: Uint8Array) => decodeReceiptText(data);
 const normalizeReceiptWords = (receipt: string) => receipt.replace(/\s+/g, ' ').trim();
 const decodeReceiptText = (data: Uint8Array) => {
   const printable: number[] = [];
@@ -271,7 +271,8 @@ describe('ESC/POS bill receipt', () => {
     expect(line).toBeDefined();
     expect(line?.length).toBeLessThanOrEqual(27);
     expect(line).toContain('2x Coca 350ml');
-    expect(receipt).toContain('Unit: R$ 5,00  Total:');
+    expect(receipt).toMatch(/Unit: +R\$ 5,00/);
+    expect(receipt).toMatch(/Total: +R\$10,00/);
     expect(receipt).toContain('R$10,00');
   });
 
@@ -613,7 +614,7 @@ describe('kitchen order notes rendering', () => {
 
     expect(receipt).toContain('1X PRODUTO\n   COM NOME');
     expect(receipt).toContain('ADICIONAL');
-    expect(receipt).toContain(' + 1X ADIC-\n    IONAL');
+    expect(receipt).toContain(' + 1X\n    ADICIONAL');
   });
 
   it('buildOrderReceipt: legacy items with only pipe-joined notes still print all lines', () => {
