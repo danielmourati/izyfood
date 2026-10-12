@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowRightLeft, Merge, Lock, Utensils, Store, Bike, ShoppingBag, Menu, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { fmt } from '@/lib/utils';
+import { fmt, getOrderAttendantName } from '@/lib/utils';
 import { differenceInMinutes } from 'date-fns';
 import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 import { usePrinter } from '@/hooks/use-printer';
@@ -277,9 +277,11 @@ const Mesas = () => {
             <h2 className="text-xs font-bold tracking-wider text-section-vendas uppercase flex items-center gap-1.5 mb-3">
               <span className="text-base">•</span> Pedidos em andamento ({occupiedTables.length})
             </h2>
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 gap-2.5">
               {occupiedTables.map(table => {
-                const order = orders.find(o => o.id === table.orderId);
+                const order = activeMesaOrders.get(table.number) || orders.find(o => o.id === table.orderId);
+                const attendantName = order ? getOrderAttendantName(order) : 'Não informado';
+                const generalNotes = order?.pickupNotes?.trim();
                 let minutesOpen = 0;
                 if (order?.createdAt) {
                   try {
@@ -300,20 +302,23 @@ const Mesas = () => {
                   <button
                     key={table.number}
                     onClick={() => handleTableClick(table.number)}
-                    className={`relative w-full aspect-square flex flex-col justify-between p-2 rounded-xl shadow-xs hover:shadow-md hover:brightness-105 active:scale-95 transition-all text-left overflow-hidden border ${cardBg}`}
+                    className={`relative w-full aspect-square lg:aspect-auto lg:min-h-44 flex flex-col justify-between p-2 lg:p-3 rounded-xl shadow-xs hover:shadow-md hover:brightness-105 active:scale-95 transition-all text-left overflow-hidden border ${cardBg}`}
                   >
-                    <div className="flex justify-between items-start w-full">
+                    <div className="flex justify-between items-start w-full lg:gap-2">
+                      <span className="hidden lg:block min-w-0 flex-1 break-words text-[11px] font-bold opacity-90" title={attendantName}>
+                        {attendantName}
+                      </span>
                       {isBlocked ? (
                         <Lock className="h-3.5 w-3.5 shrink-0 opacity-90" />
                       ) : (
-                        <div className="h-3.5 w-3.5" />
+                        <div className="h-3.5 w-3.5 lg:hidden" />
                       )}
                       <span className="text-[10px] sm:text-[11px] font-bold opacity-90 whitespace-nowrap">
                         {Math.floor(minutesOpen / 1440) > 0 ? `${Math.floor(minutesOpen / 1440)} dias` : `${minutesOpen} min`}
                       </span>
                     </div>
 
-                    <div className="flex-1 flex flex-col items-center justify-center -mt-0.5 sm:-mt-1">
+                    <div className="flex-1 flex flex-col items-center justify-center -mt-0.5 sm:-mt-1 lg:mt-0 lg:py-3">
                       <p className="text-2xl sm:text-3xl font-extrabold tracking-tighter drop-shadow-xs">
                         {String(table.number).padStart(2, '0')}
                       </p>
@@ -325,6 +330,11 @@ const Mesas = () => {
                     </div>
 
                     <div className="w-full pt-1">
+                      {generalNotes && (
+                        <p className="hidden lg:block mb-2 whitespace-pre-wrap break-words text-[11px] font-bold opacity-90">
+                          {generalNotes}
+                        </p>
+                      )}
                       <p className="text-[11px] sm:text-[13px] font-extrabold drop-shadow-xs">
                         R$ {fmt(order?.total || 0)}
                       </p>
