@@ -643,32 +643,6 @@ export function ImpressoraTab() {
                              </div>
                            </div>
                          )}
-                        <p className="text-[11px] text-muted-foreground">
-                          Imprima o teste, veja qual linha numerada saiu com "ç", "ã" e "é" corretos e escolha o mesmo número aqui.
-                        </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="rounded-full text-xs"
-                           onClick={() => handleRunEncodingTest()}
-                          disabled={encodingTesting}
-                        >
-                          {encodingTesting ? 'Imprimindo...' : 'Imprimir teste de acentuação'}
-                        </Button>
-                         <div className="flex flex-wrap gap-2">
-                           <Button type="button" variant="outline" size="sm" disabled={encodingTesting || !isValidCharEncoding(form.char_encoding)} onClick={() => handleRunEncodingTest('expanded')}>
-                             Teste ampliado {getCharEncoding(form.char_encoding).table === 'cp860' ? 'CP860' : getCharEncoding(form.char_encoding).table === 'cp1252' ? 'Windows-1252' : 'CP850'}
-                           </Button>
-                           <Button type="button" variant="outline" size="sm" disabled={encodingTesting || saving || !currentPrinter || currentPrinter.char_encoding !== form.char_encoding} onClick={() => handleRunEncodingTest('verify')}>
-                             Confirmar configuração salva
-                           </Button>
-                         </div>
-                        {encodingTestMsg && (
-                          <p className={`text-[11px] ${encodingTestMsg.ok ? 'text-primary' : 'text-destructive'}`}>
-                            {encodingTestMsg.text}
-                          </p>
-                        )}
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">

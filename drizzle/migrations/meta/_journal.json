@@ -50,6 +50,13 @@
       "when": 1791834746841,
       "tag": "0006_classify_product_options",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791839611840,
+      "tag": "0007_printer_char_encoding_default_utf8",
+      "breakpoints": true
     }
   ]
 }
