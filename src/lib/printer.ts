@@ -4,6 +4,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import qz from 'qz-tray';
+import { qzRawData } from './qz-raw-data';
 import { RECEIPT_HTML_STYLES } from './receipt-renderer';
 import { isDesktopApp, getDesktopPrinters, printViaDesktopSpooler, printViaDesktopSocket } from './printer-desktop';
 
@@ -712,13 +713,8 @@ export async function printViaQzTray(data: Uint8Array, printerName?: string): Pr
   try { sysDefault = await qz.printers.getDefault(); } catch { sysDefault = null; }
   const targetPrinter = resolveSystemPrinter(printers, printerName, sysDefault);
 
-  // qz.print needs data in hex format for raw bytes
-  const hexData = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
-
   const config = qz.configs.create(targetPrinter);
-  await qz.print(config, [
-    { type: 'raw', format: 'hex', data: hexData }
-  ]);
+  await qz.print(config, [qzRawData(data)]);
   lastPrinterUsed = targetPrinter;
 }
 

@@ -3,10 +3,17 @@ import { encodeText, getCharEncoding, isValidCharEncoding } from '@/lib/escpos-e
 import { buildBillReceipt, buildOrderReceipt, buildCashCloseReceipt, buildEncodingTestReceipt, buildEncodingVerificationReceipt } from '@/lib/escpos';
 import { receiptLines } from '@/lib/receipt-renderer';
 import { printViaDesktopSpooler, printViaDesktopSocket } from '@/lib/printer-desktop';
+import { qzRawData } from '@/lib/qz-raw-data';
 
 const order = { id: 'accent-test', orderType: 'mesa', tableNumber: 1, openedByName: 'José', createdAt: '2026-10-12T19:00:00Z', total: 10, pickupNotes: 'Ação Maçã Café', items: [{ name: 'Açaí', quantity: 1, price: 10, subtotal: 10, selectedComplements: [{ name: 'Maçã', quantity: 1, price: 0 }] }] };
 
 describe('physical character calibration', () => {
+  it('uses QZ command format with hex flavor and preserves all bytes', () => {
+    const bytes = new Uint8Array([27, 116, 2, 0x87, 0xc6, 0x82, 0]);
+    const data = qzRawData(bytes);
+    expect(data).toEqual({ type: 'raw', format: 'command', flavor: 'hex', data: '1b740287c68200' });
+    expect(Array.from(data.data.match(/../g) || [], pair => parseInt(pair, 16))).toEqual(Array.from(bytes));
+  });
   it.each([
     ['cp850', [0x87, 0xc6, 0x82, 0x80, 0xc7, 0x90]],
     ['cp860', [0x87, 0x84, 0x82, 0x80, 0x8e, 0x90]],
