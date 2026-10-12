@@ -14,7 +14,7 @@ export function receiptLines(bytes: Uint8Array): ReceiptLine[] {
   let double = false;
   let align: ReceiptLine['align'] = 'left';
   let content: number[] = [];
-  let lineStyle = { bold, double, align };
+  let lineStyle: Omit<ReceiptLine, 'text'> = { bold, double, align };
   const flush = () => {
     lines.push({ text: new TextDecoder().decode(new Uint8Array(content)), ...lineStyle });
     content = [];
