@@ -1,0 +1,1 @@
+ALTER TABLE public.printer_configs ALTER COLUMN char_encoding SET DEFAULT 'utf8';
