@@ -4,6 +4,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import qz from 'qz-tray';
+import { RECEIPT_HTML_STYLES } from './receipt-renderer';
 import { isDesktopApp, getDesktopPrinters, printViaDesktopSpooler, printViaDesktopSocket } from './printer-desktop';
 
 const PRINTER_SERVICE_UUIDS = [
@@ -735,19 +736,20 @@ export function printViaHtmlFallback(
     return;
   }
 
-  const printWidth = paperWidth === 58 ? '197px' : '280px';
+  const printWidth = `${paperWidth}mm`;
 
   win.document.write(`
     <html><head><meta charset="utf-8"><title>${title}</title>
     <style>
+      ${RECEIPT_HTML_STYLES}
       body { 
         font-family: 'Courier New', monospace; 
         font-size: 13px; 
         margin: 0; 
-        padding: 0 16px; 
+        padding: 1mm; 
         width: ${printWidth}; 
         box-sizing: border-box; 
-        overflow-x: hidden;
+        overflow-x: visible;
       }
       .line { border-top: 1px dashed #000; margin: 6px -16px; width: calc(100% + 32px); }
       .line-solid { border-top: 2px solid #000; margin: 6px -16px; width: calc(100% + 32px); }
@@ -759,7 +761,7 @@ export function printViaHtmlFallback(
       .header-text { font-size: 11px; }
       .footer-text { font-size: 12px; }
       @media print { 
-        body { width: ${printWidth}; padding: 0 16px; }
+        body { width: ${printWidth}; padding: 1mm; }
         @page { margin: 0; size: ${paperWidth}mm auto; }
       }
     </style></head><body>${htmlContent}</body></html>
