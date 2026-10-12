@@ -99,10 +99,10 @@ function lineOf(char: string, cols: number): Uint8Array {
 }
 
 /** Reserved price zone (right) inside a wrapped row.
- *  58mm (27 useful cols): 17 for name + 9 for price.
+ *  55/58mm (32 useful cols): 22 for name + 9 for price.
  *  80mm (40 useful cols): 27 for name + 12 for price. */
 export function receiptPriceZone(cols: number): number {
-  return cols <= 27 ? 9 : 12;
+  return cols <= 32 ? 9 : 12;
 }
 
 /** Two-column row: left-aligned label, right-aligned value.
@@ -317,7 +317,7 @@ interface CashCloseData {
 
 /** Shared useful width for printed receipts and their on-screen preview. */
 export function receiptColumnsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 27 : 40;
+  return paperWidth <= 58 ? 32 : 40;
 }
 
 /** Columns physically available while printing kitchen item blocks. */
@@ -631,7 +631,7 @@ function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSetti
     normalTextMode(),
     CMD_ALIGN_LEFT,
     lineOf('-', cols),
-    CMD_ALIGN_CENTER, center(cols <= 27 ? 'NÃO É DOCUMENTO FISCAL' : '*** NÃO É DOCUMENTO FISCAL ***', cols),
+    CMD_ALIGN_CENTER, center(cols <= 32 ? 'NÃO É DOCUMENTO FISCAL' : '*** NÃO É DOCUMENTO FISCAL ***', cols),
     CMD_ALIGN_LEFT, lineOf('=', cols)
   );
 

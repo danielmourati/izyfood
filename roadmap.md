@@ -18,3 +18,4 @@
 - [x] Desativar por padrão e isolar por atendente/aparelho a opção de usar impressora neste dispositivo.
 - [x] Adaptar layout Menuzin aos cupons de cozinha, conta e caixa, mantendo larguras e calibração.
 - [x] Unificar prévias e navegador com a impressão térmica; 56 testes e prévias com pedido real validados.
+- [ ] Aplicar 32 colunas normais / 16 duplas em 55/58 mm a todos os cupons e prévias, preservando 40/20 em 80 mm; validar testes e tela de impressoras.
