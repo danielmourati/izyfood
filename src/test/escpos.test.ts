@@ -61,7 +61,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLineIdx = lines.findIndex(l => /R\$ ?48,00\s*$/.test(l));
     expect(priceLineIdx).toBeGreaterThan(0);
     const priceLine = lines[priceLineIdx];
-    expect(priceLine.length).toBeLessThanOrEqual(30);
+    expect(priceLine.length).toBeLessThanOrEqual(32);
     // The line above the price line should be part of the wrapped label (no price on it).
     expect(receipt).toMatch(/Unit: +R\$48,00/);
   });
@@ -79,7 +79,7 @@ describe('ESC/POS bill receipt', () => {
       customerName: 'Consumidor',
     }, 58, { storeName: 'Loja' }));
 
-    const sep = '-'.repeat(27);
+    const sep = '-'.repeat(32);
     // Expect at least 6 separators: header, title, data, items, adjustments, total, payment
     const occurrences = receipt.split(sep).length - 1;
     expect(occurrences).toBeGreaterThanOrEqual(6);
@@ -104,7 +104,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLineIdx = lines.findIndex(l => /R\$ ?48,00\s*$/.test(l));
     expect(priceLineIdx).toBeGreaterThan(0);
     const priceLine = lines[priceLineIdx];
-    expect(priceLine.length).toBeLessThanOrEqual(27);
+    expect(priceLine.length).toBeLessThanOrEqual(32);
     // Verifies that the line containing the price is the last line of the wrapped name
     expect(receipt).toMatch(/Unit: +R\$48,00/);
   });
@@ -128,7 +128,7 @@ describe('ESC/POS bill receipt', () => {
       showDocument: true,
     }));
 
-    const sep = '-'.repeat(27);
+    const sep = '-'.repeat(32);
     const parts = receipt.split(sep);
 
     // Separador reintroduzido abaixo de CONTA — agora são 7 separadores (8 partes).
@@ -235,9 +235,9 @@ describe('ESC/POS bill receipt', () => {
     expect(clienteRow).toBeDefined();
     expect(dataRow).toBeDefined();
 
-    // 58mm = 27 colunas úteis: label + espaços + valor não excedem a largura máxima
+    // 58mm = 32 colunas úteis: label + espaços + valor não excedem a largura máxima
     for (const row of [tipoRow!, mesaRow!, clienteRow!, dataRow!]) {
-      expect(row.length).toBeLessThanOrEqual(27);
+      expect(row.length).toBeLessThanOrEqual(32);
     }
 
     // Ordem esperada no cupom: Tipo -> Mesa -> Cliente -> Data
@@ -269,7 +269,7 @@ describe('ESC/POS bill receipt', () => {
     }, 58));
     const line = receipt.split('\n').find(l => /Coca 350ml/.test(l));
     expect(line).toBeDefined();
-    expect(line?.length).toBeLessThanOrEqual(27);
+    expect(line?.length).toBeLessThanOrEqual(32);
     expect(line).toContain('2x Coca 350ml');
     expect(receipt).toMatch(/Unit: +R\$ 5,00/);
     expect(receipt).toMatch(/Total: +R\$10,00/);
@@ -293,7 +293,7 @@ describe('ESC/POS bill receipt', () => {
     const priceIdx = lines.findIndex(l => /R\$32,50\s*$/.test(l));
     expect(priceIdx).toBeGreaterThan(0);
     const priceLine = lines[priceIdx];
-    expect(priceLine.length).toBeLessThanOrEqual(30);
+    expect(priceLine.length).toBeLessThanOrEqual(32);
     // Gap mínimo de 1 espaço entre texto e preço (ou linha somente com preço à direita)
     expect(priceLine).toMatch(/Unit: +R\$32,50$/);
     // Linha anterior é parte do rótulo quebrado, sem preço
@@ -324,10 +324,10 @@ describe('ESC/POS bill receipt', () => {
     const nextLine = lines[firstCompIdx + 1];
     expect(nextLine).toBeDefined();
     expect(nextLine.startsWith('    ')).toBe(true);
-    expect(nextLine.length).toBeLessThanOrEqual(30);
+    expect(nextLine.length).toBeLessThanOrEqual(32);
   });
 
-  it('58mm: NENHUMA linha da prévia excede 27 colunas úteis', () => {
+  it('58mm: NENHUMA linha da prévia excede 32 colunas úteis', () => {
     const text = buildBillPreviewText({
       id: 'safe-w',
       orderType: 'mesa',
@@ -359,11 +359,11 @@ describe('ESC/POS bill receipt', () => {
       showPixKey: true, showInstagram: true, showThankMessage: true,
     });
     for (const l of text.split('\n')) {
-      expect(l.length).toBeLessThanOrEqual(30);
+      expect(l.length).toBeLessThanOrEqual(32);
     }
   });
 
-  it('58mm: nome de loja longo é quebrado em múltiplas linhas centralizadas <=27 col', () => {
+  it('58mm: nome de loja longo é quebrado em múltiplas linhas centralizadas <=32 col', () => {
     const receipt = decodeReceipt(buildBillReceipt({
       id: 'store-wrap',
       orderType: 'balcao',
@@ -391,7 +391,7 @@ describe('ESC/POS bill receipt', () => {
     const lines = receipt.split('\n');
     const priceLine = lines.find(l => /R\$100,00\s*$/.test(l))!;
     expect(priceLine).toBeDefined();
-    expect(priceLine.length).toBeLessThanOrEqual(30);
+    expect(priceLine.length).toBeLessThanOrEqual(32);
   });
 
   it('80mm: impressão e prévia respeitam o limite de 40 colunas', () => {
@@ -556,8 +556,10 @@ describe('kitchen order notes rendering', () => {
   });
 
   it.each([
-    [58, false, 27, 1],
-    [58, true, 13, 2],
+    [55, false, 32, 1],
+    [55, true, 16, 2],
+    [58, false, 32, 1],
+    [58, true, 16, 2],
     [80, false, 40, 1],
     [80, true, 20, 2],
   ])('buildOrderReceipt: %imm with double font=%s uses %i item columns', (paperWidth, doubleFontOrders, activeCols, minimumDoubleCommands) => {
