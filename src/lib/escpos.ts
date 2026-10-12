@@ -3,6 +3,7 @@
  * Produces Uint8Array buffers ready to send via Bluetooth or network.
  */
 
+import { wrapReceiptText } from '@/lib/receipt-layout';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrderAttendantName, getOrderItemAdditionalLines, getOrderItemNoteLines } from '@/lib/utils';
 import {
@@ -190,47 +191,8 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
  */
 function textOnlyWrap(label: string, cols: number): Uint8Array {
   const raw = String(label ?? '');
-  if (raw.length <= cols) return text(raw + '\n');
-
-  let indent = '';
-  const symbolMatch = raw.match(/^(\s*[+*]\s+)/);
-  if (symbolMatch) {
-    indent = ' '.repeat(symbolMatch[1].length);
-  } else {
-    const wsMatch = raw.match(/^(\s+)/);
-    if (wsMatch) indent = wsMatch[1];
-  }
-
-  const headMatch = raw.match(/^(\s*(?:[+*]\s+)?)(.*)$/);
-  const head = headMatch ? headMatch[1] : '';
-  const rest = headMatch ? headMatch[2] : raw;
-  const words = rest.trim().split(/\s+/).filter(Boolean);
-
-  const lines: string[] = [];
-  let current = head;
-
-  const pushBreakWord = (word: string, prefix: string) => {
-    let piece = prefix + word;
-    while (piece.length > cols) {
-      lines.push(piece.slice(0, cols));
-      piece = indent + piece.slice(cols);
-    }
-    current = piece;
-  };
-
-  for (const word of words) {
-    const atStart = current === head || current === indent || current === '';
-    const candidate = atStart ? current + word : current + ' ' + word;
-    if (candidate.length <= cols) {
-      current = candidate;
-    } else {
-      if (current.trim().length > 0) lines.push(current);
-      pushBreakWord(word, indent);
-    }
-  }
-
-  if (current.trim().length > 0) lines.push(current);
-  return text(lines.join('\n') + '\n');
+  const prefix = raw.match(/^(\s*(?:[+*]\s+)?(?:\d+(?:[.,]\d+)?(?:x|kg)\s+)?)/)?.[0] ?? '';
+  return text(wrapReceiptText(raw.slice(prefix.length), cols, prefix, prefix.length).join('\n') + '\n');
 }
 
 /** Format text for hardware centered printing (ESC a 1) without adding manual leading spaces */
@@ -482,43 +444,7 @@ const orderTypeLabels: Record<string, string> = {
  * Otherwise, wraps `Value` cleanly on next line(s) without splitting single words or right-side gaps.
  */
 function kvRow(label: string, value: string, cols: number): Uint8Array {
-  const cleanLabel = label.trim();
-  const cleanVal = value.trim();
-  if (!cleanVal) return text(cleanLabel + '\n');
-
-  const full = `${cleanLabel} ${cleanVal}`;
-  if (full.length <= cols) {
-    return text(full + '\n');
-  }
-
-  const lines: string[] = [];
-  const words = cleanVal.split(/\s+/).filter(Boolean);
-
-  if (cleanLabel.length + 1 + (words[0]?.length || 0) <= cols) {
-    let current = cleanLabel + ' ';
-    for (const w of words) {
-      if ((current + (current.endsWith(' ') ? '' : ' ') + w).length <= cols) {
-        current += (current.endsWith(' ') ? '' : ' ') + w;
-      } else {
-        lines.push(current);
-        current = '  ' + w;
-      }
-    }
-    if (current.trim()) lines.push(current);
-  } else {
-    lines.push(cleanLabel);
-    let current = '  ';
-    for (const w of words) {
-      if ((current + (current === '  ' ? '' : ' ') + w).length <= cols) {
-        current += (current === '  ' ? '' : ' ') + w;
-      } else {
-        lines.push(current);
-        current = '  ' + w;
-      }
-    }
-    if (current.trim()) lines.push(current);
-  }
-  return text(lines.join('\n') + '\n');
+  return text(wrapReceiptText(value.trim(), cols, `${label.trim()} `, 2).join('\n') + '\n');
 }
 
 function fmtDateCompact(iso: string): string {
@@ -563,8 +489,8 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
     CMD_ALIGN_CENTER,
     CMD_BOLD_ON,
     CMD_DOUBLE_ON,
-    text(`${orderTitle}\n`),
-    ...(tableHeading ? [text(tableHeading)] : []),
+    center(orderTitle, Math.floor(cols / 2)),
+    ...(tableHeading ? [center(tableHeading, Math.floor(cols / 2))] : []),
     CMD_DOUBLE_OFF,
     CMD_BOLD_OFF,
     normalTextMode(),
@@ -704,7 +630,9 @@ function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSetti
     CMD_BOLD_OFF,
     normalTextMode(),
     CMD_ALIGN_LEFT,
-    lineOf('-', cols)
+    lineOf('-', cols),
+    CMD_ALIGN_CENTER, center('*** NÃO É DOCUMENTO FISCAL ***', cols),
+    CMD_ALIGN_LEFT, lineOf('=', cols)
   );
 
   // Each detail field as a row(): label left, value right.
@@ -723,7 +651,7 @@ function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSetti
   // Items with price — each item as a rowWrap() so long names break into multiple lines.
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
-    parts.push(rowWrap(`${qty} ${item.name}`, fmtBRL(item.subtotal), cols));
+    parts.push(CMD_BOLD_ON, textOnlyWrap(`${qty} ${item.name}`, cols), CMD_BOLD_OFF);
     const additionalItems = getOrderItemAdditionalLines(item);
     if (additionalItems.length > 0) {
       const additionalTitle = additionalItems.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
@@ -734,8 +662,10 @@ function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSetti
         parts.push(rowWrap(`  + ${additionalQty} ${additional.name}`, additionalPrice, cols));
       }
     }
+    const itemTotal = item.subtotal ?? item.price * (item.weight ?? item.quantity);
+    parts.push(CMD_BOLD_ON, textOnlyWrap(`Unit: ${fmtBRL(item.price)}  Total: ${fmtBRL(itemTotal)}`, cols), CMD_BOLD_OFF, lineOf('-', cols));
   }
-  parts.push(lineOf('-', cols));
+  if (bill.items.length === 0) parts.push(lineOf('-', cols));
 
   // Adjustments
   const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
@@ -823,15 +753,15 @@ function buildCashCloseReceiptImpl(data: CashCloseData, paperWidth: number, char
     codepageCommand(charEncoding),
     CMD_ALIGN_CENTER,
     CMD_BOLD_ON, CMD_DOUBLE_ON,
-    text('FECHAMENTO DE CAIXA\n'),
-    CMD_DOUBLE_OFF, CMD_BOLD_OFF,
+    center('FECHAMENTO DE CAIXA', Math.floor(cols / 2)),
+    CMD_DOUBLE_OFF, CMD_BOLD_OFF, normalTextMode(),
     CMD_ALIGN_LEFT,
     lineOf('=', cols),
-    row('Abertura:', fmtDate(data.openedAt), cols),
+    kvRow('Abertura:', fmtDate(data.openedAt), cols),
   ];
 
-  if (data.closedAt) parts.push(row('Fechamento:', fmtDate(data.closedAt), cols));
-  parts.push(row('Operador:', data.operatorName, cols));
+  if (data.closedAt) parts.push(kvRow('Fechamento:', fmtDate(data.closedAt), cols));
+  parts.push(kvRow('Operador:', data.operatorName, cols));
   parts.push(lineOf('-', cols));
 
   parts.push(CMD_BOLD_ON, row('Fundo de Troco:', fmtBRL(data.initialAmount), cols), CMD_BOLD_OFF);

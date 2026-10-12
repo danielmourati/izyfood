@@ -33,13 +33,14 @@ import {
   getDevicePrinterConfig,
 } from '@/lib/printer';
 import { PRINT_HOST_PRESENCE_PREFIX, insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
-import { getOrderAttendantName, getOrderItemAdditionalLines } from '@/lib/utils';
+import { receiptHtml } from '@/lib/receipt-renderer';
 import {
   buildOrderReceipt,
   buildBillReceipt,
   buildCashCloseReceipt,
   buildEncodingTestReceipt,
   fetchPrintSettings,
+  receiptColumnsForWidth,
 } from '@/lib/escpos';
 import type { PrintSettings } from '@/lib/escpos';
 
@@ -611,7 +612,7 @@ export function usePrinter() {
       console.log(`[printOrder] setor: ${sector}, impressora: ${targetPrinter?.name || 'padrão'}, itens: ${secItems.length}`);
       const orderSettings = { ...ps, doubleFontOrders: targetPrinter?.double_font_orders === true };
       const escpos = buildOrderReceipt(secOrder, targetPaperWidth, orderSettings, targetPrinter?.char_encoding);
-      const html = buildOrderHtml(secOrder, orderSettings);
+      const html = buildOrderHtml(secOrder, orderSettings, targetPaperWidth);
       const copies = getOrderPrintCopies(intent, targetPrinter);
       for (let copy = 0; copy < copies; copy += 1) {
         lastChannel = await sendToPrinter(escpos, html, 'Comanda', { ...options, targetPrinter, sector });
@@ -632,7 +633,7 @@ export function usePrinter() {
     const ps = await resolvePrintSettings(user?.tenantId);
     console.log(`[printBill] printSettings usados (setor: recibo, impressora: ${targetPrinter?.name || 'padrão'}, largura: ${targetPaperWidth}mm):`, JSON.stringify(ps));
     const escpos = buildBillReceipt(bill, targetPaperWidth, ps, targetPrinter?.char_encoding);
-    const html = buildBillHtml(bill, ps);
+    const html = buildBillHtml(bill, ps, targetPaperWidth);
     await sendToPrinter(escpos, html, 'Conta', { ...options, targetPrinter, sector });
     return { ok: true };
   };
@@ -647,7 +648,7 @@ export function usePrinter() {
     const targetPrinter = getPrinterForSector(sector);
     const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const escpos = buildCashCloseReceipt(data, targetPaperWidth, targetPrinter?.char_encoding);
-    const html = buildCashCloseHtml(data);
+    const html = buildCashCloseHtml(data, targetPaperWidth);
     const channel = await sendToPrinter(escpos, html, 'Fechamento de Caixa', { ...options, targetPrinter, sector });
     return { ok: true, channel };
   };
@@ -719,210 +720,15 @@ export function usePrinter() {
   };
 }
 
-// ---- HTML fallback builders ----
-
-function fmtBRL(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+// Browser output reuses the exact thermal layout; UTF-8 preserves browser text.
+export function buildOrderHtml(order: any, ps: PrintSettings = {}, paperWidth = 80): string {
+  return receiptHtml(buildOrderReceipt(order, paperWidth, ps, 'utf8'), receiptColumnsForWidth(paperWidth));
 }
 
-const orderTypeLabels: Record<string, string> = { balcao: 'Balcão', mesa: 'Mesa', delivery: 'Delivery', retirada: 'Retirada' };
-const paymentLabels: Record<string, string> = { dinheiro: 'Dinheiro', pix: 'PIX', cartao: 'Cartão', fiado: 'Fiado' };
-
-export function buildOrderHtml(order: any, ps: any = {}): string {
-  let totalItemsCount = 0;
-  const doubleFontItems = ps.doubleFontOrders === true;
-  const itemFontSize = doubleFontItems ? '20px' : '14px';
-  const detailFontSize = doubleFontItems ? '18px' : '13px';
-  const orderItems = order.items || [];
-  const items = orderItems.map((i: any, itemIndex: number) => {
-    totalItemsCount += i.quantity || 1;
-    const qtyCount = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}`;
-    let html = `<p class="bold" style="margin: 0 0 2px 0; font-size: ${itemFontSize};">${qtyCount} ${i.name || 'Produto sem nome'}</p>`;
-    const additionalItems = getOrderItemAdditionalLines(i);
-    if (additionalItems.length > 0) {
-      html += `<p style="margin: 0 0 2px 12px; font-size: ${detailFontSize};"><strong>${additionalItems.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
-      additionalItems.forEach((additional: any) => {
-        html += `<p style="margin: 0 0 2px 12px; font-size: ${detailFontSize};">+ ${additional.quantity}x ${additional.name}</p>`;
-      });
-    }
-    if (itemIndex < orderItems.length - 1) {
-      html += '<div class="line" style="margin: 5px 0;"></div>';
-    }
-    return html;
-  }).join('');
-
-  const createdAt = order.createdAt || new Date().toISOString();
-
-  let tipoLabel = 'COZINHA';
-  if (order.orderType === 'delivery') {
-    tipoLabel = 'DELIVERY';
-  } else if (order.orderType === 'retirada') {
-    tipoLabel = 'RETIRADA';
-  } else if (order.orderType === 'mesa' || order.tableNumber) {
-    tipoLabel = 'CONSUMO';
-  }
-
-  const customerLine = order.orderType === 'delivery'
-    ? `${order.customerName || 'Sem Nome'}${order.customerAddress ? ' — ' + order.customerAddress : ''}`
-    : order.orderType === 'retirada'
-      ? `${order.customerName || 'Sem Nome'}${order.customerPhone ? ' (' + order.customerPhone + ')' : ''}`
-      : (order.customerName || 'Sem Nome');
-
-  // Comanda da cozinha: sem cabeçalho de loja e sem rodapé promocional.
-  const tableHeading = order.tableNumber
-    ? `<div class="center bold" style="font-size: 24px; margin-bottom: 8px;">MESA: ${String(order.tableNumber).padStart(2, '0')}</div>`
-    : '';
-  return `
-    <div class="center bold" style="font-size: 24px; margin-bottom: 2px;">${tipoLabel}</div>
-    ${tableHeading}
-    <div style="margin-bottom: 8px;">${fmtDate(createdAt)}${order.tableNumber ? ` | Mesa: ${String(order.tableNumber).padStart(2, '0')}` : ''}</div>
-
-    <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;">Cliente: <strong>${customerLine}</strong></div>
-
-    <div style="margin-top: 6px;">
-      ${items || '<p class="center">Nenhum item</p>'}
-    </div>
-    ${String(order.pickupNotes || '').trim() ? `<div class="line" style="margin-top: 8px;"></div><div class="bold" style="font-size: ${detailFontSize}; margin-top: 6px; white-space: pre-wrap; overflow-wrap: break-word;">OBS:\n${String(order.pickupNotes).trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : ''}
-
-    <div class="line" style="margin-top: 12px;"></div>
-    <div style="margin-top: 6px; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; white-space: nowrap;"><span>QTD. TOTAL ITENS:</span><span>${totalItemsCount}</span></div>
-    <div style="margin-top: 4px; font-size: 11px; color: #444;">Atendente: ${getOrderAttendantName(order)}</div>
-  `;
+export function buildBillHtml(bill: any, ps: PrintSettings = {}, paperWidth = 80): string {
+  return receiptHtml(buildBillReceipt(bill, paperWidth, ps, 'utf8'), receiptColumnsForWidth(paperWidth));
 }
 
-
-export function buildBillHtml(bill: any, ps: any = {}): string {
-  const items = (bill.items || []).map((i: any) => {
-    const qty = i.weight ? `${i.weight.toFixed(3)}kg` : `${i.quantity}x`;
-    let html = `<div class="row"><span>${qty} ${i.name || 'Item'}</span><span>${fmtBRL(i.subtotal || 0)}</span></div>`;
-    const additionalItems = getOrderItemAdditionalLines(i);
-    if (additionalItems.length > 0) {
-      html += `<p style="margin: 0 0 2px 12px; font-size: 11px;"><strong>${additionalItems.length === 1 ? 'Adicional:' : 'Adicionais:'}</strong></p>`;
-      additionalItems.forEach((additional: any) => {
-        html += `<div class="row" style="font-size: 11px; padding-left: 12px;"><span>+ ${additional.quantity}x ${additional.name}</span><span>${fmtBRL(additional.price * additional.quantity * (i.weight ? 1 : i.quantity))}</span></div>`;
-      });
-    }
-    return html;
-  }).join('');
-
-  // Dynamically calculate total if bill.total is falsy or 0
-  let totalBilled = bill.total || 0;
-  const itemsTotal = (bill.items || []).reduce((acc: number, item: any) => {
-    const itemSubtotal = item.subtotal ?? (item.price * (item.weight ?? item.quantity));
-    return acc + (itemSubtotal || 0);
-  }, 0);
-  const discountVal = bill.discount ? (bill.discountType === 'percentage' ? (itemsTotal * bill.discount) / 100 : bill.discount) : 0;
-  const serviceFeeVal = bill.serviceFee || 0;
-  const deliveryFeeVal = bill.deliveryFee || 0;
-
-  if (!totalBilled || totalBilled === 0) {
-    totalBilled = itemsTotal - discountVal + serviceFeeVal + deliveryFeeVal;
-  }
-
-  let adjustmentsHtml = '';
-  if (bill.discount && bill.discount > 0) {
-    const discLabel = bill.discountType === 'percentage' ? `Desconto (${bill.discount}%)` : 'Desconto';
-    adjustmentsHtml += `<div class="row"><span>${discLabel}:</span><span>-${fmtBRL(discountVal)}</span></div>`;
-  }
-  if (serviceFeeVal > 0) {
-    adjustmentsHtml += `<div class="row"><span>Taxa de Serviço:</span><span>${fmtBRL(serviceFeeVal)}</span></div>`;
-  }
-  if (deliveryFeeVal > 0) {
-    adjustmentsHtml += `<div class="row"><span>Taxa de entrega:</span><span>${fmtBRL(deliveryFeeVal)}</span></div>`;
-  }
-
-  let payments = '';
-  if (bill.paymentSplits?.length) {
-    payments = `<p class="bold" style="margin: 4px 0;">PAGAMENTO:</p>` + bill.paymentSplits.map((s: any) =>
-      `<div class="row"><span>${paymentLabels[s.method] || s.method}</span><span>${fmtBRL(s.amount || 0)}</span></div>`
-    ).join('');
-  } else if (bill.paymentMethod) {
-    payments = `<p class="bold" style="margin: 4px 0;">PAGAMENTO:</p>` +
-      `<div class="row"><span>${paymentLabels[bill.paymentMethod] || bill.paymentMethod}</span><span>${fmtBRL(totalBilled)}</span></div>`;
-  }
-
-  const createdAt = bill.createdAt || new Date().toISOString();
-
-  let headerHtml = '';
-  if (ps.storeName) {
-    headerHtml += `<div class="center bold" style="font-size: 16px; margin-bottom: 4px; text-transform: uppercase;">${ps.storeName}</div>`;
-  }
-  if (ps.showAddress && ps.address) {
-    headerHtml += `<div class="center header-text" style="margin-bottom: 2px;">${ps.address}</div>`;
-  }
-  if (ps.showDocument && ps.document) {
-    headerHtml += `<div class="center header-text" style="margin-bottom: 2px;">${(ps.documentType || 'CNPJ').toUpperCase()}: ${ps.document}</div>`;
-  }
-  if (ps.showWhatsapp && ps.whatsapp) {
-    headerHtml += `<div class="center header-text" style="margin-bottom: 4px;">WhatsApp: ${ps.whatsapp}</div>`;
-  }
-  if (headerHtml) {
-    headerHtml += '<div class="line"></div>';
-  }
-
-  let footerHtml = '';
-  if (ps.showPixKey && ps.pixKey) {
-    footerHtml += `<div class="center footer-text" style="margin-top: 4px;">PIX: ${ps.pixKey}</div>`;
-  }
-  if (ps.showInstagram && ps.instagram) {
-    footerHtml += `<div class="center footer-text" style="margin-top: 2px;">Instagram: @${ps.instagram.replace('@', '')}</div>`;
-  }
-  if (ps.showThankMessage && ps.thankMessage) {
-    footerHtml += `<p class="center footer-text bold" style="margin-top: 10px; margin-bottom: 0;">${ps.thankMessage}</p>`;
-  } else {
-    footerHtml += `<p class="center footer-text" style="margin-top: 10px; margin-bottom: 0;">Obrigado pela preferência!</p>`;
-  }
-
-
-  const htmlRawOrderType = bill.orderType?.toLowerCase().trim() || '';
-  const htmlOrderTypeVal = (orderTypeLabels[htmlRawOrderType] || bill.orderType || 'Mesa').trim();
-  const htmlFormattedOrderType = htmlOrderTypeVal.charAt(0).toUpperCase() + htmlOrderTypeVal.slice(1);
-
-  return `
-    ${headerHtml}
-    <div class="big">RESUMO DA CONTA</div>
-    <div class="line"></div>
-    <div class="row"><span>Tipo:</span><span>${htmlFormattedOrderType}</span></div>
-    ${(bill.tableNumber || htmlRawOrderType === 'mesa') ? `<div class="row"><span>Mesa:</span><span>${bill.tableNumber || 'N/A'}</span></div>` : ''}
-    <div class="row"><span>Cliente:</span><span>${bill.customerName?.trim() || 'Consumidor'}</span></div>
-    <div class="row"><span>Data:</span><span>${fmtDate(createdAt)}</span></div>
-    <div class="row"><span>Atendente:</span><span>${getOrderAttendantName(bill)}</span></div>
-    <div class="line"></div>
-    <div style="margin: 10px 0;">
-      ${items || '<p class="center">Nenhum item</p>'}
-    </div>
-    <div class="line"></div>
-    <div class="bold" style="font-size: 16px; text-align: left; margin: 4px 0;">TOTAL: ${fmtBRL(totalBilled)}</div>
-    ${payments ? `<div class="line" style="margin-top:10px;"></div><p class="bold">PAGAMENTO:</p>${payments}` : ''}
-    <div class="footer-text" style="border-top: 1px dashed #000; margin-top: 12px; padding-top: 6px;">
-      ${footerHtml}
-    </div>
-  `;
-}
-
-function buildCashCloseHtml(data: any): string {
-  const saldo = data.initialAmount + data.totalCash;
-  return `
-    <div class="big">FECHAMENTO DE CAIXA</div>
-    <div class="line"></div>
-    <div class="row"><span>Abertura:</span><span>${fmtDate(data.openedAt)}</span></div>
-    ${data.closedAt ? `<div class="row"><span>Fechamento:</span><span>${fmtDate(data.closedAt)}</span></div>` : ''}
-    <div class="row"><span>Operador:</span><span>${data.operatorName}</span></div>
-    <div class="line"></div>
-    <div class="row bold"><span>Fundo de Troco:</span><span>${fmtBRL(data.initialAmount)}</span></div>
-    <div class="line"></div>
-    <p class="bold">VENDAS POR FORMA PGTO:</p>
-    <div class="row"><span>Dinheiro:</span><span>${fmtBRL(data.totalCash)}</span></div>
-    <div class="row"><span>PIX:</span><span>${fmtBRL(data.totalPix)}</span></div>
-    <div class="row"><span>Cartão:</span><span>${fmtBRL(data.totalCard)}</span></div>
-    <div class="row"><span>Fiado:</span><span>${fmtBRL(data.totalFiado)}</span></div>
-    <div class="line"></div>
-    <div class="row bold"><span>TOTAL VENDAS:</span><span>${fmtBRL(data.totalSales)}</span></div>
-    <div class="line"></div>
-    <div class="row bold"><span>SALDO CAIXA:</span><span>${fmtBRL(saldo)}</span></div>
-    <p style="font-size:10px;color:#888">(Fundo + Dinheiro)</p>
-  `;
+export function buildCashCloseHtml(data: any, paperWidth = 80): string {
+  return receiptHtml(buildCashCloseReceipt(data, paperWidth, 'utf8'), receiptColumnsForWidth(paperWidth));
 }
