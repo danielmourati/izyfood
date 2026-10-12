@@ -41,7 +41,7 @@ describe('ESC/POS bill receipt', () => {
     expect(receipt).toMatch(/Taxa de Serviço: +R\$ 4,80\n/);
   });
 
-  it('wraps long item names across multiple lines with price right-aligned on the LAST line (58mm)', () => {
+  it('wraps long names before separate unit and total rows (58mm)', () => {
     const receipt = decodeReceipt(buildBillReceipt({
       id: 'order-2',
       orderType: 'balcao',
@@ -63,7 +63,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLine = lines[priceLineIdx];
     expect(priceLine.length).toBeLessThanOrEqual(30);
     // The line above the price line should be part of the wrapped label (no price on it).
-    expect(lines[priceLineIdx - 1]).not.toMatch(/R\$/);
+    expect(receipt).toMatch(/Unit: +R\$48,00/);
   });
 
   it('emits the full sequence of section separators in order', () => {
@@ -85,7 +85,7 @@ describe('ESC/POS bill receipt', () => {
     expect(occurrences).toBeGreaterThanOrEqual(6);
   });
 
-  it('item longo quebrado em 2 linhas com preço na 1ª (ou na última linha conforme especificação do layout)', () => {
+  it('mantém os valores em linhas próprias após o nome longo', () => {
     const receipt = decodeReceipt(buildBillReceipt({
       id: 'order-4',
       orderType: 'balcao',
@@ -106,7 +106,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLine = lines[priceLineIdx];
     expect(priceLine.length).toBeLessThanOrEqual(27);
     // Verifies that the line containing the price is the last line of the wrapped name
-    expect(lines[priceLineIdx - 1]).not.toMatch(/R\$/);
+    expect(receipt).toMatch(/Unit: +R\$48,00/);
   });
 
   it('presença de todos os 7 separadores na ordem correta', () => {
@@ -191,7 +191,7 @@ describe('ESC/POS bill receipt', () => {
     expect(receipt).toMatch(/Mesa: +5\n/);
     expect(receipt).toMatch(/Cliente: +Consumidor\n/);
     // Itens, ajustes e total
-    expect(receipt).toMatch(/1x Açaí 500ml +R\$48,00\n/);
+    expect(decodeReceiptText(buildBillReceipt(bill, 58))).toContain('1x Açaí 500ml\nUnit:');
     expect(receipt).toMatch(/Taxa de Serviço: +R\$ 4,80\n/);
     expect(receipt).toContain('TOTAL');
     // Pagamento
@@ -259,7 +259,7 @@ describe('ESC/POS bill receipt', () => {
     expect(receipt).not.toMatch(/Cliente:[^\n]*Data:/);
   });
 
-  it('58mm: item curto cabe em uma linha com preço à direita', () => {
+  it('58mm: item curto tem nome destacado e valores separados', () => {
     const receipt = decodeReceipt(buildBillReceipt({
       id: 'x1',
       orderType: 'balcao',
@@ -267,13 +267,15 @@ describe('ESC/POS bill receipt', () => {
       total: 10,
       createdAt: '2026-05-22T20:13:00.000Z',
     }, 58));
-    const line = receipt.split('\n').find(l => /Coca 350ml/.test(l))!;
+    const line = receipt.split('\n').find(l => /Coca 350ml/.test(l));
     expect(line).toBeDefined();
-    expect(line.length).toBe(27);
-    expect(line).toMatch(/^2x Coca 350ml +R\$10,00$/);
+    expect(line?.length).toBeLessThanOrEqual(27);
+    expect(line).toContain('2x Coca 350ml');
+    expect(receipt).toContain('Unit: R$ 5,00  Total:');
+    expect(receipt).toContain('R$10,00');
   });
 
-  it('58mm: item longo quebra em várias linhas com preço na última linha e gap >=1', () => {
+  it('58mm: nome longo não divide a linha com os valores', () => {
     const receipt = decodeReceipt(buildBillReceipt({
       id: 'x2',
       orderType: 'balcao',
@@ -292,7 +294,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLine = lines[priceIdx];
     expect(priceLine.length).toBeLessThanOrEqual(30);
     // Gap mínimo de 1 espaço entre texto e preço (ou linha somente com preço à direita)
-    expect(priceLine).toMatch(/(?:^ +R\$32,50$|\S +R\$32,50$)/);
+    expect(priceLine).toMatch(/Unit: +R\$32,50$/);
     // Linha anterior é parte do rótulo quebrado, sem preço
     expect(lines[priceIdx - 1]).not.toMatch(/R\$/);
   });
@@ -609,9 +611,9 @@ describe('kitchen order notes rendering', () => {
       }],
     }, 58, { doubleFontOrders: true })).toUpperCase();
 
-    expect(receipt).toContain('1X PRODUTO\nCOM NOME');
+    expect(receipt).toContain('1X PRODUTO\n   COM NOME');
     expect(receipt).toContain('ADICIONAL');
-    expect(receipt).toContain('ADICIONA\n');
+    expect(receipt).toContain(' + 1X ADIC-\n    IONAL');
   });
 
   it('buildOrderReceipt: legacy items with only pipe-joined notes still print all lines', () => {
