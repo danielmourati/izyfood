@@ -295,7 +295,7 @@ describe('ESC/POS bill receipt', () => {
     const priceLine = lines[priceIdx];
     expect(priceLine.length).toBeLessThanOrEqual(32);
     // Gap mínimo de 1 espaço entre texto e preço (ou linha somente com preço à direita)
-    expect(priceLine).toMatch(/Unit: +R\$32,50$/);
+    expect(priceLine).toBe('Unit: R$32,50  Total: R$32,50');
     // Linha anterior é parte do rótulo quebrado, sem preço
     expect(lines[priceIdx - 1]).not.toMatch(/R\$/);
   });
@@ -614,9 +614,9 @@ describe('kitchen order notes rendering', () => {
       }],
     }, 58, { doubleFontOrders: true })).toUpperCase();
 
-    expect(receipt).toContain('1X PRODUTO\n   COM NOME');
+    expect(receipt).toContain('1X PRODUTO COM\n   NOME GRANDE');
     expect(receipt).toContain('ADICIONAL');
-    expect(receipt).toContain(' + 1X\n    ADICIONAL');
+    expect(receipt).toContain(' + 1X ADICIONAL\n     MUITO');
   });
 
   it('buildOrderReceipt: legacy items with only pipe-joined notes still print all lines', () => {
