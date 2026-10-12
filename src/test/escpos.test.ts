@@ -20,7 +20,7 @@ const decodeReceiptText = (data: Uint8Array) => {
     printable.push(byte);
     index += 1;
   }
-  return decodeText(new Uint8Array(printable), 'cp850');
+  return decodeText(new Uint8Array(printable), 'utf8');
 };
 
 describe('ESC/POS bill receipt', () => {
@@ -412,13 +412,13 @@ describe('ESC/POS bill receipt', () => {
     for (const line of preview.split('\n')) expect(line.length).toBeLessThanOrEqual(40);
   });
 
-  it('padrão CP850: envia ESC t 2 e 1 byte por letra acentuada', () => {
+  it('CP850: envia ESC t 2 e 1 byte por letra acentuada', () => {
     const bytes = buildBillReceipt({
       id: 'cp850', orderType: 'balcao',
       items: [{ name: 'Açaí, pão, coração, maçã e café', quantity: 1, price: 12, subtotal: 12 }],
       total: 12,
       createdAt: '2026-05-22T20:13:00.000Z',
-    }, 80);
+    }, 80, {}, 'cp850');
     expect(Array.from(bytes.slice(2, 7))).toEqual([0x1c, 0x2e, 0x1b, 0x74, 2]);
     expect(Array.from(bytes)).toContain(0x87); // ç
     expect(Array.from(bytes)).toContain(0xc6); // ã
