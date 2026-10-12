@@ -124,7 +124,7 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
   // indent of the same width on wrapped lines so text stays visually aligned
   // under the first character after the "+".
   let indent = '';
-  const complementMatch = label.match(/^(\s*\+\s+)/);
+  const complementMatch = label.match(/^(\s*[+\-]\s+)/);
   if (complementMatch) {
     indent = ' '.repeat(complementMatch[1].length);
   } else {
@@ -192,7 +192,7 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
  */
 function textOnlyWrap(label: string, cols: number): Uint8Array {
   const raw = String(label ?? '');
-  const prefix = raw.match(/^(\s*(?:[+*]\s+)?(?:\d+(?:[.,]\d+)?(?:x|kg)\s+)?)/)?.[0] ?? '';
+  const prefix = raw.match(/^(\s*(?:[+*\-]\s+)?(?:\d+(?:[.,]\d+)?(?:x|kg)\s+)?)/)?.[0] ?? '';
   return text(wrapReceiptText(raw.slice(prefix.length), cols, prefix, Math.min(prefix.length, Math.floor(cols / 3))).join('\n') + '\n');
 }
 

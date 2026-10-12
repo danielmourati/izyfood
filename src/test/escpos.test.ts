@@ -317,7 +317,7 @@ describe('ESC/POS bill receipt', () => {
       createdAt: '2026-05-22T20:13:00.000Z',
     }, 58));
     const lines = receipt.split('\n');
-    const firstCompIdx = lines.findIndex(l => /^\s*\+ 1x Cobertura/.test(l));
+    const firstCompIdx = lines.findIndex(l => /^\s*- Cobertura/.test(l));
     expect(firstCompIdx).toBeGreaterThan(-1);
     // Ao menos uma linha subsequente do mesmo adicional (quebrada) deve começar com a indentação alinhada ao caractere após o "+"
     // Prefixo do adicional é "  + " (4 chars) → linhas de continuação começam com 4 espaços.
@@ -616,7 +616,7 @@ describe('kitchen order notes rendering', () => {
 
     expect(receipt).toContain('1X PRODUTO COM\n   NOME GRANDE');
     expect(receipt).toContain('ADICIONAL');
-    expect(receipt).toContain(' + 1X ADICIONAL\n     MUITO');
+    expect(receipt).toContain(' - ADICIONAL\n   MUITO');
   });
 
   it('buildOrderReceipt: legacy items with only pipe-joined notes still print all lines', () => {
