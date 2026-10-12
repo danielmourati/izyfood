@@ -20,7 +20,7 @@ describe('flavor and additional receipts', () => {
   it.each([55, 58, 80])('keeps groups bold and quantities correct at %s mm', width => {
     for (const doubleFontOrders of [false, true]) {
       for (const bytes of [buildOrderReceipt(order, width, { doubleFontOrders }, 'utf8'), buildBillReceipt(order, width, undefined, 'utf8')]) {
-        const plain = receiptPlainText(bytes);
+        const plain = receiptPlainText(bytes, width <= 58 ? 32 : 40);
         expect(plain).toContain('Sabores:');
         expect(plain).toContain('Adicionais:');
         expect(plain).toContain('- Carne');
