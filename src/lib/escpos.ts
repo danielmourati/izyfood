@@ -5,7 +5,7 @@
 
 import { wrapReceiptText } from '@/lib/receipt-layout';
 import { supabase } from '@/integrations/supabase/client';
-import { getOrderAttendantName, getOrderItemAdditionalLines, getOrderItemNoteLines } from '@/lib/utils';
+import { getOrderAttendantName, getOrderItemCustomizationGroups, formatCustomizationLine, getOrderItemNoteLines } from '@/lib/utils';
 import {
   CHAR_ENCODINGS,
   DEFAULT_CHAR_ENCODING,
@@ -548,12 +548,10 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
       textOnlyWrap(`${qty} ${item.name.toUpperCase()}`, itemCols),
       CMD_BOLD_OFF,
     );
-    const additionalItems = getOrderItemAdditionalLines(item);
-    if (additionalItems.length > 0) {
-      const additionalTitle = additionalItems.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
-      parts.push(textOnlyWrap(` ${additionalTitle}`, itemCols));
-      for (const additional of additionalItems) {
-        parts.push(textOnlyWrap(` + ${additional.quantity}x ${additional.name}`, itemCols));
+    for (const group of getOrderItemCustomizationGroups(item)) {
+      parts.push(CMD_BOLD_ON, textOnlyWrap(` ${group.title}`, itemCols), CMD_BOLD_OFF);
+      for (const additional of group.items) {
+        parts.push(textOnlyWrap(` - ${formatCustomizationLine(additional)}`, itemCols));
       }
     }
     if (itemIndex < order.items.length - 1) {
@@ -653,14 +651,11 @@ function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSetti
   for (const item of bill.items) {
     const qty = item.weight ? `${item.weight.toFixed(3)}kg` : `${item.quantity}x`;
     parts.push(CMD_BOLD_ON, textOnlyWrap(`${qty} ${item.name}`, cols), CMD_BOLD_OFF);
-    const additionalItems = getOrderItemAdditionalLines(item);
-    if (additionalItems.length > 0) {
-      const additionalTitle = additionalItems.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
-      parts.push(textOnlyWrap(`  ${additionalTitle}`, cols));
-      for (const additional of additionalItems) {
-        const additionalQty = `${additional.quantity}x`;
+    for (const group of getOrderItemCustomizationGroups(item)) {
+      parts.push(CMD_BOLD_ON, textOnlyWrap(`  ${group.title}`, cols), CMD_BOLD_OFF);
+      for (const additional of group.items) {
         const additionalValue = additional.price * additional.quantity * (item.weight ? 1 : item.quantity);
-        const label = `  + ${additionalQty} ${additional.name}`;
+        const label = `  - ${formatCustomizationLine(additional)}`;
         parts.push(additionalValue > 0 ? rowWrap(label, fmtBRL(additionalValue), cols) : textOnlyWrap(label, cols));
       }
     }
