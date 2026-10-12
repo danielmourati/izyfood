@@ -80,6 +80,7 @@ export interface OrderItemAdditionalLine {
   name: string;
   quantity: number;
   price: number;
+  classification?: 'flavor' | 'additional';
 }
 
 /** Merge legacy observations and current additional items into one display/print list. */
@@ -87,7 +88,7 @@ export function getOrderItemAdditionalLines(item: {
   notes?: string;
   selectedNotes?: string[];
   otherNotes?: string;
-  selectedComplements?: { name: string; price: number; quantity: number }[];
+  selectedComplements?: OrderItemAdditionalLine[];
 }): OrderItemAdditionalLine[] {
   const merged = new Map<string, OrderItemAdditionalLine>();
 
@@ -104,10 +105,23 @@ export function getOrderItemAdditionalLines(item: {
       name,
       quantity: additional.quantity || 1,
       price: additional.price || 0,
+      classification: additional.classification,
     });
   }
 
   return [...merged.values()];
+}
+
+export function getOrderItemCustomizationGroups(item: Parameters<typeof getOrderItemAdditionalLines>[0]) {
+  const lines = getOrderItemAdditionalLines(item);
+  return [
+    { title: 'Sabores:', items: lines.filter(line => line.classification === 'flavor') },
+    { title: 'Adicionais:', items: lines.filter(line => line.classification !== 'flavor') },
+  ].filter(group => group.items.length > 0);
+}
+
+export function formatCustomizationLine(item: OrderItemAdditionalLine): string {
+  return `${item.quantity > 1 ? `${item.quantity}x ` : ''}${item.name}`;
 }
 
 /** Format a numeric value for controlled BRL currency inputs. */

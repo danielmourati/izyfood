@@ -1,5 +1,8 @@
 # Roadmap
 
+- [x] Classificar sabores no cadastro e separar Sabores/Adicionais nas telas e cupons; testes de quantidades e reabertura aprovados.
+- [ ] Conferir cadastro e pedido com login real e impressão física — sessão automática indisponível; depende de login na prévia e teste no papel.
+
 - [x] Corrigir formato QZ 2.x para command/hex, ampliar calibração com amostras isoladas, permitir índice validado por impressora e amostra da configuração salva; 79 testes aprovados.
 - [ ] Confirmar acentos na impressora física e escolher calibração definitiva — aguarda foto do novo teste e marca/modelo real; tela autenticada não verificada por ausência de sessão disponível.
 

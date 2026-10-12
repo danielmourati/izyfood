@@ -12,6 +12,8 @@ vi.mock('@/contexts/StoreContext', () => ({
       { id: '5', name: 'Todos os adicionais', type: 'complement', price: 0, categoryIds: ['drinks'], active: true },
       { id: '3', name: 'Sem cebola', type: 'note', price: 0, categoryIds: ['meals'], active: true },
       { id: '4', name: 'Inativo', type: 'note', price: 0, categoryIds: ['drinks'], active: false },
+      { id: '6', name: 'Carne', type: 'complement', classification: 'flavor', price: 0, categoryIds: ['drinks'], active: true },
+      { id: '7', name: 'Queijo', type: 'complement', classification: 'flavor', price: 0, categoryIds: ['drinks'], active: true },
     ],
   }),
 }));
@@ -29,6 +31,24 @@ const product: Product = {
 };
 
 describe('ConsumerItemCustomizeModal', () => {
+  it('selects multiple flavors separately and keeps their classification after reopening', () => {
+    const onConfirm = vi.fn();
+    const props = { open: true, onClose: vi.fn(), product, onConfirm };
+    const { rerender } = render(<ConsumerItemCustomizeModal {...props} />);
+    expect(screen.getByText('Sabores')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Carne' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Queijo' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Todos os adicionais' }));
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
+    const payload = onConfirm.mock.calls[0][0];
+    expect(payload.selectedComplements.filter((c: { classification?: string }) => c.classification === 'flavor')).toEqual([
+      { name: 'Carne', price: 0, quantity: 1, classification: 'flavor' },
+      { name: 'Queijo', price: 0, quantity: 1, classification: 'flavor' },
+    ]);
+    rerender(<ConsumerItemCustomizeModal {...props} itemToEdit={{ id: 'test', productId: product.id, name: product.name, price: 6, subtotal: 6, ...JSON.parse(JSON.stringify(payload)) }} />);
+    expect(screen.getByRole('radio', { name: 'Carne' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Queijo' })).toHaveAttribute('aria-checked', 'true');
+  });
   it('shows only active options linked to the selected product category', () => {
     const onConfirm = vi.fn();
 

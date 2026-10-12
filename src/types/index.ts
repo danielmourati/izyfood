@@ -40,6 +40,14 @@ export interface ProductNoteOption {
   price: number;
   categoryIds: string[];
   active: boolean;
+  classification?: 'flavor' | 'additional';
+}
+
+export interface SelectedComplement {
+  name: string;
+  price: number;
+  quantity: number;
+  classification?: 'flavor' | 'additional';
 }
 
 export interface OrderItem {
@@ -55,7 +63,7 @@ export interface OrderItem {
   notes?: string;
   selectedNotes?: string[];
   otherNotes?: string;
-  selectedComplements?: { name: string; price: number; quantity: number }[];
+  selectedComplements?: SelectedComplement[];
   printed?: boolean;
 }
 

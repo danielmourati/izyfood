@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Minus, Plus, Check, ChevronLeft, X } from 'lucide-react';
-import { Product, OrderItem } from '@/types';
+import { Product, OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt, sortAllAdditionalsFirst } from '@/lib/utils';
 
@@ -16,7 +16,7 @@ interface ConsumerItemCustomizeModalProps {
     quantity: number;
     selectedNotes: string[];
     otherNotes: string;
-    selectedComplements: { name: string; price: number; quantity: number }[];
+    selectedComplements: SelectedComplement[];
   }) => void;
 }
 
@@ -31,7 +31,7 @@ export function ConsumerItemCustomizeModal({
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedObs, setSelectedObs] = useState<string[]>([]);
   const [otherNotes, setOtherNotes] = useState<string>('');
-  const [complements, setComplements] = useState<{ name: string; price: number; quantity: number }[]>([]);
+  const [complements, setComplements] = useState<SelectedComplement[]>([]);
 
   const categoryId = product?.categoryId;
 
@@ -71,7 +71,7 @@ export function ConsumerItemCustomizeModal({
     );
   };
 
-  const updateCompQty = (comp: { name: string; price: number }, delta: number) => {
+  const updateCompQty = (comp: ProductNoteOption, delta: number) => {
     setComplements(prev => {
       const existing = prev.find(c => c.name === comp.name);
       if (existing) {
@@ -80,7 +80,7 @@ export function ConsumerItemCustomizeModal({
         return prev.map(c => c.name === comp.name ? { ...c, quantity: newQty } : c);
       } else {
         if (delta <= 0) return prev;
-        return [...prev, { name: comp.name, price: comp.price, quantity: delta }];
+        return [...prev, { name: comp.name, price: comp.price, quantity: delta, ...(comp.classification ? { classification: comp.classification } : {}) }];
       }
     });
   };
@@ -90,17 +90,18 @@ export function ConsumerItemCustomizeModal({
   };
 
   const freeOptions = sortAllAdditionalsFirst([
-    ...availableComplements.filter(c => !(c.price > 0)),
+    ...availableComplements.filter(c => !(c.price > 0) && c.classification !== 'flavor'),
     ...availableNotes.filter(n => !availableComplements.some(c => c.name === n.name)),
   ]);
-  const paidOptions = availableComplements.filter(c => c.price > 0);
+  const paidOptions = availableComplements.filter(c => c.price > 0 && c.classification !== 'flavor');
+  const flavorOptions = availableComplements.filter(c => c.classification === 'flavor');
   const isFreeSelected = (opt: { name: string; type: string }) =>
     opt.type === 'note' ? selectedObs.includes(opt.name) : getCompQty(opt.name) > 0;
-  const toggleFree = (opt: { name: string; type: string; price: number }) => {
+  const toggleFree = (opt: ProductNoteOption) => {
     if (opt.type === 'note') { toggleObs(opt.name); return; }
     setComplements(prev => prev.some(c => c.name === opt.name)
       ? prev.filter(c => c.name !== opt.name)
-      : [...prev, { name: opt.name, price: 0, quantity: 1 }]);
+       : [...prev, { name: opt.name, price: 0, quantity: 1, ...(opt.classification ? { classification: opt.classification } : {}) }]);
   };
   const freeSelectedCount = freeOptions.filter(isFreeSelected).length;
   const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name) > 0).length;
@@ -178,7 +179,33 @@ export function ConsumerItemCustomizeModal({
         </div>
 
         <div className="flex-1 overflow-y-auto bg-background p-3 space-y-3">
-          <Accordion type="multiple" defaultValue={['free', 'paid']} className="space-y-2">
+          <Accordion type="multiple" defaultValue={['flavors', 'free', 'paid']} className="space-y-2">
+            {flavorOptions.length > 0 && (
+              <AccordionItem value="flavors" className="border border-border rounded bg-card px-3">
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores</AccordionTrigger>
+                <AccordionContent className="space-y-1 pb-3">
+                  {flavorOptions.map(opt => {
+                    const qty = getCompQty(opt.name);
+                    if (opt.price > 0) return (
+                      <div key={opt.id} className="flex items-center justify-between gap-2 py-2 text-xs">
+                        <span className="min-w-0 break-words">{opt.name} <span className="text-primary">R$ {fmt(opt.price)}</span></span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button variant="ghost" size="icon" aria-label={`Diminuir ${opt.name}`} disabled={qty === 0} onClick={() => updateCompQty(opt, -1)}><Minus className="h-3 w-3" /></Button>
+                          <span>{qty}</span>
+                          <Button variant="ghost" size="icon" aria-label={`Aumentar ${opt.name}`} onClick={() => updateCompQty(opt, 1)}><Plus className="h-3 w-3" /></Button>
+                        </div>
+                      </div>
+                    );
+                    return (
+                      <Button key={opt.id} variant="outline" role="radio" aria-checked={qty > 0} onClick={() => toggleFree(opt)} className="w-full justify-start gap-3 whitespace-normal text-left text-xs">
+                        <span className={`h-4 w-4 shrink-0 rounded-full border-2 ${qty > 0 ? 'border-primary bg-primary' : 'border-muted-foreground'}`} />
+                        {opt.name}
+                      </Button>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            )}
             {freeOptions.length > 0 && (
               <AccordionItem value="free" className="border border-border rounded bg-card px-3">
                 <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
@@ -233,7 +260,7 @@ export function ConsumerItemCustomizeModal({
               </AccordionItem>
             )}
           </Accordion>
-          {freeOptions.length === 0 && paidOptions.length === 0 && (
+          {freeOptions.length === 0 && paidOptions.length === 0 && flavorOptions.length === 0 && (
             <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhum adicional disponível</p>
           )}
           <Input

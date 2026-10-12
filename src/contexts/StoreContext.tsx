@@ -64,7 +64,7 @@ function dbToProduct(r: any): Product {
   return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false, controlStock: r.control_stock ?? true, searchCode: r.search_code || undefined, costPrice: r.cost_price != null ? Number(r.cost_price) : undefined, minStock: Number(r.min_stock ?? 0), serviceFeeExempt: r.service_fee_exempt ?? false, printSector: r.print_sector || undefined };
 }
 function dbToNoteOption(r: any): ProductNoteOption {
-  return { id: r.id, name: r.name, type: r.type, price: Number(r.price), categoryIds: r.category_ids || [], active: r.active ?? true };
+  return { id: r.id, name: r.name, type: r.type, price: Number(r.price), categoryIds: r.category_ids || [], active: r.active ?? true, classification: r.classification || 'additional' };
 }
 function dbToCategory(r: any): ProductCategory {
   return { id: r.id, name: r.name, printSector: r.print_sector || undefined };
@@ -1363,7 +1363,7 @@ async function syncNoteOptions(prev: ProductNoteOption[], next: ProductNoteOptio
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && JSON.stringify(p) !== JSON.stringify(n); });
 
-  for (const o of added) { markPending(o.id); await supabase.from('product_note_options').insert({ id: o.id, name: o.name, type: o.type, price: o.price, category_ids: o.categoryIds, active: o.active }); }
-  for (const o of updated) { markPending(o.id); await supabase.from('product_note_options').update({ name: o.name, type: o.type, price: o.price, category_ids: o.categoryIds, active: o.active }).eq('id', o.id); }
+  for (const o of added) { markPending(o.id); await supabase.from('product_note_options').insert({ id: o.id, name: o.name, type: o.type, price: o.price, category_ids: o.categoryIds, active: o.active, classification: o.classification || 'additional' }); }
+  for (const o of updated) { markPending(o.id); await supabase.from('product_note_options').update({ name: o.name, type: o.type, price: o.price, category_ids: o.categoryIds, active: o.active, classification: o.classification || 'additional' }).eq('id', o.id); }
   for (const o of removed) { markPending(o.id); await supabase.from('product_note_options').delete().eq('id', o.id); }
 }

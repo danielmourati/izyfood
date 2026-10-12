@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, Search, Tag, Building2, PackageOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
@@ -38,6 +39,7 @@ const emptyNoteOptionForm = {
   price: '',
   categoryIds: [] as string[],
   active: true,
+  classification: 'additional' as 'flavor' | 'additional',
 };
 
 const emptyCategoryForm = { name: '', printSector: 'cozinha' };
@@ -264,6 +266,7 @@ const Produtos = () => {
       price: formatBRLInput(opt.price),
       categoryIds: opt.categoryIds,
       active: opt.active,
+      classification: opt.classification || 'additional',
     });
     setOptFormOpen(true);
   };
@@ -289,6 +292,7 @@ const Produtos = () => {
       price: parseBRLInput(optForm.price),
       categoryIds: optForm.categoryIds,
       active: optForm.active,
+      classification: optForm.type === 'complement' ? optForm.classification : 'additional',
     };
     if (editingOptId) {
       setNoteOptions(prev => prev.map(o => o.id === editingOptId ? opt : o));
@@ -624,7 +628,7 @@ const Produtos = () => {
                 <div key={opt.id} className="flex items-center justify-between p-3 border rounded-lg bg-card">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="default">Adicional</Badge>
+                      <Badge variant="default">{opt.classification === 'flavor' ? 'Sabor' : 'Adicional'}</Badge>
                       <span className="font-bold">{opt.name}</span>
                       {opt.price > 0 && <span className="text-sm text-primary font-bold">R$ {fmt(opt.price)}</span>}
                     </div>
@@ -675,6 +679,15 @@ const Produtos = () => {
             <Label>Nome *</Label>
             <Input value={optForm.name} onChange={e => setOptForm(f => ({ ...f, name: e.target.value }))} placeholder={optForm.type === 'note' ? 'Ex: Sem cebola' : 'Ex: Bacon Extra'} />
           </div>
+          {optForm.type === 'complement' && (
+            <div>
+              <Label>Classificação</Label>
+              <Select value={optForm.classification} onValueChange={(value: 'flavor' | 'additional') => setOptForm(f => ({ ...f, classification: value }))}>
+                <SelectTrigger aria-label="Classificação"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="additional">Adicional</SelectItem><SelectItem value="flavor">Sabor</SelectItem></SelectContent>
+              </Select>
+            </div>
+          )}
           {optForm.type === 'complement' && (
             <div>
               <Label>Preço Adicional (R$)</Label>
