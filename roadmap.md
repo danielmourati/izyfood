@@ -1,6 +1,7 @@
 # Roadmap
 
-- [ ] Ampliar calibração de acentos, permitir índice por impressora e validar amostra salva; confirmação física aguarda foto e modelo real.
+- [x] Corrigir formato QZ 2.x para command/hex, ampliar calibração com amostras isoladas, permitir índice validado por impressora e amostra da configuração salva; 79 testes aprovados.
+- [ ] Confirmar acentos na impressora física e escolher calibração definitiva — aguarda foto do novo teste e marca/modelo real; tela autenticada não verificada por ausência de sessão disponível.
 
 - [x] Destacar o tipo e o número do pedido na comanda.
 - [x] Adicionar fonte dupla por impressora.
