@@ -832,9 +832,9 @@ export function buildEncodingTestReceipt(paperWidth = 80, expandedEncoding?: str
   // If only B prints correctly, the printer was in Chinese/Kanji mode.
   const cp850 = getCharEncoding('cp850');
   const abSample = 'Ação Maçã Café Ç Ã É';
-  parts.push(CMD_INIT, normalTextMode(), CMD_ALIGN_LEFT, CMD_BOLD_ON, ascii('A) CP850 sem desligar modo chines\n'), CMD_BOLD_OFF,
+  parts.push(CMD_INIT, normalTextMode(), CMD_ALIGN_LEFT, CMD_BOLD_ON, ascii('A) CP850 modo chines ligado\n'), CMD_BOLD_OFF,
     cp850.command, encodeText(wrapReceiptText(abSample, cols).join('\n') + '\n', cp850), ascii('\n'));
-  parts.push(CMD_INIT, normalTextMode(), CMD_ALIGN_LEFT, CMD_BOLD_ON, ascii('B) CP850 desligando modo chines\n'), CMD_BOLD_OFF,
+  parts.push(CMD_INIT, normalTextMode(), CMD_ALIGN_LEFT, CMD_BOLD_ON, ascii('B) CP850 modo chines desligado\n'), CMD_BOLD_OFF,
     encodingSetupCommand(cp850), encodeText(wrapReceiptText(abSample, cols).join('\n') + '\n', cp850), ascii('\n'),
     ascii('-'.repeat(cols) + '\n'));
   // Factory-table options first, right after ESC @ resets the table.

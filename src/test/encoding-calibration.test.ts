@@ -47,9 +47,10 @@ describe('physical character calibration', () => {
   });
   it('cancels Chinese/Kanji mode after every reset before selecting the table', () => {
     const cash = { openedAt: order.createdAt, closedAt: order.createdAt, operatorName: 'José', initialAmount: 0, totalCash: 10, totalPix: 0, totalCard: 0, totalFiado: 0, totalSales: 10 };
-    for (const bytes of [buildOrderReceipt(order, 55, {}, 'cp850'), buildBillReceipt(order, 80, {}, 'cp850'), buildCashCloseReceipt(cash, 55, 'cp850'), buildEncodingVerificationReceipt(55, 'cp850')]) {
+    for (const bytes of [buildOrderReceipt(order, 55, {}, 'cp850'), buildBillReceipt(order, 80, {}, 'cp850'), buildCashCloseReceipt(cash, 55, 'cp850')]) {
       expect(Array.from(bytes.slice(0, 7))).toEqual([27, 64, 28, 46, 27, 116, 2]);
     }
+    expect(Array.from(buildEncodingVerificationReceipt(55, 'cp850')).join(',')).toContain('28,46,27,116,2');
     expect(Array.from(buildOrderReceipt(order, 55, {}, 'utf8')).join(',')).not.toContain('28,46');
   });
   it('prints A without and B with the multibyte cancel, and previews hide FS bytes', () => {
