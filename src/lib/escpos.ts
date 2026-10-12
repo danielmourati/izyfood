@@ -192,7 +192,7 @@ function rowWrap(label: string, value: string, cols: number): Uint8Array {
 function textOnlyWrap(label: string, cols: number): Uint8Array {
   const raw = String(label ?? '');
   const prefix = raw.match(/^(\s*(?:[+*]\s+)?(?:\d+(?:[.,]\d+)?(?:x|kg)\s+)?)/)?.[0] ?? '';
-  return text(wrapReceiptText(raw.slice(prefix.length), cols, prefix, prefix.length).join('\n') + '\n');
+  return text(wrapReceiptText(raw.slice(prefix.length), cols, prefix, Math.min(prefix.length, Math.floor(cols / 3))).join('\n') + '\n');
 }
 
 /** Format text for hardware centered printing (ESC a 1) without adding manual leading spaces */
@@ -550,9 +550,9 @@ function buildOrderReceiptImpl(order: OrderData, paperWidth: number, ps: PrintSe
     const additionalItems = getOrderItemAdditionalLines(item);
     if (additionalItems.length > 0) {
       const additionalTitle = additionalItems.length === 1 ? 'ADICIONAL:' : 'ADICIONAIS:';
-      parts.push(textOnlyWrap(`   ${additionalTitle}`, itemCols));
+      parts.push(textOnlyWrap(` ${additionalTitle}`, itemCols));
       for (const additional of additionalItems) {
-        parts.push(textOnlyWrap(`   + ${additional.quantity}x ${additional.name}`, itemCols));
+        parts.push(textOnlyWrap(` + ${additional.quantity}x ${additional.name}`, itemCols));
       }
     }
     if (itemIndex < order.items.length - 1) {
@@ -663,7 +663,11 @@ function buildBillReceiptImpl(bill: BillData, paperWidth: number, ps: PrintSetti
       }
     }
     const itemTotal = item.subtotal ?? item.price * (item.weight ?? item.quantity);
-    parts.push(CMD_BOLD_ON, textOnlyWrap(`Unit: ${fmtBRL(item.price)}  Total: ${fmtBRL(itemTotal)}`, cols), CMD_BOLD_OFF, lineOf('-', cols));
+    const values = `Unit: ${fmtBRL(item.price)}  Total: ${fmtBRL(itemTotal)}`;
+    parts.push(CMD_BOLD_ON);
+    if (values.length <= cols) parts.push(text(values + '\n'));
+    else parts.push(row('Unit:', fmtBRL(item.price), cols), row('Total:', fmtBRL(itemTotal), cols));
+    parts.push(CMD_BOLD_OFF, lineOf('-', cols));
   }
   if (bill.items.length === 0) parts.push(lineOf('-', cols));
 
