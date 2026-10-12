@@ -1,6 +1,6 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Pencil, Trash2 as TrashIcon2 } from 'lucide-react';
-import { CHAR_ENCODINGS, DEFAULT_CHAR_ENCODING } from '@/lib/escpos-encoding';
+import { CHAR_ENCODINGS, DEFAULT_CHAR_ENCODING, getCharEncoding, isValidCharEncoding } from '@/lib/escpos-encoding';
 import { isMobileDevice } from '@/lib/printer';
 import { receiptColumnsForWidth } from '@/lib/escpos';
 import React, { useEffect, useState } from 'react';
@@ -244,6 +244,10 @@ export function ImpressoraTab() {
   // CRUD: Save / Update printer location
   const handleSaveConfig = async () => {
     if (!user?.tenantId) return;
+    if (!isValidCharEncoding(form.char_encoding)) {
+      setEncodingTestMsg({ ok: false, text: 'Informe um índice inteiro de 0 a 255.' });
+      return;
+    }
     setSaving(true);
     try {
       const sectorDef = allSectors.find(s => s.key === selectedSector);
@@ -280,10 +284,10 @@ export function ImpressoraTab() {
         if (error) throw error;
       }
 
-      toast.success(`Configuração de ${nameToSave} salva com sucesso!`);
+      setEncodingTestMsg({ ok: true, text: `Configuração de ${nameToSave} salva. Confirme os acentos no papel.` });
       await fetchPrinters();
     } catch (e: any) {
-      toast.error('Erro ao salvar impressora: ' + (e.message || 'Falha na requisição'));
+      setEncodingTestMsg({ ok: false, text: 'Erro ao salvar impressora: ' + (e.message || 'Falha na requisição') });
     } finally {
       setSaving(false);
     }
@@ -326,13 +330,13 @@ export function ImpressoraTab() {
 
   const [encodingTesting, setEncodingTesting] = useState(false);
   const [encodingTestMsg, setEncodingTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const handleRunEncodingTest = async () => {
+  const handleRunEncodingTest = async (mode: 'standard' | 'expanded' | 'verify' = 'standard') => {
     setEncodingTesting(true);
     setEncodingTestMsg(null);
     try {
-      const res = await printEncodingTest(selectedSector);
+      const res = await printEncodingTest(selectedSector, mode === 'expanded' ? form.char_encoding : undefined, mode === 'verify');
       setEncodingTestMsg(res.ok
-        ? { ok: true, text: 'Folha enviada. Veja qual número saiu com os acentos corretos, selecione-o acima e clique em Salvar.' }
+        ? { ok: true, text: mode === 'verify' ? 'Amostra enviada com a configuração salva. Confirme os acentos no papel.' : mode === 'expanded' ? 'Teste ampliado enviado. Confira a tabela e o índice da amostra correta no papel antes de salvar.' : 'Folha enviada. Veja qual número saiu com os acentos corretos, selecione-o acima e clique em Salvar.' }
         : { ok: false, text: 'Nenhuma impressora térmica conectada neste aparelho (QZ Tray/USB ou Bluetooth).' });
     } catch (e: any) {
       setEncodingTestMsg({ ok: false, text: 'Falha ao imprimir o teste: ' + (e?.message || 'verifique a impressora') });
@@ -607,8 +611,8 @@ export function ImpressoraTab() {
                       <div className="space-y-1.5 rounded-xl border border-border p-3">
                         <Label className="text-xs font-medium">Acentuação</Label>
                         <Select
-                          value={form.char_encoding}
-                          onValueChange={(val) => setForm(f => ({ ...f, char_encoding: val }))}
+                          value={form.char_encoding.includes('@') ? 'custom' : form.char_encoding}
+                          onValueChange={(val) => setForm(f => ({ ...f, char_encoding: val === 'custom' ? 'cp850@2' : val }))}
                         >
                           <SelectTrigger className="rounded-xl bg-background border-border">
                             <SelectValue />
@@ -617,8 +621,28 @@ export function ImpressoraTab() {
                             {CHAR_ENCODINGS.map((enc, i) => (
                               <SelectItem key={enc.id} value={enc.id}>{i + 1}) {enc.label}</SelectItem>
                             ))}
+                            <SelectItem value="custom">Tabela e índice personalizados</SelectItem>
                           </SelectContent>
                         </Select>
+                         {form.char_encoding.includes('@') && (
+                           <div className="grid grid-cols-2 gap-3">
+                             <div className="space-y-1">
+                               <Label>Tabela</Label>
+                               <Select value={form.char_encoding.split('@')[0]} onValueChange={table => setForm(f => ({ ...f, char_encoding: `${table}@${f.char_encoding.split('@')[1]}` }))}>
+                                 <SelectTrigger><SelectValue /></SelectTrigger>
+                                 <SelectContent>
+                                   <SelectItem value="cp850">CP850</SelectItem>
+                                   <SelectItem value="cp860">CP860</SelectItem>
+                                   <SelectItem value="cp1252">Windows-1252</SelectItem>
+                                 </SelectContent>
+                               </Select>
+                             </div>
+                             <div className="space-y-1">
+                               <Label htmlFor="encoding-index">Índice ESC t</Label>
+                               <Input id="encoding-index" type="number" min={0} max={255} step={1} value={form.char_encoding.split('@')[1]} onChange={event => setForm(f => ({ ...f, char_encoding: `${f.char_encoding.split('@')[0]}@${event.target.value}` }))} />
+                             </div>
+                           </div>
+                         )}
                         <p className="text-[11px] text-muted-foreground">
                           Imprima o teste, veja qual linha numerada saiu com "ç", "ã" e "é" corretos e escolha o mesmo número aqui.
                         </p>
@@ -627,11 +651,19 @@ export function ImpressoraTab() {
                           variant="outline"
                           size="sm"
                           className="rounded-full text-xs"
-                          onClick={handleRunEncodingTest}
+                           onClick={() => handleRunEncodingTest()}
                           disabled={encodingTesting}
                         >
                           {encodingTesting ? 'Imprimindo...' : 'Imprimir teste de acentuação'}
                         </Button>
+                         <div className="flex flex-wrap gap-2">
+                           <Button type="button" variant="outline" size="sm" disabled={encodingTesting || !isValidCharEncoding(form.char_encoding)} onClick={() => handleRunEncodingTest('expanded')}>
+                             Teste ampliado {getCharEncoding(form.char_encoding).table === 'cp860' ? 'CP860' : getCharEncoding(form.char_encoding).table === 'cp1252' ? 'Windows-1252' : 'CP850'}
+                           </Button>
+                           <Button type="button" variant="outline" size="sm" disabled={encodingTesting || saving || !currentPrinter || currentPrinter.char_encoding !== form.char_encoding} onClick={() => handleRunEncodingTest('verify')}>
+                             Confirmar configuração salva
+                           </Button>
+                         </div>
                         {encodingTestMsg && (
                           <p className={`text-[11px] ${encodingTestMsg.ok ? 'text-primary' : 'text-destructive'}`}>
                             {encodingTestMsg.text}

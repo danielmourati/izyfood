@@ -13,3 +13,5 @@
 - Orders persist the original opener's ID and name, and all kitchen tickets and bills resolve the attendant from that immutable attribution with legacy item-author fallback.
 - Printer activation is stored per attendant and browser device, so shared devices never transfer one attendant's local printing choice to another.
 - QZ Tray readiness requires a completed handshake (not `qz.websocket.isActive()`, which is true while CONNECTING) and connects through one shared in-flight promise, so concurrent print jobs never call the socket before it can send.
+- Store custom character calibration as validated table@index IDs in printer_configs.char_encoding, so direct and queued receipt builders share it without parallel configuration; native UTF-8 must never assume ESC t 8 enables Unicode.
+- Build QZ payloads through qzRawData with format=command and flavor=hex, matching QZ 2.x binary semantics instead of the obsolete format=hex shape.
