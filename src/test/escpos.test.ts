@@ -422,7 +422,7 @@ describe('ESC/POS bill receipt', () => {
     expect(Array.from(bytes.slice(2, 7))).toEqual([0x1c, 0x2e, 0x1b, 0x74, 2]);
     expect(Array.from(bytes)).toContain(0x87); // ç
     expect(Array.from(bytes)).toContain(0xc6); // ã
-    const decoded = decodeReceipt(bytes);
+    const decoded = decodeText(bytes, 'cp850');
     expect(decoded).toContain('Açaí, pão, coração, maçã');
   });
 
