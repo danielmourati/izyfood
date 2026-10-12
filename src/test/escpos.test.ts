@@ -419,7 +419,7 @@ describe('ESC/POS bill receipt', () => {
       total: 12,
       createdAt: '2026-05-22T20:13:00.000Z',
     }, 80);
-    expect(Array.from(bytes.slice(2, 5))).toEqual([0x1b, 0x74, 2]);
+    expect(Array.from(bytes.slice(2, 7))).toEqual([0x1c, 0x2e, 0x1b, 0x74, 2]);
     expect(Array.from(bytes)).toContain(0x87); // ç
     expect(Array.from(bytes)).toContain(0xc6); // ã
     const decoded = decodeReceipt(bytes);
