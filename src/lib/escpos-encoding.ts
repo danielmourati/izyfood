@@ -108,15 +108,15 @@ export interface CharEncoding {
   command: Uint8Array;
 }
 
-export const DEFAULT_CHAR_ENCODING = 'cp850';
+export const DEFAULT_CHAR_ENCODING = 'utf8';
 
 export const CHAR_ENCODINGS: CharEncoding[] = [
-  { id: 'cp850', label: 'CP850 (recomendado)', testLabel: 'CP850 (ESC t 2)', table: 'cp850', command: new Uint8Array([ESC, 0x74, 2]) },
+  { id: 'cp850', label: 'CP850', testLabel: 'CP850 (ESC t 2)', table: 'cp850', command: new Uint8Array([ESC, 0x74, 2]) },
   { id: 'cp860_epson', label: 'CP860 Português (Epson / Elgin)', testLabel: 'CP860 Epson/Elgin (ESC t 3)', table: 'cp860', command: new Uint8Array([ESC, 0x74, 3]) },
   { id: 'cp860_bematech', label: 'CP860 Português (Bematech)', testLabel: 'CP860 Bematech (ESC t 4)', table: 'cp860', command: new Uint8Array([ESC, 0x74, 4]) },
   { id: 'cp1252', label: 'Windows-1252', testLabel: 'Windows-1252 (ESC t 16)', table: 'cp1252', command: new Uint8Array([ESC, 0x74, 16]) },
   { id: 'cp850_raw', label: 'CP850 sem comando (tabela de fábrica)', testLabel: 'CP850 tabela de fabrica', table: 'cp850', command: new Uint8Array(0) },
-  { id: 'utf8', label: 'UTF-8 (exige modo UTF-8 na impressora)', testLabel: 'UTF-8 (modo nativo)', table: 'utf8', command: new Uint8Array(0) },
+  { id: 'utf8', label: 'UTF-8 (padrão)', testLabel: 'UTF-8 (modo nativo)', table: 'utf8', command: new Uint8Array(0) },
   { id: 'ascii', label: 'Sem acentos (funciona em qualquer impressora)', testLabel: 'Sem acentos', table: 'ascii', command: new Uint8Array(0) },
 ];
 
@@ -127,7 +127,7 @@ export function getCharEncoding(id?: string | null): CharEncoding {
     const index = Number(custom[2]);
     return { id: `${table}@${index}`, label: `${table.toUpperCase()} — ESC t ${index}`, testLabel: `${table.toUpperCase()} ESC t ${index}`, table, command: new Uint8Array([ESC, 0x74, index]) };
   }
-  return CHAR_ENCODINGS.find(e => e.id === id) ?? CHAR_ENCODINGS[0];
+  return CHAR_ENCODINGS.find(e => e.id === id) ?? CHAR_ENCODINGS.find(e => e.id === DEFAULT_CHAR_ENCODING)!;
 }
 
 /** `FS .` — cancels Chinese/Kanji double-byte mode on generic printers that

@@ -659,7 +659,7 @@ export function usePrinter() {
     const targetPrinter = getPrinterForSector(sector);
     const targetPaperWidth = targetPrinter?.paper_width || paperWidth;
     const bytes = verify
-      ? buildEncodingVerificationReceipt(targetPaperWidth, targetPrinter?.char_encoding || 'cp850')
+      ? buildEncodingVerificationReceipt(targetPaperWidth, targetPrinter?.char_encoding || 'utf8')
       : buildEncodingTestReceipt(targetPaperWidth, expandedEncoding);
     const html = '<pre style="font-family:monospace">TESTE DE ACENTUACAO\n\nEste teste so funciona em impressora termica conectada (USB/QZ Tray ou Bluetooth).</pre>';
     const channel = await sendToPrinter(bytes, html, 'Teste de acentuação', { force: true, targetPrinter, sector });
