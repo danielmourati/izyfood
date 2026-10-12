@@ -24,6 +24,12 @@ const cash = {
 };
 
 describe('shared Menuzin-style receipt layout', () => {
+  it.each([[55, 32], [58, 32], [80, 40]])('uses the required capacity for %imm', (width, cols) => {
+    expect(receiptColumnsForWidth(width)).toBe(cols);
+    for (const bytes of [buildOrderReceipt(order, width, {}, 'utf8'), buildBillReceipt(order, width, {}, 'utf8'), buildCashCloseReceipt(cash, width, 'utf8')]) {
+      expect(receiptLines(bytes).some(line => line.text === '-'.repeat(cols))).toBe(true);
+    }
+  });
   it.each([55, 58, 80])('bounds all coupon lines for %imm, including doubled text', width => {
     const cols = receiptColumnsForWidth(width);
     for (const doubleFontOrders of [false, true]) {
