@@ -16,3 +16,5 @@
 - [x] Listar administradores e atendentes cadastrados e permitir troca do responsável somente por admin.
 - [x] Adequar comandas compactas às colunas ativas, fonte configurada e separadores entre itens.
 - [x] Desativar por padrão e isolar por atendente/aparelho a opção de usar impressora neste dispositivo.
+- [x] Adaptar layout Menuzin aos cupons de cozinha, conta e caixa, mantendo larguras e calibração.
+- [x] Unificar prévias e navegador com a impressão térmica; 56 testes e prévias com pedido real validados.

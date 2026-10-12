@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Settings, AlertTriangle } from 'lucide-react';
 import { buildOrderHtml, buildBillHtml } from '@/hooks/use-printer';
+import { RECEIPT_HTML_STYLES } from '@/lib/receipt-renderer';
 
 interface Props {
   open: boolean;
@@ -33,10 +34,10 @@ export function PrintPreviewModal({
   const html = useMemo(() => {
     if (!order) return '';
     return kind === 'bill'
-      ? buildBillHtml(order, printSettings || {})
-      : buildOrderHtml(order, printSettings || {});
-  }, [order, printSettings, kind]);
-  const previewWidth = paperWidth === 58 ? 240 : 320;
+      ? buildBillHtml(order, printSettings || {}, paperWidth)
+      : buildOrderHtml(order, printSettings || {}, paperWidth);
+  }, [order, printSettings, kind, paperWidth]);
+  const previewWidth = paperWidth <= 58 ? 240 : 320;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -54,6 +55,7 @@ export function PrintPreviewModal({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-3 flex justify-center bg-muted/40 rounded-md">
+          <style>{RECEIPT_HTML_STYLES}</style>
           <div
             className="bg-background shadow-sm p-3 text-[11px] leading-snug"
             style={{

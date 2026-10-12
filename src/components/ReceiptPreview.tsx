@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Receipt } from 'lucide-react';
-import { buildBillPreviewText, type PreviewBill } from '@/lib/receipt-preview';
-import { getCachedPrintSettings, receiptColumnsForWidth } from '@/lib/escpos';
+import { type PreviewBill } from '@/lib/receipt-preview';
+import { buildBillReceipt, getCachedPrintSettings, receiptColumnsForWidth } from '@/lib/escpos';
+import { receiptHtml, RECEIPT_HTML_STYLES } from '@/lib/receipt-renderer';
 
 const MOCK_BILL: PreviewBill = {
   id: 'preview-0001',
@@ -42,7 +43,7 @@ export function ReceiptPreview({ defaultPaperWidth = 58 }: Props) {
   const ps = getCachedPrintSettings();
 
   const text = useMemo(
-    () => buildBillPreviewText(MOCK_BILL, paperWidth, ps),
+    () => receiptHtml(buildBillReceipt({ ...MOCK_BILL, total: 0 }, paperWidth, ps, 'utf8'), receiptColumnsForWidth(paperWidth)),
     [paperWidth, ps],
   );
 
@@ -63,7 +64,7 @@ export function ReceiptPreview({ defaultPaperWidth = 58 }: Props) {
               className="rounded-none h-8 px-3 text-xs"
               onClick={() => setPaperWidth(58)}
             >
-              58mm
+              55/58mm
             </Button>
             <Button
               type="button"
@@ -82,19 +83,12 @@ export function ReceiptPreview({ defaultPaperWidth = 58 }: Props) {
           Prévia · {paperWidth}mm ({cols} col úteis) — reflete exatamente as quebras e alinhamento da impressora.
         </p>
         <div className="w-full overflow-x-auto flex justify-center py-4 bg-muted/30 rounded-md">
-          <pre
+          <style>{RECEIPT_HTML_STYLES}</style>
+          <div
             aria-label={`Prévia do cupom em ${paperWidth}mm`}
-            className="bg-[hsl(48_50%_97%)] text-black shadow-md border-x border-dashed border-muted-foreground/30 py-4 px-3 whitespace-pre"
-            style={{
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-              fontSize: '12px',
-              lineHeight: 1.35,
-              width: `${cols}ch`,
-              minWidth: `${cols}ch`,
-            }}
-          >
-            {text}
-          </pre>
+            className="bg-background text-foreground shadow-md border-x border-dashed border-muted-foreground/30 py-4 px-3 shrink-0"
+            dangerouslySetInnerHTML={{ __html: text }}
+          />
         </div>
       </CardContent>
     </Card>

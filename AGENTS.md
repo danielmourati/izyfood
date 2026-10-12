@@ -8,6 +8,7 @@
 - Production printing carries an explicit `new` or `reprint` intent, so per-printer duplicate-copy settings never affect manual reprints.
 - Kitchen tickets identify table orders by table number and omit order IDs; headings stay enlarged while products, additions, and notes follow each printer's font-size setting and active column width.
 - Receipt generation and preview share one column-width rule: 27 columns for 58mm and 40 for 80mm, so preview wrapping matches printed output.
+- Thermal receipts are the single layout source for HTML and text previews; receipt-layout provides Menuzin-style hanging indents, while receipt-renderer interprets formatting commands using UTF-8 only for browser output to preserve calibrated physical printing.
 - Printed text is encoded with each printer's calibrated `char_encoding` (single-byte table + its `ESC t n`, from `src/lib/escpos-encoding.ts`), never with the ESC/POS profile, because table indexes differ across brands/firmwares and only the printed calibration page can confirm the right one.- Balcão orders use the Mesas order modal on the `/balcao` page and are paid or discarded in the same session (no PDV page, no lock), so the counter never stays occupied.
 - Orders persist the original opener's ID and name, and all kitchen tickets and bills resolve the attendant from that immutable attribution with legacy item-author fallback.
 - Printer activation is stored per attendant and browser device, so shared devices never transfer one attendant's local printing choice to another.
