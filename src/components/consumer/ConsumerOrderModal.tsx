@@ -640,7 +640,7 @@ export function ConsumerOrderModal({
     quantity: number;
     selectedNotes: string[];
     otherNotes: string;
-    selectedComplements: { name: string; price: number; quantity: number }[];
+    selectedComplements: NonNullable<OrderItem['selectedComplements']>;
   }) => {
     if (!selectedProduct) return;
 

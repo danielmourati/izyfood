@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { OrderItem } from '@/types';
+import { OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { sortAllAdditionalsFirst } from '@/lib/utils';
 
@@ -22,7 +22,7 @@ export function ItemNotesModal({
     const { noteOptions, products } = useStore();
     const [selectedObs, setSelectedObs] = useState<string[]>([]);
     const [otherNotes, setOtherNotes] = useState('');
-    const [complements, setComplements] = useState<{ name: string; price: number; quantity: number }[]>([]);
+    const [complements, setComplements] = useState<SelectedComplement[]>([]);
 
     const product = item ? products.find(p => p.id === item.productId) : null;
     const categoryId = product?.categoryId;
@@ -66,7 +66,7 @@ export function ItemNotesModal({
         setSelectedObs(prev => prev.includes(obs) ? prev.filter(o => o !== obs) : [...prev, obs]);
     };
 
-    const handleComplementQty = (comp: { name: string, price: number }, delta: number) => {
+    const handleComplementQty = (comp: ProductNoteOption, delta: number) => {
         setComplements(prev => {
             const existing = prev.find(c => c.name === comp.name);
             if (existing) {
@@ -74,7 +74,7 @@ export function ItemNotesModal({
                 if (newQty <= 0) return prev.filter(c => c.name !== comp.name);
                 return prev.map(c => c.name === comp.name ? { ...c, quantity: newQty } : c);
             } else if (delta > 0) {
-                return [...prev, { name: comp.name, price: comp.price, quantity: 1 }];
+                return [...prev, { name: comp.name, price: comp.price, quantity: 1, classification: comp.classification || 'additional' }];
             }
             return prev;
         });

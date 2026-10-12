@@ -3,6 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { OrderItemDetails } from '@/components/OrderItemDetails';
 
 describe('OrderItemDetails', () => {
+  it('separates flavors and additions with bold plural headings and no single quantity', () => {
+    render(<OrderItemDetails item={{ selectedComplements: [
+      { name: 'Carne', price: 0, quantity: 1, classification: 'flavor' },
+      { name: 'Queijo', price: 0, quantity: 1, classification: 'flavor' },
+      { name: 'Bacon', price: 2, quantity: 2, classification: 'additional' },
+    ] }} />);
+    expect(screen.getByText('Sabores:')).toHaveClass('font-semibold');
+    expect(screen.getByText('Adicionais:')).toHaveClass('font-semibold');
+    expect(screen.getByText('Carne')).toBeInTheDocument();
+    expect(screen.getByText('Queijo')).toBeInTheDocument();
+    expect(screen.getByText('2x Bacon')).toBeInTheDocument();
+    expect(screen.queryByText(/1x /)).not.toBeInTheDocument();
+  });
   it('shows structured observations, free text, and additional items without legacy duplicates', () => {
     render(
       <OrderItemDetails
@@ -15,8 +28,8 @@ describe('OrderItemDetails', () => {
       />,
     );
 
-    expect(screen.getByText(/1x Bem passado/)).toBeInTheDocument();
-    expect(screen.getByText(/1x Sem cebola/)).toBeInTheDocument();
+    expect(screen.getByText('Bem passado')).toBeInTheDocument();
+    expect(screen.getByText('Sem cebola')).toBeInTheDocument();
     expect(screen.getByText(/2x Arroz Integral/)).toBeInTheDocument();
     expect(screen.getAllByText(/Bem passado/)).toHaveLength(1);
     expect(screen.getByText('Adicionais:')).toBeInTheDocument();
@@ -25,8 +38,8 @@ describe('OrderItemDetails', () => {
 
   it('supports legacy pipe-separated observations', () => {
     render(<OrderItemDetails item={{ notes: 'Sem gelo | Limão à parte' }} />);
-    expect(screen.getByText(/1x Sem gelo/)).toBeInTheDocument();
-    expect(screen.getByText(/1x Limão à parte/)).toBeInTheDocument();
+    expect(screen.getByText('Sem gelo')).toBeInTheDocument();
+    expect(screen.getByText('Limão à parte')).toBeInTheDocument();
     expect(screen.getByText('Adicionais:')).toBeInTheDocument();
   });
 
@@ -43,7 +56,7 @@ describe('OrderItemDetails', () => {
     );
 
     expect(screen.getAllByText('Adicionais:')).toHaveLength(1);
-    expect(screen.getByText(/1x Arroz/)).toBeInTheDocument();
+    expect(screen.getByText('Arroz')).toBeInTheDocument();
     expect(screen.getByText(/2x Bacon/)).toBeInTheDocument();
   });
 
