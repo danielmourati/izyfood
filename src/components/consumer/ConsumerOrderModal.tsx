@@ -913,13 +913,22 @@ export function ConsumerOrderModal({
     const custPhone = customerObj?.phone || currentOrder.customerPhone || '';
     const activeCatName = categories.find(c => c.id === selectedCategory)?.name || 'Todas Categorias';
 
-    const categoryProducts = selectedCategory
+    const normalizeSearch = (s: string) =>
+      (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const mobileQ = normalizeSearch(mobileSearchQuery);
+
+    // Com busca ativa, procura em todas as categorias (nome, código e descrição)
+    const categoryProducts = selectedCategory && !mobileQ
       ? products.filter(p => p.categoryId === selectedCategory)
       : products;
 
-    const filteredCategoryProducts = categoryProducts.filter(p =>
-      p.name.toLowerCase().includes(mobileSearchQuery.toLowerCase())
-    );
+    const filteredCategoryProducts = mobileQ
+      ? categoryProducts.filter(p =>
+          normalizeSearch(p.name).includes(mobileQ) ||
+          normalizeSearch(p.searchCode || '').includes(mobileQ) ||
+          normalizeSearch(p.description || '').includes(mobileQ)
+        )
+      : categoryProducts;
 
     return (
       <>
@@ -946,7 +955,13 @@ export function ConsumerOrderModal({
                 <Input
                   placeholder="Buscar em todas categorias por código..."
                   value={mobileSearchQuery}
-                  onChange={e => setMobileSearchQuery(e.target.value)}
+                  onChange={e => {
+                    setMobileSearchQuery(e.target.value);
+                    if (e.target.value.trim()) {
+                      setSelectedCategory(null);
+                      setMobileStep('products');
+                    }
+                  }}
                   className="bg-white border-[#d8d3c8] text-xs h-9 text-[#3e2b20] placeholder:text-[#8e857b] focus-visible:ring-1 focus-visible:ring-[#0099ff]"
                 />
                 <Button size="icon" className="bg-[#f4efdf] text-[#4a3b32] hover:bg-[#eae4d2] border border-[#d8d3c8] h-9 w-9 shrink-0">
