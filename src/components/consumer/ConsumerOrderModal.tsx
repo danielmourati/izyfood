@@ -482,11 +482,12 @@ export function ConsumerOrderModal({
   );
 
   // Busca dinâmica: enquanto digita, sugere produtos do catálogo para lançar
+  const normQ = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const productSearchResults = itemSearchQuery.trim()
     ? products
         .filter(p => {
-          const q = itemSearchQuery.trim().toLowerCase();
-          return p.name.toLowerCase().includes(q) || (p.searchCode || '').toLowerCase().includes(q);
+          const q = normQ(itemSearchQuery);
+          return normQ(p.name).includes(q) || normQ(p.searchCode || '').includes(q);
         })
         .slice(0, 8)
     : [];
@@ -1037,6 +1038,7 @@ export function ConsumerOrderModal({
                 <Input
                   placeholder="Buscar em todas categorias por código..."
                   value={mobileSearchQuery}
+                  autoFocus={!!mobileQ}
                   onChange={e => setMobileSearchQuery(e.target.value)}
                   className="bg-white border-[#d8d3c8] text-xs h-9 text-[#3e2b20] placeholder:text-[#8e857b] focus-visible:ring-1 focus-visible:ring-[#0099ff]"
                 />
@@ -1047,7 +1049,7 @@ export function ConsumerOrderModal({
 
               {/* Category Title */}
               <div className="px-4 pt-3 pb-1 text-xs font-black text-[#554a42] uppercase tracking-wider">
-                {activeCatName}
+                {mobileQ ? `Resultados para "${mobileSearchQuery.trim()}" (${filteredCategoryProducts.length})` : activeCatName}
               </div>
 
               {/* Product Cards Grid */}
