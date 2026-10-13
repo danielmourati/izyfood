@@ -477,9 +477,8 @@ export function ConsumerOrderModal({
     handleEnviarOrder, handleCloseAndSaveOrDiscard
   ]);
 
-  const filteredItems = items.filter(i =>
-    i.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
-  );
+  // A busca serve para lançar produtos; a lista do pedido permanece completa.
+  const filteredItems = items;
 
   // Busca dinâmica: enquanto digita, sugere produtos do catálogo para lançar
   const normQ = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
