@@ -77,7 +77,7 @@ export default function Caixa() {
   
   // History filters
   const [historyUsers, setHistoryUsers] = useState<{id: string, name: string}[]>([]);
-  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterStartDate, setFilterStartDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [filterEndDate, setFilterEndDate] = useState('');
   const [filterUser, setFilterUser] = useState('all');
   const [isFiltering, setIsFiltering] = useState(false);
@@ -132,10 +132,10 @@ export default function Caixa() {
       .order('closed_at', { ascending: false });
 
     if (filterStartDate) {
-      query = query.gte('opened_at', new Date(filterStartDate).toISOString());
+      query = query.gte('opened_at', new Date(filterStartDate + 'T00:00:00').toISOString());
     }
     if (filterEndDate) {
-      const end = new Date(filterEndDate);
+      const end = new Date(filterEndDate + 'T00:00:00');
       end.setHours(23, 59, 59, 999);
       query = query.lte('opened_at', end.toISOString());
     }
@@ -645,10 +645,10 @@ export default function Caixa() {
                   {([['today','Hoje'],['yesterday','Ontem'],['lastweek','Sem. passada'],['lastmonth','Mês passado']] as const).map(([p, l]) => {
                     function applyHistoryQuick(preset: string) {
                       const now = new Date();
-                      if (preset === 'today') { const d = now.toISOString().slice(0,10); setFilterStartDate(d); setFilterEndDate(d); }
-                      else if (preset === 'yesterday') { const y = new Date(now); y.setDate(y.getDate()-1); const d = y.toISOString().slice(0,10); setFilterStartDate(d); setFilterEndDate(d); }
-                      else if (preset === 'lastweek') { const dow = now.getDay(); const mon = new Date(now); mon.setDate(now.getDate()-((dow+6)%7)-7); const sun = new Date(mon); sun.setDate(mon.getDate()+6); setFilterStartDate(mon.toISOString().slice(0,10)); setFilterEndDate(sun.toISOString().slice(0,10)); }
-                      else { const first = new Date(now.getFullYear(), now.getMonth()-1, 1); const last = new Date(now.getFullYear(), now.getMonth(), 0); setFilterStartDate(first.toISOString().slice(0,10)); setFilterEndDate(last.toISOString().slice(0,10)); }
+                      if (preset === 'today') { const d = now.toLocaleDateString('en-CA'); setFilterStartDate(d); setFilterEndDate(d); }
+                      else if (preset === 'yesterday') { const y = new Date(now); y.setDate(y.getDate()-1); const d = y.toLocaleDateString('en-CA'); setFilterStartDate(d); setFilterEndDate(d); }
+                      else if (preset === 'lastweek') { const dow = now.getDay(); const mon = new Date(now); mon.setDate(now.getDate()-((dow+6)%7)-7); const sun = new Date(mon); sun.setDate(mon.getDate()+6); setFilterStartDate(mon.toLocaleDateString('en-CA')); setFilterEndDate(sun.toLocaleDateString('en-CA')); }
+                      else { const first = new Date(now.getFullYear(), now.getMonth()-1, 1); const last = new Date(now.getFullYear(), now.getMonth(), 0); setFilterStartDate(first.toLocaleDateString('en-CA')); setFilterEndDate(last.toLocaleDateString('en-CA')); }
                     }
                     return (
                       <button key={p} onClick={() => applyHistoryQuick(p)}
@@ -906,8 +906,9 @@ export default function Caixa() {
 function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
   const [attendants, setAttendants] = useState<{ id: string; name: string; commission: number }[]>([]);
   const [filteredSales, setFilteredSales] = useState<any[]>([]);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [endDate, setEndDate] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [orderFees, setOrderFees] = useState<Record<string, { type: string; fee: number }>>({});
   const [selectedAttendant, setSelectedAttendant] = useState('all');
   const [isSearching, setIsSearching] = useState(false);
   const [filterLabel, setFilterLabel] = useState('');
@@ -916,19 +917,19 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
     const now = new Date();
     let s = '', e = '';
     if (preset === 'today') {
-      s = e = now.toISOString().slice(0, 10);
+      s = e = now.toLocaleDateString('en-CA');
     } else if (preset === 'yesterday') {
       const y = new Date(now); y.setDate(y.getDate() - 1);
-      s = e = y.toISOString().slice(0, 10);
+      s = e = y.toLocaleDateString('en-CA');
     } else if (preset === 'lastweek') {
       const dow = now.getDay();
       const mon = new Date(now); mon.setDate(now.getDate() - ((dow + 6) % 7) - 7);
       const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-      s = mon.toISOString().slice(0, 10); e = sun.toISOString().slice(0, 10);
+      s = mon.toLocaleDateString('en-CA'); e = sun.toLocaleDateString('en-CA');
     } else {
       const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const last = new Date(now.getFullYear(), now.getMonth(), 0);
-      s = first.toISOString().slice(0, 10); e = last.toISOString().slice(0, 10);
+      s = first.toLocaleDateString('en-CA'); e = last.toLocaleDateString('en-CA');
     }
     setStartDate(s); setEndDate(e); setFilterLabel(label);
   }
@@ -954,10 +955,10 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
     let query = supabase.from('sales').select('*');
 
     if (startDate) {
-      query = query.gte('date', new Date(startDate).toISOString());
+      query = query.gte('date', new Date(startDate + 'T00:00:00').toISOString());
     }
     if (endDate) {
-      const end = new Date(endDate);
+      const end = new Date(endDate + 'T00:00:00');
       end.setHours(23, 59, 59, 999);
       query = query.lte('date', end.toISOString());
     }
@@ -967,19 +968,31 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
       toast.error('Erro ao buscar vendas');
     } else {
       setFilteredSales(data || []);
+      const ids = Array.from(new Set((data || []).map((s: any) => s.order_id).filter(Boolean)));
+      const fees: Record<string, { type: string; fee: number }> = {};
+      if (ids.length) {
+        const { data: ords } = await supabase.from('orders').select('id, order_type, service_fee').in('id', ids);
+        for (const o of ords || []) fees[o.id] = { type: o.order_type, fee: Number(o.service_fee || 0) };
+      }
+      setOrderFees(fees);
     }
     setIsSearching(false);
   }
 
+  useEffect(() => { handleSearch(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Calculate service fee total from mesa orders in filtered period
-  const mesaSalesInPeriod = filteredSales.filter(s => {
-    const order = orders.find((o: any) => o.id === s.order_id || o.id === s.orderId);
-    return order?.orderType === 'mesa';
-  });
+  const orderInfo = (s: any) => {
+    const id = s.order_id || s.orderId;
+    const db = orderFees[id];
+    if (db) return { type: db.type, fee: db.fee };
+    const o = orders.find((x: any) => x.id === id);
+    return o ? { type: o.orderType, fee: Number(o.serviceFee || 0) } : null;
+  };
+  const mesaSalesInPeriod = filteredSales.filter(s => orderInfo(s)?.type === 'mesa');
 
   const totalServiceFee = mesaSalesInPeriod.reduce((sum: number, s: any) => {
-    const order = orders.find((o: any) => o.id === s.order_id || o.id === s.orderId);
-    return sum + (order?.serviceFee || 0);
+    return sum + (orderInfo(s)?.fee || 0);
   }, 0);
 
   // Calculate per-attendant sales from item tracking
