@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePrinter } from '@/hooks/use-printer';
 import { toast } from 'sonner';
 
 interface CheckoutModalProps {
@@ -44,6 +45,7 @@ const paymentMethodsConfig: { key: PaymentMethod; cardSubtype?: 'credito' | 'deb
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
   const navigate = useTenantNavigate();
   const { completeSale, customers, setCustomers, coupons, products, isCashRegisterOpen, settings, printSettings, setOrders, orders: storeOrders } = useStore();
+  const { printBill } = usePrinter();
 
   const [cashRegisterChecked, setCashRegisterChecked] = useState(false);
   const [localCashOpen, setLocalCashOpen] = useState(false);
@@ -341,7 +343,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     toast.success(`Cliente ${newCust.name} cadastrado e selecionado!`);
   };
 
-  const handleFinalize = async () => {
+  const handleFinalize = async (printAfter = false) => {
     if (finalizing) return;
     if (!effectiveCashOpen) {
       toast.error('O caixa não está aberto.');
@@ -384,6 +386,15 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       toast.error('Não foi possível concluir o pagamento. Verifique a conexão e tente novamente.');
       setFinalizing(false);
       return;
+    }
+    if (printAfter) {
+      try {
+        const cash = splits.filter(s => s.method === 'dinheiro').reduce((a, s) => a + s.amount, 0);
+        const given = parseBRLInput(cashGiven) || 0;
+        await printBill({ ...finalOrder, cashGiven: given > 0 ? given : undefined, change: given > cash && cash > 0 ? given - cash : undefined });
+      } catch (err) {
+        console.error('[CheckoutModal] print after finalize failed:', err);
+      }
     }
     setFinalizing(false);
 
@@ -816,7 +827,15 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
             <ChevronLeft className="h-4 w-4" /> VOLTAR
           </Button>
           <Button
-            onClick={handleFinalize}
+            variant="outline"
+            onClick={() => handleFinalize(true)}
+            disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
+            className="flex-1 h-12 text-[11px] font-bold flex items-center justify-center gap-1"
+          >
+            <Printer className="h-4 w-4" /> FINALIZAR E IMPRIMIR
+          </Button>
+          <Button
+            onClick={() => handleFinalize()}
             disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
             className="flex-1 h-12 text-xs font-bold bg-[#00b050] hover:bg-[#009544] text-white flex items-center justify-center gap-2 shadow-md"
           >
@@ -1423,7 +1442,16 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </Button>
 
               <Button
-                onClick={handleFinalize}
+                variant="outline"
+                onClick={() => handleFinalize(true)}
+                disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
+                className="font-extrabold h-10 px-4 text-xs gap-1 tracking-wide"
+              >
+                <Printer className="h-4 w-4" /> Finalizar e Imprimir
+              </Button>
+
+              <Button
+                onClick={() => handleFinalize()}
                 disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
                 className={`font-extrabold h-10 px-6 text-xs shadow-md tracking-wide ${
                   remaining <= 0
