@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { computeServiceFee } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -185,10 +186,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
 
   const serviceFeePercentage = settings.serviceFeePercentage ?? 0;
   const isMesa = order?.orderType === 'mesa';
-  const exemptAmount = (order?.items || []).reduce((s: number, it: any) =>
-    products.find(p => p.id === it.productId)?.serviceFeeExempt ? s + (Number(it.subtotal) || 0) : s, 0);
-  const serviceFeeBase = Math.max(0, subtotal - exemptAmount);
-  const serviceFeeAmount = isMesa && serviceFeePercentage > 0 ? (serviceFeeBase * serviceFeePercentage) / 100 : 0;
+  const serviceFeeAmount = computeServiceFee(order, products, serviceFeePercentage);
   const finalTotal = Math.max(0, subtotal - discountAmount + serviceFeeAmount);
   const totalAssigned = splits.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, Math.round((finalTotal - totalAssigned) * 100) / 100);

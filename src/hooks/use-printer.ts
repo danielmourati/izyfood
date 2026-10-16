@@ -1,4 +1,5 @@
 import { resolveItemSector } from '@/lib/print-sectors';
+import { computeServiceFee } from '@/lib/utils';
 import { isDesktopApp } from '@/lib/printer-desktop';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -162,7 +163,7 @@ export function getOrderPrintCopies(
 
 export function usePrinter() {
   const { user } = useAuth();
-  const { printSettings, products: storeProducts, categories: storeCategories } = useStore();
+  const { printSettings, products: storeProducts, categories: storeCategories, settings: storeSettings } = useStore();
   const [printers, setPrinters] = useState<PrinterConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [btConnected, setBtConnected] = useState(false);
@@ -622,7 +623,10 @@ export function usePrinter() {
     return { ok: true, channel: lastChannel };
   };
 
-  const printBill = async (bill: any, options?: { force?: boolean }): Promise<PrintResult> => {
+  const printBill = async (rawBill: any, options?: { force?: boolean }): Promise<PrintResult> => {
+    const bill = rawBill?.serviceFee == null && rawBill?.orderType === 'mesa'
+      ? { ...rawBill, serviceFee: computeServiceFee(rawBill, storeProducts, storeSettings?.serviceFeePercentage) }
+      : rawBill;
     if (shouldQueue(options)) return enqueuePrintJob('bill', bill);
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printBill] Opção por usar impressora desativada neste dispositivo. Ignorando.');
