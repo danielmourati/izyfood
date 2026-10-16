@@ -78,11 +78,11 @@ export default function Caixa() {
   // History filters
   const [historyUsers, setHistoryUsers] = useState<{id: string, name: string}[]>([]);
   const [filterStartDate, setFilterStartDate] = useState(() => new Date().toLocaleDateString('en-CA'));
-  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [filterUser, setFilterUser] = useState('all');
   const [isFiltering, setIsFiltering] = useState(false);
 
-  useEffect(() => { fetchCurrent(); }, []);
+  useEffect(() => { fetchCurrent(); handleFilterHistory(); }, []);
 
   async function fetchCurrent() {
     setLoading(true);
