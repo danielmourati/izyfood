@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { computeServiceFee } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -52,7 +53,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders, lastSyncError } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders, lastSyncError, settings: storeSettings } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const hasAllPermissions = PERMISSION_KEYS.every(k => permissions[k]);
@@ -212,6 +213,9 @@ export function ConsumerOrderModal({
 
   const items = currentOrder?.items || [];
   const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
+  const serviceFeePct = storeSettings?.serviceFeePercentage ?? 0;
+  const serviceFeeAmount = computeServiceFee({ orderType: currentOrder?.orderType, items }, products, serviceFeePct);
+  const totalWithFee = totalAmount + serviceFeeAmount;
 
   // Unsent items tracking: hasNewUnsentItems is true ONLY when there is at least 1 unprinted item launched
   const hasNewUnsentItems = items.length > 0 && items.some(i => !i.printed);
@@ -1258,9 +1262,15 @@ export function ConsumerOrderModal({
                     <span>(+) Subtotal</span>
                     <span>R$ {fmt(totalAmount)}</span>
                   </div>
+                  {serviceFeeAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span>(+) Serviço ({serviceFeePct}%)</span>
+                      <span>R$ {fmt(serviceFeeAmount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm border-t border-[#ffe099] pt-1 mt-1">
                     <span>(=) Total</span>
-                    <span>R$ {fmt(totalAmount)}</span>
+                    <span>R$ {fmt(totalWithFee)}</span>
                   </div>
                 </div>
               </div>
@@ -1815,7 +1825,8 @@ export function ConsumerOrderModal({
                 {/* Total Summary */}
                 <div>
                   <span className="text-xs text-muted-foreground block font-medium">TOTAL DO PEDIDO</span>
-                  <span className="text-2xl font-extrabold text-foreground">R$ {fmt(totalAmount)}</span>
+                  <span className="text-2xl font-extrabold text-foreground">R$ {fmt(totalWithFee)}</span>
+                  {serviceFeeAmount > 0 && <span className="text-xs text-muted-foreground block">inclui serviço {serviceFeePct}% (R$ {fmt(serviceFeeAmount)})</span>}
                 </div>
 
                 {/* Main Action Buttons */}
