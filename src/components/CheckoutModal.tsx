@@ -1451,7 +1451,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               </Button>
 
               <Button
-                onClick={handleFinalize}
+                onClick={() => handleFinalize()}
                 disabled={finalizing || !effectiveCashOpen || (Math.round(finalTotal * 100) > 0 && remaining > 0)}
                 className={`font-extrabold h-10 px-6 text-xs shadow-md tracking-wide ${
                   remaining <= 0
