@@ -19,7 +19,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const showDesktopBar = !isHome && !isPDV;
 
   return (
-    <SidebarProvider defaultOpen={false}>
+    <SidebarProvider defaultOpen={true}>
       <div className="h-[100dvh] flex w-full overflow-hidden">
         <PrintHostRunner />
         <AppSidebar />
