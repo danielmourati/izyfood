@@ -154,3 +154,16 @@ export function maskPhone(value: string): string {
   if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
+
+/** Taxa de serviço: só mesa, % configurado, itens isentos ficam fora. */
+export function computeServiceFee(
+  order: { orderType?: string; items?: { productId?: string; subtotal?: number }[] } | null | undefined,
+  products: { id: string; serviceFeeExempt?: boolean }[],
+  percentage: number | null | undefined,
+): number {
+  const pct = Number(percentage) || 0;
+  if (!order || order.orderType !== 'mesa' || pct <= 0) return 0;
+  const base = (order.items || []).reduce((s, it) =>
+    products.find(p => p.id === it.productId)?.serviceFeeExempt ? s : s + (Number(it.subtotal) || 0), 0);
+  return Math.round(Math.max(0, base) * pct) / 100;
+}
