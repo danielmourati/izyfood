@@ -2370,7 +2370,7 @@ export function ConsumerOrderModal({
           </DialogHeader>
           <ul className="text-sm space-y-1 max-h-40 overflow-y-auto">
             {items.filter(i => !i.printed).map(i => (
-              <li key={i.id} className="flex gap-2"><span className="font-bold">{i.quantity}x</span><span>{i.productName}</span></li>
+              <li key={i.id} className="flex gap-2"><span className="font-bold">{i.quantity}x</span><span>{i.name}</span></li>
             ))}
           </ul>
 
