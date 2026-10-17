@@ -30,7 +30,7 @@ function fmtHour(iso: string) {
  * Painel da fila de impressão + chave que transforma este aparelho no "Caixa"
  * que imprime os cupons enviados pelos outros aparelhos.
  */
-export default function PrintQueuePanel() {
+export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host' | 'queue' } = {}) {
   const { user } = useAuth();
   const { printHostEnabled, togglePrintHost, hasPrinterAvailable, hostOnline } = usePrinter();
   const [jobs, setJobs] = useState<PrintJob[]>([]);
@@ -44,7 +44,13 @@ export default function PrintQueuePanel() {
     }
   }, []);
 
-  useEffect(() => { purgeOldPrintJobs().finally(load); }, [load]);
+  useEffect(() => {
+    if (part === 'host') return;
+    purgeOldPrintJobs().finally(load);
+    // Limpeza automática da fila a cada 1 minuto.
+    const t = window.setInterval(() => { purgeOldPrintJobs().finally(load); }, 60 * 1000);
+    return () => window.clearInterval(t);
+  }, [load, part]);
 
   useEffect(() => {
     const tenantId = user?.tenantId;
@@ -72,7 +78,7 @@ export default function PrintQueuePanel() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+      {part !== 'queue' && <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Monitor className="h-4 w-4 text-primary" />
@@ -97,8 +103,9 @@ export default function PrintQueuePanel() {
             {hostOnline ? ' Já existe um caixa online nesta loja.' : ' Nenhum caixa online nesta loja agora.'}
           </p>
         )}
-      </div>
+      </div>}
 
+      {part !== 'host' && <>
       <div className="flex items-center justify-between gap-2">
         <span className="font-extrabold uppercase tracking-wider text-[11px] text-muted-foreground">
           Fila de impressão
