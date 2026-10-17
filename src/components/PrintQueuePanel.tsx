@@ -54,9 +54,10 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
 
   useEffect(() => {
     const tenantId = user?.tenantId;
-    if (!tenantId) return;
+    if (!tenantId || part === 'host') return;
+    // Nome único por instância: dois painéis na mesma tela não podem reaproveitar o mesmo canal.
     const channel = supabase
-      .channel(`print-queue-panel:${tenantId}`)
+      .channel(`print-queue-panel:${tenantId}:${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'print_jobs', filter: `tenant_id=eq.${tenantId}` },
@@ -64,7 +65,7 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user?.tenantId, load]);
+  }, [user?.tenantId, load, part]);
 
   const handleRetry = async (id: string) => {
     setBusy(true);
