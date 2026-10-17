@@ -554,7 +554,12 @@ export function ConsumerOrderModal({
   };
 
   const handleDecrementDirect = (prod: Product) => {
-    const existingIndex = items.findIndex(i => i.productId === prod.id && !i.selectedNotes?.length && !i.selectedComplements?.length);
+    const existingIndex = items.findIndex(i =>
+      i.productId === prod.id
+        && !i.selectedNotes?.length
+        && !i.selectedComplements?.length
+        && (canRemovePrinted || !i.printed)
+    );
     if (existingIndex < 0) return;
 
     const existing = items[existingIndex];
@@ -1278,9 +1283,11 @@ export function ConsumerOrderModal({
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-extrabold text-[#3e2b20]">R$ {fmt(item.subtotal)}</span>
-                        <button onClick={() => handleRemoveItem(item.id)} className="text-destructive p-1">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {!needsAuthToRemoveItem(item, canRemovePrinted) && (
+                          <button onClick={() => handleRemoveItem(item.id)} className="text-destructive p-1">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
@@ -1826,14 +1833,16 @@ export function ConsumerOrderModal({
                               >
                                 <Edit3 className="h-3.5 w-3.5" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(item.id)}
-                                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted"
-                                title="Remover item"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {!needsAuthToRemoveItem(item, canRemovePrinted) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveItem(item.id)}
+                                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted"
+                                  title="Remover item"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2061,13 +2070,15 @@ export function ConsumerOrderModal({
               Trocar para...
             </button>
 
-            <button
-              type="button"
-              onClick={() => setDeleteConfirmOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
-            >
-              <Trash2 className="h-4 w-4 text-destructive" /> Excluir Pedido
-            </button>
+            {canCancelOrDeleteMesa && (
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
+              >
+                <Trash2 className="h-4 w-4 text-destructive" /> Excluir Pedido
+              </button>
+            )}
 
             <div className="pt-2">
               <hr className="border-border mb-2" />
