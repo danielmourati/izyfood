@@ -137,6 +137,7 @@ export const PRINT_DISABLED_REASON =
   'Impressão desativada neste aparelho. Ative "Usar impressora neste dispositivo" na seção Impressora Bluetooth (ou em Configurações > Impressora).';
 
 export const PRINT_QUEUED_MESSAGE = 'Cupom enviado para o caixa. O papel sai na impressora do caixa em instantes.';
+export const NO_PRINT_HOST_MESSAGE = 'Pedido salvo. Nenhum servidor de impressão (Caixa) ativo — o cupom sai quando o Caixa for ligado.';
 
 export interface PrinterConfig {
   id: string;
