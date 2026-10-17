@@ -5,6 +5,11 @@ export function needsAuthToRemoveItem(item: { printed?: boolean }, canRemovePrin
   return !!item.printed && !canRemovePrinted;
 }
 
+/** Lixeira só aparece quando o usuário pode remover o item sem precisar de senha de admin. */
+export function showsRemoveItemControl(item: { printed?: boolean }, canRemovePrinted: boolean): boolean {
+  return !needsAuthToRemoveItem(item, canRemovePrinted);
+}
+
 /** Valida no servidor a senha de qualquer admin da loja do usuário atual. */
 export async function verifyTenantAdminPassword(password: string): Promise<{ ok: boolean; adminName?: string }> {
   try {
