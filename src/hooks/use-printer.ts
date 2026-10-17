@@ -1,4 +1,5 @@
 import { resolveItemSector } from '@/lib/print-sectors';
+import { printHostPresence } from '@/lib/print-host-presence';
 import { computeServiceFee } from '@/lib/utils';
 import { isDesktopApp } from '@/lib/printer-desktop';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -33,7 +34,7 @@ import {
   getDeviceLabel,
   getDevicePrinterConfig,
 } from '@/lib/printer';
-import { PRINT_HOST_PRESENCE_PREFIX, insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
+import { insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
 import { excludeAlreadySent, fetchAlreadySentItemIds } from '@/lib/printed-guard';
 import { receiptHtml } from '@/lib/receipt-renderer';
 import {
@@ -222,46 +223,18 @@ export function usePrinter() {
     };
   }, [user?.id, user?.role]);
 
-  // Presença: existe algum aparelho "Caixa" online para imprimir por nós?
+  // Presença compartilhada (um canal por aparelho) + sinal de vida no banco.
+  const [hostLastSeenAt, setHostLastSeenAt] = useState<string | null>(null);
   useEffect(() => {
     const tenantId = user?.tenantId;
     if (!tenantId) return;
-
-    const channelName = `${PRINT_HOST_PRESENCE_PREFIX}${tenantId}`;
-    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
-    if (existing) {
-      supabase.removeChannel(existing);
-    }
-
-    const channel = supabase.channel(channelName, {
-      config: { presence: { key: getDeviceId() } },
+    return printHostPresence.subscribe(tenantId, (s) => {
+      hostOnlineRef.current = s.online;
+      setHostOnline(s.online);
+      setHostLabel(s.label);
+      setHostLastSeenAt(s.lastSeenAt);
     });
-
-    const readState = () => {
-      const state = channel.presenceState() as Record<string, any[]>;
-      const host = Object.values(state).flat().find((e: any) => e?.role === 'host') as any;
-      const online = !!host;
-      setHostLabel(host ? [host.userName, host.label].filter(Boolean).join(' · ') : null);
-      hostOnlineRef.current = online;
-      setHostOnline(prev => (prev === online ? prev : online));
-    };
-
-    channel
-      .on('presence', { event: 'sync' }, readState)
-      .on('presence', { event: 'join' }, readState)
-      .on('presence', { event: 'leave' }, readState)
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          if (printHostEnabled) {
-            await channel.track({ role: 'host', label: getDeviceLabel(), userName: user?.name || null, at: new Date().toISOString() });
-          } else {
-            await channel.track({ role: 'watcher', label: getDeviceLabel(), at: new Date().toISOString() });
-          }
-        }
-      });
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user?.tenantId, printHostEnabled]);
+  }, [user?.tenantId]);
 
   const enqueuePrintJob = useCallback(async (kind: PrintJobKind, payload: any): Promise<PrintResult> => {
     const tenantId = user?.tenantId;
@@ -744,6 +717,7 @@ export function usePrinter() {
     togglePrintHost,
     hostOnline,
     hostLabel,
+    hostLastSeenAt,
     enqueuePrintJob,
   };
 }

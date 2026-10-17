@@ -588,6 +588,41 @@ export type Database = {
           },
         ]
       }
+      print_hosts: {
+        Row: {
+          device_id: string
+          id: string
+          label: string | null
+          last_seen_at: string
+          tenant_id: string
+          user_name: string | null
+        }
+        Insert: {
+          device_id: string
+          id?: string
+          label?: string | null
+          last_seen_at?: string
+          tenant_id: string
+          user_name?: string | null
+        }
+        Update: {
+          device_id?: string
+          id?: string
+          label?: string | null
+          last_seen_at?: string
+          tenant_id?: string
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "print_hosts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       print_jobs: {
         Row: {
           attempts: number
