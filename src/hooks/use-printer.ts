@@ -596,7 +596,8 @@ export function usePrinter() {
   const printOrder = async (orderIn: any, options?: { force?: boolean; sector?: string; intent?: OrderPrintIntent }): Promise<PrintResult> => {
     const intent = options?.intent ?? 'new';
     let order = orderIn;
-    if (intent === 'new' && order?.id && Array.isArray(order.items)) {
+    // O Caixa (force) imprime o que recebeu da fila sem rechecar: o próprio cupom da fila contaria como "já enviado".
+    if (intent === 'new' && !options?.force && order?.id && Array.isArray(order.items)) {
       const sent = await fetchAlreadySentItemIds(order.id);
       const fresh = excludeAlreadySent(order.items, sent);
       if (fresh.length < order.items.length) console.info('[printOrder] itens já impressos removidos da comanda:', order.items.length - fresh.length);
