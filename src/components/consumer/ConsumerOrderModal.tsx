@@ -731,7 +731,7 @@ export function ConsumerOrderModal({
     if (removed?.printed) {
       logAudit({
         action: 'remove_printed_item', entityType: 'order', entityId: currentOrder?.id,
-        details: { item: removed.productName, quantity: removed.quantity, table: currentOrder?.tableNumber ?? tableNumber, authorizedBy: authorizedBy || user?.name },
+        details: { item: removed.name, quantity: removed.quantity, table: currentOrder?.tableNumber ?? tableNumber, authorizedBy: authorizedBy || user?.name },
       });
     }
   };
