@@ -416,7 +416,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tableMap.forEach((table, num) => {
         if (table.status === 'occupied' && !tableOrderMap.has(num)) {
           const hasPendingChange = isPendingLocalChange(num) || (table.orderId && isPendingLocalChange(table.orderId));
-          if (!hasPendingChange) {
+          // Só libera quando o pedido vinculado foi realmente finalizado/cancelado.
+          // Pedido ausente na consulta (ainda gravando) mantém a mesa ocupada.
+          const linked = table.orderId ? nextOrders.find(o => o.id === table.orderId) : undefined;
+          const linkedFinished = !!linked && (linked.status === 'cancelado' || linked.status === 'concluido' || linked.status === 'finalizado' || !!linked.completedAt);
+          if (!hasPendingChange && linkedFinished) {
             tableMap.set(num, { ...table, status: 'available', orderId: undefined });
           }
         }
