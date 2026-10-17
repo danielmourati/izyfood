@@ -70,7 +70,12 @@ export function usePrintHost() {
         setProcessing(jobId);
         try {
           consumeLastPrinterUsed();
-          await withTimeout(printJob(claimed), PRINT_TIMEOUT_MS);
+          const result: any = await withTimeout(printJob(claimed), PRINT_TIMEOUT_MS);
+          const channel = result?.channel;
+          if (channel !== 'qz' && channel !== 'bluetooth') {
+            await markPrintJobError(jobId, result?.reason || 'Nada foi enviado para a impressora do caixa.');
+            continue;
+          }
           await markPrintJobDone(jobId, consumeLastPrinterUsed());
         } catch (err: any) {
           const message = err instanceof Error ? err.message : 'Falha ao imprimir.';
