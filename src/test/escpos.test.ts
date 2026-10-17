@@ -394,7 +394,7 @@ describe('ESC/POS bill receipt', () => {
     expect(priceLine.length).toBeLessThanOrEqual(32);
   });
 
-  it('80mm: impressão e prévia respeitam o limite de 40 colunas', () => {
+  it('80mm: impressão e prévia respeitam o limite de 42 colunas', () => {
     const bill = {
       id: 'width-40',
       orderType: 'mesa',
@@ -408,8 +408,8 @@ describe('ESC/POS bill receipt', () => {
     const receipt = decodeReceipt(buildBillReceipt(bill, 80));
     const preview = buildBillPreviewText(bill, 80);
 
-    expect(receipt).toContain('-'.repeat(40));
-    for (const line of preview.split('\n')) expect(line.length).toBeLessThanOrEqual(40);
+    expect(receipt).toContain('-'.repeat(42));
+    for (const line of preview.split('\n')) expect(line.length).toBeLessThanOrEqual(42);
   });
 
   it('CP850: envia ESC t 2 e 1 byte por letra acentuada', () => {
@@ -560,8 +560,8 @@ describe('kitchen order notes rendering', () => {
     [55, true, 16, 2],
     [58, false, 32, 1],
     [58, true, 16, 2],
-    [80, false, 40, 1],
-    [80, true, 20, 2],
+    [80, false, 42, 1],
+    [80, true, 21, 2],
   ])('buildOrderReceipt: %imm with double font=%s uses %i item columns', (paperWidth, doubleFontOrders, activeCols, minimumDoubleCommands) => {
     const receipt = buildOrderReceipt({
       ...baseOrder,

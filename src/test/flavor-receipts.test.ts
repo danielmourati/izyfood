@@ -20,7 +20,7 @@ describe('flavor and additional receipts', () => {
   it.each([55, 58, 80])('keeps groups bold and quantities correct at %s mm', width => {
     for (const doubleFontOrders of [false, true]) {
       for (const bytes of [buildOrderReceipt(order, width, { doubleFontOrders }, 'utf8'), buildBillReceipt(order, width, undefined, 'utf8')]) {
-        const plain = receiptPlainText(bytes, width <= 58 ? 32 : 40);
+        const plain = receiptPlainText(bytes, width <= 58 ? 32 : 42);
         expect(plain).toContain('Sabores:');
         expect(plain).toContain('Adicionais:');
         expect(plain).toContain('- Carne');
@@ -30,7 +30,7 @@ describe('flavor and additional receipts', () => {
         expect(plain).not.toMatch(/1x (Carne|Queijo|Azeitona)/);
         const lines = receiptLines(bytes);
         expect(lines.filter(line => /Sabores:|Adicionais:/.test(line.text)).every(line => line.bold)).toBe(true);
-        expect(receiptHtml(bytes, width <= 58 ? 32 : 40)).toContain('Sabores:');
+        expect(receiptHtml(bytes, width <= 58 ? 32 : 42)).toContain('Sabores:');
         for (const line of lines.filter(line => line.double)) expect(line.text.length).toBeLessThanOrEqual(kitchenItemColumns(width, true));
       }
     }
