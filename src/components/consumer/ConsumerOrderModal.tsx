@@ -225,9 +225,13 @@ export function ConsumerOrderModal({
   const hasUnsentItems = items.length === 0 || hasNewUnsentItems;
 
   // Centralized close handler: Saves the order and keeps table occupied whenever there are items
-  const handleCloseAndSaveOrDiscard = () => {
+  const handleCloseAndSaveOrDiscard = (force?: unknown) => {
     if (!currentOrder) {
       onClose();
+      return;
+    }
+    if (force !== true && !isBalcao && items.some(i => !i.printed)) {
+      setUnsentAlertOpen(true);
       return;
     }
 
@@ -282,7 +286,7 @@ export function ConsumerOrderModal({
   };
 
   // Helper to lock order and table status when FECHAR is clicked (Prints account coupon & redirects to Mesas)
-  const handleFecharOrder = async () => {
+  const handleFecharOrder = async (opts?: { stayOpen?: boolean }) => {
     if (!canManageMesa) {
       toast.error('Permissão negada. Somente administradores ou atendentes autorizados podem fechar a mesa.');
       return;
@@ -367,7 +371,7 @@ export function ConsumerOrderModal({
     }
 
     // Redireciona o usuário para a tela de Mesas
-    onClose();
+    if (!opts?.stayOpen) onClose();
   };
 
   // Reabre a mesa bloqueada (reflete em todos os dispositivos)
@@ -470,12 +474,7 @@ export function ConsumerOrderModal({
         e.preventDefault();
         e.stopPropagation();
 
-        const unprintedItems = items.filter(i => !i.printed);
-        if (unprintedItems.length > 0 && currentOrder) {
-          handleEnviarOrder();
-        } else {
-          handleCloseAndSaveOrDiscard();
-        }
+        handleCloseAndSaveOrDiscard();
       }
     };
 
@@ -1492,6 +1491,7 @@ export function ConsumerOrderModal({
                     <Switch
                       checked={isLocked}
                       onCheckedChange={(checked) => {
+                        if (checked) { handleFecharOrder({ stayOpen: true }); return; }
                         setIsLocked(checked);
                         if (currentOrder) {
                           const updated: Order = { ...currentOrder, isLocked: checked, status: checked ? 'segurado' : 'aberto', heldAt: checked ? (currentOrder.heldAt || new Date().toISOString()) : undefined };
@@ -1728,6 +1728,7 @@ export function ConsumerOrderModal({
                   <Switch
                     checked={isLocked}
                     onCheckedChange={(checked) => {
+                      if (checked) { handleFecharOrder({ stayOpen: true }); return; }
                       setIsLocked(checked);
                       if (currentOrder) {
                         const updated: Order = { ...currentOrder, isLocked: checked, status: checked ? 'segurado' : 'aberto', heldAt: checked ? (currentOrder.heldAt || new Date().toISOString()) : undefined };
@@ -2361,12 +2362,17 @@ export function ConsumerOrderModal({
         <DialogContent className="bg-card text-card-foreground border-border max-w-sm p-4 font-sans shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" /> Itens Não Enviados!
+              <AlertTriangle className="h-5 w-5 text-amber-500" /> Há itens que não foram impressos
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground pt-1 leading-relaxed">
-              Existem novos itens pré-gravados que ainda não foram enviados para a cozinha. O que deseja fazer?
+              Os itens abaixo ainda não foram impressos. Deseja imprimir todos ou ignorar a impressão?
             </DialogDescription>
           </DialogHeader>
+          <ul className="text-sm space-y-1 max-h-40 overflow-y-auto">
+            {items.filter(i => !i.printed).map(i => (
+              <li key={i.id} className="flex gap-2"><span className="font-bold">{i.quantity}x</span><span>{i.name}</span></li>
+            ))}
+          </ul>
 
           <div className="space-y-2 py-3">
             <Button
@@ -2374,28 +2380,20 @@ export function ConsumerOrderModal({
                 setUnsentAlertOpen(false);
                 await handleEnviarOrder();
               }}
-              className="w-full bg-[#ff9400] hover:bg-[#e08300] text-white font-bold text-xs h-11 flex items-center justify-center gap-2 shadow-md"
+              className="w-full font-bold text-xs h-11 flex items-center justify-center gap-2 shadow-md"
             >
-              <Send className="h-4 w-4" /> Enviar Pedido
+              <Printer className="h-4 w-4" /> Imprimir todos
             </Button>
 
             <Button
               variant="outline"
               onClick={() => {
                 setUnsentAlertOpen(false);
-                // Only the unsent items are removed. The order and the table stay active
-                // until the user explicitly finalizes, deletes or transfers the table.
-                const previouslyPrintedItems = items.filter(i => i.printed);
-                const updatedTotal = previouslyPrintedItems.reduce((s, i) => s + i.subtotal, 0);
-                const updatedOrder = { ...currentOrder, items: previouslyPrintedItems, total: updatedTotal };
-                setCurrentOrder(updatedOrder);
-                onSaveOrder(updatedOrder);
-                toast.info('Novos itens não enviados foram descartados. A mesa permanece ativa.');
-                onClose();
+                handleCloseAndSaveOrDiscard(true);
               }}
-              className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 font-bold text-xs h-11"
+              className="w-full font-bold text-xs h-11"
             >
-              Descartar Itens Não Enviados
+              Ignorar impressão
             </Button>
 
             <Button
