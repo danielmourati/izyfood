@@ -1,4 +1,5 @@
 import { resolveItemSector } from '@/lib/print-sectors';
+import { printHostPresence } from '@/lib/print-host-presence';
 import { computeServiceFee } from '@/lib/utils';
 import { isDesktopApp } from '@/lib/printer-desktop';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -33,7 +34,7 @@ import {
   getDeviceLabel,
   getDevicePrinterConfig,
 } from '@/lib/printer';
-import { PRINT_HOST_PRESENCE_PREFIX, insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
+import { insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
 import { excludeAlreadySent, fetchAlreadySentItemIds } from '@/lib/printed-guard';
 import { receiptHtml } from '@/lib/receipt-renderer';
 import {
