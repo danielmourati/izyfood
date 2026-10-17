@@ -1968,14 +1968,16 @@ export function ConsumerOrderModal({
               {unprintedCount > 0 ? `Imprimir na Cozinha (${unprintedCount} novos)` : 'Não há itens novos para imprimir na Cozinha'}
             </button>
 
-            {/* Reimprimir na Cozinha */}
-            <button
-              type="button"
-              onClick={handleReprintKitchen}
-              className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors"
-            >
-              Reimprimir na Cozinha
-            </button>
+            {/* Reimprimir na Cozinha (somente admin) */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleReprintKitchen}
+                className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors"
+              >
+                Reimprimir na Cozinha
+              </button>
+            )}
 
             <hr className="border-border my-2" />
 
