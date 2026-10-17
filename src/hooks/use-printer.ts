@@ -34,6 +34,7 @@ import {
   getDevicePrinterConfig,
 } from '@/lib/printer';
 import { PRINT_HOST_PRESENCE_PREFIX, insertPrintJob, type PrintJobKind } from '@/lib/print-queue';
+import { excludeAlreadySent, fetchAlreadySentItemIds } from '@/lib/printed-guard';
 import { receiptHtml } from '@/lib/receipt-renderer';
 import {
   buildOrderReceipt,
@@ -592,8 +593,16 @@ export function usePrinter() {
   const shouldQueue = (options?: { force?: boolean }) =>
     isMobileDevice() || !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
 
-  const printOrder = async (order: any, options?: { force?: boolean; sector?: string; intent?: OrderPrintIntent }): Promise<PrintResult> => {
+  const printOrder = async (orderIn: any, options?: { force?: boolean; sector?: string; intent?: OrderPrintIntent }): Promise<PrintResult> => {
     const intent = options?.intent ?? 'new';
+    let order = orderIn;
+    if (intent === 'new' && order?.id && Array.isArray(order.items)) {
+      const sent = await fetchAlreadySentItemIds(order.id);
+      const fresh = excludeAlreadySent(order.items, sent);
+      if (fresh.length < order.items.length) console.info('[printOrder] itens já impressos removidos da comanda:', order.items.length - fresh.length);
+      if (fresh.length === 0) return { ok: true, channel: 'disabled' } as any;
+      order = { ...order, items: fresh };
+    }
     if (shouldQueue(options)) return enqueuePrintJob('order', { ...order, __printIntent: intent });
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printOrder] Opção por usar impressora desativada neste dispositivo. Ignorando.');

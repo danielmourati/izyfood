@@ -1,3 +1,4 @@
+import { mergePrintedFlags } from '@/lib/printed-guard';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory, DiscountCoupon, StoreSettings, PaymentSplit, ProductNoteOption } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -1299,6 +1300,11 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
 
       if (!tenantId) throw new Error(`Pedido ${o.id} sem identificação da loja`);
       await queueOrderWrite(o.id, async () => {
+        // Uma vez impresso, sempre impresso: não deixa cópia antiga rebaixar `printed`.
+        const { data: current } = await supabase.from('orders').select('items').eq('id', o.id).maybeSingle();
+        if (current && Array.isArray((current as any).items) && Array.isArray(orderPayload.items)) {
+          orderPayload.items = mergePrintedFlags(orderPayload.items, (current as any).items);
+        }
         const { error } = await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' });
         if (error) throw error;
       });
