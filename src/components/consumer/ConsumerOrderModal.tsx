@@ -23,6 +23,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAttendantPermissions, PERMISSION_KEYS } from '@/hooks/use-attendant-permissions';
 import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
 import { OrderItemDetails } from '@/components/OrderItemDetails';
+import { needsAuthToRemoveItem, verifyTenantAdminPassword } from '@/lib/order-permissions';
+import { logAudit } from '@/lib/audit';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -61,6 +63,7 @@ export function ConsumerOrderModal({
   const canManageMesa = effectiveAdmin || permissions.manage_tables || permissions.cancel_orders;
   const canCancelOrDeleteMesa = effectiveAdmin || permissions.cancel_orders;
   const canReceivePayment = effectiveAdmin || permissions.manage_cash;
+  const canRemovePrinted = effectiveAdmin || permissions.remove_order_items;
 
   const {
     printOrder,
@@ -582,7 +585,8 @@ export function ConsumerOrderModal({
   };
 
   const handleRemoveDirect = (prod: Product) => {
-    const updatedItems = items.filter(i => i.productId !== prod.id);
+    // Só remove unidades novas; as impressas seguem a regra de autorização (lixeira do item).
+    const updatedItems = items.filter(i => i.productId !== prod.id || i.printed);
     const updatedTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
     const updatedOrder: Order = {
       ...currentOrder,
@@ -712,13 +716,48 @@ export function ConsumerOrderModal({
     toast.success(editingItem ? 'Item atualizado!' : `Adicionado: ${selectedProduct.name}`);
   };
 
-  const handleRemoveItem = (id: string) => {
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
+  const [removeAuthPwd, setRemoveAuthPwd] = useState('');
+  const [removeAuthError, setRemoveAuthError] = useState('');
+  const [removeAuthChecking, setRemoveAuthChecking] = useState(false);
+
+  const doRemoveItem = (id: string, authorizedBy?: string) => {
+    const removed = items.find(i => i.id === id);
     const updatedItems = items.filter(i => i.id !== id);
     const updatedTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
     const updatedOrder: Order = { ...currentOrder, items: updatedItems, total: updatedTotal };
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
-    toast.info('Item removido do pedido');
+    if (removed?.printed) {
+      logAudit({
+        action: 'remove_printed_item', entityType: 'order', entityId: currentOrder?.id,
+        details: { item: removed.name, quantity: removed.quantity, table: currentOrder?.tableNumber ?? tableNumber, authorizedBy: authorizedBy || user?.name },
+      });
+    }
+  };
+
+  const handleRemoveItem = (id: string) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    if (needsAuthToRemoveItem(item, canRemovePrinted)) {
+      setPendingRemoveId(id);
+      setRemoveAuthPwd('');
+      setRemoveAuthError('');
+      return;
+    }
+    doRemoveItem(id);
+  };
+
+  const handleConfirmRemovePrinted = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!pendingRemoveId || !removeAuthPwd.trim()) return;
+    setRemoveAuthChecking(true);
+    const res = await verifyTenantAdminPassword(removeAuthPwd.trim());
+    setRemoveAuthChecking(false);
+    if (!res.ok) { setRemoveAuthError('Senha de administrador incorreta.'); return; }
+    doRemoveItem(pendingRemoveId, res.adminName);
+    setPendingRemoveId(null);
+    setRemoveAuthPwd('');
   };
 
   const handleSelectCustomer = (cust: any) => {
@@ -846,20 +885,7 @@ export function ConsumerOrderModal({
         return;
       }
 
-      let isValid = false;
-      try {
-        if (pwd === '123456' || pwd === 'admin' || user?.id === 'demo-admin-id') {
-          isValid = true;
-        } else {
-          const { error } = await supabase.auth.signInWithPassword({
-            email: user?.email || '',
-            password: pwd,
-          });
-          isValid = !error;
-        }
-      } catch {
-        isValid = false;
-      }
+      const isValid = (await verifyTenantAdminPassword(pwd)).ok;
 
       if (!isValid) {
         setAdminDeleting(false);
@@ -2129,6 +2155,38 @@ export function ConsumerOrderModal({
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
+      <Dialog open={!!pendingRemoveId} onOpenChange={(val) => { if (!val) { setPendingRemoveId(null); setRemoveAuthPwd(''); setRemoveAuthError(''); } }}>
+        <DialogContent className="bg-card text-card-foreground border-border max-w-md p-5 font-sans">
+          <form onSubmit={handleConfirmRemovePrinted}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive font-bold">
+                <LockKeyhole className="h-5 w-5" /> Remover item já impresso
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground text-xs mt-2">
+                Este item já foi enviado para a cozinha. Informe a senha de um administrador para autorizar a remoção.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="my-4 space-y-2">
+              <Input
+                type="password"
+                placeholder="Senha do administrador..."
+                value={removeAuthPwd}
+                onChange={(e) => { setRemoveAuthPwd(e.target.value); setRemoveAuthError(''); }}
+                autoFocus
+                className="text-sm bg-background border-border"
+              />
+              {removeAuthError && <p className="text-xs font-semibold text-destructive">{removeAuthError}</p>}
+            </div>
+            <DialogFooter className="mt-4 flex gap-2 justify-end">
+              <Button type="button" variant="outline" onClick={() => { setPendingRemoveId(null); setRemoveAuthPwd(''); setRemoveAuthError(''); }} className="text-xs font-semibold">Cancelar</Button>
+              <Button type="submit" variant="destructive" disabled={removeAuthChecking || !removeAuthPwd.trim()} className="text-xs font-bold">
+                {removeAuthChecking ? 'Verificando...' : 'Autorizar e remover'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={deleteConfirmOpen} onOpenChange={(val) => { setDeleteConfirmOpen(val); if (!val) setAdminPasswordForDelete(''); }}>
         <DialogContent className="bg-card text-card-foreground border-border max-w-md p-5 font-sans">
           <form onSubmit={handleConfirmDeleteOrder}>
