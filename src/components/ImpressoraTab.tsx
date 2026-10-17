@@ -51,7 +51,7 @@ export function ImpressoraTab() {
   const {
     printers, loading, qzConnected, retryQzConnection, fetchPrinters, printTest, printEncodingTest,
     btConnected, btDeviceName, lastPairedName, pairBluetooth, reconnectPrinter, forgetPrinter,
-    btPriorityDefault, toggleBluetoothPriorityDefault,
+    btPriorityDefault, toggleBluetoothPriorityDefault, hostOnline, hostLabel,
     enablePrinterDevice, toggleEnablePrinterDevice,
   } = usePrinter();
 
@@ -345,11 +345,14 @@ export function ImpressoraTab() {
     }
   };
 
+  const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const handleRunTest = async () => {
     setTesting(true);
+    setTestMsg(null);
     try {
-      await printTest(selectedSector as any);
-      toast.success('Impressão de teste enviada!');
+      const res: any = await printTest(selectedSector as any);
+      if (res?.queued) setTestMsg({ ok: res.hostOnline !== false, text: res.reason });
+      else toast.success('Impressão de teste enviada!');
     } catch (e: any) {
       toast.error('Falha no teste de impressão: ' + (e?.message || 'Verifique a impressora'));
     } finally {
@@ -380,25 +383,25 @@ export function ImpressoraTab() {
 
       {isMobileDevice() && (
       <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 space-y-3 font-sans">
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-0.5">
-            <span className="font-extrabold uppercase tracking-wider text-xs text-primary flex items-center gap-2">
-              <Printer className="h-4 w-4" /> Usar Impressora neste Dispositivo
-            </span>
-            <p className="text-xs text-muted-foreground">
-              {enablePrinterDevice
-                ? 'Impressão ativada neste aparelho. O preview automático do navegador ou impressora pareada será acionado ao enviar pedidos.'
-                : 'Desativado (Padrão). O sistema salva e sincroniza os pedidos sem abrir o preview automático do navegador.'}
-            </p>
-          </div>
-          <Switch
-            checked={enablePrinterDevice}
-            onCheckedChange={(checked) => {
-              toggleEnablePrinterDevice(checked);
-              toast.info(checked ? 'Impressão ativada neste dispositivo!' : 'Impressão desativada neste dispositivo (preview automático desligado).');
-            }}
-          />
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-extrabold uppercase tracking-wider text-xs text-primary flex items-center gap-2">
+            <Printer className="h-4 w-4" /> Servidor de impressão (Caixa)
+          </span>
+          <span className={`text-[11px] font-black px-2.5 py-0.5 rounded flex items-center gap-1.5 border ${hostOnline ? 'bg-primary/10 text-primary border-primary/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${hostOnline ? 'bg-primary animate-pulse' : 'bg-destructive'}`} />
+            {hostOnline ? 'Ativo' : 'Inativo'}
+          </span>
         </div>
+        <p className="text-xs text-muted-foreground">
+          {hostOnline
+            ? `Os cupons deste celular saem na impressora do Caixa${hostLabel ? ` (${hostLabel})` : ''}.`
+            : 'Nenhum servidor de impressão ativo. Os pedidos são salvos e os cupons saem quando o computador do Caixa for ligado com a opção "Este aparelho imprime para os outros".'}
+        </p>
+        <Button variant="outline" size="sm" onClick={handleRunTest} disabled={testing} className="rounded-full font-semibold text-xs gap-2 px-4">
+          {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+          Imprimir teste
+        </Button>
+        {testMsg && <p className={`text-xs font-semibold ${testMsg.ok ? 'text-primary' : 'text-destructive'}`}>{testMsg.text}</p>}
       </Card>
       )}
 
@@ -719,13 +722,13 @@ export function ImpressoraTab() {
   ) : null}
 
       {/* Impressão centralizada: aparelho "Caixa" + fila de cupons */}
-      <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 font-sans">
+      {!isMobileDevice() && <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 font-sans">
         <PrintQueuePanel />
-      </Card>
+      </Card>}
 
 
       {/* Bluetooth Connection Module Card (Attachment 2) - Exibido somente quando o toggle está ativado */}
-      {enablePrinterDevice && (
+      {enablePrinterDevice && !isMobileDevice() && (
         <Card className="rounded-2xl border border-primary/30 bg-card shadow-sm p-4 space-y-3 font-sans">
           <div className="flex items-center justify-between border-b border-border/80 pb-2">
             <span className="font-extrabold uppercase tracking-wider text-xs text-primary flex items-center gap-2">
