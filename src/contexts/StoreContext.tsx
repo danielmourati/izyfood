@@ -371,19 +371,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     saveLS('izy_orders', nextOrders);
     setOrders(nextOrders);
 
-    void (() => {
-      const prev: Order[] = [];
-      const activeLocalOrds = prev.filter(o => 
-        o.status !== 'cancelado' && 
-        o.status !== 'concluido' && 
-        o.status !== 'finalizado' &&
-        !dbIds.has(o.id) && 
-        isPendingLocalChange(o.id)
-      );
-      nextOrders = [...parsedDbOrds, ...activeLocalOrds];
-      saveLS('izy_orders', nextOrders);
-      return nextOrders;
-    });
 
     // 2. Process Tables based on DB tables & nextOrders
     const tableOrderMap = new Map<number, string>();
