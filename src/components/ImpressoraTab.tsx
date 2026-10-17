@@ -849,6 +849,7 @@ export function ImpressoraTab() {
             </Button>
           )}
 
+          {!isMobileDevice() && (
           <Button
             variant="outline"
             size="sm"
@@ -859,6 +860,7 @@ export function ImpressoraTab() {
             {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
             Imprimir teste
           </Button>
+          )}
         </div>
 
         {/* Primary Save / Concluir */}
