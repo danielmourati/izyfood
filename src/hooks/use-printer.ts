@@ -716,6 +716,7 @@ export function usePrinter() {
     togglePrintHost,
     hostOnline,
     hostLabel,
+    hostLastSeenAt,
     enqueuePrintJob,
   };
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { usePrinter } from '@/hooks/use-printer';
+import { printHostPresence } from '@/lib/print-host-presence';
 import { consumeLastPrinterUsed, getDeviceId, getDeviceLabel } from '@/lib/printer';
 import {
   claimPrintJob,
@@ -100,6 +101,13 @@ export function usePrintHost() {
     queueRef.current.push(jobId);
     drain();
   }, [drain]);
+
+  // Anuncia este aparelho como Caixa (presença + sinal de vida no banco).
+  useEffect(() => {
+    const tenantId = user?.tenantId;
+    if (!printHostEnabled || !tenantId) return;
+    return printHostPresence.setHost(tenantId, true, user?.name || null);
+  }, [printHostEnabled, user?.tenantId, user?.name]);
 
   useEffect(() => {
     const tenantId = user?.tenantId;
