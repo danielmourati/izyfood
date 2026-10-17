@@ -3,6 +3,7 @@ import { Printer, Bluetooth } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { usePrinter } from '@/hooks/use-printer';
+import { isMobileDevice } from '@/lib/printer';
 
 /**
  * Seção compacta de conexão/configuração da impressora Bluetooth local.
@@ -25,7 +26,9 @@ export default function BluetoothPrinterSection() {
     printHostEnabled,
     togglePrintHost,
     hostOnline,
+    hostLabel,
   } = usePrinter();
+  const mobile = isMobileDevice();
 
   const [busy, setBusy] = useState<null | 'pair' | 'reconnect' | 'test'>(null);
   const [message, setMessage] = useState<{ type: 'ok' | 'warn' | 'error'; text: string } | null>(null);
@@ -70,14 +73,37 @@ export default function BluetoothPrinterSection() {
     setBusy('test');
     setMessage(null);
     try {
-      await printTest();
-      setMessage({ type: 'ok', text: 'Teste enviado para a impressora.' });
+      const res: any = await printTest();
+      if (res?.queued) setMessage({ type: res.hostOnline === false ? 'warn' : 'ok', text: res.reason });
+      else setMessage({ type: 'ok', text: 'Teste enviado para a impressora.' });
     } catch {
       setMessage({ type: 'error', text: 'Não foi possível imprimir o teste.' });
     } finally {
       setBusy(null);
     }
   };
+
+  if (mobile) {
+    return (
+      <div className="space-y-2">
+        <span className="font-extrabold uppercase tracking-wider text-[11px] text-muted-foreground block border-b border-border pb-1">
+          Servidor de impressão (Caixa)
+        </span>
+        <div className="rounded-md bg-muted/40 p-2.5 space-y-2">
+          <p className={`text-[11px] font-semibold leading-snug ${hostOnline ? 'text-primary' : 'text-destructive'}`}>
+            {hostOnline
+              ? `Ativo${hostLabel ? ` — ${hostLabel}` : ''}. Os cupons saem na impressora do Caixa.`
+              : 'Nenhum servidor de impressão ativo. Os pedidos são salvos e os cupons saem quando o Caixa for ligado.'}
+          </p>
+          <Button size="sm" variant="secondary" onClick={handleTest} disabled={!!busy} className="text-xs font-bold h-8 px-3 rounded-lg flex items-center gap-1.5">
+            <Printer className="h-3.5 w-3.5" />
+            {busy === 'test' ? 'Enviando...' : 'Imprimir teste'}
+          </Button>
+          {message && <p className={`text-[11px] font-semibold leading-snug ${msgClass}`}>{message.text}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
