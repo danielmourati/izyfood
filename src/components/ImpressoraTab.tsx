@@ -51,7 +51,7 @@ export function ImpressoraTab() {
   const {
     printers, loading, qzConnected, retryQzConnection, fetchPrinters, printTest, printEncodingTest,
     btConnected, btDeviceName, lastPairedName, pairBluetooth, reconnectPrinter, forgetPrinter,
-    btPriorityDefault, toggleBluetoothPriorityDefault, hostOnline, hostLabel,
+    btPriorityDefault, toggleBluetoothPriorityDefault, hostOnline, hostLabel, hostLastSeenAt,
     enablePrinterDevice, toggleEnablePrinterDevice,
   } = usePrinter();
 
@@ -394,7 +394,7 @@ export function ImpressoraTab() {
         </div>
         <p className="text-xs text-muted-foreground">
           {hostOnline
-            ? `Os cupons deste celular saem na impressora do Caixa${hostLabel ? ` (${hostLabel})` : ''}.`
+            ? `Os cupons deste celular saem na impressora do Caixa${hostLabel ? ` (${hostLabel})` : ''}.${hostLastSeenAt ? ` Visto há ${Math.max(0, Math.round((Date.now() - new Date(hostLastSeenAt).getTime()) / 1000))} s.` : ''}`
             : 'Nenhum servidor de impressão ativo. Os pedidos são salvos e os cupons saem quando o computador do Caixa for ligado com a opção "Este aparelho imprime para os outros".'}
         </p>
         <Button variant="outline" size="sm" onClick={handleRunTest} disabled={testing} className="rounded-full font-semibold text-xs gap-2 px-4">
