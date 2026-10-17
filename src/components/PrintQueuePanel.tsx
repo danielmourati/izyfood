@@ -151,6 +151,7 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
           ))}
         </div>
       )}
+      </>}
     </div>
   );
 }
