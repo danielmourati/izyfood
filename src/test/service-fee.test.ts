@@ -21,7 +21,7 @@ describe('taxa de serviço', () => {
   it('conta impressa mostra taxa', () => {
     const bill = { id: 'x', orderType: 'mesa', tableNumber: 2, createdAt: new Date().toISOString(), total: 168, serviceFee: 16.8,
       items: [{ name: 'Prato', quantity: 1, price: 168, subtotal: 168 }] };
-    const txt = receiptPlainText(buildBillReceipt(bill as any, 80, {}, 'utf8'), 40);
+    const txt = receiptPlainText(buildBillReceipt(bill as any, 80, {}, 'utf8'), 42);
     expect(txt).toContain('16,80');
     expect(txt).toContain('184,80');
   });

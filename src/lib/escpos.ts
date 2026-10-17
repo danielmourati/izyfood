@@ -102,7 +102,7 @@ function lineOf(char: string, cols: number): Uint8Array {
 
 /** Reserved price zone (right) inside a wrapped row.
  *  55/58mm (32 useful cols): 22 for name + 9 for price.
- *  80mm (40 useful cols): 27 for name + 12 for price. */
+ *  80mm (42 useful cols): 27 for name + 12 for price. */
 export function receiptPriceZone(cols: number): number {
   return cols <= 32 ? 9 : 12;
 }
@@ -319,7 +319,7 @@ interface CashCloseData {
 
 /** Shared useful width for printed receipts and their on-screen preview. */
 export function receiptColumnsForWidth(paperWidth: number): number {
-  return paperWidth <= 58 ? 32 : 40;
+  return paperWidth <= 58 ? 32 : 42;
 }
 
 /** Columns physically available while printing kitchen item blocks. */

@@ -24,7 +24,7 @@ const cash = {
 };
 
 describe('shared Menuzin-style receipt layout', () => {
-  it.each([[55, 32], [58, 32], [80, 40]])('uses the required capacity for %imm', (width, cols) => {
+  it.each([[55, 32], [58, 32], [80, 42]])('uses the required capacity for %imm', (width, cols) => {
     expect(receiptColumnsForWidth(width)).toBe(cols);
     for (const bytes of [buildOrderReceipt(order, width, {}, 'utf8'), buildBillReceipt(order, width, {}, 'utf8'), buildCashCloseReceipt(cash, width, 'utf8')]) {
       expect(receiptLines(bytes).some(line => line.text === '-'.repeat(cols))).toBe(true);
