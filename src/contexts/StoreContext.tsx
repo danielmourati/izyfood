@@ -1,4 +1,5 @@
 import { mergePrintedFlags } from '@/lib/printed-guard';
+import { mergeOrderItems, isTerminalStatus } from '@/lib/order-merge';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory, DiscountCoupon, StoreSettings, PaymentSplit, ProductNoteOption } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -770,9 +771,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('storage', handleStorage);
 
-    // Contingência leve: o WebSocket é o caminho principal; consulta apenas quando ele não está saudável.
+    // Reconferência periódica: corrige eventos de tempo real perdidos (ex.: mesa paga em outro aparelho).
     const silentSyncIntervalId = setInterval(() => {
-      if (document.visibilityState === 'visible' && realtimeStatusRef.current !== 'SUBSCRIBED') {
+      if (document.visibilityState === 'visible') {
         fetchTablesAndOrders();
       }
     }, 20000);
@@ -1299,15 +1300,31 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
       if (tenantId) orderPayload.tenant_id = tenantId;
 
       if (!tenantId) throw new Error(`Pedido ${o.id} sem identificação da loja`);
+      let skipped = false;
       await queueOrderWrite(o.id, async () => {
         // Uma vez impresso, sempre impresso: não deixa cópia antiga rebaixar `printed`.
-        const { data: current } = await supabase.from('orders').select('items').eq('id', o.id).maybeSingle();
+        const { data: current } = await supabase.from('orders').select('items,status').eq('id', o.id).maybeSingle();
+        // Pedido já finalizado/cancelado no banco nunca é reaberto por uma tela antiga.
+        if (current && isTerminalStatus((current as any).status) && !isTerminalStatus(persistedStatus)) {
+          skipped = true;
+          return;
+        }
         if (current && Array.isArray((current as any).items) && Array.isArray(orderPayload.items)) {
+          const prevOrder = prev.find(p => p.id === o.id);
+          orderPayload.items = mergeOrderItems(orderPayload.items, prevOrder?.items as any, (current as any).items);
           orderPayload.items = mergePrintedFlags(orderPayload.items, (current as any).items);
+          if (orderPayload.items.length !== (o.items || []).length) {
+            orderPayload.total = orderPayload.items.reduce((s: number, i: any) => s + (Number(i.subtotal) || 0), 0);
+          }
         }
         const { error } = await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' });
         if (error) throw error;
       });
+      if (skipped) {
+        clearPending(o.id);
+        if (o.tableNumber) clearPending(o.tableNumber);
+        continue;
+      }
 
       if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido' && o.status !== 'finalizado' && persistedStatus !== 'finalizado') {
         const tablePayload: any = { number: Number(o.tableNumber), status: 'occupied', order_id: o.id };
