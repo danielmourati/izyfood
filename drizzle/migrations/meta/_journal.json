@@ -57,6 +57,13 @@
       "when": 1791839611840,
       "tag": "0007_printer_char_encoding_default_utf8",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792278274812,
+      "tag": "0008_print_hosts_heartbeat",
+      "breakpoints": true
     }
   ]
 }
