@@ -124,6 +124,8 @@ export interface PrintResult {
   reason?: string;
   /** true quando o cupom foi enviado para o aparelho do caixa imprimir. */
   queued?: boolean;
+  /** Quando enfileirado: havia um Caixa online no momento do envio? */
+  hostOnline?: boolean;
   jobId?: string;
   /** Canal usado: bluetooth, qz, html (visualização) ou disabled. */
   channel?: PrintChannel;
@@ -135,6 +137,7 @@ export const PRINT_DISABLED_REASON =
   'Impressão desativada neste aparelho. Ative "Usar impressora neste dispositivo" na seção Impressora Bluetooth (ou em Configurações > Impressora).';
 
 export const PRINT_QUEUED_MESSAGE = 'Cupom enviado para o caixa. O papel sai na impressora do caixa em instantes.';
+export const NO_PRINT_HOST_MESSAGE = 'Pedido salvo. Nenhum servidor de impressão (Caixa) ativo — o cupom sai quando o Caixa for ligado.';
 
 export interface PrinterConfig {
   id: string;
@@ -179,7 +182,10 @@ export function usePrinter() {
   const enablePrinterDevice = user?.role === 'atendente'
     ? enablePrinterDeviceRaw
     : !isMobileDevice() || enablePrinterDeviceRaw;
-  const [printHostEnabled, setPrintHostEnabledState] = useState<boolean>(() => getPrintHostEnabled());
+  const [printHostEnabledRaw, setPrintHostEnabledState] = useState<boolean>(() => getPrintHostEnabled());
+  // Celulares nunca são servidor de impressão: sempre enviam para o Caixa.
+  const printHostEnabled = !isMobileDevice() && printHostEnabledRaw;
+  const [hostLabel, setHostLabel] = useState<string | null>(null);
   const [hostOnline, setHostOnline] = useState(false);
   const hostOnlineRef = useRef(false);
 
@@ -232,9 +238,9 @@ export function usePrinter() {
 
     const readState = () => {
       const state = channel.presenceState() as Record<string, any[]>;
-      const online = Object.values(state).some(entries =>
-        entries.some((e: any) => e?.role === 'host')
-      );
+      const host = Object.values(state).flat().find((e: any) => e?.role === 'host') as any;
+      const online = !!host;
+      setHostLabel(host ? [host.userName, host.label].filter(Boolean).join(' · ') : null);
       hostOnlineRef.current = online;
       setHostOnline(prev => (prev === online ? prev : online));
     };
@@ -246,7 +252,7 @@ export function usePrinter() {
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           if (printHostEnabled) {
-            await channel.track({ role: 'host', label: getDeviceLabel(), at: new Date().toISOString() });
+            await channel.track({ role: 'host', label: getDeviceLabel(), userName: user?.name || null, at: new Date().toISOString() });
           } else {
             await channel.track({ role: 'watcher', label: getDeviceLabel(), at: new Date().toISOString() });
           }
@@ -269,7 +275,11 @@ export function usePrinter() {
         kind,
         payload,
       });
-      return { ok: true, queued: true, jobId, reason: PRINT_QUEUED_MESSAGE };
+      const online = hostOnlineRef.current;
+      return {
+        ok: true, queued: true, jobId, hostOnline: online,
+        reason: online ? PRINT_QUEUED_MESSAGE : NO_PRINT_HOST_MESSAGE,
+      };
     } catch (err: any) {
       console.error('[print] falha ao enviar cupom para a fila do caixa', err);
       return { ok: false, reason: 'Não foi possível enviar o cupom para o caixa. Verifique a conexão e tente novamente.' };
@@ -580,7 +590,7 @@ export function usePrinter() {
    * Então o cupom vai para a fila e é impresso lá.
    */
   const shouldQueue = (options?: { force?: boolean }) =>
-    !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
+    isMobileDevice() || !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
 
   const printOrder = async (order: any, options?: { force?: boolean; sector?: string; intent?: OrderPrintIntent }): Promise<PrintResult> => {
     const intent = options?.intent ?? 'new';
@@ -723,6 +733,7 @@ export function usePrinter() {
     printHostEnabled,
     togglePrintHost,
     hostOnline,
+    hostLabel,
     enqueuePrintJob,
   };
 }

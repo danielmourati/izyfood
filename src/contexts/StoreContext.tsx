@@ -340,30 +340,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orderQuery = orderQuery.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
     }
 
-    const [{ data: tbls }, { data: ords }] = await Promise.all([
+    const [{ data: tbls, error: tblErr }, { data: ords, error: ordErr }] = await Promise.all([
       tableQuery,
       orderQuery,
     ]);
 
     if (seqRef.current.tables !== currentSeqTables || seqRef.current.orders !== currentSeqOrders) return;
+    // Resposta com erro (rede instável, sessão renovando): manter a tela como está
+    // em vez de tratar como "nenhum pedido/mesa" e liberar as mesas por engano.
+    if (tblErr || ordErr || !tbls || !ords) {
+      console.warn('[fetchTablesAndOrders] resposta ignorada:', tblErr || ordErr || 'dados vazios');
+      return;
+    }
 
     // 1. Process Orders
     const parsedDbOrds = (ords || []).map(dbToOrder);
-    let nextOrders: Order[] = parsedDbOrds;
-
-    setOrders(prev => {
-      const dbIds = new Set(parsedDbOrds.map(o => o.id));
-      const activeLocalOrds = prev.filter(o => 
-        o.status !== 'cancelado' && 
-        o.status !== 'concluido' && 
+    // Calcula a lista final antes de montar as mesas (o updater do React pode rodar depois).
+    const dbIds = new Set(parsedDbOrds.map(o => o.id));
+    const nextOrders: Order[] = [
+      ...parsedDbOrds,
+      ...ordersRef.current.filter(o =>
+        o.status !== 'cancelado' &&
+        o.status !== 'concluido' &&
         o.status !== 'finalizado' &&
-        !dbIds.has(o.id) && 
+        !dbIds.has(o.id) &&
         isPendingLocalChange(o.id)
-      );
-      nextOrders = [...parsedDbOrds, ...activeLocalOrds];
-      saveLS('izy_orders', nextOrders);
-      return nextOrders;
-    });
+      ),
+    ];
+    ordersRef.current = nextOrders;
+    saveLS('izy_orders', nextOrders);
+    setOrders(nextOrders);
+
 
     // 2. Process Tables based on DB tables & nextOrders
     const tableOrderMap = new Map<number, string>();
