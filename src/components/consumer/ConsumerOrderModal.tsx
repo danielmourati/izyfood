@@ -23,7 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAttendantPermissions, PERMISSION_KEYS } from '@/hooks/use-attendant-permissions';
 import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
 import { OrderItemDetails } from '@/components/OrderItemDetails';
-import { needsAuthToRemoveItem, verifyTenantAdminPassword } from '@/lib/order-permissions';
+import { needsAuthToRemoveItem, showsRemoveItemControl, verifyTenantAdminPassword } from '@/lib/order-permissions';
 import { logAudit } from '@/lib/audit';
 
 interface ConsumerOrderModalProps {
@@ -558,7 +558,7 @@ export function ConsumerOrderModal({
       i.productId === prod.id
         && !i.selectedNotes?.length
         && !i.selectedComplements?.length
-        && (canRemovePrinted || !i.printed)
+        && showsRemoveItemControl(i, canRemovePrinted)
     );
     if (existingIndex < 0) return;
 
@@ -1283,7 +1283,7 @@ export function ConsumerOrderModal({
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-extrabold text-[#3e2b20]">R$ {fmt(item.subtotal)}</span>
-                        {!needsAuthToRemoveItem(item, canRemovePrinted) && (
+                        {showsRemoveItemControl(item, canRemovePrinted) && (
                           <button onClick={() => handleRemoveItem(item.id)} className="text-destructive p-1">
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -1833,7 +1833,7 @@ export function ConsumerOrderModal({
                               >
                                 <Edit3 className="h-3.5 w-3.5" />
                               </button>
-                              {!needsAuthToRemoveItem(item, canRemovePrinted) && (
+                              {showsRemoveItemControl(item, canRemovePrinted) && (
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveItem(item.id)}
