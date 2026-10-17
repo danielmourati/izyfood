@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 import { useIsMobile } from '@/hooks/use-mobile';
-import { usePrinter, PRINT_QUEUED_MESSAGE } from '@/hooks/use-printer';
+import { usePrinter, PRINT_QUEUED_MESSAGE, NO_PRINT_HOST_MESSAGE } from '@/hooks/use-printer';
 import { supabase } from '@/integrations/supabase/client';
 import { useAttendantPermissions, PERMISSION_KEYS } from '@/hooks/use-attendant-permissions';
 import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
@@ -409,6 +409,7 @@ export function ConsumerOrderModal({
     // 1. Imprimir SOMENTE os novos itens lançados na cozinha
     let blockedReason: string | null = null;
     let queuedAtHost = false;
+    let noHostOnline = false;
     setPrintNotice(null);
     try {
       const orderToPrint = { ...currentOrder, pickupNotes: generalNotes || currentOrder.pickupNotes, items: unprintedItems };
@@ -417,6 +418,7 @@ export function ConsumerOrderModal({
         : await printOrder(orderToPrint, { intent: 'new' });
       if (res && res.ok === false) blockedReason = res.reason || 'Falha ao imprimir.';
       if (res?.queued) queuedAtHost = true;
+      if (res?.queued && res.hostOnline === false) noHostOnline = true;
     } catch (printErr: any) {
       console.warn('[handleEnviarOrder] Falha na impressão:', printErr);
       blockedReason = printErr?.message || 'Falha ao imprimir.';
@@ -429,7 +431,9 @@ export function ConsumerOrderModal({
     onSaveOrder(updatedOrder);
     setSendingOrder(false);
 
-    if (blockedReason) {
+    if (noHostOnline) {
+      setPrintNotice(NO_PRINT_HOST_MESSAGE);
+    } else if (blockedReason) {
       setPrintNotice(`Pedido salvo, mas a comanda NÃO foi impressa: ${blockedReason}`);
     } else {
       if (queuedAtHost) toast.success(PRINT_QUEUED_MESSAGE);
