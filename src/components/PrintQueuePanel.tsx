@@ -82,7 +82,7 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
       setForceMsg('Não foi possível forçar a impressão: ' + (err?.message || 'erro'));
     } finally { setBusy(false); }
   };
-  const forceable = (j: PrintJob) => j.status === 'pending' || isStalePrinting(j);
+  const forceable = (j: PrintJob) => canForcePrintJob(j);
 
   const handleClear = async () => {
     setBusy(true);
@@ -163,11 +163,6 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
                 {forceable(job) && (
                   <Button size="sm" variant="secondary" className="h-7 text-[11px] font-bold" disabled={busy} onClick={() => handleForce([job.id])}>
                     Forçar impressão
-                  </Button>
-                )}
-                {job.status === 'error' && (
-                  <Button size="sm" variant="secondary" className="h-7 text-[11px] font-bold" disabled={busy} onClick={() => handleRetry(job.id)}>
-                    Tentar novamente
                   </Button>
                 )}
               </div>
