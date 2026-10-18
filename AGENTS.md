@@ -17,3 +17,5 @@
 - QZ Tray readiness requires a completed handshake (not `qz.websocket.isActive()`, which is true while CONNECTING) and connects through one shared in-flight promise, so concurrent print jobs never call the socket before it can send.
 - Store custom character calibration as validated table@index IDs in printer_configs.char_encoding, so direct and queued receipt builders share it without parallel configuration; native UTF-8 must never assume ESC t 8 enables Unicode.
 - Build QZ payloads through qzRawData with format=command and flavor=hex, matching QZ 2.x binary semantics instead of the obsolete format=hex shape.
+- A mesa has at most one open order (unique partial index); a second device's order is absorbed into the existing one, and orders with items/value are deleted only after allowOrderDelete marks an explicit user action, so sync gaps never erase tables.
+- Order deletions, item removals/quantity reductions and non-terminal table releases are audited by database triggers, so every loss is traceable even when the app path skipped logging.
