@@ -54,3 +54,12 @@ describe('exclusão de pedidos', () => {
     expect(consumeOrderDelete('p1')).toBe(false);
   });
 });
+
+import { allowItemRemoval, consumeItemRemovals } from '@/lib/order-merge';
+describe('remoção explícita de itens', () => {
+  it('só itens tocados na lixeira são liberados para remoção, uma vez', () => {
+    allowItemRemoval('o1', 'i1');
+    expect(consumeItemRemovals('o1')).toEqual(['i1']);
+    expect(consumeItemRemovals('o1')).toEqual([]);
+  });
+});

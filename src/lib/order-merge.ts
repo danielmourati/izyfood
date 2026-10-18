@@ -53,3 +53,16 @@ export function consumeOrderDelete(id: string): boolean {
   explicitDeletes.delete(id);
   return had;
 }
+
+const explicitItemRemovals = new Map<string, Set<string>>();
+/** Marca a remoção de um item como pedida pelo usuário (lixeira). */
+export function allowItemRemoval(orderId: string, itemId: string) {
+  if (!explicitItemRemovals.has(orderId)) explicitItemRemovals.set(orderId, new Set());
+  explicitItemRemovals.get(orderId)!.add(itemId);
+}
+/** Consome as remoções autorizadas do pedido. */
+export function consumeItemRemovals(orderId: string): string[] {
+  const s = explicitItemRemovals.get(orderId);
+  explicitItemRemovals.delete(orderId);
+  return s ? [...s] : [];
+}

@@ -1386,6 +1386,10 @@ export type Database = {
       }
       purge_print_jobs: { Args: never; Returns: undefined }
       purge_stale_failed_print_jobs: { Args: never; Returns: undefined }
+      save_order_items: {
+        Args: { _items: Json; _order_id: string; _removed_ids?: string[] }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "atendente" | "motoboy" | "superadmin"

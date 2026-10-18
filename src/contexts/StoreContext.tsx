@@ -1,5 +1,5 @@
 import { mergePrintedFlags } from '@/lib/printed-guard';
-import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete } from '@/lib/order-merge';
+import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete, consumeItemRemovals } from '@/lib/order-merge';
 import { logAudit } from '@/lib/audit';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory, DiscountCoupon, StoreSettings, PaymentSplit, ProductNoteOption } from '@/types';
@@ -1337,7 +1337,22 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
             orderPayload.total = orderPayload.items.reduce((s: number, i: any) => s + (Number(i.subtotal) || 0), 0);
           }
         }
-        const { error } = await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' });
+        let error: any = null;
+        if (current && Array.isArray(o.items)) {
+          // Pedido já existe: metadados por update e itens por junção atômica no banco,
+          // para um aparelho desatualizado nunca apagar itens que não viu.
+          const { items: _i, total: _t, ...meta } = orderPayload;
+          const removedIds = consumeItemRemovals(o.id);
+          const r1 = await supabase.from('orders').update(meta).eq('id', o.id);
+          error = r1.error;
+          if (!error) {
+            const r2 = await supabase.rpc('save_order_items' as any, { _order_id: o.id, _items: o.items as any, _removed_ids: removedIds } as any);
+            error = r2.error;
+          }
+        } else {
+          consumeItemRemovals(o.id);
+          error = (await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' })).error;
+        }
         if (error && (error as any).code === '23505' && o.orderType === 'mesa' && o.tableNumber) {
           // Outro aparelho já abriu esta mesa: junta os itens no pedido existente em vez de criar outro.
           const { data: existing } = await supabase.from('orders')
