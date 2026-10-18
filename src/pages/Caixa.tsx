@@ -1036,7 +1036,7 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
       toast.error('Permita popups para imprimir ou gerar PDF.');
       return;
     }
-    const storeName = settings?.name || printSettings?.storeName || 'IZYFOOD';
+    const storeName = printSettings?.storeName || 'IZYFOOD';
     const storeDoc = printSettings?.document ? `${printSettings.documentType?.toUpperCase() || 'DOC'}: ${printSettings.document}` : '';
     const storePhone = printSettings?.whatsapp ? `Tel: ${printSettings.whatsapp}` : '';
     const periodText = periodLabel || `${startDate} a ${endDate}`;
