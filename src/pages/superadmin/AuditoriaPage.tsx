@@ -50,8 +50,8 @@ export function AuditoriaPage() {
     if (!search) return true;
     const q = search.toLowerCase();
     return (l.user_name || '').toLowerCase().includes(q)
-      || l.action.toLowerCase().includes(q)
-      || l.entity_type.toLowerCase().includes(q)
+      || (l.action || '').toLowerCase().includes(q)
+      || (l.entity_type || '').toLowerCase().includes(q)
       || (tenants[l.tenant_id || ''] || '').toLowerCase().includes(q);
   });
 

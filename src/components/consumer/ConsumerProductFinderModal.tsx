@@ -54,7 +54,7 @@ export function ConsumerProductFinderModal({
     let list = selectedCatId === 'all' ? products : products.filter(p => p.categoryId === selectedCatId);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      list = list.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+      list = list.filter(p => (p.name || '').toLowerCase().includes(q) || (p.id || '').toLowerCase().includes(q));
     }
     return list;
   }, [products, selectedCatId, searchQuery]);
