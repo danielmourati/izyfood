@@ -240,6 +240,7 @@ const Mesas = () => {
     }
     const newTotal = mergedItems.reduce((s, i) => s + i.subtotal, 0);
 
+    allowOrderDelete(sourceTable.orderId);
     setOrders(prev => prev
       .map(o => o.id === targetTable.orderId ? { ...o, items: mergedItems, total: newTotal } : o)
       .filter(o => o.id !== sourceTable.orderId)
