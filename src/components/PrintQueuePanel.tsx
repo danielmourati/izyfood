@@ -11,9 +11,8 @@ import {
   fetchPrintJobs,
   printJobKindLabels,
   printJobStatusLabels,
-  retryPrintJob,
   forcePrintJobs,
-  isStalePrinting,
+  canForcePrintJob,
   type PrintJob,
 } from '@/lib/print-queue';
 
@@ -68,11 +67,6 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [user?.tenantId, load, part]);
-
-  const handleRetry = async (id: string) => {
-    setBusy(true);
-    try { await retryPrintJob(id); await load(); } finally { setBusy(false); }
-  };
 
   const [forceMsg, setForceMsg] = useState<string | null>(null);
   const handleForce = async (ids?: string[]) => {
