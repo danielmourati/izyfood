@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Search, Tag, Building2, PackageOpen } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Tag, Building2, PackageOpen, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
 
@@ -100,9 +100,10 @@ const Produtos = () => {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const getCat = (id: string) => categories.find(c => c.id === id);
 
+  const normalize = (s?: string | null) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const q = normalize(search.trim());
   const filtered = products.filter(p => {
-    const q = search.toLowerCase();
-    const matchSearch = p.name.toLowerCase().includes(q) || (p.searchCode || '').toLowerCase().includes(q);
+    const matchSearch = !q || normalize(p.name).includes(q) || normalize(p.searchCode).includes(q) || normalize((p as any).description).includes(q);
     const matchCat = filterCategory === 'all' || p.categoryId === filterCategory;
     return matchSearch && matchCat;
   });
@@ -323,12 +324,17 @@ const Produtos = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar produto..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+      <div className="flex flex-col gap-3">
+        <div className="relative w-full sm:max-w-md shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input placeholder="Buscar por nome, código ou descrição..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 pr-9 w-full" />
+          {search && (
+            <button type="button" aria-label="Limpar busca" onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2 overflow-x-auto pb-1 min-w-0">
           <Button variant={filterCategory === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilterCategory('all')}>
             Todos
           </Button>
@@ -412,7 +418,7 @@ const Produtos = () => {
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-2 py-14 text-center text-muted-foreground">
             <PackageOpen className="h-7 w-7" />
-            <p>Nenhum produto encontrado</p>
+            <p>{search.trim() ? `Nenhum produto encontrado para "${search.trim()}"` : 'Nenhum produto encontrado'}</p>
           </div>
         )}
         <div className="border-t bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
