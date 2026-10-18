@@ -13,6 +13,8 @@ import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 import { usePrinter } from '@/hooks/use-printer';
 import { Order } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
+import { dbToOrder } from '@/contexts/StoreContext';
+import { pickTableOrder, canDeleteOrder, allowOrderDelete } from '@/lib/order-merge';
 
 const Mesas = () => {
   const { tables, setTables, orders, setOrders, customers, freeTable, occupyTable, lastSyncError } = useStore();
@@ -35,39 +37,37 @@ const Mesas = () => {
   const isFinishedOrder = (o: Order) =>
     o.status === 'cancelado' || o.status === 'concluido' || o.status === 'finalizado' || !!o.completedAt;
 
+  // Cartão da mesa mostra o pedido para o qual a mesa aponta (ou o aberto mais recente).
   const activeMesaOrders = useMemo(() => {
     const map = new Map<number, Order>();
-    orders.forEach(o => {
-      if (o.orderType === 'mesa' && o.tableNumber && !isFinishedOrder(o)) {
-        if ((o.items && o.items.length > 0) || o.isLocked || o.status === 'segurado') {
-          map.set(Number(o.tableNumber), o);
-        }
-      }
+    const tableNums = new Set<number>();
+    orders.forEach(o => { if (o.orderType === 'mesa' && o.tableNumber) tableNums.add(Number(o.tableNumber)); });
+    tableNums.forEach(num => {
+      const linkedId = tables.find(t => t.number === num)?.orderId;
+      const picked = pickTableOrder(orders, num, linkedId);
+      if (picked) map.set(num, picked);
     });
     return map;
-  }, [orders]);
-
-  const finishedTableNumbers = useMemo(() => {
-    const set = new Set<number>();
-    orders.forEach(o => {
-      if (o.orderType === 'mesa' && o.tableNumber && isFinishedOrder(o)) {
-        set.add(Number(o.tableNumber));
-      }
-    });
-    return set;
-  }, [orders]);
+  }, [orders, tables]);
 
   const occupiedTables = useMemo(() => {
     return filteredTables.filter(t => {
       if (activeMesaOrders.has(t.number)) return true;
       if (t.status !== 'occupied') return false;
-      // Mesa marcada como ocupada, mas cujo pedido já foi finalizado/cancelado: tratar como livre
+      // Mesa ocupada cujo pedido já foi finalizado/cancelado: tratar como livre.
+      // Pedido vinculado ainda não carregado mantém a mesa ocupada (nunca some sozinha).
       const linked = t.orderId ? orders.find(o => o.id === t.orderId) : undefined;
       if (linked && isFinishedOrder(linked)) return false;
-      if (!linked && finishedTableNumbers.has(t.number)) return false;
       return true;
     });
-  }, [filteredTables, activeMesaOrders, finishedTableNumbers, orders]);
+  }, [filteredTables, activeMesaOrders, orders]);
+
+  // Confere no banco se o pedido ainda tem itens/valor antes de qualquer descarte.
+  const serverOrderHasContent = async (orderId: string) => {
+    const { data, error } = await supabase.from('orders').select('items,total,status').eq('id', orderId).maybeSingle();
+    if (error) return true; // na dúvida, não apaga
+    return !canDeleteOrder(data as any, false);
+  };
 
   const occupiedNumbers = useMemo(() => new Set(occupiedTables.map(t => t.number)), [occupiedTables]);
 
@@ -75,7 +75,7 @@ const Mesas = () => {
     return filteredTables.filter(t => !occupiedNumbers.has(t.number));
   }, [filteredTables, occupiedNumbers]);
 
-  const handleTableClick = (tableNum: number) => {
+  const handleTableClick = async (tableNum: number) => {
     const table = tables.find(t => t.number === tableNum);
     const activeOrderForTable = activeMesaOrders.get(tableNum) || orders.find(o => Number(o.tableNumber) === tableNum && o.orderType === 'mesa' && !isFinishedOrder(o));
     const isOccupied = occupiedNumbers.has(tableNum) || !!activeOrderForTable;
@@ -96,7 +96,19 @@ const Mesas = () => {
         createdAt: new Date().toISOString(),
       };
     } else {
-      targetOrder = {
+      // A tela pode estar alguns segundos atrasada: confere no banco se outro aparelho já abriu a mesa.
+      let serverOpen: Order | null = null;
+      if (user?.tenantId) {
+        const { data } = await supabase.from('orders').select('*')
+          .eq('tenant_id', user.tenantId)
+          .eq('order_type', 'mesa')
+          .eq('table_number', tableNum)
+          .in('status', ['aberto', 'segurado'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (data && data[0]) serverOpen = dbToOrder(data[0]);
+      }
+      targetOrder = serverOpen || {
         id: crypto.randomUUID(),
         openedBy: user?.id,
         openedByName: user?.name,
@@ -107,21 +119,25 @@ const Mesas = () => {
         tableNumber: tableNum,
         createdAt: new Date().toISOString(),
       };
+      if (serverOpen) {
+        const found = serverOpen;
+        setOrders(prev => prev.some(o => o.id === found.id) ? prev.map(o => o.id === found.id ? found : o) : [found, ...prev]);
+      }
     }
 
     setConsumerOrderModal({ open: true, order: targetOrder, tableNumber: tableNum });
   };
 
-  const handleSaveConsumerOrder = (updatedOrder: Order) => {
+  const handleSaveConsumerOrder = async (updatedOrder: Order) => {
     const hasItems = (updatedOrder.items && updatedOrder.items.length > 0) || (updatedOrder.total || 0) > 0 || updatedOrder.isLocked || updatedOrder.status === 'segurado';
 
     if (!hasItems) {
-      setOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
-      if (updatedOrder.tableNumber) {
-        freeTable(Number(updatedOrder.tableNumber));
+      // Só descarta quando o banco também não tem nada; senão grava o pedido (a mesa continua ocupada).
+      if (!(await serverOrderHasContent(updatedOrder.id))) {
+        setOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
+        if (updatedOrder.tableNumber) freeTable(Number(updatedOrder.tableNumber));
+        return;
       }
-      try { supabase.from('orders').delete().eq('id', updatedOrder.id); } catch {}
-      return;
     }
 
     setOrders(prev => {
@@ -145,13 +161,17 @@ const Mesas = () => {
       console.warn(`[Mesas] Blocked discard of order ${orderId}: it still has items/value.`);
       return;
     }
+    if (await serverOrderHasContent(orderId)) {
+      console.warn(`[Mesas] Blocked discard of order ${orderId}: the database still has items/value.`);
+      return;
+    }
 
     setOrders(prev => prev.filter(o => o.id !== orderId));
     if (tableNum) await freeTable(Number(tableNum));
-    try { await supabase.from('orders').delete().eq('id', orderId); } catch {}
   };
 
   const handleDeleteConsumerOrder = async (orderId: string, tableNum?: number) => {
+    allowOrderDelete(orderId);
     setOrders(prev => prev.filter(o => o.id !== orderId));
     if (tableNum) await freeTable(Number(tableNum));
     try { await supabase.from('orders').delete().eq('id', orderId); } catch {}
@@ -220,6 +240,7 @@ const Mesas = () => {
     }
     const newTotal = mergedItems.reduce((s, i) => s + i.subtotal, 0);
 
+    allowOrderDelete(sourceTable.orderId);
     setOrders(prev => prev
       .map(o => o.id === targetTable.orderId ? { ...o, items: mergedItems, total: newTotal } : o)
       .filter(o => o.id !== sourceTable.orderId)

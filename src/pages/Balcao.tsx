@@ -5,6 +5,7 @@ import { usePrinter } from '@/hooks/use-printer';
 import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 import { supabase } from '@/integrations/supabase/client';
 import { Order } from '@/types';
+import { allowOrderDelete } from '@/lib/order-merge';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
@@ -29,6 +30,7 @@ const Balcao = () => {
   }), [user?.id, user?.name]);
 
   const removeOrder = async (orderId: string) => {
+    allowOrderDelete(orderId);
     setOrders(prev => prev.filter(o => o.id !== orderId));
     try { await supabase.from('orders').delete().eq('id', orderId); } catch {}
   };

@@ -1325,6 +1325,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      audit_items_summary: { Args: { _items: Json }; Returns: Json }
       claim_print_job: {
         Args: { _claimed_by: string; _job_id: string }
         Returns: {

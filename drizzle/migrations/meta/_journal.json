@@ -64,6 +64,20 @@
       "when": 1792278274812,
       "tag": "0008_print_hosts_heartbeat",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792282553815,
+      "tag": "0009_mesa_unique_open_order_and_delete_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792282817237,
+      "tag": "0010_audit_partial_removals_and_table_freed_fix",
+      "breakpoints": true
     }
   ]
 }

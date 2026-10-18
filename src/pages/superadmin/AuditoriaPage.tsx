@@ -17,6 +17,15 @@ interface AuditLog {
   created_at: string;
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  order_deleted: 'Pedido apagado',
+  items_removed: 'Itens removidos',
+  remove_printed_item: 'Item impresso removido',
+  table_freed: 'Mesa liberada',
+  blocked_delete: 'Exclusão bloqueada',
+  duplicate_merged: 'Pedido duplicado juntado',
+};
+
 export function AuditoriaPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [tenants, setTenants] = useState<Record<string, string>>({});
@@ -79,7 +88,7 @@ export function AuditoriaPage() {
                     {new Date(l.created_at).toLocaleString('pt-BR')}
                   </span>
                   <Badge variant="outline">{tenants[l.tenant_id || ''] || l.tenant_id?.slice(0, 8) || '—'}</Badge>
-                  <Badge variant="secondary">{l.action}</Badge>
+                  <Badge variant="secondary">{ACTION_LABELS[l.action] || l.action}</Badge>
                   <span className="font-mono text-muted-foreground">{l.entity_type}</span>
                   <span className="text-foreground font-medium">{l.user_name || 'sistema'}</span>
                 </div>

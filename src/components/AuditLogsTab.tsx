@@ -24,6 +24,7 @@ const entityLabels: Record<string, string> = {
   customer: 'Cliente',
   settings: 'Configurações',
   user: 'Usuário',
+  table: 'Mesa',
 };
 
 const actionLabels: Record<string, { label: string; color: string }> = {
@@ -37,7 +38,32 @@ const actionLabels: Record<string, { label: string; color: string }> = {
   saida: { label: 'Saída', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
   admin_auth: { label: 'Autorização Admin', color: 'bg-primary/10 text-primary dark:text-primary' },
   finalize: { label: 'Finalização', color: 'bg-accent/10 text-accent dark:text-accent' },
+  order_deleted: { label: 'Pedido apagado', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  items_removed: { label: 'Itens removidos', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  remove_printed_item: { label: 'Item impresso removido', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  table_freed: { label: 'Mesa liberada', color: 'bg-warning/10 text-warning-foreground dark:text-warning-foreground' },
+  blocked_delete: { label: 'Exclusão bloqueada', color: 'bg-primary/10 text-primary dark:text-primary' },
+  duplicate_merged: { label: 'Pedido duplicado juntado', color: 'bg-primary/10 text-primary dark:text-primary' },
 };
+
+const detailLabels: Record<string, string> = {
+  mesa: 'Mesa', tipo: 'Tipo', status: 'Status', total: 'Total', total_antes: 'Total antes', total_depois: 'Total depois',
+  aberto_por: 'Aberto por', itens: 'Itens', status_pedido: 'Status do pedido', pedido_existe: 'Pedido existe',
+  pedido_recusado: 'Pedido recusado', itens_juntados: 'Itens juntados', item: 'Item', quantity: 'Qtd',
+  authorizedBy: 'Autorizado por', table: 'Mesa', autorizado_por_senha: 'Autorizado com senha',
+};
+
+const MONEY_KEYS = new Set(['total', 'total_antes', 'total_depois', 'amount', 'valor']);
+
+function formatItemList(list: unknown[]): string {
+  return list.map((it: any) => {
+    if (!it || typeof it !== 'object') return String(it);
+    const qtd = Number(it.qtd ?? it.quantity ?? 1);
+    const nome = it.nome ?? it.name ?? 'item';
+    const flag = it.impresso ? ' (impresso)' : '';
+    return `${qtd > 1 ? `${qtd}x ` : ''}${nome}${flag}`;
+  }).join(', ');
+}
 
 export function AuditLogsTab() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -65,6 +91,7 @@ export function AuditLogsTab() {
     return (
       log.user_name.toLowerCase().includes(s) ||
       log.action.toLowerCase().includes(s) ||
+      (actionLabels[log.action]?.label || '').toLowerCase().includes(s) ||
       (entityLabels[log.entity_type] || log.entity_type).toLowerCase().includes(s) ||
       JSON.stringify(log.details).toLowerCase().includes(s)
     );
@@ -80,7 +107,15 @@ export function AuditLogsTab() {
   function formatDetails(details: Record<string, unknown>): string {
     if (!details || Object.keys(details).length === 0) return '';
     return Object.entries(details)
-      .map(([k, v]) => `${k}: ${typeof v === 'number' ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : v}`)
+      .filter(([, v]) => v !== null && v !== undefined && v !== '')
+      .map(([k, v]) => {
+        const label = detailLabels[k] || k;
+        if (Array.isArray(v)) return `${label}: ${formatItemList(v)}`;
+        if (typeof v === 'boolean') return `${label}: ${v ? 'sim' : 'não'}`;
+        const num = typeof v === 'number' ? v : (MONEY_KEYS.has(k) && !isNaN(Number(v)) ? Number(v) : null);
+        if (num !== null && MONEY_KEYS.has(k)) return `${label}: ${num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+        return `${label}: ${typeof v === 'object' ? JSON.stringify(v) : v}`;
+      })
       .join(' | ');
   }
 
