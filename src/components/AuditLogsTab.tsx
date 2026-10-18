@@ -7,7 +7,7 @@ import { Search, FileText } from 'lucide-react';
 
 interface AuditLog {
   id: string;
-  user_name: string;
+  user_name: string | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
@@ -162,7 +162,7 @@ export function AuditLogsTab() {
                       {actionInfo.label}
                     </Badge>
                     <Badge variant="secondary">{entityLabel}</Badge>
-                    <span className="text-sm font-medium text-foreground">{log.user_name}</span>
+                    <span className="text-sm font-medium text-foreground">{log.user_name || 'Sistema'}</span>
                   </div>
                   <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(log.created_at)}</span>
                 </div>
