@@ -13,6 +13,8 @@ import { ConsumerOrderModal } from '@/components/consumer/ConsumerOrderModal';
 import { usePrinter } from '@/hooks/use-printer';
 import { Order } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
+import { dbToOrder } from '@/contexts/StoreContext';
+import { pickTableOrder, canDeleteOrder, allowOrderDelete } from '@/lib/order-merge';
 
 const Mesas = () => {
   const { tables, setTables, orders, setOrders, customers, freeTable, occupyTable, lastSyncError } = useStore();
@@ -35,39 +37,37 @@ const Mesas = () => {
   const isFinishedOrder = (o: Order) =>
     o.status === 'cancelado' || o.status === 'concluido' || o.status === 'finalizado' || !!o.completedAt;
 
+  // Cartão da mesa mostra o pedido para o qual a mesa aponta (ou o aberto mais recente).
   const activeMesaOrders = useMemo(() => {
     const map = new Map<number, Order>();
-    orders.forEach(o => {
-      if (o.orderType === 'mesa' && o.tableNumber && !isFinishedOrder(o)) {
-        if ((o.items && o.items.length > 0) || o.isLocked || o.status === 'segurado') {
-          map.set(Number(o.tableNumber), o);
-        }
-      }
+    const tableNums = new Set<number>();
+    orders.forEach(o => { if (o.orderType === 'mesa' && o.tableNumber) tableNums.add(Number(o.tableNumber)); });
+    tableNums.forEach(num => {
+      const linkedId = tables.find(t => t.number === num)?.orderId;
+      const picked = pickTableOrder(orders, num, linkedId);
+      if (picked) map.set(num, picked);
     });
     return map;
-  }, [orders]);
-
-  const finishedTableNumbers = useMemo(() => {
-    const set = new Set<number>();
-    orders.forEach(o => {
-      if (o.orderType === 'mesa' && o.tableNumber && isFinishedOrder(o)) {
-        set.add(Number(o.tableNumber));
-      }
-    });
-    return set;
-  }, [orders]);
+  }, [orders, tables]);
 
   const occupiedTables = useMemo(() => {
     return filteredTables.filter(t => {
       if (activeMesaOrders.has(t.number)) return true;
       if (t.status !== 'occupied') return false;
-      // Mesa marcada como ocupada, mas cujo pedido já foi finalizado/cancelado: tratar como livre
+      // Mesa ocupada cujo pedido já foi finalizado/cancelado: tratar como livre.
+      // Pedido vinculado ainda não carregado mantém a mesa ocupada (nunca some sozinha).
       const linked = t.orderId ? orders.find(o => o.id === t.orderId) : undefined;
       if (linked && isFinishedOrder(linked)) return false;
-      if (!linked && finishedTableNumbers.has(t.number)) return false;
       return true;
     });
-  }, [filteredTables, activeMesaOrders, finishedTableNumbers, orders]);
+  }, [filteredTables, activeMesaOrders, orders]);
+
+  // Confere no banco se o pedido ainda tem itens/valor antes de qualquer descarte.
+  const serverOrderHasContent = async (orderId: string) => {
+    const { data, error } = await supabase.from('orders').select('items,total,status').eq('id', orderId).maybeSingle();
+    if (error) return true; // na dúvida, não apaga
+    return !canDeleteOrder(data as any, false);
+  };
 
   const occupiedNumbers = useMemo(() => new Set(occupiedTables.map(t => t.number)), [occupiedTables]);
 
