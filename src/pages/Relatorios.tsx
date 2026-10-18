@@ -299,7 +299,7 @@ const Relatorios = () => {
 
     const getOrInit = (id: string, name: string) => {
       const registered = (id && attMap[id]) || (name && attMap[name.toLowerCase().trim()]);
-      const key = id || (registered ? registered.id : name.toLowerCase().trim() || 'desconhecido');
+      const key = id || (registered ? registered.id : (name || '').toLowerCase().trim() || 'desconhecido');
       if (!stats[key]) {
         stats[key] = {
           id: key,
@@ -372,7 +372,7 @@ const Relatorios = () => {
       }
       if (attendantSearchQuery.trim()) {
         const query = attendantSearchQuery.toLowerCase().trim();
-        if (!att.name.toLowerCase().includes(query)) {
+        if (!(att.name || '').toLowerCase().includes(query)) {
           return false;
         }
       }

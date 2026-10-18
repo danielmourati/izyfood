@@ -421,7 +421,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const isMobile = useIsMobile();
 
   const filteredCustomers = customers.filter(c =>
-    c.name.toLowerCase().includes(fiadoSearch.toLowerCase()) ||
+    (c.name || '').toLowerCase().includes(fiadoSearch.toLowerCase()) ||
     (c.phone && c.phone.includes(fiadoSearch))
   );
 
