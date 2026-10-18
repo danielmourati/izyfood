@@ -866,8 +866,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOrders(next);
     saveLS('izy_orders', next);
     setLastSyncError(null);
-    const onRemap = (oldId: string) => {
+    const onRemap = (oldId: string, newId: string) => {
       // O pedido duplicado foi absorvido pelo pedido que já estava aberto na mesa.
+      console.warn(`[syncOrders] Pedido ${oldId} juntado ao pedido aberto ${newId} da mesma mesa.`);
       ordersRef.current = ordersRef.current.filter(o => o.id !== oldId);
       setOrders(ordersRef.current);
       saveLS('izy_orders', ordersRef.current);
