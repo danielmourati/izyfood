@@ -17,7 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert, Filter, Search as SearchIcon, ChevronDown } from 'lucide-react';
+import { DollarSign, Lock, Unlock, History, Plus, Minus, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShieldAlert, Filter, Search as SearchIcon, ChevronDown, Printer, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { parseBRLInput } from '@/lib/utils';
@@ -614,13 +614,23 @@ export default function Caixa() {
             </Button>
           </CardContent>
         </Card>
+        </>
+      )}
 
-        {/* Service fee & commission section */}
+      {/* Service fee & commission section — accessible when caixa is open OR anytime for admin even when closed */}
+      {(currentRegister || isAdmin) && (
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="commissions" className="border rounded-xl bg-card overflow-hidden">
             <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180">
-              <div className="flex items-center gap-2 text-lg font-semibold">
-                <DollarSign className="h-5 w-5 text-primary" /> Taxa de Serviço & Comissões
+              <div className="flex items-center justify-between w-full pr-2">
+                <div className="flex items-center gap-2 text-lg font-semibold">
+                  <DollarSign className="h-5 w-5 text-primary" /> Taxa de Serviço & Vendas por Atendente
+                </div>
+                {!currentRegister && (
+                  <span className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 font-normal px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                    Caixa fechado (Acesso Admin)
+                  </span>
+                )}
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6 pt-2">
@@ -628,7 +638,6 @@ export default function Caixa() {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
-        </>
       )}
 
       <Accordion type="single" collapsible className="w-full">
@@ -904,6 +913,8 @@ export default function Caixa() {
 }
 
 function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
+  const { user } = useAuth();
+  const { settings, printSettings } = useStore();
   const [attendants, setAttendants] = useState<{ id: string; name: string; commission: number }[]>([]);
   const [filteredSales, setFilteredSales] = useState<any[]>([]);
   const [startDate, setStartDate] = useState(() => new Date().toLocaleDateString('en-CA'));
@@ -995,19 +1006,173 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
     return sum + (orderInfo(s)?.fee || 0);
   }, 0);
 
-  // Calculate per-attendant sales from item tracking
+  // Calculate per-attendant sales, item counts, and order counts
   const attendantSales: Record<string, number> = {};
+  const attendantItemsCount: Record<string, number> = {};
+  const attendantOrdersCount: Record<string, Set<string>> = {};
+
   for (const sale of filteredSales) {
+    const saleId = sale.order_id || sale.orderId;
+    const sOrder = orders.find((x: any) => x.id === saleId);
     const items = sale.items || [];
     for (const item of items) {
-      if (item.addedBy) {
-        attendantSales[item.addedBy] = (attendantSales[item.addedBy] || 0) + (item.subtotal || 0);
+      const attId = item.addedBy || sOrder?.openedBy;
+      if (attId) {
+        attendantSales[attId] = (attendantSales[attId] || 0) + Number(item.subtotal || (item.price * item.quantity) || 0);
+        attendantItemsCount[attId] = (attendantItemsCount[attId] || 0) + Number(item.quantity || 1);
+        if (!attendantOrdersCount[attId]) attendantOrdersCount[attId] = new Set();
+        if (saleId) attendantOrdersCount[attId].add(saleId);
       }
     }
   }
 
   const displayedAttendants = selectedAttendant === 'all' ? attendants : attendants.filter(a => a.id === selectedAttendant);
   const periodLabel = filterLabel || (startDate || endDate ? `${startDate} → ${endDate}` : '');
+
+  // A4 Printing and PDF Export
+  const handlePrintA4 = (mode: 'print' | 'pdf' = 'print') => {
+    const win = window.open('', '_blank', 'width=900,height=1100');
+    if (!win) {
+      toast.error('Permita popups para imprimir ou gerar PDF.');
+      return;
+    }
+    const storeName = settings?.name || printSettings?.storeName || 'IZYFOOD';
+    const storeDoc = printSettings?.document ? `${printSettings.documentType?.toUpperCase() || 'DOC'}: ${printSettings.document}` : '';
+    const storePhone = printSettings?.whatsapp ? `Tel: ${printSettings.whatsapp}` : '';
+    const periodText = periodLabel || `${startDate} a ${endDate}`;
+
+    let totalGeralVendido = 0;
+    let totalGeralComissao = 0;
+    let totalGeralPedidos = 0;
+    let totalGeralItens = 0;
+
+    const rows = displayedAttendants.map((att, idx) => {
+      const vendido = attendantSales[att.id] || 0;
+      const comissao = att.commission > 0 ? (vendido * att.commission) / 100 : 0;
+      const pedidos = attendantOrdersCount[att.id]?.size || 0;
+      const itens = attendantItemsCount[att.id] || 0;
+      totalGeralVendido += vendido;
+      totalGeralComissao += comissao;
+      totalGeralPedidos += pedidos;
+      totalGeralItens += itens;
+
+      return `
+        <tr>
+          <td style="text-align:center;">${idx + 1}</td>
+          <td><strong>${att.name}</strong></td>
+          <td style="text-align:center;">${pedidos}</td>
+          <td style="text-align:center;">${itens}</td>
+          <td style="text-align:right;">R$ ${fmt(vendido)}</td>
+          <td style="text-align:center;">${att.commission}%</td>
+          <td style="text-align:right;font-weight:bold;color:#166534;">R$ ${fmt(comissao)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const docTitle = mode === 'pdf'
+      ? `Relatorio_Vendas_Atendentes_${startDate}_a_${endDate}`
+      : 'Relatório de Vendas por Atendente';
+
+    win.document.write(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${docTitle}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm 14mm 14mm 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; margin: 0; padding: 0; font-size: 11px; background: #fff; }
+    .header { border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .store-info h1 { font-size: 18px; margin: 0 0 2px 0; color: #0f172a; font-weight: 800; }
+    .store-info p { margin: 0; font-size: 10.5px; color: #64748b; }
+    .report-badge { text-align: right; }
+    .report-badge .badge-title { font-size: 13px; font-weight: 700; color: #0f172a; text-transform: uppercase; }
+    .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; font-size: 10.5px; }
+    .meta-item .label { color: #64748b; font-size: 9px; text-transform: uppercase; font-weight: 600; margin-bottom: 1px; }
+    .meta-item .value { font-weight: 600; color: #0f172a; }
+    .kpi-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+    .kpi-card { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 10px; background: #ffffff; }
+    .kpi-title { font-size: 9px; font-weight: 600; text-transform: uppercase; color: #64748b; margin-bottom: 2px; }
+    .kpi-value { font-size: 14px; font-weight: 800; color: #0f172a; }
+    .kpi-value.green { color: #166534; }
+    table.data-table { width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 20px; }
+    table.data-table th, table.data-table td { border: 1px solid #cbd5e1; padding: 6px 8px; }
+    table.data-table thead th { background: #f1f5f9; font-weight: 700; text-transform: uppercase; font-size: 9.5px; color: #334155; }
+    table.data-table tbody tr:nth-child(even) { background: #fafafa; }
+    table.data-table tfoot td { background: #f1f5f9; font-weight: 700; border-top: 2px solid #0f172a; }
+    .signatures { margin-top: 32px; display: flex; justify-content: space-around; page-break-inside: avoid; }
+    .sign-box { width: 220px; text-align: center; font-size: 10px; }
+    .sign-line { border-top: 1px solid #475569; margin-bottom: 4px; }
+    .footer-note { margin-top: 16px; font-size: 9px; color: #94a3b8; text-align: center; }
+    .no-print-bar { background: #0f172a; color: #fff; padding: 8px 14px; margin: -12mm -14mm 12px -14mm; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; }
+    .no-print-bar button { background: #2563eb; color: #fff; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+    @media print { .no-print-bar { display: none !important; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <div class="no-print-bar">
+    <span>${mode === 'pdf' ? '📄 Salvar como PDF: na caixa de diálogo, selecione "Salvar como PDF" como Destino.' : '🖨️ Pré-visualização de Impressão A4'}</span>
+    <button onclick="window.print()">${mode === 'pdf' ? 'Salvar em PDF' : 'Imprimir Agora'}</button>
+  </div>
+  <div class="header">
+    <div class="store-info">
+      <h1>${storeName}</h1>
+      <p>${[storeDoc, storePhone].filter(Boolean).join(' • ')}</p>
+    </div>
+    <div class="report-badge">
+      <div class="badge-title">Vendas por Atendente</div>
+      <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Módulo Caixa</div>
+    </div>
+  </div>
+  <div class="meta-grid">
+    <div class="meta-item"><div class="label">Período</div><div class="value">${periodText}</div></div>
+    <div class="meta-item"><div class="label">Atendente</div><div class="value">${selectedAttendant === 'all' ? 'Todos os Atendentes' : (attendants.find(a => a.id === selectedAttendant)?.name || selectedAttendant)}</div></div>
+    <div class="meta-item"><div class="label">Data de Emissão</div><div class="value">${new Date().toLocaleString('pt-BR')}</div></div>
+    <div class="meta-item"><div class="label">Emitido Por</div><div class="value">${user?.name || 'Administrador'}</div></div>
+  </div>
+  <div class="kpi-cards">
+    <div class="kpi-card"><div class="kpi-title">Total Vendido</div><div class="kpi-value">R$ ${fmt(totalGeralVendido)}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Total Comissões</div><div class="kpi-value green">R$ ${fmt(totalGeralComissao)}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Qtd. Itens Vendidos</div><div class="kpi-value">${totalGeralItens}</div></div>
+    <div class="kpi-card"><div class="kpi-title">Taxa Serviço (Mesa)</div><div class="kpi-value">R$ ${fmt(totalServiceFee)}</div></div>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width:28px;text-align:center;">#</th>
+        <th>Atendente / Usuário</th>
+        <th style="width:65px;text-align:center;">Pedidos</th>
+        <th style="width:65px;text-align:center;">Itens</th>
+        <th style="width:95px;text-align:right;">Total Vendido</th>
+        <th style="width:50px;text-align:center;">% Com.</th>
+        <th style="width:95px;text-align:right;">Comissão</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || '<tr><td colspan="7" style="text-align:center;padding:16px;color:#64748b;">Nenhuma venda neste período.</td></tr>'}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="2" style="text-align:right;">TOTAIS:</td>
+        <td style="text-align:center;">${totalGeralPedidos}</td>
+        <td style="text-align:center;">${totalGeralItens}</td>
+        <td style="text-align:right;">R$ ${fmt(totalGeralVendido)}</td>
+        <td style="text-align:center;">—</td>
+        <td style="text-align:right;color:#166534;">R$ ${fmt(totalGeralComissao)}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <div class="signatures">
+    <div class="sign-box"><div class="sign-line"></div><div>Administração / Responsável</div></div>
+    <div class="sign-box"><div class="sign-line"></div><div>Conferência / Atendente</div></div>
+  </div>
+  <div class="footer-note">Documento gerado em ${new Date().toLocaleString('pt-BR')}</div>
+</body>
+</html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 400);
+  };
 
   return (
     <div className="space-y-4">
@@ -1021,7 +1186,7 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
         ))}
       </div>
 
-      {/* Filters — responsive, no overflow */}
+      {/* Filters & Actions */}
       <div className="bg-muted/30 p-3 rounded-lg border border-muted space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
@@ -1033,21 +1198,29 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
             <Input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setFilterLabel(''); }} className="h-8 text-xs" />
           </div>
         </div>
-        <div className="flex gap-2">
-          <div className="space-y-1 flex-1 min-w-0">
+        <div className="flex flex-wrap sm:flex-nowrap gap-2 items-end">
+          <div className="space-y-1 flex-1 min-w-[140px]">
             <Label className="text-[10px] uppercase text-muted-foreground">Atendente</Label>
             <Select value={selectedAttendant} onValueChange={setSelectedAttendant}>
               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Todos" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Todos os Atendentes</SelectItem>
                 {attendants.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-end">
-            <Button onClick={handleSearch} className="h-8 gap-1.5 px-3 shrink-0" disabled={isSearching}>
+          <div className="flex gap-1.5 shrink-0">
+            <Button onClick={handleSearch} className="h-8 gap-1.5 px-3" disabled={isSearching}>
               {isSearching ? <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <SearchIcon className="h-3.5 w-3.5" />}
               Filtrar
+            </Button>
+            <Button onClick={() => handlePrintA4('print')} variant="outline" className="h-8 gap-1.5 px-2.5 text-xs" title="Imprimir Relatório A4">
+              <Printer className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Imprimir</span> A4
+            </Button>
+            <Button onClick={() => handlePrintA4('pdf')} variant="outline" className="h-8 gap-1.5 px-2.5 text-xs" title="Salvar Relatório em PDF">
+              <Download className="h-3.5 w-3.5" />
+              PDF
             </Button>
           </div>
         </div>
@@ -1063,16 +1236,20 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
 
       {displayedAttendants.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm font-medium text-foreground px-1">
-            Vendas e comissões por atendente:
-            {periodLabel && <span className="ml-2 text-xs text-primary font-normal">· {periodLabel}</span>}
-          </p>
+          <div className="flex items-center justify-between px-1">
+            <p className="text-sm font-medium text-foreground">
+              Vendas e comissões por atendente:
+              {periodLabel && <span className="ml-2 text-xs text-primary font-normal">· {periodLabel}</span>}
+            </p>
+          </div>
           <div className="border rounded-lg overflow-hidden bg-card">
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow>
                   <TableHead className="h-9 text-[11px] uppercase">Atendente</TableHead>
-                  <TableHead className="h-9 text-[11px] uppercase text-center">%</TableHead>
+                  <TableHead className="h-9 text-[11px] uppercase text-center">Pedidos</TableHead>
+                  <TableHead className="h-9 text-[11px] uppercase text-center">Itens</TableHead>
+                  <TableHead className="h-9 text-[11px] uppercase text-center">% Com.</TableHead>
                   <TableHead className="h-9 text-[11px] uppercase text-right">Vendido</TableHead>
                   <TableHead className="h-9 text-[11px] uppercase text-right">Comissão</TableHead>
                 </TableRow>
@@ -1081,10 +1258,14 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
                 {displayedAttendants.map(att => {
                   const vendido = attendantSales[att.id] || 0;
                   const comissao = att.commission > 0 ? (vendido * att.commission) / 100 : 0;
+                  const pedidos = attendantOrdersCount[att.id]?.size || 0;
+                  const itens = attendantItemsCount[att.id] || 0;
                   if (vendido === 0 && comissao === 0) return null;
                   return (
                     <TableRow key={att.id} className="h-10">
                       <TableCell className="py-2 text-xs font-medium">{att.name}</TableCell>
+                      <TableCell className="py-2 text-xs text-center text-muted-foreground">{pedidos}</TableCell>
+                      <TableCell className="py-2 text-xs text-center text-muted-foreground">{itens}</TableCell>
                       <TableCell className="py-2 text-xs text-center text-muted-foreground">{att.commission}%</TableCell>
                       <TableCell className="py-2 text-xs text-right font-medium">{fmt(vendido)}</TableCell>
                       <TableCell className="py-2 text-xs text-right font-bold text-primary">{fmt(comissao)}</TableCell>
@@ -1093,7 +1274,7 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
                 })}
                 {(filteredSales.length === 0 || !displayedAttendants.some(att => (attendantSales[att.id] || 0) > 0)) && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-4 text-xs text-muted-foreground italic">
+                    <TableCell colSpan={6} className="text-center py-4 text-xs text-muted-foreground italic">
                       {filteredSales.length === 0 ? 'Aplique um filtro para ver os dados.' : 'Nenhuma venda neste período.'}
                     </TableCell>
                   </TableRow>
