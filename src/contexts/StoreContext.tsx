@@ -1256,16 +1256,26 @@ function queueOrderWrite(orderId: string, write: () => Promise<void>) {
   });
 }
 
-async function syncOrders(prev: Order[], next: Order[], markPending: (id: string | number) => void, clearPending: (id: string | number) => void, tenantId?: string) {
+async function syncOrders(prev: Order[], next: Order[], markPending: (id: string | number) => void, clearPending: (id: string | number) => void, tenantId?: string, onRemap?: (oldId: string, newId: string) => void) {
   const added = next.filter(n => !prev.find(p => p.id === n.id));
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && JSON.stringify(p) !== JSON.stringify(n); });
 
   for (const o of removed) {
+    const explicit = consumeOrderDelete(o.id);
     markPending(o.id);
     if (o.tableNumber) markPending(o.tableNumber);
     try {
       await queueOrderWrite(o.id, async () => {
+        if (!explicit) {
+          // Pedido com itens/valor gravado só sai por exclusão explícita do usuário.
+          const { data: server } = await supabase.from('orders').select('items,total,status').eq('id', o.id).maybeSingle();
+          if (!canDeleteOrder(server as any, false)) {
+            console.warn(`[syncOrders] Exclusão bloqueada do pedido ${o.id}: ainda tem itens/valor no banco.`);
+            logAudit({ action: 'blocked_delete', entityType: 'order', entityId: o.id, details: { mesa: o.tableNumber ?? null, itens: ((server as any)?.items || []).length, total: Number((server as any)?.total) || 0 } });
+            return;
+          }
+        }
         const { error } = await supabase.from('orders').delete().eq('id', o.id);
         if (error) throw error;
       });
@@ -1309,6 +1319,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
 
       if (!tenantId) throw new Error(`Pedido ${o.id} sem identificação da loja`);
       let skipped = false;
+      let remappedTo: string | null = null;
       await queueOrderWrite(o.id, async () => {
         // Uma vez impresso, sempre impresso: não deixa cópia antiga rebaixar `printed`.
         const { data: current } = await supabase.from('orders').select('items,status').eq('id', o.id).maybeSingle();
@@ -1326,11 +1337,38 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
           }
         }
         const { error } = await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' });
+        if (error && (error as any).code === '23505' && o.orderType === 'mesa' && o.tableNumber) {
+          // Outro aparelho já abriu esta mesa: junta os itens no pedido existente em vez de criar outro.
+          const { data: existing } = await supabase.from('orders')
+            .select('id,items,total')
+            .eq('tenant_id', tenantId)
+            .eq('order_type', 'mesa')
+            .eq('table_number', Number(o.tableNumber))
+            .in('status', ['aberto', 'segurado'])
+            .neq('id', o.id)
+            .maybeSingle();
+          if (!existing) throw error;
+          const mergedItems = absorbDuplicateOrderItems((existing as any).items as any[], orderPayload.items as any[]);
+          const mergedTotal = mergedItems.reduce((s: number, i: any) => s + (Number(i.subtotal) || 0), 0);
+          const { error: mergeErr } = await supabase.from('orders')
+            .update({ items: mergedItems as any, total: mergedTotal })
+            .eq('id', (existing as any).id);
+          if (mergeErr) throw mergeErr;
+          remappedTo = (existing as any).id;
+          logAudit({ action: 'duplicate_merged', entityType: 'order', entityId: (existing as any).id, details: { mesa: Number(o.tableNumber), pedido_recusado: o.id, itens_juntados: mergedItems.length - (((existing as any).items as any[])?.length || 0) } });
+          return;
+        }
         if (error) throw error;
       });
       if (skipped) {
         clearPending(o.id);
         if (o.tableNumber) clearPending(o.tableNumber);
+        continue;
+      }
+      if (remappedTo) {
+        clearPending(o.id);
+        if (o.tableNumber) clearPending(o.tableNumber);
+        onRemap?.(o.id, remappedTo);
         continue;
       }
 
