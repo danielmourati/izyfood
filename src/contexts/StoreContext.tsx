@@ -1,5 +1,6 @@
 import { mergePrintedFlags } from '@/lib/printed-guard';
-import { mergeOrderItems, isTerminalStatus } from '@/lib/order-merge';
+import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete } from '@/lib/order-merge';
+import { logAudit } from '@/lib/audit';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory, DiscountCoupon, StoreSettings, PaymentSplit, ProductNoteOption } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -77,7 +78,7 @@ function dbToCustomer(r: any): Customer {
 function dbToSupplier(r: any): Supplier {
   return { id: r.id, name: r.name, contact: r.contact };
 }
-function dbToOrder(r: any): Order {
+export function dbToOrder(r: any): Order {
   return {
     id: r.id, openedBy: r.opened_by || undefined, openedByName: r.opened_by_name || undefined,
     items: r.items as OrderItem[], total: Number(r.total), orderType: r.order_type, status: r.status,
@@ -865,13 +866,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOrders(next);
     saveLS('izy_orders', next);
     setLastSyncError(null);
-    syncOrders(prev, next, markPending, clearPending, user?.tenantId)
+    const onRemap = (oldId: string) => {
+      // O pedido duplicado foi absorvido pelo pedido que já estava aberto na mesa.
+      ordersRef.current = ordersRef.current.filter(o => o.id !== oldId);
+      setOrders(ordersRef.current);
+      saveLS('izy_orders', ordersRef.current);
+      fetchTablesAndOrders();
+    };
+    syncOrders(prev, next, markPending, clearPending, user?.tenantId, onRemap)
       .then(() => notifyCrossTabSync())
       .catch(e => {
         console.error('[syncOrders]', e);
         setLastSyncError('Não foi possível sincronizar o pedido. Verifique a conexão e tente novamente.');
       });
-  }, [notifyCrossTabSync, markPending, clearPending, user?.tenantId]);
+  }, [notifyCrossTabSync, markPending, clearPending, user?.tenantId, fetchTablesAndOrders]);
 
   const setSalesWrapped: typeof setSales = useCallback((updater) => {
     const prev = salesRef.current;
