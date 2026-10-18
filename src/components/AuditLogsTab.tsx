@@ -119,10 +119,6 @@ export function AuditLogsTab() {
       .join(' | ');
   }
 
-  function formatDetails(details: Record<string, unknown>): string {
-    return formatAuditDetails(details);
-  }
-
   if (loading) {
     return (
       <div className="space-y-3 py-2">
