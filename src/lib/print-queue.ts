@@ -83,11 +83,12 @@ export async function fetchPrintJobs(limit = 20): Promise<PrintJob[]> {
 export async function fetchOpenPrintJobs(): Promise<PrintJob[]> {
   const { data, error } = await table()
     .select('*')
-    .in('status', ['pending'])
+    .in('status', ['pending', 'printing'])
     .order('created_at', { ascending: true })
     .limit(50);
   if (error) throw error;
-  return (data || []) as unknown as PrintJob[];
+  const rows = (data || []) as unknown as PrintJob[];
+  return rows.filter(j => j.status === 'pending' || isStalePrinting(j));
 }
 
 /** Trava atômica: só um host consegue assumir o cupom. */
@@ -107,6 +108,18 @@ export async function markPrintJobDone(jobId: string, printedOn?: string | null)
 
 export async function markPrintJobError(jobId: string, message: string): Promise<void> {
   await table().update({ status: 'error', error: message.slice(0, 400) } as any).eq('id', jobId);
+}
+
+/** Volta cupons "Na fila"/travados/falhos para a fila; o Caixa imprime na hora. */
+export async function forcePrintJobs(ids?: string[]): Promise<number> {
+  const { data, error } = await (supabase as any).rpc('force_print_jobs', { _ids: ids && ids.length ? ids : null });
+  if (error) throw error;
+  return Number(data || 0);
+}
+
+/** Cupom "Imprimindo" há mais de 60s é considerado travado. */
+export function isStalePrinting(job: Pick<PrintJob, 'status' | 'claimed_at'>, now = Date.now()): boolean {
+  return job.status === 'printing' && !!job.claimed_at && now - new Date(job.claimed_at).getTime() > 60_000;
 }
 
 export async function retryPrintJob(jobId: string): Promise<void> {

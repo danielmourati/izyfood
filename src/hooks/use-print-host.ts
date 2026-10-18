@@ -62,7 +62,7 @@ export function usePrintHost() {
         }
         let claimed: PrintJob | null = null;
         try {
-          claimed = await claimPrintJob(jobId, `${getDeviceLabel()} (${getDeviceId().slice(-4)})`);
+          claimed = await withTimeout(claimPrintJob(jobId, `${getDeviceLabel()} (${getDeviceId().slice(-4)})`), 10000);
         } catch (err) {
           console.warn('[print-host] falha ao assumir cupom', err);
         }
@@ -128,6 +128,14 @@ export function usePrintHost() {
       purgeOldPrintJobs();
     })();
     const purgeTimer = window.setInterval(() => { purgeOldPrintJobs(); }, 60 * 1000);
+    // Não depende só do aviso em tempo real: confere a fila a cada 10s.
+    const pollTimer = window.setInterval(async () => {
+      try {
+        const open = await fetchOpenPrintJobs();
+        if (!active) return;
+        open.forEach(j => { if (!queueRef.current.includes(j.id)) { seenRef.current.delete(j.id); enqueue(j.id); } });
+      } catch {}
+    }, 10 * 1000);
 
     const channelName = `print-jobs-host:${tenantId}:${getDeviceId()}`;
     const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
@@ -160,6 +168,7 @@ export function usePrintHost() {
 
     return () => {
       window.clearInterval(purgeTimer);
+      window.clearInterval(pollTimer);
       active = false;
       supabase.removeChannel(channel);
     };
