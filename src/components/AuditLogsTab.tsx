@@ -89,7 +89,7 @@ export function AuditLogsTab() {
     if (!search) return true;
     const s = search.toLowerCase();
     return (
-      log.user_name.toLowerCase().includes(s) ||
+      (log.user_name || '').toLowerCase().includes(s) ||
       log.action.toLowerCase().includes(s) ||
       (actionLabels[log.action]?.label || '').toLowerCase().includes(s) ||
       (entityLabels[log.entity_type] || log.entity_type).toLowerCase().includes(s) ||
