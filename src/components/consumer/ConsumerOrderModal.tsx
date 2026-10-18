@@ -25,7 +25,7 @@ import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
 import { OrderItemDetails } from '@/components/OrderItemDetails';
 import { needsAuthToRemoveItem, showsRemoveItemControl, verifyTenantAdminPassword } from '@/lib/order-permissions';
 import { logAudit } from '@/lib/audit';
-import { allowOrderDelete } from '@/lib/order-merge';
+import { allowOrderDelete, allowItemRemoval } from '@/lib/order-merge';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -728,6 +728,7 @@ export function ConsumerOrderModal({
 
   const doRemoveItem = (id: string, authorizedBy?: string) => {
     const removed = items.find(i => i.id === id);
+    if (currentOrder?.id) allowItemRemoval(String(currentOrder.id), id);
     const updatedItems = items.filter(i => i.id !== id);
     const updatedTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
     const updatedOrder: Order = { ...currentOrder, items: updatedItems, total: updatedTotal };
