@@ -25,6 +25,7 @@ import BluetoothPrinterSection from '@/components/BluetoothPrinterSection';
 import { OrderItemDetails } from '@/components/OrderItemDetails';
 import { needsAuthToRemoveItem, showsRemoveItemControl, verifyTenantAdminPassword } from '@/lib/order-permissions';
 import { logAudit } from '@/lib/audit';
+import { allowOrderDelete } from '@/lib/order-merge';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -902,6 +903,8 @@ export function ConsumerOrderModal({
     const orderId = currentOrder?.id;
 
     if (orderId) {
+      allowOrderDelete(orderId);
+      logAudit({ action: 'delete', entityType: 'order', entityId: orderId, details: { mesa: mesaNum ?? null, total: totalAmount, itens: items.length, autorizado_por_senha: !canCancelOrDeleteMesa } });
       if (onDeleteOrder) {
         await onDeleteOrder(orderId, mesaNum);
       } else if (onDiscardEmptyOrder) {
