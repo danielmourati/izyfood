@@ -23,7 +23,7 @@ const Clientes = () => {
   const [form, setForm] = useState({ name: '', phone: '', address: '', notes: '' });
 
   const filtered = customers.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)
+    (c.name || '').toLowerCase().includes(search.toLowerCase()) || (c.phone || '').includes(search)
   );
 
   const openNew = () => {

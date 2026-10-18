@@ -85,7 +85,7 @@ export function SuperAdminUsersTab() {
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   const filtered = users.filter(u => {
-    const matchesSearch = !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = !search || (u.name || '').toLowerCase().includes(search.toLowerCase()) || (u.email || '').toLowerCase().includes(search.toLowerCase());
     const matchesTenant = filterTenant === 'all' || u.tenantSlug === filterTenant;
     return matchesSearch && matchesTenant;
   });
