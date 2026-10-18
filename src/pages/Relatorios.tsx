@@ -325,7 +325,7 @@ const Relatorios = () => {
         const attName = item.addedByName || fallbackOpenerName || (attId && attMap[attId]?.name) || '';
 
         const entry = getOrInit(attId, attName);
-        const subtotal = Number(item.subtotal ?? (item.price * item.quantity) ?? 0);
+        const subtotal = Number(item.subtotal ?? (item.price * item.quantity));
         const qty = Number(item.quantity || 1);
 
         entry.totalSold += subtotal;
@@ -395,7 +395,7 @@ const Relatorios = () => {
       return;
     }
     const periodText = rangeLabelText || `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}`;
-    const storeName = settings?.name || printSettings?.storeName || 'IZYFOOD';
+    const storeName = printSettings?.storeName || 'IZYFOOD';
     const storeDoc = printSettings?.document ? `${printSettings.documentType?.toUpperCase() || 'DOC'}: ${printSettings.document}` : '';
     const storePhone = printSettings?.whatsapp ? `Tel: ${printSettings.whatsapp}` : '';
 
