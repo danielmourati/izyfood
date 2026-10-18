@@ -122,10 +122,9 @@ export function isStalePrinting(job: Pick<PrintJob, 'status' | 'claimed_at'>, no
   return job.status === 'printing' && !!job.claimed_at && now - new Date(job.claimed_at).getTime() > 60_000;
 }
 
-export async function retryPrintJob(jobId: string): Promise<void> {
-  await table()
-    .update({ status: 'pending', error: null, attempts: 0, claimed_by: null, claimed_at: null } as any)
-    .eq('id', jobId);
+/** Cupom que pode ser forçado de volta à fila: na fila, falho ou travado imprimindo. */
+export function canForcePrintJob(job: Pick<PrintJob, 'status' | 'claimed_at'>, now = Date.now()): boolean {
+  return job.status === 'pending' || job.status === 'error' || isStalePrinting(job, now);
 }
 
 export async function clearDonePrintJobs(): Promise<void> {

@@ -11,9 +11,8 @@ import {
   fetchPrintJobs,
   printJobKindLabels,
   printJobStatusLabels,
-  retryPrintJob,
   forcePrintJobs,
-  isStalePrinting,
+  canForcePrintJob,
   type PrintJob,
 } from '@/lib/print-queue';
 
@@ -69,11 +68,6 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
     return () => { supabase.removeChannel(channel); };
   }, [user?.tenantId, load, part]);
 
-  const handleRetry = async (id: string) => {
-    setBusy(true);
-    try { await retryPrintJob(id); await load(); } finally { setBusy(false); }
-  };
-
   const [forceMsg, setForceMsg] = useState<string | null>(null);
   const handleForce = async (ids?: string[]) => {
     setBusy(true);
@@ -88,7 +82,7 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
       setForceMsg('Não foi possível forçar a impressão: ' + (err?.message || 'erro'));
     } finally { setBusy(false); }
   };
-  const forceable = (j: PrintJob) => j.status === 'pending' || isStalePrinting(j);
+  const forceable = (j: PrintJob) => canForcePrintJob(j);
 
   const handleClear = async () => {
     setBusy(true);
@@ -169,11 +163,6 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
                 {forceable(job) && (
                   <Button size="sm" variant="secondary" className="h-7 text-[11px] font-bold" disabled={busy} onClick={() => handleForce([job.id])}>
                     Forçar impressão
-                  </Button>
-                )}
-                {job.status === 'error' && (
-                  <Button size="sm" variant="secondary" className="h-7 text-[11px] font-bold" disabled={busy} onClick={() => handleRetry(job.id)}>
-                    Tentar novamente
                   </Button>
                 )}
               </div>
