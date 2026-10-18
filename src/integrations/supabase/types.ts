@@ -1354,6 +1354,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      force_print_jobs: { Args: { _ids?: string[] }; Returns: number }
       get_tenant_branding: {
         Args: { _slug: string }
         Returns: {
