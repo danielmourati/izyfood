@@ -12,6 +12,8 @@ import {
   printJobKindLabels,
   printJobStatusLabels,
   retryPrintJob,
+  forcePrintJobs,
+  isStalePrinting,
   type PrintJob,
 } from '@/lib/print-queue';
 
@@ -72,6 +74,22 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
     try { await retryPrintJob(id); await load(); } finally { setBusy(false); }
   };
 
+  const [forceMsg, setForceMsg] = useState<string | null>(null);
+  const handleForce = async (ids?: string[]) => {
+    setBusy(true);
+    setForceMsg(null);
+    try {
+      const n = await forcePrintJobs(ids);
+      setForceMsg(!hostOnline && !printHostEnabled
+        ? 'Nenhum Caixa (servidor de impressão) ativo agora. Os cupons ficam na fila até um Caixa ser ligado.'
+        : n > 0 ? `${n} cupom(ns) reenviado(s) ao Caixa.` : 'Nada para forçar (cupons de mesas já fechadas foram retirados).');
+      await load();
+    } catch (err: any) {
+      setForceMsg('Não foi possível forçar a impressão: ' + (err?.message || 'erro'));
+    } finally { setBusy(false); }
+  };
+  const forceable = (j: PrintJob) => j.status === 'pending' || isStalePrinting(j);
+
   const handleClear = async () => {
     setBusy(true);
     try { await clearDonePrintJobs(); await load(); } finally { setBusy(false); }
@@ -112,6 +130,11 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
           Fila de impressão
         </span>
         <div className="flex gap-2">
+          {jobs.some(forceable) && (
+            <Button size="sm" className="h-7 text-xs font-bold" onClick={() => handleForce()} disabled={busy}>
+              <Printer className="h-3.5 w-3.5 mr-1" /> Forçar todos
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="h-7 text-xs font-bold" onClick={load} disabled={busy}>
             <RefreshCw className="h-3.5 w-3.5 mr-1" /> Atualizar
           </Button>
@@ -121,6 +144,7 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
         </div>
       </div>
 
+      {forceMsg && <p role="status" className="text-xs font-semibold text-primary">{forceMsg}</p>}
       {jobs.length === 0 ? (
         <p className="text-xs text-muted-foreground">Nenhum cupom na fila.</p>
       ) : (
@@ -142,6 +166,11 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
                 <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${statusClass[job.status] || ''}`}>
                   {printJobStatusLabels[job.status] || job.status}
                 </span>
+                {forceable(job) && (
+                  <Button size="sm" variant="secondary" className="h-7 text-[11px] font-bold" disabled={busy} onClick={() => handleForce([job.id])}>
+                    Forçar impressão
+                  </Button>
+                )}
                 {job.status === 'error' && (
                   <Button size="sm" variant="secondary" className="h-7 text-[11px] font-bold" disabled={busy} onClick={() => handleRetry(job.id)}>
                     Tentar novamente
