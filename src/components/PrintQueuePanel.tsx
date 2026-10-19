@@ -198,7 +198,7 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
                   {job.error ? ` · ${job.error}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                 <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${statusClass[job.status] || ''}`}>
                   {printJobStatusLabels[job.status] || job.status}
                 </span>
