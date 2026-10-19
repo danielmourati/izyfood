@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Printer, RefreshCw, Trash2, Monitor } from 'lucide-react';
+import { Printer, RefreshCw, Trash2, Monitor, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,8 @@ import {
   printJobStatusLabels,
   forcePrintJobs,
   canForcePrintJob,
+  canCancelPrintJob,
+  cancelPrintJobs,
   type PrintJob,
 } from '@/lib/print-queue';
 
@@ -83,6 +85,26 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
     } finally { setBusy(false); }
   };
   const forceable = (j: PrintJob) => canForcePrintJob(j);
+  const cancelable = (j: PrintJob) => canCancelPrintJob(j);
+
+  // Confirmação na própria tela: null = nada pendente; [] = todos; [id] = um cupom.
+  const [confirmCancel, setConfirmCancel] = useState<string[] | null>(null);
+  const cancelCount = confirmCancel === null ? 0 : (confirmCancel.length ? confirmCancel.length : jobs.filter(cancelable).length);
+  const handleCancel = async () => {
+    if (confirmCancel === null) return;
+    setBusy(true);
+    setForceMsg(null);
+    try {
+      const n = await cancelPrintJobs(confirmCancel);
+      setForceMsg(n > 0 ? `${n} cupom(ns) cancelado(s). Eles não serão impressos.` : 'Nenhum cupom para cancelar.');
+      await load();
+    } catch (err: any) {
+      setForceMsg('Não foi possível cancelar: ' + (err?.message || 'erro'));
+    } finally {
+      setBusy(false);
+      setConfirmCancel(null);
+    }
+  };
 
   const handleClear = async () => {
     setBusy(true);
@@ -129,6 +151,11 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
               <Printer className="h-3.5 w-3.5 mr-1" /> Forçar todos
             </Button>
           )}
+          {jobs.some(cancelable) && (
+            <Button size="sm" variant="destructive" className="h-7 text-xs font-bold" onClick={() => setConfirmCancel([])} disabled={busy}>
+              <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar todos
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="h-7 text-xs font-bold" onClick={load} disabled={busy}>
             <RefreshCw className="h-3.5 w-3.5 mr-1" /> Atualizar
           </Button>
@@ -138,6 +165,21 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
         </div>
       </div>
 
+      {confirmCancel !== null && (
+        <div role="alertdialog" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2">
+          <span className="text-xs font-bold text-destructive">
+            Cancelar {cancelCount} cupom(ns)? Eles não serão impressos.
+          </span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-7 text-xs font-bold" onClick={() => setConfirmCancel(null)} disabled={busy}>
+              Voltar
+            </Button>
+            <Button size="sm" variant="destructive" className="h-7 text-xs font-bold" onClick={handleCancel} disabled={busy}>
+              Sim, cancelar
+            </Button>
+          </div>
+        </div>
+      )}
       {forceMsg && <p role="status" className="text-xs font-semibold text-primary">{forceMsg}</p>}
       {jobs.length === 0 ? (
         <p className="text-xs text-muted-foreground">Nenhum cupom na fila.</p>
@@ -163,6 +205,11 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
                 {forceable(job) && (
                   <Button size="sm" variant="secondary" className="h-7 text-[11px] font-bold" disabled={busy} onClick={() => handleForce([job.id])}>
                     Forçar impressão
+                  </Button>
+                )}
+                {cancelable(job) && (
+                  <Button size="sm" variant="outline" className="h-7 text-[11px] font-bold text-destructive border-destructive/40" disabled={busy} onClick={() => setConfirmCancel([job.id])}>
+                    Cancelar
                   </Button>
                 )}
               </div>
