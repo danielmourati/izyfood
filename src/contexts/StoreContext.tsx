@@ -1,5 +1,5 @@
 import { mergePrintedFlags } from '@/lib/printed-guard';
-import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete, consumeItemRemovals } from '@/lib/order-merge';
+import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete, consumeItemRemovals, allowItemRemoval } from '@/lib/order-merge';
 import { logAudit } from '@/lib/audit';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory, DiscountCoupon, StoreSettings, PaymentSplit, ProductNoteOption } from '@/types';
@@ -1353,7 +1353,17 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
       let remappedTo: string | null = null;
       await queueOrderWrite(o.id, async () => {
         // Uma vez impresso, sempre impresso: não deixa cópia antiga rebaixar `printed`.
-        const { data: current } = await supabase.from('orders').select('items,status').eq('id', o.id).maybeSingle();
+        // Se a leitura falhar (sinal fraco), nunca grava "às cegas": tenta de novo e, se não der, desiste.
+        let current: any = null;
+        let readError: any = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const r = await supabase.from('orders').select('items,status').eq('id', o.id).maybeSingle();
+          readError = r.error;
+          current = r.data;
+          if (!readError) break;
+          await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
+        }
+        if (readError) throw readError;
         // Pedido já finalizado/cancelado no banco nunca é reaberto por uma tela antiga.
         if (current && isTerminalStatus((current as any).status) && !isTerminalStatus(persistedStatus)) {
           skipped = true;
@@ -1368,20 +1378,31 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
           }
         }
         let error: any = null;
-        if (current && Array.isArray(o.items)) {
+        const saveExisting = async () => {
           // Pedido já existe: metadados por update e itens por junção atômica no banco,
           // para um aparelho desatualizado nunca apagar itens que não viu.
           const { items: _i, total: _t, ...meta } = orderPayload;
           const removedIds = consumeItemRemovals(o.id);
           const r1 = await supabase.from('orders').update(meta).eq('id', o.id);
-          error = r1.error;
-          if (!error) {
+          let e: any = r1.error;
+          if (!e) {
             const r2 = await supabase.rpc('save_order_items' as any, { _order_id: o.id, _items: o.items as any, _removed_ids: removedIds } as any);
-            error = r2.error;
+            e = r2.error;
           }
+          // Falhou: a remoção pedida pelo usuário continua valendo na próxima tentativa.
+          if (e) removedIds.forEach(id => allowItemRemoval(o.id, id));
+          return e;
+        };
+        if (current && Array.isArray(o.items)) {
+          error = await saveExisting();
         } else {
-          consumeItemRemovals(o.id);
-          error = (await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' })).error;
+          // Pedido novo: só insere. Se outro aparelho já criou com o mesmo id, junta os itens em vez de sobrescrever.
+          error = (await supabase.from('orders').insert(orderPayload)).error;
+          if (error && (error as any).code === '23505' && String((error as any).message || '').includes('orders_pkey')) {
+            error = await saveExisting();
+          } else if (!error) {
+            consumeItemRemovals(o.id);
+          }
         }
         if (error && (error as any).code === '23505' && o.orderType === 'mesa' && o.tableNumber) {
           // Outro aparelho já abriu esta mesa: junta os itens no pedido existente em vez de criar outro.
