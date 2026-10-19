@@ -99,6 +99,13 @@
       "when": 1792422150754,
       "tag": "0013_protect_tables_and_items_cancel_print",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792422180493,
+      "tag": "0014_release_table_before_order_delete",
+      "breakpoints": true
     }
   ]
 }
