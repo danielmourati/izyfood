@@ -45,7 +45,8 @@ interface StoreContextType {
   printSettings: PrintSettings;
   setPrintSettings: React.Dispatch<React.SetStateAction<PrintSettings>>;
   occupyTable: (tableNumber: number, orderId: string) => Promise<void>;
-  freeTable: (tableNumber: number) => Promise<void>;
+  freeTable: (tableNumber: number, orderId?: string) => Promise<void>;
+  moveOrderTable: (orderId: string, toTable: number) => Promise<void>;
   completeSale: (order: Order) => void;
   deductStock: (items: OrderItem[]) => void;
   getCategoryById: (id: string) => ProductCategory | undefined;
@@ -992,26 +993,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     notifyCrossTabSync();
   }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
-  const freeTable = useCallback(async (tableNumber: number) => {
+  /**
+   * Libera a mesa. Com `orderId`, só libera se a mesa ainda pertence a esse pedido —
+   * nunca solta a mesa que outro atendente já abriu com outro pedido.
+   */
+  const freeTable = useCallback(async (tableNumber: number, orderId?: string) => {
     clearPending(tableNumber);
     setTables(prev => {
-      const next = prev.map(t => t.number === tableNumber ? { ...t, status: 'available' as const, orderId: undefined } : t);
+      const next = prev.map(t => (t.number === tableNumber && (!orderId || !t.orderId || t.orderId === orderId))
+        ? { ...t, status: 'available' as const, orderId: undefined } : t);
       saveLS('izy_tables', next);
       return next;
     });
     try {
-      const tenantId = user?.tenantId || tenantIdRef.current;
-      const item: any = { number: tableNumber, status: 'available', order_id: null };
-      if (tenantId) item.tenant_id = tenantId;
-      await supabase.from('store_tables').upsert(
-        item,
-        { onConflict: 'number,tenant_id' }
-      );
+      if (orderId) {
+        const { data, error } = await supabase.rpc('release_table' as any, { _number: tableNumber, _order_id: orderId } as any);
+        if (error) throw error;
+        if (data === false) fetchTablesAndOrdersRef.current?.();
+      } else {
+        const tenantId = user?.tenantId || tenantIdRef.current;
+        const item: any = { number: tableNumber, status: 'available', order_id: null };
+        if (tenantId) item.tenant_id = tenantId;
+        await supabase.from('store_tables').upsert(item, { onConflict: 'number,tenant_id' });
+        // O banco recusa liberar mesa com pedido aberto: confere o estado real.
+        fetchTablesAndOrdersRef.current?.();
+      }
     } catch (err) {
-      console.error('[freeTable] DB upsert error:', err);
+      console.error('[freeTable] DB error:', err);
     }
     notifyCrossTabSync();
   }, [notifyCrossTabSync, clearPending, user?.tenantId]);
+
+  /** Muda o pedido de mesa numa única operação no banco (sem janela para outro aparelho). */
+  const moveOrderTable = useCallback(async (orderId: string, toTable: number) => {
+    const { error } = await supabase.rpc('move_order_table' as any, { _order_id: orderId, _to: toTable } as any);
+    if (error) throw error;
+    ordersRef.current = ordersRef.current.map(o => o.id === orderId ? { ...o, orderType: 'mesa' as const, tableNumber: toTable } : o);
+    setOrders(ordersRef.current);
+    saveLS('izy_orders', ordersRef.current);
+    tablesRef.current = tablesRef.current.map(t => {
+      if (t.orderId === orderId && t.number !== toTable) return { ...t, status: 'available' as const, orderId: undefined };
+      if (t.number === toTable) return { ...t, status: 'occupied' as const, orderId };
+      return t;
+    });
+    setTables(tablesRef.current);
+    saveLS('izy_tables', tablesRef.current);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const deductStock = useCallback(async (items: OrderItem[]) => {
     for (const item of items) {
@@ -1094,9 +1122,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOrders(ordersRef.current);
     saveLS('izy_orders', ordersRef.current);
 
-    // 4) Libera a mesa.
+    // 4) Libera a mesa (somente se ela ainda pertence a este pedido).
     if (order.tableNumber != null) {
-      await freeTable(order.tableNumber);
+      await freeTable(order.tableNumber, order.id);
     }
 
     await deductStock(order.items);
@@ -1137,7 +1165,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       coupons, setCoupons: setCouponsWrapped, noteOptions, setNoteOptions: setNoteOptionsWrapped,
       settings, setSettings,
       printSettings, setPrintSettings,
-      occupyTable, freeTable,
+      occupyTable, freeTable, moveOrderTable,
       completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
        realtimeStatus, lastRealtimeEventTime, realtimeEventCounts, lastSyncError, fetchAll,
     }}>
