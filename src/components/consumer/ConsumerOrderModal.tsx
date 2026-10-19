@@ -56,7 +56,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable, orders: storeOrders, lastSyncError, settings: storeSettings } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, moveOrderTable, orders: storeOrders, lastSyncError, settings: storeSettings } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const hasAllPermissions = PERMISSION_KEYS.every(k => permissions[k]);
@@ -267,7 +267,7 @@ export function ConsumerOrderModal({
       } else if (onDeleteOrder) {
         onDeleteOrder(currentOrder.id, numMesa);
       } else if (numMesa) {
-        freeTable(Number(numMesa));
+        freeTable(Number(numMesa), currentOrder.id);
       }
       toast.info('Comanda sem itens foi liberada.');
     }
@@ -574,6 +574,7 @@ export function ConsumerOrderModal({
         return item;
       });
     } else {
+      if (currentOrder?.id && existing.id) allowItemRemoval(String(currentOrder.id), existing.id);
       updatedItems = items.filter((_, idx) => idx !== existingIndex);
       setSelectedMobileProduct(null);
     }
@@ -861,12 +862,20 @@ export function ConsumerOrderModal({
     const fromNum = currentOrder.tableNumber ? Number(currentOrder.tableNumber) : null;
     const updatedOrder: Order = { ...currentOrder, orderType: 'mesa', tableNumber: toTableNum };
     setCurrentOrder(updatedOrder);
-    onSaveOrder(updatedOrder);
     try {
-      if (fromNum && fromNum !== toTableNum) await freeTable(fromNum);
-      await occupyTable(toTableNum, updatedOrder.id);
+      // Troca de mesa numa única operação no banco: nenhum outro aparelho vê a mesa "solta" no meio.
+      await moveOrderTable(updatedOrder.id, toTableNum);
+      onSaveOrder(updatedOrder);
     } catch (err) {
-      console.error('[ConsumerOrderModal] Falha ao mover mesa:', err);
+      // Pedido ainda não gravado: grava com a nova mesa e ocupa.
+      console.warn('[ConsumerOrderModal] Mudança direta de mesa falhou, gravando pedido:', err);
+      onSaveOrder(updatedOrder);
+      try {
+        if (fromNum && fromNum !== toTableNum) await freeTable(fromNum, updatedOrder.id);
+        await occupyTable(toTableNum, updatedOrder.id);
+      } catch (e2) {
+        console.error('[ConsumerOrderModal] Falha ao mover mesa:', e2);
+      }
     }
     setTablePickerOpen(false);
     setChangeTypeOpen(false);
@@ -921,7 +930,7 @@ export function ConsumerOrderModal({
     if (mesaNum) {
       const numMesa = Number(mesaNum);
       if (freeTable) {
-        await freeTable(numMesa);
+        await freeTable(numMesa, orderId);
       }
     }
 

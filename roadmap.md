@@ -25,3 +25,5 @@
 - [x] Adaptar layout Menuzin aos cupons de cozinha, conta e caixa, mantendo larguras e calibração.
 - [x] Unificar prévias e navegador com a impressão térmica; 56 testes e prévias com pedido real validados.
 - [x] Aplicar 32 colunas normais / 16 duplas em 55/58 mm a todos os cupons e prévias, preservando 40/20 em 80 mm; 61 testes e 12 prévias validados. Indicação da tela usa a regra compartilhada; conferência autenticada bloqueada por ausência de sessão.
+- [x] Cancelar cupons "Na fila"/"Falhou" (um a um e todos) com confirmação na tela.
+- [x] Mesas só liberadas pelo pedido dono; banco bloqueia liberação de mesa com pedido aberto e recoloca itens perdidos fora da lixeira.

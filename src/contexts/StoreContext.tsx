@@ -1,5 +1,5 @@
 import { mergePrintedFlags } from '@/lib/printed-guard';
-import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete, consumeItemRemovals } from '@/lib/order-merge';
+import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete, consumeItemRemovals, allowItemRemoval } from '@/lib/order-merge';
 import { logAudit } from '@/lib/audit';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Product, Order, Customer, TableInfo, Supplier, Sale, StockEntry, OrderItem, ProductCategory, DiscountCoupon, StoreSettings, PaymentSplit, ProductNoteOption } from '@/types';
@@ -45,7 +45,8 @@ interface StoreContextType {
   printSettings: PrintSettings;
   setPrintSettings: React.Dispatch<React.SetStateAction<PrintSettings>>;
   occupyTable: (tableNumber: number, orderId: string) => Promise<void>;
-  freeTable: (tableNumber: number) => Promise<void>;
+  freeTable: (tableNumber: number, orderId?: string) => Promise<void>;
+  moveOrderTable: (orderId: string, toTable: number) => Promise<void>;
   completeSale: (order: Order) => void;
   deductStock: (items: OrderItem[]) => void;
   getCategoryById: (id: string) => ProductCategory | undefined;
@@ -818,6 +819,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   stockEntriesRef.current = stockEntries;
   const tablesRef = useRef(tables);
   tablesRef.current = tables;
+  const fetchTablesAndOrdersRef = useRef(fetchTablesAndOrders);
+  fetchTablesAndOrdersRef.current = fetchTablesAndOrders;
   const couponsRef = useRef(coupons);
   couponsRef.current = coupons;
   const noteOptionsRef = useRef(noteOptions);
@@ -992,26 +995,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     notifyCrossTabSync();
   }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
-  const freeTable = useCallback(async (tableNumber: number) => {
+  /**
+   * Libera a mesa. Com `orderId`, só libera se a mesa ainda pertence a esse pedido —
+   * nunca solta a mesa que outro atendente já abriu com outro pedido.
+   */
+  const freeTable = useCallback(async (tableNumber: number, orderId?: string) => {
     clearPending(tableNumber);
     setTables(prev => {
-      const next = prev.map(t => t.number === tableNumber ? { ...t, status: 'available' as const, orderId: undefined } : t);
+      const next = prev.map(t => (t.number === tableNumber && (!orderId || !t.orderId || t.orderId === orderId))
+        ? { ...t, status: 'available' as const, orderId: undefined } : t);
       saveLS('izy_tables', next);
       return next;
     });
     try {
-      const tenantId = user?.tenantId || tenantIdRef.current;
-      const item: any = { number: tableNumber, status: 'available', order_id: null };
-      if (tenantId) item.tenant_id = tenantId;
-      await supabase.from('store_tables').upsert(
-        item,
-        { onConflict: 'number,tenant_id' }
-      );
+      if (orderId) {
+        const { data, error } = await supabase.rpc('release_table' as any, { _number: tableNumber, _order_id: orderId } as any);
+        if (error) throw error;
+        if (data === false) fetchTablesAndOrdersRef.current?.();
+      } else {
+        const tenantId = user?.tenantId || tenantIdRef.current;
+        const item: any = { number: tableNumber, status: 'available', order_id: null };
+        if (tenantId) item.tenant_id = tenantId;
+        await supabase.from('store_tables').upsert(item, { onConflict: 'number,tenant_id' });
+        // O banco recusa liberar mesa com pedido aberto: confere o estado real.
+        fetchTablesAndOrdersRef.current?.();
+      }
     } catch (err) {
-      console.error('[freeTable] DB upsert error:', err);
+      console.error('[freeTable] DB error:', err);
     }
     notifyCrossTabSync();
   }, [notifyCrossTabSync, clearPending, user?.tenantId]);
+
+  /** Muda o pedido de mesa numa única operação no banco (sem janela para outro aparelho). */
+  const moveOrderTable = useCallback(async (orderId: string, toTable: number) => {
+    const { error } = await supabase.rpc('move_order_table' as any, { _order_id: orderId, _to: toTable } as any);
+    if (error) throw error;
+    ordersRef.current = ordersRef.current.map(o => o.id === orderId ? { ...o, orderType: 'mesa' as const, tableNumber: toTable } : o);
+    setOrders(ordersRef.current);
+    saveLS('izy_orders', ordersRef.current);
+    tablesRef.current = tablesRef.current.map(t => {
+      if (t.orderId === orderId && t.number !== toTable) return { ...t, status: 'available' as const, orderId: undefined };
+      if (t.number === toTable) return { ...t, status: 'occupied' as const, orderId };
+      return t;
+    });
+    setTables(tablesRef.current);
+    saveLS('izy_tables', tablesRef.current);
+    notifyCrossTabSync();
+  }, [notifyCrossTabSync]);
 
   const deductStock = useCallback(async (items: OrderItem[]) => {
     for (const item of items) {
@@ -1094,9 +1124,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOrders(ordersRef.current);
     saveLS('izy_orders', ordersRef.current);
 
-    // 4) Libera a mesa.
+    // 4) Libera a mesa (somente se ela ainda pertence a este pedido).
     if (order.tableNumber != null) {
-      await freeTable(order.tableNumber);
+      await freeTable(order.tableNumber, order.id);
     }
 
     await deductStock(order.items);
@@ -1137,7 +1167,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       coupons, setCoupons: setCouponsWrapped, noteOptions, setNoteOptions: setNoteOptionsWrapped,
       settings, setSettings,
       printSettings, setPrintSettings,
-      occupyTable, freeTable,
+      occupyTable, freeTable, moveOrderTable,
       completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
        realtimeStatus, lastRealtimeEventTime, realtimeEventCounts, lastSyncError, fetchAll,
     }}>
@@ -1323,7 +1353,17 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
       let remappedTo: string | null = null;
       await queueOrderWrite(o.id, async () => {
         // Uma vez impresso, sempre impresso: não deixa cópia antiga rebaixar `printed`.
-        const { data: current } = await supabase.from('orders').select('items,status').eq('id', o.id).maybeSingle();
+        // Se a leitura falhar (sinal fraco), nunca grava "às cegas": tenta de novo e, se não der, desiste.
+        let current: any = null;
+        let readError: any = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const r = await supabase.from('orders').select('items,status').eq('id', o.id).maybeSingle();
+          readError = r.error;
+          current = r.data;
+          if (!readError) break;
+          await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
+        }
+        if (readError) throw readError;
         // Pedido já finalizado/cancelado no banco nunca é reaberto por uma tela antiga.
         if (current && isTerminalStatus((current as any).status) && !isTerminalStatus(persistedStatus)) {
           skipped = true;
@@ -1338,20 +1378,31 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
           }
         }
         let error: any = null;
-        if (current && Array.isArray(o.items)) {
+        const saveExisting = async () => {
           // Pedido já existe: metadados por update e itens por junção atômica no banco,
           // para um aparelho desatualizado nunca apagar itens que não viu.
           const { items: _i, total: _t, ...meta } = orderPayload;
           const removedIds = consumeItemRemovals(o.id);
           const r1 = await supabase.from('orders').update(meta).eq('id', o.id);
-          error = r1.error;
-          if (!error) {
+          let e: any = r1.error;
+          if (!e) {
             const r2 = await supabase.rpc('save_order_items' as any, { _order_id: o.id, _items: o.items as any, _removed_ids: removedIds } as any);
-            error = r2.error;
+            e = r2.error;
           }
+          // Falhou: a remoção pedida pelo usuário continua valendo na próxima tentativa.
+          if (e) removedIds.forEach(id => allowItemRemoval(o.id, id));
+          return e;
+        };
+        if (current && Array.isArray(o.items)) {
+          error = await saveExisting();
         } else {
-          consumeItemRemovals(o.id);
-          error = (await supabase.from('orders').upsert(orderPayload, { onConflict: 'id' })).error;
+          // Pedido novo: só insere. Se outro aparelho já criou com o mesmo id, junta os itens em vez de sobrescrever.
+          error = (await supabase.from('orders').insert(orderPayload)).error;
+          if (error && (error as any).code === '23505' && String((error as any).message || '').includes('orders_pkey')) {
+            error = await saveExisting();
+          } else if (!error) {
+            consumeItemRemovals(o.id);
+          }
         }
         if (error && (error as any).code === '23505' && o.orderType === 'mesa' && o.tableNumber) {
           // Outro aparelho já abriu esta mesa: junta os itens no pedido existente em vez de criar outro.

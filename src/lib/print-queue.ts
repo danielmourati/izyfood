@@ -127,6 +127,18 @@ export function canForcePrintJob(job: Pick<PrintJob, 'status' | 'claimed_at'>, n
   return job.status === 'pending' || job.status === 'error' || isStalePrinting(job, now);
 }
 
+/** Cupom que ainda pode ser cancelado (não impresso): mesma regra do "Forçar impressão". */
+export function canCancelPrintJob(job: Pick<PrintJob, 'status' | 'claimed_at'>, now = Date.now()): boolean {
+  return canForcePrintJob(job, now);
+}
+
+/** Cancela cupons não impressos (todos, se `ids` vazio); o Caixa não imprime mais. Retorna quantos saíram. */
+export async function cancelPrintJobs(ids?: string[]): Promise<number> {
+  const { data, error } = await (supabase as any).rpc('cancel_print_jobs', { _ids: ids && ids.length ? ids : null });
+  if (error) throw error;
+  return Number(data || 0);
+}
+
 export async function clearDonePrintJobs(): Promise<void> {
   await table().delete().eq('status', 'done');
 }
