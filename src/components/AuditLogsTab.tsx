@@ -25,6 +25,7 @@ const entityLabels: Record<string, string> = {
   settings: 'Configurações',
   user: 'Usuário',
   table: 'Mesa',
+  print_job: 'Fila de impressão',
 };
 
 const actionLabels: Record<string, { label: string; color: string }> = {
