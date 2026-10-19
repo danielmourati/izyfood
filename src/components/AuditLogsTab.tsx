@@ -44,6 +44,9 @@ const actionLabels: Record<string, { label: string; color: string }> = {
   table_freed: { label: 'Mesa liberada', color: 'bg-warning/10 text-warning-foreground dark:text-warning-foreground' },
   blocked_delete: { label: 'Exclusão bloqueada', color: 'bg-primary/10 text-primary dark:text-primary' },
   duplicate_merged: { label: 'Pedido duplicado juntado', color: 'bg-primary/10 text-primary dark:text-primary' },
+  table_free_blocked: { label: 'Liberação de mesa bloqueada', color: 'bg-primary/10 text-primary dark:text-primary' },
+  items_restored: { label: 'Itens recolocados', color: 'bg-primary/10 text-primary dark:text-primary' },
+  print_canceled: { label: 'Cupons cancelados', color: 'bg-warning/10 text-warning-foreground dark:text-warning-foreground' },
 };
 
 const detailLabels: Record<string, string> = {
@@ -51,6 +54,7 @@ const detailLabels: Record<string, string> = {
   aberto_por: 'Aberto por', itens: 'Itens', status_pedido: 'Status do pedido', pedido_existe: 'Pedido existe',
   pedido_recusado: 'Pedido recusado', itens_juntados: 'Itens juntados', item: 'Item', quantity: 'Qtd',
   authorizedBy: 'Autorizado por', table: 'Mesa', autorizado_por_senha: 'Autorizado com senha',
+  origem: 'Origem', pedido_solicitante: 'Pedido que pediu', quantidade: 'Quantidade', cupons: 'Cupons',
 };
 
 const MONEY_KEYS = new Set(['total', 'total_antes', 'total_depois', 'amount', 'valor']);
