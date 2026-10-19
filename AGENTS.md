@@ -19,3 +19,4 @@
 - Build QZ payloads through qzRawData with format=command and flavor=hex, matching QZ 2.x binary semantics instead of the obsolete format=hex shape.
 - A mesa has at most one open order (unique partial index); a second device's order is absorbed into the existing one, and orders with items/value are deleted only after allowOrderDelete marks an explicit user action, so sync gaps never erase tables.
 - Order deletions, item removals/quantity reductions and non-terminal table releases are audited by database triggers, so every loss is traceable even when the app path skipped logging.
+- Tables are released only through `release_table(number, order_id)`/`move_order_table`, and DB triggers refuse to free a table whose open order still has content and recolocate items dropped outside `save_order_items`, so stale devices or old app versions can never make tables or items disappear.
