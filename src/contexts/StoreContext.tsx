@@ -819,6 +819,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   stockEntriesRef.current = stockEntries;
   const tablesRef = useRef(tables);
   tablesRef.current = tables;
+  const fetchTablesAndOrdersRef = useRef(fetchTablesAndOrders);
+  fetchTablesAndOrdersRef.current = fetchTablesAndOrders;
   const couponsRef = useRef(coupons);
   couponsRef.current = coupons;
   const noteOptionsRef = useRef(noteOptions);
