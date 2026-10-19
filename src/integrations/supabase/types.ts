@@ -1326,6 +1326,7 @@ export type Database = {
     }
     Functions: {
       audit_items_summary: { Args: { _items: Json }; Returns: Json }
+      cancel_print_jobs: { Args: { _ids?: string[] }; Returns: number }
       claim_print_job: {
         Args: { _claimed_by: string; _job_id: string }
         Returns: {
@@ -1385,8 +1386,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      move_order_table: {
+        Args: { _order_id: string; _to: number }
+        Returns: boolean
+      }
       purge_print_jobs: { Args: never; Returns: undefined }
       purge_stale_failed_print_jobs: { Args: never; Returns: undefined }
+      release_table: {
+        Args: { _number: number; _order_id: string }
+        Returns: boolean
+      }
       save_order_items: {
         Args: { _items: Json; _order_id: string; _removed_ids?: string[] }
         Returns: Json
