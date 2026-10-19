@@ -17,7 +17,7 @@ import { dbToOrder } from '@/contexts/StoreContext';
 import { pickTableOrder, canDeleteOrder, allowOrderDelete } from '@/lib/order-merge';
 
 const Mesas = () => {
-  const { tables, setTables, orders, setOrders, customers, freeTable, moveOrderTable, lastSyncError } = useStore();
+  const { tables, orders, setOrders, customers, freeTable, moveOrderTable, lastSyncError } = useStore();
   const { user } = useAuth();
   const { printOrder, printBill } = usePrinter();
   const navigate = useTenantNavigate();
