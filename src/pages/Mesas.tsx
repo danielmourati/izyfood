@@ -17,7 +17,7 @@ import { dbToOrder } from '@/contexts/StoreContext';
 import { pickTableOrder, canDeleteOrder, allowOrderDelete } from '@/lib/order-merge';
 
 const Mesas = () => {
-  const { tables, setTables, orders, setOrders, customers, freeTable, occupyTable, lastSyncError } = useStore();
+  const { tables, setTables, orders, setOrders, customers, freeTable, moveOrderTable, lastSyncError } = useStore();
   const { user } = useAuth();
   const { printOrder, printBill } = usePrinter();
   const navigate = useTenantNavigate();
@@ -135,7 +135,7 @@ const Mesas = () => {
       // Só descarta quando o banco também não tem nada; senão grava o pedido (a mesa continua ocupada).
       if (!(await serverOrderHasContent(updatedOrder.id))) {
         setOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
-        if (updatedOrder.tableNumber) freeTable(Number(updatedOrder.tableNumber));
+        if (updatedOrder.tableNumber) freeTable(Number(updatedOrder.tableNumber), updatedOrder.id);
         return;
       }
     }
@@ -167,14 +167,15 @@ const Mesas = () => {
     }
 
     setOrders(prev => prev.filter(o => o.id !== orderId));
-    if (tableNum) await freeTable(Number(tableNum));
+    if (tableNum) await freeTable(Number(tableNum), orderId);
   };
 
   const handleDeleteConsumerOrder = async (orderId: string, tableNum?: number) => {
     allowOrderDelete(orderId);
-    setOrders(prev => prev.filter(o => o.id !== orderId));
-    if (tableNum) await freeTable(Number(tableNum));
+    // Exclui primeiro no banco (que libera a mesa deste pedido) e só depois atualiza a tela.
     try { await supabase.from('orders').delete().eq('id', orderId); } catch {}
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+    if (tableNum) await freeTable(Number(tableNum), orderId);
   };
 
   const handlePrintConsumerKitchen = async (orderToPrint: Order, intent: 'new' | 'reprint' = 'new') => {
@@ -195,29 +196,22 @@ const Mesas = () => {
     }
   };
 
-  const handleTransfer = (toTableNum: number) => {
+  const handleTransfer = async (toTableNum: number) => {
     const fromNum = transferModal.fromTable;
     if (!fromNum) return;
     const fromTable = tables.find(t => t.number === fromNum);
     if (!fromTable || !fromTable.orderId) return;
 
-    const orderId = fromTable.orderId;
-
-    setOrders(prev => prev.map(o =>
-      o.id === orderId ? { ...o, tableNumber: toTableNum } : o
-    ));
-
-    setTables(prev => prev.map(t => {
-      if (t.number === fromNum) return { ...t, status: 'available' as const, orderId: undefined };
-      if (t.number === toTableNum) return { ...t, status: 'occupied' as const, orderId };
-      return t;
-    }));
-
+    try {
+      await moveOrderTable(fromTable.orderId, toTableNum);
+      toast.success(`Mesa ${fromNum} transferida para Mesa ${toTableNum}`);
+    } catch (err: any) {
+      toast.error('Não foi possível transferir a mesa: ' + (err?.message || 'erro'));
+    }
     setTransferModal({ open: false, fromTable: null });
-    toast.success(`Mesa ${fromNum} transferida para Mesa ${toTableNum}`);
   };
 
-  const handleMerge = (targetTableNum: number) => {
+  const handleMerge = async (targetTableNum: number) => {
     const sourceNum = mergeModal.sourceTable;
     if (!sourceNum) return;
     const sourceTable = tables.find(t => t.number === sourceNum);
@@ -240,16 +234,15 @@ const Mesas = () => {
     }
     const newTotal = mergedItems.reduce((s, i) => s + i.subtotal, 0);
 
-    allowOrderDelete(sourceTable.orderId);
+    const sourceOrderId = sourceTable.orderId;
+    allowOrderDelete(sourceOrderId);
     setOrders(prev => prev
       .map(o => o.id === targetTable.orderId ? { ...o, items: mergedItems, total: newTotal } : o)
-      .filter(o => o.id !== sourceTable.orderId)
+      .filter(o => o.id !== sourceOrderId)
     );
-
-    setTables(prev => prev.map(t => {
-      if (t.number === sourceNum) return { ...t, status: 'available' as const, orderId: undefined };
-      return t;
-    }));
+    // A exclusão do pedido de origem no banco libera a mesa dele; aqui só atualiza a tela.
+    try { await supabase.from('orders').delete().eq('id', sourceOrderId); } catch {}
+    await freeTable(sourceNum, sourceOrderId);
 
     setMergeModal({ open: false, sourceTable: null });
     toast.success(`Mesa ${sourceNum} mesclada com Mesa ${targetTableNum}`);
