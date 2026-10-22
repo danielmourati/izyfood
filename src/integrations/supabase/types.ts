@@ -1325,10 +1325,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acquire_print_host: {
+        Args: { _device_id: string; _label?: string; _user_name?: string }
+        Returns: boolean
+      }
       audit_items_summary: { Args: { _items: Json }; Returns: Json }
       cancel_print_jobs: { Args: { _ids?: string[] }; Returns: number }
       claim_print_job: {
         Args: { _claimed_by: string; _job_id: string }
+        Returns: {
+          attempts: number
+          claimed_at: string | null
+          claimed_by: string | null
+          copies: number
+          created_at: string
+          created_by: string | null
+          device_label: string | null
+          error: string | null
+          id: string
+          kind: string
+          paper_width: number | null
+          payload: Json
+          printed_at: string | null
+          printed_on: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_print_job_for_host: {
+        Args: { _claimed_by: string; _device_id: string; _job_id: string }
         Returns: {
           attempts: number
           claimed_at: string | null
