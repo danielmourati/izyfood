@@ -120,6 +120,13 @@
       "when": 1792638016740,
       "tag": "0016_require_print_host_owned_claim",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792671118231,
+      "tag": "0017_tenant_scoped_emails",
+      "breakpoints": true
     }
   ]
 }
