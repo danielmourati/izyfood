@@ -134,20 +134,6 @@ export function MeuPerfilTab() {
         </CardContent>
       </Card>
 
-      {/* Tema de Exibição */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Sun className="h-5 w-5" /> Tema de Exibição
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Alterne entre o Modo Claro (Paleta Degust) e o Modo Escuro.
-          </p>
-          <ThemeToggle variant="cards" />
-        </CardContent>
-      </Card>
 
       {/* Personal data */}
       <Card>

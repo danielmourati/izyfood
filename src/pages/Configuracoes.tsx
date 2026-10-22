@@ -433,20 +433,6 @@ function GeralTab() {
         </div>
       </div>
 
-      {/* Card 0: Aparência e Tema do Sistema */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sun className="h-5 w-5" /> Aparência e Tema do Sistema
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Escolha o modo de exibição da interface do sistema. O <strong>Modo Claro</strong> utiliza a paleta original Degust.
-          </p>
-          <ThemeToggle variant="cards" />
-        </CardContent>
-      </Card>
 
       {/* Card 1: Identidade Visual */}
       <Card>
