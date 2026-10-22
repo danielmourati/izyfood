@@ -113,6 +113,13 @@
       "when": 1792637855329,
       "tag": "0015_exclusive_print_host_lease",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792638016740,
+      "tag": "0016_require_print_host_owned_claim",
+      "breakpoints": true
     }
   ]
 }
