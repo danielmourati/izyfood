@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Remover Cupons e Auditoria das configurações e a recuperação de senha da tela de entrada; manter dados e registros internos.
+
 - [x] Garantir um único servidor de impressão por tenant e bloquear ativação nos demais aparelhos; trava atômica e validação do dono aplicadas no banco.
 - [x] Incluir cupons falhos nas tentativas automáticas; 21 testes aprovados, incluindo bloqueio por aparelho e recuperação da fila.
 - [ ] Conferir bloqueio com duas sessões reais e saída física de cupom falho — depende de login na prévia e impressora física disponível.
