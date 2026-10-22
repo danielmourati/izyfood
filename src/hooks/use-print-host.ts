@@ -39,16 +39,19 @@ export function usePrintHost() {
   const printerReadyRef = useRef(hasPrinterAvailable);
   const hostEnabledRef = useRef(printHostEnabled);
   hostEnabledRef.current = printHostEnabled;
+  const printFunctionsRef = useRef({ printOrder, printBill, printCashClose });
+  printFunctionsRef.current = { printOrder, printBill, printCashClose };
 
   useEffect(() => { printerReadyRef.current = hasPrinterAvailable; }, [hasPrinterAvailable]);
 
   const printJob = useCallback(async (job: PrintJob) => {
+    const { printOrder, printBill, printCashClose } = printFunctionsRef.current;
     const payload = job.payload || {};
     if (job.kind === 'bill') return printBill(payload, { force: true });
     if (job.kind === 'cash_close') return printCashClose(payload, { force: true });
     const intent = payload.__printIntent === 'reprint' ? 'reprint' : 'new';
     return printOrder(payload, { force: true, intent });
-  }, [printOrder, printBill, printCashClose]);
+  }, []);
 
   const drain = useCallback(async () => {
     if (runningRef.current) return;
