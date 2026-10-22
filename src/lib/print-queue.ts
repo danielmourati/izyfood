@@ -24,11 +24,20 @@ export interface PrintJob {
   printed_at: string | null;
   printed_on?: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 export const PRINT_HOST_PRESENCE_PREFIX = 'print-host:';
 export const MAX_PRINT_ATTEMPTS = 3;
 export const PRINT_TIMEOUT_MS = 20000;
+
+/** Failed jobs retry with a capped delay; successful/in-flight jobs never retry. */
+export function canAutoPrintJob(job: Pick<PrintJob, 'status' | 'claimed_at' | 'attempts' | 'updated_at'>, now = Date.now()): boolean {
+  if (job.status !== 'error') return job.status === 'pending' || isStalePrinting(job, now);
+  const last = Date.parse(job.updated_at || job.claimed_at || '');
+  const delay = Math.min(60_000, 10_000 * 2 ** Math.min(Math.max(job.attempts - 1, 0), 3));
+  return !Number.isFinite(last) || now - last >= delay;
+}
 
 export const printJobKindLabels: Record<PrintJobKind, string> = {
   order: 'Comanda (cozinha)',
@@ -83,19 +92,20 @@ export async function fetchPrintJobs(limit = 20): Promise<PrintJob[]> {
 export async function fetchOpenPrintJobs(): Promise<PrintJob[]> {
   const { data, error } = await table()
     .select('*')
-    .in('status', ['pending', 'printing'])
+    .in('status', ['pending', 'printing', 'error'])
     .order('created_at', { ascending: true })
     .limit(50);
   if (error) throw error;
   const rows = (data || []) as unknown as PrintJob[];
-  return rows.filter(j => j.status === 'pending' || isStalePrinting(j));
+  return rows.filter(j => canAutoPrintJob(j));
 }
 
 /** Trava atômica: só um host consegue assumir o cupom. */
 export async function claimPrintJob(jobId: string, claimedBy: string): Promise<PrintJob | null> {
-  const { data, error } = await (supabase as any).rpc('claim_print_job', {
+  const { data, error } = await supabase.rpc('claim_print_job_for_host', {
     _job_id: jobId,
     _claimed_by: claimedBy,
+    _device_id: (await import('@/lib/printer')).getDeviceId(),
   });
   if (error) throw error;
   const rows = (data || []) as unknown as PrintJob[];

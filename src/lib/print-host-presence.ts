@@ -16,6 +16,11 @@ export interface HostState {
   online: boolean;
   label: string | null;
   lastSeenAt: string | null;
+  deviceId: string | null;
+}
+
+export function isOtherPrintHost(state: HostState, deviceId: string): boolean {
+  return state.online && !!state.deviceId && state.deviceId !== deviceId;
 }
 
 type Listener = (s: HostState) => void;
@@ -31,18 +36,20 @@ class PresenceManager {
   private hostRefs = 0;
   private userName: string | null = null;
   private presenceHost: { label: string | null } | null = null;
-  private dbHost: { label: string | null; lastSeenAt: string } | null = null;
+  private dbHost: { label: string | null; lastSeenAt: string; deviceId: string } | null = null;
   private pollTimer: number | null = null;
   private beatTimer: number | null = null;
   private retryTimer: number | null = null;
-  state: HostState = { online: false, label: null, lastSeenAt: null };
+  state: HostState = { online: false, label: null, lastSeenAt: null, deviceId: null };
+  private beating = false;
 
   private emit() {
     const lastSeenAt = this.dbHost?.lastSeenAt ?? null;
     const dbAlive = isHostAlive(lastSeenAt);
-    const online = !!this.presenceHost || dbAlive;
-    const label = this.presenceHost?.label ?? (dbAlive ? this.dbHost?.label ?? null : null);
-    this.state = { online, label, lastSeenAt };
+    // Only the server-confirmed lease authorizes a device, never presence alone.
+    const online = dbAlive;
+    const label = dbAlive ? this.dbHost?.label ?? null : null;
+    this.state = { online, label, lastSeenAt, deviceId: dbAlive ? this.dbHost?.deviceId ?? null : null };
     this.listeners.forEach(l => l(this.state));
   }
 
@@ -68,7 +75,8 @@ class PresenceManager {
       if (this.hostRefs === 0) {
         this.stopBeat();
         const tid = this.tenantId;
-        if (tid) supabase.from('print_hosts').delete().eq('tenant_id', tid).eq('device_id', getDeviceId()).then(() => this.poll());
+        // Keep the short lease on unmount; another tab on the same device may use it.
+        if (tid) this.poll();
         this.track();
       }
     };
@@ -103,7 +111,7 @@ class PresenceManager {
       const state = channel.presenceState() as Record<string, any[]>;
       const host = Object.values(state).flat().find((e: any) => e?.role === 'host') as any;
       this.presenceHost = host ? { label: [host.userName, host.label].filter(Boolean).join(' · ') || null } : null;
-      this.emit();
+      this.poll();
     };
     channel
       .on('presence', { event: 'sync' }, read)
@@ -124,7 +132,7 @@ class PresenceManager {
   private track() {
     const ch = this.channel;
     if (!ch) return;
-    const payload = this.hostRefs > 0
+    const payload = this.hostRefs > 0 && this.state.deviceId === getDeviceId() && this.state.online
       ? { role: 'host', label: getDeviceLabel(), userName: this.userName, at: new Date().toISOString() }
       : { role: 'watcher', label: getDeviceLabel(), at: new Date().toISOString() };
     ch.track(payload).catch(() => {});
@@ -134,27 +142,44 @@ class PresenceManager {
     const tid = this.tenantId;
     if (!tid) return;
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('print_hosts')
-        .select('label,user_name,last_seen_at')
+        .select('label,user_name,last_seen_at,device_id')
         .eq('tenant_id', tid)
         .order('last_seen_at', { ascending: false })
         .limit(1);
       const row = data?.[0];
-      this.dbHost = row ? { label: [row.user_name, row.label].filter(Boolean).join(' · ') || null, lastSeenAt: row.last_seen_at } : null;
+      if (error || this.tenantId !== tid) return;
+      this.dbHost = row ? { label: [row.user_name, row.label].filter(Boolean).join(' · ') || null, lastSeenAt: row.last_seen_at, deviceId: row.device_id } : null;
       this.emit();
     } catch { /* rede instável: mantém último estado */ }
   }
 
   private async beat() {
     const tid = this.tenantId;
-    if (!tid || this.hostRefs === 0) return;
+    if (!tid || this.hostRefs === 0 || this.beating) return;
+    this.beating = true;
     try {
-      await supabase.from('print_hosts').upsert(
-        { tenant_id: tid, device_id: getDeviceId(), label: getDeviceLabel(), user_name: this.userName, last_seen_at: new Date().toISOString() },
-        { onConflict: 'tenant_id,device_id' },
-      );
-    } catch { /* tenta de novo no próximo ciclo */ }
+      await this.acquire(tid, this.userName);
+    } catch { this.emit(); /* retries on the next heartbeat */ }
+    finally { this.beating = false; }
+  }
+
+  async acquire(tenantId: string, userName: string | null): Promise<boolean> {
+    if (this.tenantId !== tenantId) this.reset(tenantId);
+    const { data, error } = await supabase.rpc('acquire_print_host', {
+      _device_id: getDeviceId(), _label: getDeviceLabel(), _user_name: userName ?? undefined,
+    });
+    if (error) throw error;
+    await this.poll();
+    this.track();
+    return data === true;
+  }
+
+  async release(tenantId: string) {
+    const { error } = await supabase.from('print_hosts').delete().eq('tenant_id', tenantId).eq('device_id', getDeviceId());
+    if (error) throw error;
+    await this.poll();
   }
 
   private startBeat() {

@@ -1,5 +1,5 @@
 import { resolveItemSector } from '@/lib/print-sectors';
-import { printHostPresence } from '@/lib/print-host-presence';
+import { printHostPresence, isOtherPrintHost } from '@/lib/print-host-presence';
 import { computeServiceFee } from '@/lib/utils';
 import { isDesktopApp } from '@/lib/printer-desktop';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -186,7 +186,12 @@ export function usePrinter() {
     : !isMobileDevice() || enablePrinterDeviceRaw;
   const [printHostEnabledRaw, setPrintHostEnabledState] = useState<boolean>(() => getPrintHostEnabled());
   // Celulares nunca são servidor de impressão: sempre enviam para o Caixa.
-  const printHostEnabled = !isMobileDevice() && printHostEnabledRaw;
+  const printHostRequested = !isMobileDevice() && printHostEnabledRaw;
+  const [hostOwned, setHostOwned] = useState(false);
+  const [hostBlocked, setHostBlocked] = useState(false);
+  const [hostBusy, setHostBusy] = useState(false);
+  const [hostMessage, setHostMessage] = useState<string | null>(null);
+  const printHostEnabled = printHostRequested && hostOwned;
   const [hostLabel, setHostLabel] = useState<string | null>(null);
   const [hostOnline, setHostOnline] = useState(false);
   const hostOnlineRef = useRef(false);
@@ -201,10 +206,22 @@ export function usePrinter() {
     setEnablePrinterDeviceState(v);
   }, [user?.id, user?.role]);
 
-  const togglePrintHost = useCallback((v: boolean) => {
-    setPrintHostEnabled(v);
-    setPrintHostEnabledState(v);
-  }, []);
+  const togglePrintHost = useCallback(async (v: boolean) => {
+    if (!user?.tenantId || isMobileDevice()) return;
+    setHostBusy(true);
+    setHostMessage(null);
+    try {
+      if (v && !await printHostPresence.acquire(user.tenantId, user.name || null)) {
+        setHostMessage('Já existe um Caixa ativo nesta loja. Desative-o antes de trocar de aparelho.');
+        return;
+      }
+      setPrintHostEnabled(v);
+      setPrintHostEnabledState(v);
+      if (!v) await printHostPresence.release(user.tenantId);
+    } catch {
+      setHostMessage('Não foi possível confirmar o Caixa. Verifique a conexão e tente novamente.');
+    } finally { setHostBusy(false); }
+  }, [user?.tenantId, user?.name]);
 
   // Mantém as preferências consolidadas entre as telas (Configurações > Impressora
   // e a seção do menu do pedido) e entre abas abertas no mesmo aparelho.
@@ -233,6 +250,8 @@ export function usePrinter() {
       setHostOnline(s.online);
       setHostLabel(s.label);
       setHostLastSeenAt(s.lastSeenAt);
+      setHostOwned(s.online && s.deviceId === getDeviceId());
+      setHostBlocked(isOtherPrintHost(s, getDeviceId()));
     });
   }, [user?.tenantId]);
 
@@ -714,6 +733,10 @@ export function usePrinter() {
     printTest,
     printEncodingTest,
     printHostEnabled,
+    printHostRequested,
+    hostBlocked,
+    hostBusy,
+    hostMessage,
     togglePrintHost,
     hostOnline,
     hostLabel,
