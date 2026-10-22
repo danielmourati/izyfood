@@ -35,7 +35,7 @@ function fmtHour(iso: string) {
  */
 export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host' | 'queue' } = {}) {
   const { user } = useAuth();
-  const { printHostEnabled, togglePrintHost, hasPrinterAvailable, hostOnline } = usePrinter();
+  const { printHostEnabled, togglePrintHost, hasPrinterAvailable, hostOnline, hostLabel, hostBlocked, hostBusy, hostMessage } = usePrinter();
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -119,10 +119,13 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
             <Monitor className="h-4 w-4 text-primary" />
             <span className="text-sm font-bold text-foreground">Este aparelho imprime para os outros (Caixa)</span>
           </div>
-          <Switch checked={printHostEnabled} onCheckedChange={togglePrintHost} />
+          <Switch aria-label="Este aparelho imprime para os outros (Caixa)" checked={printHostEnabled} onCheckedChange={togglePrintHost} disabled={hostBlocked || hostBusy} />
         </div>
 
-        {printHostEnabled ? (
+        {hostMessage && <p role="alert" className="text-xs text-destructive">{hostMessage}</p>}
+        {hostBlocked ? (
+          <p role="status" className="text-xs text-muted-foreground">Caixa ativo: {hostLabel || 'outro aparelho'}. Desative esse Caixa para ativar este aparelho.</p>
+        ) : printHostEnabled ? (
           hasPrinterAvailable ? (
             <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
               Ativo: os cupons enviados pelos atendentes serão impressos aqui enquanto este aparelho estiver aberto.
