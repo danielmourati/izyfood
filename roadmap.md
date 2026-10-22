@@ -1,5 +1,8 @@
 # Roadmap
 
+- [ ] Garantir um único servidor de impressão por tenant e bloquear ativação nos demais aparelhos.
+- [ ] Incluir cupons falhos nas tentativas automáticas e verificar exclusividade e fila.
+
 - [x] Classificar sabores no cadastro e separar Sabores/Adicionais nas telas e cupons; testes de quantidades e reabertura aprovados.
 - [ ] Conferir cadastro e pedido com login real e impressão física — sessão automática indisponível; depende de login na prévia e teste no papel.
 
