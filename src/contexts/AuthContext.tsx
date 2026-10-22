@@ -18,7 +18,7 @@ export interface AppUser {
 interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, slug?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   isAdmin: boolean;
 }
@@ -225,8 +225,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = async (emailStr: string, passwordStr: string) => {
+  const login = async (emailStr: string, passwordStr: string, slug?: string) => {
     const cleanEmail = emailStr.trim();
+    let authEmail = cleanEmail;
     const cleanPassword = passwordStr;
 
     if (!cleanEmail || !cleanPassword) {
@@ -237,9 +238,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isDemo = false;
 
     try {
+      if (slug && cleanEmail) {
+        const { data: resolved } = await supabase.rpc('resolve_tenant_login', { _slug: slug, _email: cleanEmail });
+        if (typeof resolved === 'string' && resolved) authEmail = resolved;
+      }
       const res = await withRetry(async () => {
         return await supabase.auth.signInWithPassword({
-          email: cleanEmail,
+          email: authEmail,
           password: cleanPassword,
         });
       }, 1, 800);

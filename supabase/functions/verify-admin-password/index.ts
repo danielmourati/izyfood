@@ -20,7 +20,18 @@ Deno.serve(async (req) => {
 
     let candidates: { id: string; email: string; name: string }[] = []
     if (email) {
-      candidates = [{ id: '', email, name: '' }]
+      const authHeader = req.headers.get('Authorization') || ''
+      const caller = createClient(url, anon, { global: { headers: { Authorization: authHeader } } })
+      const { data: u } = await caller.auth.getUser()
+      let login = String(email).trim().toLowerCase()
+      if (u?.user) {
+        const { data: mine } = await admin.from('tenant_members').select('tenant_id').eq('user_id', u.user.id).order('created_at').limit(1).maybeSingle()
+        if (mine) {
+          const { data: m } = await admin.from('tenant_members').select('login_email').eq('tenant_id', mine.tenant_id).ilike('email', login).maybeSingle()
+          if (m?.login_email) login = m.login_email
+        }
+      }
+      candidates = [{ id: '', email: login, name: '' }]
     } else {
       // Password-only mode: check against admins of the caller's tenant
       const authHeader = req.headers.get('Authorization') || ''
@@ -29,11 +40,14 @@ Deno.serve(async (req) => {
       if (!u?.user) return json({ error: 'Não autenticado' }, 401)
       const { data: mem } = await admin.from('tenant_members').select('tenant_id').eq('user_id', u.user.id).order('created_at').limit(1).maybeSingle()
       if (!mem) return json({ error: 'Sem loja' }, 403)
-      const { data: admins } = await admin.from('tenant_members').select('user_id').eq('tenant_id', mem.tenant_id).in('role', ['admin', 'superadmin'])
+      const { data: admins } = await admin.from('tenant_members').select('user_id, login_email').eq('tenant_id', mem.tenant_id).in('role', ['admin', 'superadmin'])
       const ids = (admins || []).map((a) => a.user_id)
       if (ids.length === 0) return json({ error: 'Nenhum administrador' }, 403)
       const { data: profs } = await admin.from('profiles').select('id, email, name').in('id', ids)
-      candidates = (profs || []).filter((p) => p.email)
+      candidates = (admins || []).map((a) => {
+        const p = (profs || []).find((x) => x.id === a.user_id)
+        return { id: a.user_id, email: a.login_email || p?.email || '', name: p?.name || '' }
+      }).filter((c) => c.email)
     }
 
     for (const c of candidates) {

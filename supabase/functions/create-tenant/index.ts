@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { makeTenantLoginEmail } from "../_shared/tenant-login.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -93,9 +94,6 @@ serve(async (req) => {
     const email = String(admin_email).trim().toLowerCase();
     if (String(admin_password).length < 6) return fail("A senha deve ter pelo menos 6 caracteres.");
 
-    // Pre-check email
-    const { data: existingProfile } = await supabase.from("profiles").select("id").ilike("email", email).maybeSingle();
-    if (existingProfile) return fail("Este e-mail já está cadastrado. Use outro e-mail para o administrador.");
 
     // 1. Create tenant
     const { data: tenant, error: tenantError } = await supabase
@@ -114,11 +112,12 @@ serve(async (req) => {
     };
 
     // 2. Create admin user
+    const loginEmail = makeTenantLoginEmail(slug);
     const { data: userData, error: userError } = await supabase.auth.admin.createUser({
-      email,
+      email: loginEmail,
       password: admin_password,
       email_confirm: true,
-      user_metadata: { name: admin_name, tenant_id: tenant.id, role: "admin" },
+      user_metadata: { name: admin_name, tenant_id: tenant.id, role: "admin", contact_email: email },
     });
 
     if (userError || !userData?.user) {
@@ -135,7 +134,7 @@ serve(async (req) => {
 
     // Ensure membership and role
     await supabase.from("tenant_members").upsert(
-      { user_id: userData.user.id, tenant_id: tenant.id, role: "admin" },
+      { user_id: userData.user.id, tenant_id: tenant.id, role: "admin", email, login_email: loginEmail },
       { onConflict: "user_id,tenant_id" },
     );
     await supabase.from("user_roles").upsert(

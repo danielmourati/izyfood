@@ -241,8 +241,9 @@ export default function Caixa() {
       return;
     }
     setAdminConfirming(true);
+    const { data: authData } = await supabase.auth.getUser();
     const { error } = await supabase.auth.signInWithPassword({
-      email: user!.email,
+      email: authData.user?.email || user!.email,
       password: adminPassword,
     });
     setAdminConfirming(false);

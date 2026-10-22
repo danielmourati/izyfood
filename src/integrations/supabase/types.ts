@@ -1152,7 +1152,9 @@ export type Database = {
         Row: {
           commission_percentage: number
           created_at: string
+          email: string | null
           id: string
+          login_email: string | null
           role: Database["public"]["Enums"]["app_role"]
           tenant_id: string
           user_id: string
@@ -1160,7 +1162,9 @@ export type Database = {
         Insert: {
           commission_percentage?: number
           created_at?: string
+          email?: string | null
           id?: string
+          login_email?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           tenant_id: string
           user_id: string
@@ -1168,7 +1172,9 @@ export type Database = {
         Update: {
           commission_percentage?: number
           created_at?: string
+          email?: string | null
           id?: string
+          login_email?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           tenant_id?: string
           user_id?: string
@@ -1427,6 +1433,10 @@ export type Database = {
       release_table: {
         Args: { _number: number; _order_id: string }
         Returns: boolean
+      }
+      resolve_tenant_login: {
+        Args: { _email: string; _slug: string }
+        Returns: string
       }
       save_order_items: {
         Args: { _items: Json; _order_id: string; _removed_ids?: string[] }

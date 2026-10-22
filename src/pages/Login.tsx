@@ -24,7 +24,7 @@ const Login = () => {
     setError('');
     setIsLoading(true);
     try {
-      const result = await login(email, password);
+      const result = await login(email, password, slug);
       if (!result.success) {
         setError(result.error || 'Credenciais inválidas. Verifique seu e-mail e senha.');
         setIsLoading(false);
