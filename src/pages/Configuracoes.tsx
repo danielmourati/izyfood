@@ -16,9 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
 import { formatAuthError } from '@/lib/auth-errors';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import {
-  Settings, Users, Grid3X3, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, CreditCard, Sun
+  Settings, Users, Grid3X3, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, CreditCard
 } from 'lucide-react';
 import {
   Select,
@@ -433,20 +432,6 @@ function GeralTab() {
         </div>
       </div>
 
-      {/* Card 0: Aparência e Tema do Sistema */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sun className="h-5 w-5" /> Aparência e Tema do Sistema
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Escolha o modo de exibição da interface do sistema. O <strong>Modo Claro</strong> utiliza a paleta original Degust.
-          </p>
-          <ThemeToggle variant="cards" />
-        </CardContent>
-      </Card>
 
       {/* Card 1: Identidade Visual */}
       <Card>
