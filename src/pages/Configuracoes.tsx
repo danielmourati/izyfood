@@ -16,9 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
 import { formatAuthError } from '@/lib/auth-errors';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import {
-  Settings, Users, Grid3X3, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, CreditCard, Sun
+  Settings, Users, Grid3X3, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, CreditCard
 } from 'lucide-react';
 import {
   Select,
