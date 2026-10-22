@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth, AppRole } from '@/contexts/AuthContext';
-import { DiscountCoupon } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
@@ -19,7 +18,7 @@ import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
 import { formatAuthError } from '@/lib/auth-errors';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
-  Settings, Users, Grid3X3, Ticket, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, FileText, CreditCard, Sun
+  Settings, Users, Grid3X3, Printer, Plus, Trash2, Edit2, Check, X, KeyRound, User, Loader2, CreditCard, Sun
 } from 'lucide-react';
 import {
   Select,
@@ -30,13 +29,12 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { MeuPerfilTab } from '@/components/MeuPerfilTab';
-import { AuditLogsTab } from '@/components/AuditLogsTab';
 import { ImpressoraTab } from '@/components/ImpressoraTab';
 import { PlanoTab } from '@/components/PlanoTab';
 import { useAttendantPermissions, type AttendantPermissions } from '@/hooks/use-attendant-permissions';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'cupons' | 'impressora' | 'logs' | 'plano';
+type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'impressora' | 'plano';
 
 const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean; permissionKey?: keyof AttendantPermissions; mobileAllowed?: boolean }[] = [
   { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true, permissionKey: 'manage_printers', mobileAllowed: true },
@@ -44,8 +42,6 @@ const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: bo
   { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true, mobileAllowed: true },
   { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true, mobileAllowed: false },
   { key: 'permissoes', label: 'Permissões', icon: KeyRound, adminOnly: true, mobileAllowed: false },
-  { key: 'cupons', label: 'Cupons', icon: Ticket, adminOnly: true, mobileAllowed: false },
-  { key: 'logs', label: 'Auditoria', icon: FileText, adminOnly: true, mobileAllowed: false },
   { key: 'plano', label: 'Plano', icon: CreditCard, adminOnly: true, mobileAllowed: false },
 ];
 
@@ -106,9 +102,7 @@ const Configuracoes = () => {
       {activeTab === 'geral' && <GeralTab />}
       {activeTab === 'usuarios' && <UsuariosTab />}
       {activeTab === 'permissoes' && <PermissoesTab />}
-      {activeTab === 'cupons' && <CuponsTab />}
       {activeTab === 'impressora' && <ImpressoraTab />}
-      {activeTab === 'logs' && <AuditLogsTab />}
       {activeTab === 'plano' && <PlanoTab />}
     </div>
   );
@@ -860,143 +854,6 @@ function UsuariosTab() {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-function CuponsTab() {
-  const { coupons, setCoupons } = useStore();
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ code: '', type: 'percentage' as 'percentage' | 'fixed', value: '', minOrder: '', expiresAt: '' });
-
-  const resetForm = () => {
-    setForm({ code: '', type: 'percentage', value: '', minOrder: '', expiresAt: '' });
-    setShowForm(false);
-    setEditingId(null);
-  };
-
-  const handleSave = () => {
-    if (!form.code || !form.value) return;
-    const val = form.type === 'fixed' ? parseBRLInput(form.value) : parseFloat(form.value.replace(',', '.'));
-    if (isNaN(val) || val <= 0) return;
-
-    const coupon: DiscountCoupon = {
-      id: editingId || crypto.randomUUID(),
-      code: form.code.toUpperCase(),
-      type: form.type,
-      value: val,
-      active: true,
-      minOrder: form.minOrder ? parseBRLInput(form.minOrder) : undefined,
-      expiresAt: form.expiresAt || undefined,
-    };
-
-    if (editingId) {
-      setCoupons(prev => prev.map(c => c.id === editingId ? coupon : c));
-    } else {
-      setCoupons(prev => [...prev, coupon]);
-    }
-    resetForm();
-  };
-
-  const toggleActive = (id: string) => {
-    setCoupons(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
-  };
-
-  const handleDelete = (id: string) => {
-    setCoupons(prev => prev.filter(c => c.id !== id));
-  };
-
-  const handleEdit = (coupon: DiscountCoupon) => {
-    setForm({
-      code: coupon.code,
-      type: coupon.type,
-      value: coupon.type === 'fixed' ? formatBRLInput(coupon.value) : coupon.value.toString().replace('.', ','),
-      minOrder: coupon.minOrder != null ? formatBRLInput(coupon.minOrder) : '',
-      expiresAt: coupon.expiresAt || '',
-    });
-    setEditingId(coupon.id);
-    setShowForm(true);
-  };
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2"><Ticket className="h-5 w-5" /> Cupons de Desconto</CardTitle>
-        {!showForm && (
-          <Button size="sm" onClick={() => setShowForm(true)}><Plus className="h-4 w-4 mr-1" /> Novo</Button>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {showForm && (
-          <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Código</Label>
-                <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="EX: DESCONTO10" className="uppercase" />
-              </div>
-              <div className="space-y-1">
-                <Label>Tipo</Label>
-                <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v as 'percentage' | 'fixed', value: '' }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="percentage">Porcentagem (%)</SelectItem>
-                    <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Valor {form.type === 'percentage' ? '(%)' : '(R$)'}</Label>
-                {form.type === 'fixed' ? (
-                  <CurrencyInput value={form.value} onValueChange={value => setForm(f => ({ ...f, value }))} />
-                ) : (
-                  <Input inputMode="decimal" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} placeholder="10" />
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label>Pedido mínimo (R$)</Label>
-                <CurrencyInput value={form.minOrder} onValueChange={minOrder => setForm(f => ({ ...f, minOrder }))} placeholder="Opcional" />
-              </div>
-              <div className="space-y-1">
-                <Label>Validade</Label>
-                <Input type="date" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleSave}><Check className="h-4 w-4 mr-1" /> {editingId ? 'Atualizar' : 'Criar'}</Button>
-              <Button size="sm" variant="ghost" onClick={resetForm}><X className="h-4 w-4 mr-1" /> Cancelar</Button>
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          {coupons.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nenhum cupom cadastrado.</p>}
-          {coupons.map(c => (
-            <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-mono font-bold text-foreground">{c.code}</p>
-                  <Badge variant={c.active ? 'default' : 'secondary'}>{c.active ? 'Ativo' : 'Inativo'}</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {c.type === 'percentage' ? `${c.value}%` : `R$ ${fmt(c.value)}`} de desconto
-                  {c.minOrder ? ` · Mín. R$ ${fmt(c.minOrder)}` : ''}
-                  {c.expiresAt ? ` · Até ${new Date(c.expiresAt).toLocaleDateString('pt-BR')}` : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={c.active} onCheckedChange={() => toggleActive(c.id)} />
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(c)}>
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(c.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

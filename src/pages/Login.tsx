@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useParams } from 'react-router-dom';
-import { ArrowLeft, Eye, EyeOff, AlertCircle, CheckCircle2, WifiOff } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, WifiOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { supabase } from '@/integrations/supabase/client';
 import { formatAuthError } from '@/lib/auth-errors';
 import degustLogoHorizontal from '@/assets/degust-logo-horizontal-v2.png.asset.json';
 
@@ -17,9 +15,6 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [forgotOpen, setForgotOpen] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetFeedback, setResetFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const { slug } = useParams<{ slug: string }>();
   const { login } = useAuth();
 
@@ -38,20 +33,6 @@ const Login = () => {
       setError(formatAuthError(err));
       setIsLoading(false);
     }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resetEmail.trim()) return;
-    setResetFeedback(null);
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (resetError) {
-      setResetFeedback({ type: 'error', text: formatAuthError(resetError) });
-      return;
-    }
-    setResetFeedback({ type: 'success', text: 'E-mail de recuperação enviado.' });
   };
 
   const pageTitle = 'Entrar — Degust | Sistema de Gestão para Restaurantes';
@@ -102,9 +83,6 @@ const Login = () => {
             <div className="space-y-2">
               <div className="ml-1 flex items-center justify-between gap-3">
                 <Label htmlFor="password" className="font-semibold">Senha</Label>
-                <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={() => { setForgotOpen(true); setResetFeedback(null); }}>
-                  Esqueceu a senha?
-                </Button>
               </div>
               <div className="relative">
                 <Input
@@ -149,27 +127,6 @@ const Login = () => {
         </section>
       </main>
 
-      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Recuperar senha</DialogTitle></DialogHeader>
-          <form onSubmit={handleResetPassword} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="reset-email">E-mail cadastrado</Label>
-              <Input id="reset-email" type="email" placeholder="seu@email.com" value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} required />
-            </div>
-            {resetFeedback && (
-              <div className={`flex items-start gap-2 rounded-lg border p-3 text-sm ${resetFeedback.type === 'success' ? 'border-success/25 bg-success/10 text-success' : 'border-destructive/20 bg-destructive/10 text-destructive'}`}>
-                {resetFeedback.type === 'success' ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />}
-                <span>{resetFeedback.text}</span>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setForgotOpen(false)}><ArrowLeft /> Voltar</Button>
-              <Button type="submit" className="flex-1">Enviar e-mail</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </>
   );
 };
