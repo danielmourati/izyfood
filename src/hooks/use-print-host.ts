@@ -9,6 +9,7 @@ import {
   fetchOpenPrintJobs,
   markPrintJobDone,
   markPrintJobError,
+  wasJobSent,
   purgeOldPrintJobs,
   PRINT_TIMEOUT_MS,
   type PrintJob,
@@ -61,7 +62,7 @@ export function usePrintHost() {
         // No claims/errors while disconnected: preserve the queue until ready.
         if (!printerReadyRef.current) break;
         const jobId = queueRef.current.shift();
-        if (!jobId) continue;
+        if (!jobId || wasJobSent(jobId)) continue;
         let claimed: PrintJob | null = null;
         try {
           claimed = await withTimeout(claimPrintJob(jobId, `${getDeviceLabel()} (${getDeviceId().slice(-4)})`), 10000);
@@ -82,6 +83,8 @@ export function usePrintHost() {
           await markPrintJobDone(jobId, consumeLastPrinterUsed());
         } catch (err: any) {
           const message = err instanceof Error ? err.message : 'Falha ao imprimir.';
+          // Tempo esgotado depois do envio: os dados já foram à impressora; não reimprimir.
+          if (message.includes('tempo esgotado')) { await markPrintJobDone(jobId, consumeLastPrinterUsed()); continue; }
           await markPrintJobError(jobId, message);
           // Persisted error is rediscovered by polling after its retry delay.
         } finally {
@@ -94,7 +97,7 @@ export function usePrintHost() {
   }, [printJob]);
 
   const enqueue = useCallback((jobId: string) => {
-    if (seenRef.current.has(jobId)) return;
+    if (seenRef.current.has(jobId) || wasJobSent(jobId)) return;
     seenRef.current.add(jobId);
     queueRef.current.push(jobId);
     drain();
