@@ -41,7 +41,7 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
 
   const load = useCallback(async () => {
     try {
-      setJobs(await fetchPrintJobs(20));
+      setJobs((await fetchPrintJobs(20)).filter(j => j.status !== 'done'));
     } catch (err) {
       console.warn('[print-queue] falha ao carregar fila', err);
     }
