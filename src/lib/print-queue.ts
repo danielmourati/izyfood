@@ -32,7 +32,8 @@ export const MAX_PRINT_ATTEMPTS = 3;
 export const PRINT_TIMEOUT_MS = 20000;
 
 /** Failed jobs retry with a capped delay; successful/in-flight jobs never retry. */
-export function canAutoPrintJob(job: Pick<PrintJob, 'status' | 'claimed_at' | 'attempts' | 'updated_at'>, now = Date.now()): boolean {
+export function canAutoPrintJob(job: Pick<PrintJob, 'status' | 'claimed_at' | 'attempts' | 'updated_at'> & { printed_at?: string | null; id?: string }, now = Date.now()): boolean {
+  if (job.printed_at || (job.id && wasJobSent(job.id))) return false;
   if (job.status !== 'error') return job.status === 'pending' || isStalePrinting(job, now);
   const last = Date.parse(job.updated_at || job.claimed_at || '');
   const delay = Math.min(60_000, 10_000 * 2 ** Math.min(Math.max(job.attempts - 1, 0), 3));
@@ -112,8 +113,38 @@ export async function claimPrintJob(jobId: string, claimedBy: string): Promise<P
   return rows.length > 0 ? rows[0] : null;
 }
 
-export async function markPrintJobDone(jobId: string, printedOn?: string | null): Promise<void> {
-  await table().update({ status: 'done', printed_at: new Date().toISOString(), error: null, printed_on: printedOn ?? null } as any).eq('id', jobId);
+const SENT_KEY = 'degust:print-jobs-sent';
+const SENT_TTL_MS = 24 * 60 * 60 * 1000;
+
+function readSent(): Record<string, number> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SENT_KEY) || '{}') as Record<string, number>;
+    const now = Date.now();
+    return Object.fromEntries(Object.entries(raw).filter(([, t]) => now - t < SENT_TTL_MS));
+  } catch { return {}; }
+}
+
+/** Lembra no aparelho que este cupom já foi enviado à impressora: nunca reenvia sozinho. */
+export function rememberJobSent(jobId: string): void {
+  try { const m = readSent(); m[jobId] = Date.now(); localStorage.setItem(SENT_KEY, JSON.stringify(m)); } catch {}
+}
+
+export function wasJobSent(jobId: string): boolean {
+  try { return !!readSent()[jobId]; } catch { return false; }
+}
+
+/** Marca como impresso (até 3 tentativas) e tira o cupom da fila na hora. */
+export async function markPrintJobDone(jobId: string, printedOn?: string | null): Promise<boolean> {
+  rememberJobSent(jobId);
+  for (let i = 0; i < 3; i++) {
+    const { error } = await table().update({ status: 'done', printed_at: new Date().toISOString(), error: null, printed_on: printedOn ?? null } as any).eq('id', jobId);
+    if (!error) {
+      await table().delete().eq('id', jobId).eq('status', 'done');
+      return true;
+    }
+    await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+  }
+  return false;
 }
 
 export async function markPrintJobError(jobId: string, message: string): Promise<void> {
@@ -133,12 +164,13 @@ export function isStalePrinting(job: Pick<PrintJob, 'status' | 'claimed_at'>, no
 }
 
 /** Cupom que pode ser forçado de volta à fila: na fila, falho ou travado imprimindo. */
-export function canForcePrintJob(job: Pick<PrintJob, 'status' | 'claimed_at'>, now = Date.now()): boolean {
+export function canForcePrintJob(job: Pick<PrintJob, 'status' | 'claimed_at'> & { printed_at?: string | null }, now = Date.now()): boolean {
+  if (job.printed_at) return false;
   return job.status === 'pending' || job.status === 'error' || isStalePrinting(job, now);
 }
 
 /** Cupom que ainda pode ser cancelado (não impresso): mesma regra do "Forçar impressão". */
-export function canCancelPrintJob(job: Pick<PrintJob, 'status' | 'claimed_at'>, now = Date.now()): boolean {
+export function canCancelPrintJob(job: Pick<PrintJob, 'status' | 'claimed_at'> & { printed_at?: string | null }, now = Date.now()): boolean {
   return canForcePrintJob(job, now);
 }
 
