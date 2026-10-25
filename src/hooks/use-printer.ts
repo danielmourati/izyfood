@@ -212,16 +212,36 @@ export function usePrinter() {
     setHostMessage(null);
     try {
       if (v && !await printHostPresence.acquire(user.tenantId, user.name || null)) {
-        setHostMessage('Já existe um Caixa ativo nesta loja. Desative-o antes de trocar de aparelho.');
+        const s = printHostPresence.state;
+        const secs = s.lastSeenAt ? Math.max(0, Math.round((Date.now() - new Date(s.lastSeenAt).getTime()) / 1000)) : null;
+        setHostMessage(`Já existe um Caixa ativo nesta loja${s.label ? `: ${s.label}` : ''}${secs != null ? ` (sinal há ${secs}s)` : ''}. Desative-o ou assuma o Caixa neste aparelho.`);
+        setHostBlocked(true);
         return;
       }
       setPrintHostEnabled(v);
       setPrintHostEnabledState(v);
+      if (v) setHostOwned(true);
       if (!v) await printHostPresence.release(user.tenantId);
     } catch {
       setHostMessage('Não foi possível confirmar o Caixa. Verifique a conexão e tente novamente.');
     } finally { setHostBusy(false); }
   }, [user?.tenantId, user?.name]);
+
+  const canTakeoverPrintHost = !isMobileDevice() && (user?.role === 'admin' || user?.role === 'superadmin');
+  const takeoverPrintHost = useCallback(async () => {
+    if (!user?.tenantId || !canTakeoverPrintHost) return;
+    setHostBusy(true);
+    setHostMessage(null);
+    try {
+      await printHostPresence.takeover(user.tenantId, user.name || null);
+      setPrintHostEnabled(true);
+      setPrintHostEnabledState(true);
+      setHostOwned(true);
+      setHostBlocked(false);
+    } catch {
+      setHostMessage('Não foi possível assumir o Caixa. Verifique a conexão e tente novamente.');
+    } finally { setHostBusy(false); }
+  }, [user?.tenantId, user?.name, canTakeoverPrintHost]);
 
   // Mantém as preferências consolidadas entre as telas (Configurações > Impressora
   // e a seção do menu do pedido) e entre abas abertas no mesmo aparelho.

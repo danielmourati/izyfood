@@ -176,6 +176,18 @@ class PresenceManager {
     return data === true;
   }
 
+  /** Admin: transfere o Caixa para este aparelho, derrubando o anterior. */
+  async takeover(tenantId: string, userName: string | null): Promise<boolean> {
+    if (this.tenantId !== tenantId) this.reset(tenantId);
+    const { data, error } = await supabase.rpc('takeover_print_host', {
+      _device_id: getDeviceId(), _label: getDeviceLabel(), _user_name: userName ?? undefined,
+    });
+    if (error) throw error;
+    await this.poll();
+    this.track();
+    return data === true;
+  }
+
   async release(tenantId: string) {
     const { error } = await supabase.from('print_hosts').delete().eq('tenant_id', tenantId).eq('device_id', getDeviceId());
     if (error) throw error;
