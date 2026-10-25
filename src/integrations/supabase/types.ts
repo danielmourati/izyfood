@@ -1442,6 +1442,10 @@ export type Database = {
         Args: { _items: Json; _order_id: string; _removed_ids?: string[] }
         Returns: Json
       }
+      takeover_print_host: {
+        Args: { _device_id: string; _label?: string; _user_name?: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "atendente" | "motoboy" | "superadmin"
