@@ -1394,6 +1394,16 @@ export type Database = {
         }
       }
       force_print_jobs: { Args: { _ids?: string[] }; Returns: number }
+      get_print_host_state: {
+        Args: never
+        Returns: {
+          age_ms: number
+          device_id: string
+          label: string
+          last_seen_at: string
+          user_name: string
+        }[]
+      }
       get_tenant_branding: {
         Args: { _slug: string }
         Returns: {
