@@ -142,16 +142,17 @@ class PresenceManager {
     const tid = this.tenantId;
     if (!tid) return;
     try {
-      const { data, error } = await supabase
-        .from('print_hosts')
-        .select('label,user_name,last_seen_at,device_id')
-        .eq('tenant_id', tid)
-        .order('last_seen_at', { ascending: false })
-        .limit(1);
-      const row = data?.[0];
+      // Server computes the age so a wrong computer clock never hides a live lease.
+      const { data, error } = await supabase.rpc('get_print_host_state');
+      const row = (data as any[] | null)?.[0];
       if (error || this.tenantId !== tid) return;
-      this.dbHost = row ? { label: [row.user_name, row.label].filter(Boolean).join(' · ') || null, lastSeenAt: row.last_seen_at, deviceId: row.device_id } : null;
+      this.dbHost = row ? {
+        label: [row.user_name, row.label].filter(Boolean).join(' · ') || null,
+        lastSeenAt: new Date(Date.now() - Number(row.age_ms ?? HOST_ALIVE_MS)).toISOString(),
+        deviceId: row.device_id,
+      } : null;
       this.emit();
+      this.track();
     } catch { /* rede instável: mantém último estado */ }
   }
 
