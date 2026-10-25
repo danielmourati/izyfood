@@ -758,6 +758,8 @@ export function usePrinter() {
     hostBusy,
     hostMessage,
     togglePrintHost,
+    canTakeoverPrintHost,
+    takeoverPrintHost,
     hostOnline,
     hostLabel,
     hostLastSeenAt,

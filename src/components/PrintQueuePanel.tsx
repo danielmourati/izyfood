@@ -1,3 +1,4 @@
+import TakeoverPrintHostButton from '@/components/TakeoverPrintHostButton';
 import { useCallback, useEffect, useState } from 'react';
 import { Printer, RefreshCw, Trash2, Monitor, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -123,6 +124,7 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
         </div>
 
         {hostMessage && <p role="alert" className="text-xs text-destructive">{hostMessage}</p>}
+        <TakeoverPrintHostButton />
         {hostBlocked ? (
           <p role="status" className="text-xs text-muted-foreground">Caixa ativo: {hostLabel || 'outro aparelho'}. Desative esse Caixa para ativar este aparelho.</p>
         ) : printHostEnabled ? (
