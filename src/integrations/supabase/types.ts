@@ -1393,6 +1393,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      finalize_stale_printing_jobs: { Args: never; Returns: number }
       force_print_jobs: { Args: { _ids?: string[] }; Returns: number }
       get_print_host_state: {
         Args: never

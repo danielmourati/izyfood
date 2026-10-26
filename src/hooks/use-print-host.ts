@@ -10,6 +10,9 @@ import {
   markPrintJobDone,
   markPrintJobError,
   wasJobSent,
+  rememberJobSent,
+  forgetJobSent,
+  flushPendingDoneMarks,
   purgeOldPrintJobs,
   PRINT_TIMEOUT_MS,
   type PrintJob,
@@ -33,6 +36,7 @@ export function usePrintHost() {
   const { user } = useAuth();
   const { printHostEnabled, printHostRequested, hasPrinterAvailable, printOrder, printBill, printCashClose } = usePrinter();
   const [processing, setProcessing] = useState<string | null>(null);
+  const processingRef = useRef<string | null>(null);
 
   const queueRef = useRef<string[]>([]);
   const runningRef = useRef(false);
@@ -71,12 +75,15 @@ export function usePrintHost() {
         }
         if (!claimed) continue; // outro caixa assumiu, ou já foi impresso
 
-        setProcessing(jobId);
+        setProcessing(jobId); processingRef.current = jobId;
         try {
           consumeLastPrinterUsed();
+          // Marca antes de enviar: recarregar a página no meio nunca repete o cupom.
+          rememberJobSent(jobId);
           const result: any = await withTimeout(printJob(claimed), PRINT_TIMEOUT_MS);
           const channel = result?.channel;
           if (channel !== 'qz' && channel !== 'bluetooth') {
+            forgetJobSent(jobId); // nada saiu no papel: pode tentar de novo
             await markPrintJobError(jobId, result?.reason || 'Nada foi enviado para a impressora do caixa.');
             continue;
           }
@@ -88,7 +95,7 @@ export function usePrintHost() {
           await markPrintJobError(jobId, message);
           // Persisted error is rediscovered by polling after its retry delay.
         } finally {
-          setProcessing(null);
+          setProcessing(null); processingRef.current = null;
         }
       }
     } finally {
@@ -132,9 +139,11 @@ export function usePrintHost() {
     // Não depende só do aviso em tempo real: confere a fila a cada 10s.
     const pollTimer = window.setInterval(async () => {
       try {
+        await flushPendingDoneMarks();
+        await (supabase as any).rpc('finalize_stale_printing_jobs');
         const open = await fetchOpenPrintJobs();
         if (!active) return;
-        open.forEach(j => { if (!queueRef.current.includes(j.id)) { seenRef.current.delete(j.id); enqueue(j.id); } });
+        open.forEach(j => { if (!queueRef.current.includes(j.id) && processingRef.current !== j.id) { seenRef.current.delete(j.id); enqueue(j.id); } });
         drain();
       } catch {}
     }, 10 * 1000);

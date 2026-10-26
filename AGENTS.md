@@ -1,7 +1,7 @@
 # Architecture decisions
 
 - Print-server ownership is a server-timed per-tenant lease acquired atomically and enforced on legacy writes; only the confirmed owning device processes the queue, preventing competing servers.
-- Failed print jobs use persisted update times for capped retry backoff through the same atomic host claim as pending jobs, so polling recovers failures without immediate retry loops.
+- Forced or failed print jobs are claimed only from pending/error; a job once claimed (printing) is never reissued — stale ones are finalized as probably printed — and the host records "sent" locally before printing and retries the done mark, so a job prints at most once without an admin reprint.
 
 - Use the shared `CurrencyInput` and BRL helpers for every editable monetary amount, so display and numeric parsing remain consistent across the app.
 - Use `OrderItemDetails` and `getOrderItemNoteLines` for item customization display, so carts and receipts handle structured and legacy notes consistently.
