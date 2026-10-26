@@ -19,8 +19,8 @@ describe('canForcePrintJob', () => {
   it('failed jobs can be forced', () => {
     expect(canForcePrintJob({ status: 'error', claimed_at: null }, now)).toBe(true);
   });
-  it('stale printing jobs can be forced', () => {
-    expect(canForcePrintJob({ status: 'printing', claimed_at: '2026-10-18T11:58:00Z' }, now)).toBe(true);
+  it('stale printing jobs are never forced again (may already be on paper)', () => {
+    expect(canForcePrintJob({ status: 'printing', claimed_at: '2026-10-18T11:58:00Z' }, now)).toBe(false);
   });
   it('fresh printing jobs cannot be forced', () => {
     expect(canForcePrintJob({ status: 'printing', claimed_at: '2026-10-18T11:59:45Z' }, now)).toBe(false);
@@ -47,6 +47,9 @@ describe('automatic failed-job recovery', () => {
   });
   it('does not reprint a job currently printing', () => {
     expect(canAutoPrintJob({ ...failed, status: 'printing', claimed_at: new Date(now - 30_000).toISOString() }, now)).toBe(false);
+  });
+  it('does not automatically reprint a stale printing job', () => {
+    expect(canAutoPrintJob({ ...failed, status: 'printing', claimed_at: new Date(now - 120_000).toISOString() }, now)).toBe(false);
   });
   it('keeps queued jobs eligible for immediate printing', () => {
     expect(canAutoPrintJob({ ...failed, status: 'pending' }, now)).toBe(true);

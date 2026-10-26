@@ -36,6 +36,7 @@ export function usePrintHost() {
   const { user } = useAuth();
   const { printHostEnabled, printHostRequested, hasPrinterAvailable, printOrder, printBill, printCashClose } = usePrinter();
   const [processing, setProcessing] = useState<string | null>(null);
+  const processingRef = useRef<string | null>(null);
 
   const queueRef = useRef<string[]>([]);
   const runningRef = useRef(false);
@@ -74,7 +75,7 @@ export function usePrintHost() {
         }
         if (!claimed) continue; // outro caixa assumiu, ou já foi impresso
 
-        setProcessing(jobId);
+        setProcessing(jobId); processingRef.current = jobId;
         try {
           consumeLastPrinterUsed();
           // Marca antes de enviar: recarregar a página no meio nunca repete o cupom.
@@ -94,7 +95,7 @@ export function usePrintHost() {
           await markPrintJobError(jobId, message);
           // Persisted error is rediscovered by polling after its retry delay.
         } finally {
-          setProcessing(null);
+          setProcessing(null); processingRef.current = null;
         }
       }
     } finally {
