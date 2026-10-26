@@ -129,6 +129,10 @@ export function rememberJobSent(jobId: string): void {
   try { const m = readSent(); m[jobId] = Date.now(); localStorage.setItem(SENT_KEY, JSON.stringify(m)); } catch {}
 }
 
+export function forgetJobSent(jobId: string): void {
+  try { const m = readSent(); delete m[jobId]; localStorage.setItem(SENT_KEY, JSON.stringify(m)); } catch {}
+}
+
 export function wasJobSent(jobId: string): boolean {
   try { return !!readSent()[jobId]; } catch { return false; }
 }

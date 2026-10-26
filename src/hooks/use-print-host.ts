@@ -10,6 +10,9 @@ import {
   markPrintJobDone,
   markPrintJobError,
   wasJobSent,
+  rememberJobSent,
+  forgetJobSent,
+  flushPendingDoneMarks,
   purgeOldPrintJobs,
   PRINT_TIMEOUT_MS,
   type PrintJob,
@@ -74,9 +77,12 @@ export function usePrintHost() {
         setProcessing(jobId);
         try {
           consumeLastPrinterUsed();
+          // Marca antes de enviar: recarregar a página no meio nunca repete o cupom.
+          rememberJobSent(jobId);
           const result: any = await withTimeout(printJob(claimed), PRINT_TIMEOUT_MS);
           const channel = result?.channel;
           if (channel !== 'qz' && channel !== 'bluetooth') {
+            forgetJobSent(jobId); // nada saiu no papel: pode tentar de novo
             await markPrintJobError(jobId, result?.reason || 'Nada foi enviado para a impressora do caixa.');
             continue;
           }
@@ -132,9 +138,11 @@ export function usePrintHost() {
     // Não depende só do aviso em tempo real: confere a fila a cada 10s.
     const pollTimer = window.setInterval(async () => {
       try {
+        await flushPendingDoneMarks();
+        await (supabase as any).rpc('finalize_stale_printing_jobs');
         const open = await fetchOpenPrintJobs();
         if (!active) return;
-        open.forEach(j => { if (!queueRef.current.includes(j.id)) { seenRef.current.delete(j.id); enqueue(j.id); } });
+        open.forEach(j => { if (!queueRef.current.includes(j.id) && processingRef.current !== j.id) { seenRef.current.delete(j.id); enqueue(j.id); } });
         drain();
       } catch {}
     }, 10 * 1000);
