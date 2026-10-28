@@ -8,8 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { maskPhone } from '@/lib/utils';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { User, Save, Loader2, Store, Shield, CheckCircle2, AlertCircle, KeyRound, Sun } from 'lucide-react';
+import { User, Save, Loader2, Store, Shield, CheckCircle2, AlertCircle, KeyRound } from 'lucide-react';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrador',
@@ -134,20 +133,6 @@ export function MeuPerfilTab() {
         </CardContent>
       </Card>
 
-      {/* Tema de Exibição */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Sun className="h-5 w-5" /> Tema de Exibição
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Alterne entre o Modo Claro (Paleta Degust) e o Modo Escuro.
-          </p>
-          <ThemeToggle variant="cards" />
-        </CardContent>
-      </Card>
 
       {/* Personal data */}
       <Card>

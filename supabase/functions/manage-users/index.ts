@@ -3,6 +3,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { makeTenantLoginEmail } from '../_shared/tenant-login.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -72,9 +73,15 @@ Deno.serve(async (req) => {
       if (!email || !password || !name || !role || !tenant_id) return json({ error: 'Campos obrigatórios: email, senha, nome, função e loja' }, 400)
       if (String(password).length < 6) return json({ error: 'A senha deve conter no mínimo 6 caracteres.' }, 400)
 
+      const contact = String(email).trim().toLowerCase()
+      const { data: dup } = await adminClient.from('tenant_members').select('id').eq('tenant_id', tenant_id).ilike('email', contact).maybeSingle()
+      if (dup) return json({ error: 'Este e-mail já está cadastrado nesta loja.' }, 400)
+      const { data: t } = await adminClient.from('tenants').select('slug').eq('id', tenant_id).maybeSingle()
+      if (!t) return json({ error: 'Loja não encontrada' }, 400)
+      const loginEmail = makeTenantLoginEmail(t.slug)
       const { data, error } = await adminClient.auth.admin.createUser({
-        email, password, email_confirm: true,
-        user_metadata: { name, role, tenant_id, phone: phone || null }
+        email: loginEmail, password, email_confirm: true,
+        user_metadata: { name, role, tenant_id, phone: phone || null, contact_email: contact }
       })
       if (error) {
         const m = (error.message || '').toLowerCase()
@@ -93,7 +100,7 @@ Deno.serve(async (req) => {
 
       // Ensure membership (trigger handles most cases, but be defensive)
       await adminClient.from('tenant_members').upsert(
-        { user_id: uid, tenant_id, role },
+        { user_id: uid, tenant_id, role, email: contact, login_email: loginEmail },
         { onConflict: 'user_id,tenant_id' }
       )
 
@@ -109,16 +116,19 @@ Deno.serve(async (req) => {
       const { user_id, name, email, phone, role, tenant_id } = body
       if (!user_id) return json({ error: 'user_id obrigatório' }, 400)
 
-      // Update auth email if changed
-      if (email) {
-        const { error } = await adminClient.auth.admin.updateUserById(user_id, { email })
-        if (error) return json({ error: error.message }, 400)
+      // Real e-mail is per tenant; the sign-in address never changes.
+      const contact = email ? String(email).trim().toLowerCase() : undefined
+      const { data: mem } = await adminClient.from('tenant_members').select('tenant_id').eq('user_id', user_id).limit(1).maybeSingle()
+      const targetTenant = tenant_id || mem?.tenant_id
+      if (contact && targetTenant) {
+        const { data: dup } = await adminClient.from('tenant_members').select('user_id').eq('tenant_id', targetTenant).ilike('email', contact).neq('user_id', user_id).maybeSingle()
+        if (dup) return json({ error: 'Este e-mail já está cadastrado nesta loja.' }, 400)
       }
 
       // Update profile
       const profilePatch: any = {}
       if (name !== undefined) profilePatch.name = name
-      if (email !== undefined) profilePatch.email = email
+      if (contact !== undefined) profilePatch.email = contact
       if (phone !== undefined) profilePatch.phone = phone
       if (Object.keys(profilePatch).length > 0) {
         await adminClient.from('profiles').update(profilePatch).eq('id', user_id)
@@ -131,9 +141,18 @@ Deno.serve(async (req) => {
       }
 
       // Update tenant membership (single tenant per user in this app)
-      if (tenant_id) {
-        await adminClient.from('tenant_members').delete().eq('user_id', user_id)
-        await adminClient.from('tenant_members').insert({ user_id, tenant_id, role: role || 'atendente' })
+      const memberPatch: any = {}
+      if (tenant_id) memberPatch.tenant_id = tenant_id
+      if (role) memberPatch.role = role
+      if (contact) memberPatch.email = contact
+      if (Object.keys(memberPatch).length > 0) {
+        if (mem) {
+          const { error } = await adminClient.from('tenant_members').update(memberPatch).eq('user_id', user_id)
+          if (error) return json({ error: error.message }, 400)
+        } else if (tenant_id) {
+          const { data: au } = await adminClient.auth.admin.getUserById(user_id)
+          await adminClient.from('tenant_members').insert({ user_id, tenant_id, role: role || 'atendente', email: contact, login_email: au?.user?.email?.toLowerCase() })
+        }
       }
 
       return json({ success: true })

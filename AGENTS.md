@@ -1,5 +1,8 @@
 # Architecture decisions
 
+- Print-server ownership is a server-timed per-tenant lease acquired atomically and enforced on legacy writes; only the confirmed owning device processes the queue, preventing competing servers.
+- Forced or failed print jobs are claimed only from pending/error; a job once claimed (printing) is never reissued — stale ones are finalized as probably printed — and the host records "sent" locally before printing and retries the done mark, so a job prints at most once without an admin reprint.
+
 - Use the shared `CurrencyInput` and BRL helpers for every editable monetary amount, so display and numeric parsing remain consistent across the app.
 - Use `OrderItemDetails` and `getOrderItemNoteLines` for item customization display, so carts and receipts handle structured and legacy notes consistently.
 - Group item customization through getOrderItemCustomizationGroups and formatCustomizationLine, snapshot each selected option's classification, and treat unclassified legacy options as additions so history never changes when the catalog is edited.
@@ -20,3 +23,4 @@
 - A mesa has at most one open order (unique partial index); a second device's order is absorbed into the existing one, and orders with items/value are deleted only after allowOrderDelete marks an explicit user action, so sync gaps never erase tables.
 - Order deletions, item removals/quantity reductions and non-terminal table releases are audited by database triggers, so every loss is traceable even when the app path skipped logging.
 - Tables are released only through `release_table(number, order_id)`/`move_order_table`, and DB triggers refuse to free a table whose open order still has content and recolocate items dropped outside `save_order_items`, so stale devices or old app versions can never make tables or items disappear.
+- Tenant users sign in with a private per-tenant auth address stored in tenant_members.login_email, while the real e-mail lives in tenant_members.email/profiles.email and is unique only per tenant; login resolves slug+e-mail via resolve_tenant_login, so one e-mail can exist in several tenants.

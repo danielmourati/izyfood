@@ -1,3 +1,4 @@
+import TakeoverPrintHostButton from '@/components/TakeoverPrintHostButton';
 import { useState } from 'react';
 import { Printer, Bluetooth } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,9 @@ export default function BluetoothPrinterSection() {
     togglePrintHost,
     hostOnline,
     hostLabel,
+    hostBlocked,
+    hostBusy,
+    hostMessage,
   } = usePrinter();
   const mobile = isMobileDevice();
 
@@ -148,17 +152,13 @@ export default function BluetoothPrinterSection() {
           </span>
           <Switch
             checked={printHostEnabled}
-            onCheckedChange={(checked) => {
-              togglePrintHost(checked);
-              setMessage({
-                type: checked ? 'ok' : 'warn',
-                text: checked
-                  ? 'Este aparelho passou a imprimir os cupons enviados pelos outros.'
-                  : 'Este aparelho não imprime mais os cupons dos outros aparelhos.',
-              });
-            }}
+            disabled={hostBlocked || hostBusy}
+            onCheckedChange={togglePrintHost}
           />
         </div>
+        {hostBlocked && <p className="text-xs text-muted-foreground">Caixa ativo: {hostLabel || 'outro aparelho'}. Desative-o antes de trocar.</p>}
+        {hostMessage && <p role="alert" className="text-xs text-destructive">{hostMessage}</p>}
+        <TakeoverPrintHostButton />
 
         <Button size="sm" variant="secondary" onClick={handleTest} disabled={!!busy} className="text-xs font-bold h-8 px-3 rounded-lg flex items-center gap-1.5">
           <Printer className="h-3.5 w-3.5" />

@@ -9,9 +9,11 @@ import {
   fetchOpenPrintJobs,
   markPrintJobDone,
   markPrintJobError,
+  wasJobSent,
+  rememberJobSent,
+  forgetJobSent,
+  flushPendingDoneMarks,
   purgeOldPrintJobs,
-  MAX_PRINT_ATTEMPTS,
-  PRINT_HOST_PRESENCE_PREFIX,
   PRINT_TIMEOUT_MS,
   type PrintJob,
 } from '@/lib/print-queue';
@@ -32,34 +34,39 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  */
 export function usePrintHost() {
   const { user } = useAuth();
-  const { printHostEnabled, hasPrinterAvailable, printOrder, printBill, printCashClose } = usePrinter();
+  const { printHostEnabled, printHostRequested, hasPrinterAvailable, printOrder, printBill, printCashClose } = usePrinter();
   const [processing, setProcessing] = useState<string | null>(null);
+  const processingRef = useRef<string | null>(null);
 
   const queueRef = useRef<string[]>([]);
   const runningRef = useRef(false);
   const seenRef = useRef<Set<string>>(new Set());
   const printerReadyRef = useRef(hasPrinterAvailable);
+  const hostEnabledRef = useRef(printHostEnabled);
+  hostEnabledRef.current = printHostEnabled;
+  const printFunctionsRef = useRef({ printOrder, printBill, printCashClose });
+  printFunctionsRef.current = { printOrder, printBill, printCashClose };
 
   useEffect(() => { printerReadyRef.current = hasPrinterAvailable; }, [hasPrinterAvailable]);
 
   const printJob = useCallback(async (job: PrintJob) => {
+    const { printOrder, printBill, printCashClose } = printFunctionsRef.current;
     const payload = job.payload || {};
     if (job.kind === 'bill') return printBill(payload, { force: true });
     if (job.kind === 'cash_close') return printCashClose(payload, { force: true });
     const intent = payload.__printIntent === 'reprint' ? 'reprint' : 'new';
     return printOrder(payload, { force: true, intent });
-  }, [printOrder, printBill, printCashClose]);
+  }, []);
 
   const drain = useCallback(async () => {
     if (runningRef.current) return;
     runningRef.current = true;
     try {
-      while (queueRef.current.length > 0) {
-        const jobId = queueRef.current.shift()!;
-        if (!printerReadyRef.current) {
-          await markPrintJobError(jobId, 'A impressora do caixa não está conectada.');
-          continue;
-        }
+      while (queueRef.current.length > 0 && hostEnabledRef.current) {
+        // No claims/errors while disconnected: preserve the queue until ready.
+        if (!printerReadyRef.current) break;
+        const jobId = queueRef.current.shift();
+        if (!jobId || wasJobSent(jobId)) continue;
         let claimed: PrintJob | null = null;
         try {
           claimed = await withTimeout(claimPrintJob(jobId, `${getDeviceLabel()} (${getDeviceId().slice(-4)})`), 10000);
@@ -68,26 +75,27 @@ export function usePrintHost() {
         }
         if (!claimed) continue; // outro caixa assumiu, ou já foi impresso
 
-        setProcessing(jobId);
+        setProcessing(jobId); processingRef.current = jobId;
         try {
           consumeLastPrinterUsed();
+          // Marca antes de enviar: recarregar a página no meio nunca repete o cupom.
+          rememberJobSent(jobId);
           const result: any = await withTimeout(printJob(claimed), PRINT_TIMEOUT_MS);
           const channel = result?.channel;
           if (channel !== 'qz' && channel !== 'bluetooth') {
+            forgetJobSent(jobId); // nada saiu no papel: pode tentar de novo
             await markPrintJobError(jobId, result?.reason || 'Nada foi enviado para a impressora do caixa.');
             continue;
           }
           await markPrintJobDone(jobId, consumeLastPrinterUsed());
         } catch (err: any) {
           const message = err instanceof Error ? err.message : 'Falha ao imprimir.';
-          if ((claimed.attempts || 1) < MAX_PRINT_ATTEMPTS) {
-            await markPrintJobError(jobId, `${message} (tentativa ${claimed.attempts}/${MAX_PRINT_ATTEMPTS})`);
-            queueRef.current.push(jobId); // retentativa automática
-          } else {
-            await markPrintJobError(jobId, message);
-          }
+          // Tempo esgotado depois do envio: os dados já foram à impressora; não reimprimir.
+          if (message.includes('tempo esgotado')) { await markPrintJobDone(jobId, consumeLastPrinterUsed()); continue; }
+          await markPrintJobError(jobId, message);
+          // Persisted error is rediscovered by polling after its retry delay.
         } finally {
-          setProcessing(null);
+          setProcessing(null); processingRef.current = null;
         }
       }
     } finally {
@@ -96,7 +104,7 @@ export function usePrintHost() {
   }, [printJob]);
 
   const enqueue = useCallback((jobId: string) => {
-    if (seenRef.current.has(jobId)) return;
+    if (seenRef.current.has(jobId) || wasJobSent(jobId)) return;
     seenRef.current.add(jobId);
     queueRef.current.push(jobId);
     drain();
@@ -105,9 +113,9 @@ export function usePrintHost() {
   // Anuncia este aparelho como Caixa (presença + sinal de vida no banco).
   useEffect(() => {
     const tenantId = user?.tenantId;
-    if (!printHostEnabled || !tenantId) return;
+    if (!printHostRequested || !tenantId) return;
     return printHostPresence.setHost(tenantId, true, user?.name || null);
-  }, [printHostEnabled, user?.tenantId, user?.name]);
+  }, [printHostRequested, user?.tenantId, user?.name]);
 
   useEffect(() => {
     const tenantId = user?.tenantId;
@@ -131,9 +139,12 @@ export function usePrintHost() {
     // Não depende só do aviso em tempo real: confere a fila a cada 10s.
     const pollTimer = window.setInterval(async () => {
       try {
+        await flushPendingDoneMarks();
+        await (supabase as any).rpc('finalize_stale_printing_jobs');
         const open = await fetchOpenPrintJobs();
         if (!active) return;
-        open.forEach(j => { if (!queueRef.current.includes(j.id)) { seenRef.current.delete(j.id); enqueue(j.id); } });
+        open.forEach(j => { if (!queueRef.current.includes(j.id) && processingRef.current !== j.id) { seenRef.current.delete(j.id); enqueue(j.id); } });
+        drain();
       } catch {}
     }, 10 * 1000);
 
@@ -170,9 +181,10 @@ export function usePrintHost() {
       window.clearInterval(purgeTimer);
       window.clearInterval(pollTimer);
       active = false;
+      queueRef.current = [];
       supabase.removeChannel(channel);
     };
-  }, [printHostEnabled, user?.tenantId, enqueue]);
+  }, [printHostEnabled, user?.tenantId, enqueue, drain]);
 
   return { printHostEnabled, processing, hasPrinterAvailable };
 }

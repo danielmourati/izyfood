@@ -1152,7 +1152,9 @@ export type Database = {
         Row: {
           commission_percentage: number
           created_at: string
+          email: string | null
           id: string
+          login_email: string | null
           role: Database["public"]["Enums"]["app_role"]
           tenant_id: string
           user_id: string
@@ -1160,7 +1162,9 @@ export type Database = {
         Insert: {
           commission_percentage?: number
           created_at?: string
+          email?: string | null
           id?: string
+          login_email?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           tenant_id: string
           user_id: string
@@ -1168,7 +1172,9 @@ export type Database = {
         Update: {
           commission_percentage?: number
           created_at?: string
+          email?: string | null
           id?: string
+          login_email?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           tenant_id?: string
           user_id?: string
@@ -1325,6 +1331,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acquire_print_host: {
+        Args: { _device_id: string; _label?: string; _user_name?: string }
+        Returns: boolean
+      }
       audit_items_summary: { Args: { _items: Json }; Returns: Json }
       cancel_print_jobs: { Args: { _ids?: string[] }; Returns: number }
       claim_print_job: {
@@ -1355,7 +1365,46 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_print_job_for_host: {
+        Args: { _claimed_by: string; _device_id: string; _job_id: string }
+        Returns: {
+          attempts: number
+          claimed_at: string | null
+          claimed_by: string | null
+          copies: number
+          created_at: string
+          created_by: string | null
+          device_label: string | null
+          error: string | null
+          id: string
+          kind: string
+          paper_width: number | null
+          payload: Json
+          printed_at: string | null
+          printed_on: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      finalize_stale_printing_jobs: { Args: never; Returns: number }
       force_print_jobs: { Args: { _ids?: string[] }; Returns: number }
+      get_print_host_state: {
+        Args: never
+        Returns: {
+          age_ms: number
+          device_id: string
+          label: string
+          last_seen_at: string
+          user_name: string
+        }[]
+      }
       get_tenant_branding: {
         Args: { _slug: string }
         Returns: {
@@ -1396,9 +1445,17 @@ export type Database = {
         Args: { _number: number; _order_id: string }
         Returns: boolean
       }
+      resolve_tenant_login: {
+        Args: { _email: string; _slug: string }
+        Returns: string
+      }
       save_order_items: {
         Args: { _items: Json; _order_id: string; _removed_ids?: string[] }
         Returns: Json
+      }
+      takeover_print_host: {
+        Args: { _device_id: string; _label?: string; _user_name?: string }
+        Returns: boolean
       }
     }
     Enums: {

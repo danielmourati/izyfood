@@ -110,8 +110,57 @@
     {
       "idx": 15,
       "version": "7",
+      "when": 1792637855329,
+      "tag": "0015_exclusive_print_host_lease",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792638016740,
+      "tag": "0016_require_print_host_owned_claim",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792671118231,
+      "tag": "0017_tenant_scoped_emails",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792797461250,
+      "tag": "0018_printed_jobs_never_reprint",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792941536039,
+      "tag": "0019_takeover_print_host",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792941899424,
+      "tag": "0020_print_host_state_server_age",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792978290904,
+      "tag": "0021_forced_jobs_print_once",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
       "when": 1793200000000,
-      "tag": "0015_superadmin_profiles_and_tenants",
+      "tag": "0022_superadmin_profiles_and_tenants",
       "breakpoints": true
     }
   ]
