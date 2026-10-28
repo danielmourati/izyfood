@@ -86,6 +86,17 @@ function getExpirationInfo(row: TenantPlanRow): {
   }
 
   const targetDate = new Date(targetDateStr);
+  if (isNaN(targetDate.getTime())) {
+    return {
+      daysLeft: null,
+      isExpired: false,
+      isExpiringSoon: false,
+      isLifetime: false,
+      displayDate: 'Data inválida',
+      badgeText: 'Inválida',
+    };
+  }
+
   if (targetDate.getFullYear() >= 2090) {
     return {
       daysLeft: 99999,
@@ -110,7 +121,7 @@ function getExpirationInfo(row: TenantPlanRow): {
   else if (daysLeft > 1) badgeText = `em ${daysLeft} dias`;
   else badgeText = `Expirou há ${Math.abs(daysLeft)}d`;
 
-  return { daysLeft, isExpired, isExpiringSoon, isLifetime, displayDate, badgeText };
+  return { daysLeft, isExpired, isExpiringSoon, isLifetime: false, displayDate, badgeText };
 }
 
 export function PlanosPage() {
