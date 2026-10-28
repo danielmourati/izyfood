@@ -35,6 +35,38 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    if (action === 'list') {
+      if (!isSuperadmin) return json({ error: 'Apenas superadmin pode listar todos os usuários' }, 403)
+
+      const { data: { users: authUsers }, error: authErr } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+      if (authErr) return json({ error: authErr.message }, 400)
+
+      const { data: profiles } = await adminClient.from('profiles').select('*')
+      const { data: members } = await adminClient.from('tenant_members').select('user_id, tenant_id, role, tenants(name, slug)')
+      const { data: roles } = await adminClient.from('user_roles').select('user_id, role')
+
+      const combined = (authUsers || []).map((u: any) => {
+        const prof = (profiles || []).find((p: any) => p.id === u.id)
+        const mem = (members || []).find((m: any) => m.user_id === u.id)
+        const rol = (roles || []).find((r: any) => r.user_id === u.id)
+        const tenant = (mem?.tenants as any)
+        return {
+          id: u.id,
+          name: prof?.name || u.user_metadata?.name || u.email?.split('@')[0] || 'Usuário',
+          email: u.email || prof?.email || '',
+          phone: prof?.phone || u.user_metadata?.phone || '',
+          role: rol?.role || mem?.role || u.user_metadata?.role || 'atendente',
+          tenantId: mem?.tenant_id || u.user_metadata?.tenant_id || '',
+          tenantName: tenant?.name || '—',
+          tenantSlug: tenant?.slug || '',
+          createdAt: u.created_at,
+          lastSignInAt: u.last_sign_in_at,
+        }
+      })
+
+      return json({ success: true, users: combined })
+    }
+
     if (action === 'create') {
       const { email, password, name, phone, role, tenant_id, commission } = body
       if (!email || !password || !name || !role || !tenant_id) return json({ error: 'Campos obrigatórios: email, senha, nome, função e loja' }, 400)
