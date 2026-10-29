@@ -238,8 +238,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isDemo = false;
 
     try {
-      if (slug && cleanEmail) {
-        const { data: resolved } = await supabase.rpc('resolve_tenant_login', { _slug: slug, _email: cleanEmail });
+      if (cleanEmail) {
+        const { data: resolved } = slug
+          ? await supabase.rpc('resolve_tenant_login', { _slug: slug, _email: cleanEmail })
+          : await (supabase.rpc as any)('resolve_login_any', { _email: cleanEmail });
         if (typeof resolved === 'string' && resolved) authEmail = resolved;
       }
       const res = await withRetry(async () => {

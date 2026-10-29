@@ -162,6 +162,13 @@
       "when": 1793200000000,
       "tag": "0022_superadmin_profiles_and_tenants",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793314760308,
+      "tag": "0023_resolve_login_without_slug",
+      "breakpoints": true
     }
   ]
 }
