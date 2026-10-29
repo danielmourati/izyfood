@@ -1395,6 +1395,20 @@ export type Database = {
       }
       finalize_stale_printing_jobs: { Args: never; Returns: number }
       force_print_jobs: { Args: { _ids?: string[] }; Returns: number }
+      get_all_superadmin_users: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string
+          role: string
+          tenant_id: string
+          tenant_name: string
+          tenant_slug: string
+        }[]
+      }
       get_print_host_state: {
         Args: never
         Returns: {
@@ -1445,6 +1459,7 @@ export type Database = {
         Args: { _number: number; _order_id: string }
         Returns: boolean
       }
+      resolve_login_any: { Args: { _email: string }; Returns: string }
       resolve_tenant_login: {
         Args: { _email: string; _slug: string }
         Returns: string
