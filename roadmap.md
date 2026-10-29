@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Importar e adaptar o cardápio público Menuzin de pastelaojunin à loja pastelao-junin sem duplicar produtos existentes; conferir preços, categorias e opções disponíveis.
+- [x] Importar e adaptar o cardápio público Menuzin de pastelaojunin: 27 categorias, 351 produtos/tamanhos, zero duplicações; 335 IDs preservados, 16 produtos acrescentados, fotos e descrições atualizadas, sabores pagos incluídos e catálogo autenticado conferido. Limites obrigatórios de seleção do Menuzin não reproduzidos; foto da Fanta Uva Lata bloqueada na origem.
 
 - [x] Remover Cupons e Auditoria das configurações e a recuperação de senha da tela de entrada; manter dados e registros internos.
 
