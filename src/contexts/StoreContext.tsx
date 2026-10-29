@@ -967,8 +967,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const validCount = Math.max(5, count);
     setSettings(prev => ({ ...prev, tableCount: validCount }));
     const tenantId = user?.tenantId || tenantIdRef.current;
-    const currentTables = await supabase.from('store_tables').select('number, status').order('number');
-    const currentData = currentTables.data || [];
+    const scoped = (q: any) => (tenantId ? q.eq('tenant_id', tenantId) : q);
+    const currentTables = await scoped(supabase.from('store_tables').select('number, status')).order('number');
+    if (currentTables.error) throw currentTables.error;
+    const currentData: { number: number; status: string }[] = currentTables.data || [];
     const currentNumbers = currentData.map(t => t.number);
     const maxNumber = currentNumbers.length > 0 ? Math.max(...currentNumbers) : 0;
 
@@ -978,7 +980,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         status: 'available' as const,
         ...(tenantId ? { tenant_id: tenantId } : {}),
       }));
-      await supabase.from('store_tables').insert(newTables as any);
+      const { error } = await supabase.from('store_tables').insert(newTables as any);
+      if (error) throw error;
     } else if (validCount < currentNumbers.length) {
       const occupiedNumbers = new Set(currentData.filter(t => t.status === 'occupied').map(t => t.number));
       const availableToDelete = currentNumbers
@@ -988,10 +991,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const toDelete = availableToDelete.slice(0, deleteCount);
       if (toDelete.length > 0) {
         toDelete.forEach(num => clearPending(num));
-        await supabase.from('store_tables').delete().in('number', toDelete);
+        const { error } = await scoped(supabase.from('store_tables').delete().in('number', toDelete));
+        if (error) throw error;
       }
     }
-    const { data: tbls } = await supabase.from('store_tables').select('*').order('number');
+    const { data: tbls, error: tblsError } = await scoped(supabase.from('store_tables').select('*')).order('number');
+    if (tblsError) throw tblsError;
     const uniqueTbls = [];
     const seen = new Set();
     for (const t of (tbls || [])) {

@@ -154,6 +154,7 @@ function GeralTab() {
   const [tenantLogo, setTenantLogo] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [savingGeneral, setSavingGeneral] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<{ kind: 'idle' | 'saved' | 'error'; message: string }>({ kind: 'idle', message: '' });
   // printSettings lives in StoreContext — no local duplication needed
 
   useEffect(() => {
@@ -345,35 +346,50 @@ function GeralTab() {
 
   const handleSaveAll = async () => {
     if (!user?.tenantId) {
-      toast.error('Sessão inválida, recarregue a página.');
+      setSaveStatus({ kind: 'error', message: 'Sessão inválida, recarregue a página.' });
       return;
     }
 
     const count = parseInt(tableCount);
     if (isNaN(count) || count < 5 || count > 100) {
-      toast.error('Quantidade de mesas deve ser entre 5 e 100.');
+      setSaveStatus({ kind: 'error', message: 'Quantidade de mesas deve ser entre 5 e 100.' });
       return;
     }
 
+    const withTimeout = <T,>(p: PromiseLike<T>, step: string, ms = 15000): Promise<T> => {
+      const started = Date.now();
+      return new Promise<T>((resolve, reject) => {
+        const t = setTimeout(() => {
+          console.warn(`[save-all] etapa "${step}" excedeu ${ms}ms`);
+          reject(new Error(`timeout:${step}`));
+        }, ms);
+        Promise.resolve(p).then(
+          v => { clearTimeout(t); const d = Date.now() - started; if (d > 3000) console.warn(`[save-all] etapa "${step}" levou ${d}ms`); resolve(v); },
+          e => { clearTimeout(t); reject(e); },
+        );
+      });
+    };
+
     setSavingGeneral(true);
+    setSaveStatus({ kind: 'idle', message: '' });
+    const tenantId = user.tenantId;
     try {
       const fee = parseFloat((serviceFee || '0').replace(',', '.'));
       const validFee = isNaN(fee) ? 0 : fee;
 
-      // 1. Save store name (tenant name)
-      const saveTenantPromise = tenantName.trim()
-        ? supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', user.tenantId)
-        : Promise.resolve();
+      // Refresh session first if expired/near expiry, so requests don't hang on token refresh
+      const { data: sess } = await withTimeout(supabase.auth.getSession(), 'sessão');
+      const exp = sess.session?.expires_at ?? 0;
+      if (!sess.session || exp * 1000 - Date.now() < 60_000) {
+        await withTimeout(supabase.auth.refreshSession(), 'renovar sessão');
+      }
 
-      // 2. Upsert store_settings in ONE write (avoids race with updateTableCount)
-      const { data: existing } = await supabase
-        .from('store_settings')
-        .select('id')
-        .eq('tenant_id', user.tenantId)
-        .limit(1);
+      const saveTenantPromise = tenantName.trim()
+        ? supabase.from('tenants').update({ name: tenantName.trim() }).eq('id', tenantId)
+        : Promise.resolve(null);
 
       const settingsPayload = {
-        tenant_id: user.tenantId,
+        tenant_id: tenantId,
         table_count: count,
         service_fee_percentage: validFee,
         print_settings: printSettings,
@@ -385,33 +401,39 @@ function GeralTab() {
         .select()
         .single();
 
-      const [tenantRes, settingsRes] = await Promise.all([saveTenantPromise, saveSettingsPromise]);
+      const [tenantRes, settingsRes] = await Promise.all([
+        withTimeout(saveTenantPromise as PromiseLike<any>, 'nome da loja'),
+        withTimeout(saveSettingsPromise as PromiseLike<any>, 'configurações'),
+      ]);
 
-      if (tenantRes && (tenantRes as any).error) {
-        throw new Error((tenantRes as any).error.message || 'Erro ao salvar dados do estabelecimento.');
-      }
-      if (settingsRes && (settingsRes as any).error) {
-        throw new Error((settingsRes as any).error.message || 'Erro ao salvar configurações do caixa/impressão.');
-      }
+      if (tenantRes?.error) throw new Error(tenantRes.error.message || 'Erro ao salvar dados do estabelecimento.');
+      if (settingsRes?.error) throw new Error(settingsRes.error.message || 'Erro ao salvar configurações.');
 
-      // 3. Sync table count and fee back into context so all components see the new values immediately
       setSettings(prev => ({ ...prev, tableCount: count, serviceFeePercentage: validFee || undefined }));
-      await updateTableCount(count);
-
-      // Reflect saved fee back in input
       setServiceFee(validFee !== 0 ? String(validFee) : '');
 
-      // 4. Immediately update context printSettings (don't wait for Realtime round-trip)
-      const lsKey = `print_settings_${user.tenantId}`;
+      const lsKey = `print_settings_${tenantId}`;
       const updatedPs = { ...printSettings, storeName: tenantName.trim() };
       setPrintSettings(updatedPs);
       localStorage.setItem(lsKey, JSON.stringify(updatedPs));
       (window as any).__printSettingsCache = updatedPs;
 
-      toast.success('Configurações salvas e sincronizadas com sucesso!');
+      setSaveStatus({ kind: 'saved', message: 'Configurações salvas.' });
+
+      // Table count sync runs in background so it never holds the button
+      withTimeout(Promise.resolve(updateTableCount(count)), 'mesas', 20000).catch(err => {
+        console.error('[save-all] erro ao ajustar mesas:', err);
+        setSaveStatus({ kind: 'error', message: 'Configurações salvas, mas não foi possível ajustar a quantidade de mesas. Tente de novo.' });
+      });
     } catch (err: any) {
       console.error('Error saving settings:', err);
-      toast.error('Erro ao salvar configurações.');
+      const isTimeout = String(err?.message || '').startsWith('timeout:');
+      setSaveStatus({
+        kind: 'error',
+        message: isTimeout
+          ? 'Não foi possível confirmar o salvamento. Verifique a conexão e tente de novo.'
+          : `Erro ao salvar configurações: ${err?.message || 'tente de novo.'}`,
+      });
     } finally {
       setSavingGeneral(false);
     }
@@ -595,11 +617,16 @@ function GeralTab() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end pt-4">
+      <div className="flex flex-col items-end gap-2 pt-4">
         <Button onClick={handleSaveAll} size="lg" className="w-full sm:w-auto gap-2" disabled={savingGeneral}>
           {savingGeneral && <Loader2 className="h-4 w-4 animate-spin" />}
           {savingGeneral ? 'Salvando tudo...' : 'Salvar Tudo'}
         </Button>
+        {saveStatus.kind !== 'idle' && (
+          <p role="status" className={`text-sm ${saveStatus.kind === 'error' ? 'text-destructive' : 'text-primary'}`}>
+            {saveStatus.message}
+          </p>
+        )}
       </div>
     </div>
   );
