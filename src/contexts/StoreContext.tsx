@@ -70,8 +70,27 @@ function dbToProduct(r: any): Product {
 function dbToNoteOption(r: any): ProductNoteOption {
   return { id: r.id, name: r.name, type: r.type, price: Number(r.price), categoryIds: r.category_ids || [], active: r.active ?? true, classification: r.classification || 'additional' };
 }
+export function sortCategories(cats: ProductCategory[], orderIds?: string[]): ProductCategory[] {
+  if (orderIds && orderIds.length > 0) {
+    const orderMap = new Map<string, number>();
+    orderIds.forEach((id, idx) => orderMap.set(id, idx));
+    return [...cats].sort((a, b) => {
+      const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : (a.orderIndex ?? 9999);
+      const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : (b.orderIndex ?? 9999);
+      if (idxA !== idxB) return idxA - idxB;
+      return (a.orderIndex ?? 0) - (b.orderIndex ?? 0);
+    });
+  }
+  return [...cats].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+}
+
 function dbToCategory(r: any): ProductCategory {
-  return { id: r.id, name: r.name, printSector: r.print_sector || undefined };
+  return {
+    id: r.id,
+    name: r.name,
+    printSector: r.print_sector || undefined,
+    orderIndex: r.order_index != null ? Number(r.order_index) : undefined,
+  };
 }
 function dbToCustomer(r: any): Customer {
   return { id: r.id, name: r.name, phone: r.phone, address: r.address, notes: r.notes, creditBalance: Number(r.credit_balance), loyaltyPoints: r.loyalty_points };
@@ -136,7 +155,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>(() => loadLS('izy_products', []));
-  const [categories, setCategories] = useState<ProductCategory[]>(() => loadLS('izy_categories', []));
+  const [categories, setCategories] = useState<ProductCategory[]>(() => {
+    const loaded = loadLS<ProductCategory[]>('izy_categories', []);
+    const orderIds = loadLS<string[]>('izy_categories_order', []);
+    return sortCategories(loaded, orderIds);
+  });
   const [orders, setOrders] = useState<Order[]>(() => loadLS('izy_orders', []));
   const [customers, setCustomers] = useState<Customer[]>(() => loadLS('izy_customers', []));
   const [tables, setTables] = useState<TableInfo[]>(() => loadLS('izy_tables', []));
@@ -240,14 +263,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Granular Entity Fetchers
   const fetchCategories = useCallback(async () => {
     const currentSeq = ++seqRef.current.categories;
-    const { data: cats } = await supabase.from('categories').select('*');
+    let res = await supabase.from('categories').select('*').order('order_index' as any, { ascending: true, nullsFirst: false });
+    if (res.error) {
+      res = await supabase.from('categories').select('*');
+    }
+    const cats = res.data;
     if (seqRef.current.categories !== currentSeq) return;
     if (cats) {
       setCategories(prev => {
+        const orderIds = loadLS<string[]>('izy_categories_order', []);
         const dbCats = cats.map(dbToCategory);
         const dbIds = new Set(dbCats.map(c => c.id));
         const pendingLocal = prev.filter(c => !dbIds.has(c.id) && isPendingLocalChange(c.id));
-        const merged = [...dbCats, ...pendingLocal];
+        const merged = sortCategories([...dbCats, ...pendingLocal], orderIds);
         saveLS('izy_categories', merged);
         return merged;
       });
@@ -497,6 +525,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (lsKey) {
           localStorage.setItem(lsKey, JSON.stringify(merged));
           (window as any).__printSettingsCache = merged;
+        }
+        if (Array.isArray(dbPs.categories_order) && dbPs.categories_order.length > 0) {
+          saveLS('izy_categories_order', dbPs.categories_order);
+          setCategories(prev => sortCategories(prev, dbPs.categories_order));
         }
       }
     }
@@ -841,6 +873,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     categoriesRef.current = next;
     setCategories(next);
     saveLS('izy_categories', next);
+    saveLS('izy_categories_order', next.map(c => c.id));
     syncCategories(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCategories]', e));
   }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
@@ -1231,24 +1264,80 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
 async function syncCategories(prev: ProductCategory[], next: ProductCategory[], markPending: (id: string) => void, tenantId?: string) {
   const added = next.filter(n => !prev.find(p => p.id === n.id));
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
-  const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && (p.name !== n.name || p.printSector !== n.printSector); });
+  const orderChanged = prev.map(c => c.id).join(',') !== next.map(c => c.id).join(',');
+  const updated = next.filter(n => {
+    const p = prev.find(pp => pp.id === n.id);
+    return p && (p.name !== n.name || p.printSector !== n.printSector || p.orderIndex !== n.orderIndex);
+  });
 
   for (const c of added) {
     markPending(c.id);
-    const item: any = { id: c.id, name: c.name, print_sector: c.printSector || null };
+    const item: any = {
+      id: c.id,
+      name: c.name,
+      print_sector: c.printSector || null,
+      order_index: c.orderIndex ?? next.indexOf(c),
+    };
     if (tenantId) item.tenant_id = tenantId;
     const { error } = await supabase.from('categories').insert(item);
     if (error) {
-      console.warn('Initial category insert failed, retrying without tenant_id:', error.message);
-      const { error: err2 } = await supabase.from('categories').insert({ id: c.id, name: c.name });
-      if (err2) console.error('Error inserting category into Supabase:', err2);
+      console.warn('Initial category insert failed, retrying without order_index / tenant_id:', error.message);
+      delete item.order_index;
+      const { error: err2 } = await supabase.from('categories').insert(item);
+      if (err2) {
+        delete item.tenant_id;
+        await supabase.from('categories').insert({ id: c.id, name: c.name });
+      }
     }
   }
+
   for (const c of updated) {
     markPending(c.id);
-    const { error } = await supabase.from('categories').update({ name: c.name, print_sector: c.printSector || null }).eq('id', c.id);
-    if (error) console.error('Error updating category in Supabase:', error);
+    const updateItem: any = {
+      name: c.name,
+      print_sector: c.printSector || null,
+      order_index: c.orderIndex ?? next.indexOf(c),
+    };
+    const { error } = await supabase.from('categories').update(updateItem).eq('id', c.id);
+    if (error) {
+      delete updateItem.order_index;
+      await supabase.from('categories').update(updateItem).eq('id', c.id);
+    }
   }
+
+  // Se a ordem das categorias mudou (ex: clique nas setas de reordenação)
+  if (orderChanged) {
+    // 1. Atualiza order_index de cada categoria no Supabase
+    for (let i = 0; i < next.length; i++) {
+      const c = next[i];
+      markPending(c.id);
+      supabase.from('categories').update({ order_index: i } as any).eq('id', c.id).then(({ error }) => {
+        if (error) {
+          // Ignora se coluna ainda não existir
+        }
+      });
+    }
+
+    // 2. Persiste categories_order em store_settings para sincronização imediata cross-device
+    if (tenantId) {
+      try {
+        const { data: st } = await supabase
+          .from('store_settings')
+          .select('id, print_settings')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
+        if (st) {
+          const ps = (st.print_settings && typeof st.print_settings === 'object' ? { ...st.print_settings } : {}) as any;
+          ps.categories_order = next.map(c => c.id);
+          await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
+        }
+      } catch (e) {
+        console.warn('[syncCategories] Falha ao persistir categories_order em store_settings:', e);
+      }
+    }
+  }
+
   for (const c of removed) {
     markPending(c.id);
     const { error } = await supabase.from('categories').delete().eq('id', c.id);

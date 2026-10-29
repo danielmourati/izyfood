@@ -4,6 +4,7 @@ export interface ProductCategory {
   id: string;
   name: string;
   printSector?: string;
+  orderIndex?: number;
 }
 export type OrderType = 'balcao' | 'mesa' | 'delivery' | 'retirada';
 export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | 'pronto' | 'concluido';

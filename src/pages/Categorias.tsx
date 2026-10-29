@@ -59,7 +59,13 @@ const Categorias = () => {
     const [removed] = nextCategories.splice(originalIndex, 1);
     nextCategories.splice(targetIndex, 0, removed);
 
-    setCategories(nextCategories);
+    // Atribui explicitamente orderIndex para cada categoria
+    const ordered = nextCategories.map((c, i) => ({
+      ...c,
+      orderIndex: i,
+    }));
+
+    setCategories(ordered);
     toast.success(`Categoria "${currentCat.name}" reordenada.`);
   };
 
@@ -110,6 +116,7 @@ const Categorias = () => {
         id: crypto.randomUUID(),
         name: catName,
         printSector: form.printSector || 'cozinha',
+        orderIndex: categories.length,
       };
       setCategories(prev => [...prev, newCategory]);
       toast.success(`Categoria "${catName}" criada com sucesso!`);
