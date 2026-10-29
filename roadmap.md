@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Importar e adaptar o cardápio público Menuzin de pastelaojunin à loja pastelao-junin sem duplicar produtos existentes; conferir preços, categorias e opções disponíveis.
+
 - [x] Remover Cupons e Auditoria das configurações e a recuperação de senha da tela de entrada; manter dados e registros internos.
 
 - [x] Garantir um único servidor de impressão por tenant e bloquear ativação nos demais aparelhos; trava atômica e validação do dono aplicadas no banco.
