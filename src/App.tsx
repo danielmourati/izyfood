@@ -15,6 +15,7 @@ import Mesas from "./pages/Mesas";
 import Pedidos from "./pages/Pedidos";
 import Clientes from "./pages/Clientes";
 import Estoque from "./pages/Estoque";
+import Categorias from "./pages/Categorias";
 import Produtos from "./pages/Produtos";
 import Relatorios from "./pages/Relatorios";
 import Caixa from "./pages/Caixa";
@@ -84,6 +85,7 @@ function TenantRoutes() {
         <Route path="/pedidos" element={<ProtectedRoute adminOnly permissionKey="view_orders_history"><Pedidos /></ProtectedRoute>} />
         <Route path="/caixa" element={<ProtectedRoute adminOnly permissionKey="view_cash_register"><Caixa /></ProtectedRoute>} />
         <Route path="/clientes" element={<ProtectedRoute adminOnly permissionKey="manage_customers"><Clientes /></ProtectedRoute>} />
+        <Route path="/categorias" element={<ProtectedRoute adminOnly permissionKey="manage_categories"><Categorias /></ProtectedRoute>} />
         <Route path="/produtos" element={<ProtectedRoute adminOnly permissionKey="manage_products"><Produtos /></ProtectedRoute>} />
         <Route path="/estoque" element={<ProtectedRoute adminOnly permissionKey="manage_stock"><Estoque /></ProtectedRoute>} />
         <Route path="/relatorios" element={<ProtectedRoute adminOnly permissionKey="view_reports"><Relatorios /></ProtectedRoute>} />

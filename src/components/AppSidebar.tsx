@@ -1,6 +1,6 @@
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
-  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield, Menu, Sun, Moon
+  ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield, Menu, Sun, Moon, Layers
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,7 @@ const navItems: NavItem[] = [
   { title: 'Pedidos', path: '/pedidos', icon: ClipboardList, adminOnly: true, permissionKey: 'view_orders_history' },
   { title: 'Caixa', path: '/caixa', icon: DollarSign, adminOnly: true, permissionKey: 'view_cash_register' },
   { title: 'Clientes', path: '/clientes', icon: Users, adminOnly: true, permissionKey: 'manage_customers' },
+  { title: 'Categorias', path: '/categorias', icon: Layers, adminOnly: true, permissionKey: 'manage_categories' },
   { title: 'Produtos', path: '/produtos', icon: UtensilsCrossed, adminOnly: true, permissionKey: 'manage_products' },
   { title: 'Estoque', path: '/estoque', icon: Package, adminOnly: true, permissionKey: 'manage_stock' },
   { title: 'Relatórios', path: '/relatorios', icon: BarChart3, adminOnly: true, permissionKey: 'view_reports' },
