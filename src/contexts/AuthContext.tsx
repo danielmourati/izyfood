@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { formatAuthError, withRetry } from '@/lib/auth-errors';
+import { withTimeout, TimeoutError } from '@/lib/with-timeout';
+
+const LOGIN_TIMEOUT_MS = 15000;
 
 export type AppRole = 'admin' | 'atendente' | 'motoboy' | 'superadmin';
 
@@ -25,38 +28,41 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
+// One in-flight load per user, shared by login() and onAuthStateChange.
+const inflightUserLoads = new Map<string, Promise<AppUser | null>>();
+
+function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
+  const existing = inflightUserLoads.get(supaUser.id);
+  if (existing) return existing;
+  const p = loadAppUser(supaUser).finally(() => {
+    setTimeout(() => inflightUserLoads.delete(supaUser.id), 2000);
+  });
+  inflightUserLoads.set(supaUser.id, p);
+  return p;
+}
+
+async function loadAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
   try {
     return await withRetry(async () => {
-      // Fetch profile (não lançar exceção se nulo ou RLS)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name, email')
-        .eq('id', supaUser.id)
-        .maybeSingle();
-
-      // Fetch roles
-      const { data: rolesData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', supaUser.id);
+      const [{ data: profile }, { data: rolesData }, { data: memberData }] = await Promise.all([
+        supabase.from('profiles').select('name, email').eq('id', supaUser.id).maybeSingle(),
+        supabase.from('user_roles').select('role').eq('user_id', supaUser.id),
+        supabase
+          .from('tenant_members')
+          .select('tenant_id, role, tenants(id, name, slug)')
+          .eq('user_id', supaUser.id)
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
       const roles = (rolesData || []).map(r => r.role as AppRole);
       const bestRole = roles.includes('superadmin') ? 'superadmin'
         : roles.includes('admin') ? 'admin'
         : roles[0] || 'atendente';
 
-      // Fetch tenant membership + tenant info
       let tenantId = '';
       let tenantSlug = '';
       let tenantName = '';
-
-      const { data: memberData } = await supabase
-        .from('tenant_members')
-        .select('tenant_id, role, tenants(id, name, slug)')
-        .eq('user_id', supaUser.id)
-        .limit(1)
-        .maybeSingle();
 
       if (memberData) {
         const rawTenant = memberData.tenants as any;
@@ -238,18 +244,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isDemo = false;
 
     try {
+      const startedAt = Date.now();
+      const remaining = () => Math.max(1000, LOGIN_TIMEOUT_MS - (Date.now() - startedAt));
       if (cleanEmail) {
-        const { data: resolved } = slug
-          ? await supabase.rpc('resolve_tenant_login', { _slug: slug, _email: cleanEmail })
-          : await (supabase.rpc as any)('resolve_login_any', { _email: cleanEmail });
+        const { data: resolved } = await withTimeout<any>(
+          slug
+            ? supabase.rpc('resolve_tenant_login', { _slug: slug, _email: cleanEmail })
+            : (supabase.rpc as any)('resolve_login_any', { _email: cleanEmail }),
+          remaining(),
+        );
         if (typeof resolved === 'string' && resolved) authEmail = resolved;
       }
-      const res = await withRetry(async () => {
-        return await supabase.auth.signInWithPassword({
-          email: authEmail,
-          password: cleanPassword,
-        });
-      }, 1, 800);
+      const res = await withTimeout(
+        supabase.auth.signInWithPassword({ email: authEmail, password: cleanPassword }),
+        remaining(),
+      );
 
       if (res.error) {
         if (isDemo) {
@@ -270,9 +279,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (res.data?.user) {
-        const appUser = await fetchAppUser(res.data.user);
-        setUser(appUser);
+        const supaUser = res.data.user;
         localStorage.removeItem('izyfood_demo_user');
+        const load = fetchAppUser(supaUser);
+        try {
+          const appUser = await withTimeout(load, Math.min(8000, remaining()));
+          setUser(appUser);
+        } catch {
+          // Slow store data: enter with cached data if it is this user, finish in background.
+          let cached: AppUser | null = null;
+          try { cached = JSON.parse(localStorage.getItem('izyfood_cached_user') || 'null'); } catch {}
+          if (cached && cached.id === supaUser.id) {
+            setUser(cached);
+            load.then(u => { if (u) setUser(u); }).catch(() => {});
+          } else {
+            const appUser = await withTimeout(load, 7000);
+            setUser(appUser);
+          }
+        }
       }
 
       return { success: true };
@@ -291,6 +315,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('izyfood_demo_user', JSON.stringify(demoUser));
         return { success: true };
       }
+      if (err instanceof TimeoutError) return { success: false, error: err.message };
       return { success: false, error: formatAuthError(err) };
     }
   };
