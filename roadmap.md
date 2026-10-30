@@ -1,6 +1,7 @@
 # Roadmap
 
-- [ ] Corrigir repetição de cupons recuperados automaticamente; retirar imediatamente das pendências e validar proteção contra falhas ambíguas.
+- [x] Corrigir repetição de cupons recuperados automaticamente: contas retornam o canal real; envio persistido bloqueia novas tentativas entre aparelhos; Bluetooth não reinicia o cupom; recuperação usa uma via; confirmação pendente é persistida. 33 testes aprovados.
+- [ ] Conferir recuperação com servidor real e papel — requer sessão na prévia e impressora física; a sessão automática não encontrou conta do solicitante.
 
 - [x] Importar e adaptar o cardápio público Menuzin de pastelaojunin: 27 categorias, 351 produtos/tamanhos, zero duplicações; 335 IDs preservados, 16 produtos acrescentados, fotos e descrições atualizadas, sabores pagos incluídos e catálogo autenticado conferido. Limites obrigatórios de seleção do Menuzin não reproduzidos; foto da Fanta Uva Lata bloqueada na origem.
 
