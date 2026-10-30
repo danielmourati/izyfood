@@ -119,7 +119,7 @@ export const PRINT_QUEUE_CHANGED_EVENT = 'degust:print-queue-changed';
 
 /** Irreversible, server-side transport boundary, checked again on host takeover. */
 export async function beginPrintJobDispatch(jobId: string): Promise<void> {
-  const { data, error } = await supabase.rpc('begin_print_job_dispatch', {
+  const { data, error } = await (supabase as any).rpc('begin_print_job_dispatch', {
     _job_id: jobId, _device_id: (await import('@/lib/printer')).getDeviceId(),
   });
   if (error) throw error;

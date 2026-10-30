@@ -9,12 +9,11 @@ import {
   fetchOpenPrintJobs,
   markPrintJobDone,
   markPrintJobError,
+  beginPrintJobDispatch,
+  getQueuedOrderIntent,
   wasJobSent,
-  rememberJobSent,
-  forgetJobSent,
   flushPendingDoneMarks,
   purgeOldPrintJobs,
-  PRINT_TIMEOUT_MS,
   type PrintJob,
 } from '@/lib/print-queue';
 
@@ -49,13 +48,12 @@ export function usePrintHost() {
 
   useEffect(() => { printerReadyRef.current = hasPrinterAvailable; }, [hasPrinterAvailable]);
 
-  const printJob = useCallback(async (job: PrintJob) => {
+  const printJob = useCallback(async (job: PrintJob, beforeDispatch: () => Promise<void>) => {
     const { printOrder, printBill, printCashClose } = printFunctionsRef.current;
     const payload = job.payload || {};
-    if (job.kind === 'bill') return printBill(payload, { force: true });
-    if (job.kind === 'cash_close') return printCashClose(payload, { force: true });
-    const intent = payload.__printIntent === 'reprint' ? 'reprint' : 'new';
-    return printOrder(payload, { force: true, intent });
+    if (job.kind === 'bill') return printBill(payload, { force: true, beforeDispatch });
+    if (job.kind === 'cash_close') return printCashClose(payload, { force: true, beforeDispatch });
+    return printOrder(payload, { force: true, intent: getQueuedOrderIntent(job), beforeDispatch });
   }, []);
 
   const drain = useCallback(async () => {
@@ -76,23 +74,28 @@ export function usePrintHost() {
         if (!claimed) continue; // outro caixa assumiu, ou já foi impresso
 
         setProcessing(jobId); processingRef.current = jobId;
+        let dispatched = false;
+        const beforeDispatch = async () => {
+          if (!hostEnabledRef.current) throw new Error('Este aparelho deixou de ser o Caixa.');
+          if (dispatched) return; // Other sectors/copies belong to the same serialized dispatch.
+          await beginPrintJobDispatch(jobId);
+          dispatched = true;
+        };
         try {
           consumeLastPrinterUsed();
-          // Marca antes de enviar: recarregar a página no meio nunca repete o cupom.
-          rememberJobSent(jobId);
-          const result: any = await withTimeout(printJob(claimed), PRINT_TIMEOUT_MS);
+          // Keep transport serialized until it settles: a timeout cannot cancel QZ/Bluetooth.
+          const result = await printJob(claimed, beforeDispatch);
           const channel = result?.channel;
           if (channel !== 'qz' && channel !== 'bluetooth') {
-            forgetJobSent(jobId); // nada saiu no papel: pode tentar de novo
-            await markPrintJobError(jobId, result?.reason || 'Nada foi enviado para a impressora do caixa.');
+            if (dispatched) await markPrintJobDone(jobId, 'envio sem confirmação');
+            else await markPrintJobError(jobId, result?.reason || 'Nada foi enviado para a impressora do caixa.');
             continue;
           }
           await markPrintJobDone(jobId, consumeLastPrinterUsed());
         } catch (err: any) {
           const message = err instanceof Error ? err.message : 'Falha ao imprimir.';
-          // Tempo esgotado depois do envio: os dados já foram à impressora; não reimprimir.
-          if (message.includes('tempo esgotado')) { await markPrintJobDone(jobId, consumeLastPrinterUsed()); continue; }
-          await markPrintJobError(jobId, message);
+          if (dispatched) await markPrintJobDone(jobId, consumeLastPrinterUsed() || 'envio sem confirmação');
+          else await markPrintJobError(jobId, message);
           // Persisted error is rediscovered by polling after its retry delay.
         } finally {
           setProcessing(null); processingRef.current = null;
@@ -104,7 +107,7 @@ export function usePrintHost() {
   }, [printJob]);
 
   const enqueue = useCallback((jobId: string) => {
-    if (seenRef.current.has(jobId) || wasJobSent(jobId)) return;
+    if (seenRef.current.has(jobId) || queueRef.current.includes(jobId) || processingRef.current === jobId || wasJobSent(jobId)) return;
     seenRef.current.add(jobId);
     queueRef.current.push(jobId);
     drain();
