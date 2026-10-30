@@ -315,6 +315,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('izyfood_demo_user', JSON.stringify(demoUser));
         return { success: true };
       }
+      if (err instanceof TimeoutError) return { success: false, error: err.message };
       return { success: false, error: formatAuthError(err) };
     }
   };
