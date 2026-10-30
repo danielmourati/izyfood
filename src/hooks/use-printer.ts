@@ -1,4 +1,5 @@
 import { resolveItemSector } from '@/lib/print-sectors';
+import { PrintDispatchError } from '@/lib/print-dispatch';
 import { printHostPresence, isOtherPrintHost } from '@/lib/print-host-presence';
 import { computeServiceFee } from '@/lib/utils';
 import { isDesktopApp } from '@/lib/printer-desktop';
@@ -497,7 +498,7 @@ export function usePrinter() {
     data: Uint8Array,
     htmlFallback: string,
     title: string,
-    options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: string }
+    options?: { force?: boolean; targetPrinter?: PrinterConfig | null; sector?: string; beforeDispatch?: () => Promise<void> }
   ): Promise<PrintChannel> => {
     if (!enablePrinterDevice && !options?.force) {
       console.info('[sendToPrinter] Impressão desativada neste dispositivo. Ignorando envio.');
@@ -517,10 +518,11 @@ export function usePrinter() {
         }
         if (isBluetoothConnected()) {
           console.log('[sendToPrinter] Enviando comando ESC/POS via Bluetooth para:', resolvedPrinter?.name || 'Bluetooth');
-          await printViaBluetooth(data);
+          await printViaBluetooth(data, options?.beforeDispatch);
           return 'bluetooth'; // Sucesso, imprimiu via Bluetooth!
         }
       } catch (err) {
+        if (err instanceof PrintDispatchError) throw err;
         console.warn('[sendToPrinter] Tentativa Bluetooth falhou, verificando canais alternativos:', err);
       }
     }
@@ -534,7 +536,7 @@ export function usePrinter() {
       try {
         const destAddress = printerAddress || defaultPrinter?.address;
         console.log('[sendToPrinter] Enviando para impressora do setor/caixa:', resolvedPrinter?.name, '->', destAddress);
-        await printViaQzTray(data, destAddress);
+        await printViaQzTray(data, destAddress, options?.beforeDispatch);
         return 'qz'; // Sucesso, imprimiu via QZ Tray / Desktop Spooler!
       } catch (err) {
         console.error('[sendToPrinter] Erro no QZ Tray:', err);
@@ -605,7 +607,7 @@ export function usePrinter() {
   const shouldQueue = (options?: { force?: boolean }) =>
     isMobileDevice() || !options?.force && !printHostEnabled && !hasPrinterAvailable && hostOnlineRef.current;
 
-  const printOrder = async (orderIn: any, options?: { force?: boolean; sector?: string; intent?: OrderPrintIntent }): Promise<PrintResult> => {
+  const printOrder = async (orderIn: any, options?: { force?: boolean; sector?: string; intent?: OrderPrintIntent; beforeDispatch?: () => Promise<void> }): Promise<PrintResult> => {
     const intent = options?.intent ?? 'new';
     let order = orderIn;
     // O Caixa (force) imprime o que recebeu da fila sem rechecar: o próprio cupom da fila contaria como "já enviado".
@@ -633,7 +635,7 @@ export function usePrinter() {
         const sec = resolveItemSector(it, storeProducts, storeCategories);
         if (sec === 'none') continue;
         if (!groups.has(sec)) groups.set(sec, []);
-        groups.get(sec)!.push(it);
+        groups.get(sec)?.push(it);
       }
       if (groups.size === 0) return { ok: true };
     }
@@ -655,7 +657,7 @@ export function usePrinter() {
     return { ok: true, channel: lastChannel };
   };
 
-  const printBill = async (rawBill: any, options?: { force?: boolean }): Promise<PrintResult> => {
+  const printBill = async (rawBill: any, options?: { force?: boolean; beforeDispatch?: () => Promise<void> }): Promise<PrintResult> => {
     const bill = rawBill?.serviceFee == null && rawBill?.orderType === 'mesa'
       ? { ...rawBill, serviceFee: computeServiceFee(rawBill, storeProducts, storeSettings?.serviceFeePercentage) }
       : rawBill;
@@ -671,11 +673,11 @@ export function usePrinter() {
     console.log(`[printBill] printSettings usados (setor: recibo, impressora: ${targetPrinter?.name || 'padrão'}, largura: ${targetPaperWidth}mm):`, JSON.stringify(ps));
     const escpos = buildBillReceipt(bill, targetPaperWidth, ps, targetPrinter?.char_encoding);
     const html = buildBillHtml(bill, ps, targetPaperWidth);
-    await sendToPrinter(escpos, html, 'Conta', { ...options, targetPrinter, sector });
-    return { ok: true };
+    const channel = await sendToPrinter(escpos, html, 'Conta', { ...options, targetPrinter, sector });
+    return { ok: true, channel };
   };
 
-  const printCashClose = async (data: any, options?: { force?: boolean }): Promise<PrintResult> => {
+  const printCashClose = async (data: any, options?: { force?: boolean; beforeDispatch?: () => Promise<void> }): Promise<PrintResult> => {
     if (shouldQueue(options)) return enqueuePrintJob('cash_close', data);
     if (!enablePrinterDevice && !options?.force) {
       console.info('[printCashClose] Opção por usar impressora desativada neste dispositivo. Ignorando.');

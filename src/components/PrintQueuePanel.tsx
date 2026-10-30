@@ -16,6 +16,8 @@ import {
   canForcePrintJob,
   canCancelPrintJob,
   cancelPrintJobs,
+  wasJobSent,
+  PRINT_QUEUE_CHANGED_EVENT,
   type PrintJob,
 } from '@/lib/print-queue';
 
@@ -42,10 +44,16 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
 
   const load = useCallback(async () => {
     try {
-      setJobs((await fetchPrintJobs(20)).filter(j => j.status !== 'done'));
+      setJobs((await fetchPrintJobs(20)).filter(j => j.status !== 'done' && !j.printed_at && !j.dispatched_at && !wasJobSent(j.id)));
     } catch (err) {
       console.warn('[print-queue] falha ao carregar fila', err);
     }
+  }, []);
+
+  useEffect(() => {
+    const removeSent = () => setJobs(current => current.filter(j => !wasJobSent(j.id)));
+    window.addEventListener(PRINT_QUEUE_CHANGED_EVENT, removeSent);
+    return () => window.removeEventListener(PRINT_QUEUE_CHANGED_EVENT, removeSent);
   }, []);
 
   useEffect(() => {

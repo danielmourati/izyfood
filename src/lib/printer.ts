@@ -5,6 +5,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import qz from 'qz-tray';
 import { qzRawData } from './qz-raw-data';
+import { dispatchOnce } from './print-dispatch';
 import { RECEIPT_HTML_STYLES } from './receipt-renderer';
 import { isDesktopApp, getDesktopPrinters, printViaDesktopSpooler, printViaDesktopSocket } from './printer-desktop';
 
@@ -438,7 +439,7 @@ export function getBluetoothDeviceName(): string | null {
  * Send raw ESC/POS bytes via Bluetooth.
  * Splits into small newline-aware chunks for BLE reliability and auto-reconecta se cair.
  */
-export async function printViaBluetooth(data: Uint8Array): Promise<void> {
+export async function printViaBluetooth(data: Uint8Array, beforeDispatch?: () => Promise<void>): Promise<void> {
   // Garante conexão (reconecta se necessário) antes de imprimir
   if (!isBluetoothConnected()) {
     const ok = await ensureBluetoothConnected();
@@ -468,10 +469,12 @@ export async function printViaBluetooth(data: Uint8Array): Promise<void> {
   const writeChunks = async () => {
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      if (_characteristic.properties.writeWithoutResponse) {
-        await _characteristic.writeValueWithoutResponse(chunk);
+      const characteristic = _characteristic;
+      if (!characteristic) throw new Error('Impressora desconectada durante o envio.');
+      if (characteristic.properties.writeWithoutResponse) {
+        await characteristic.writeValueWithoutResponse(chunk);
       } else {
-        await _characteristic.writeValueWithResponse(chunk);
+        await characteristic.writeValueWithResponse(chunk);
       }
       if (i + 1 < chunks.length) {
         await new Promise(r => setTimeout(r, 120));
@@ -479,15 +482,8 @@ export async function printViaBluetooth(data: Uint8Array): Promise<void> {
     }
   };
 
-  try {
-    await writeChunks();
-  } catch (err) {
-    // Se cair no meio, tenta reconectar uma vez e reenviar
-    console.warn('[bt] erro durante impressão, tentando reconectar e reenviar:', err);
-    const ok = await ensureBluetoothConnected();
-    if (!ok || !_characteristic) throw err;
-    await writeChunks();
-  }
+  // Never restart a receipt from byte zero after a partial Bluetooth write.
+  await dispatchOnce(writeChunks, beforeDispatch);
 }
 
 // ---- QZ Tray Integration ----
@@ -685,12 +681,12 @@ export function resolveSystemPrinter(printers: string[], preferred?: string | nu
 /**
  * Print ESC/POS bytes via Native Desktop Spooler/Socket or QZ Tray fallback.
  */
-export async function printViaQzTray(data: Uint8Array, printerName?: string): Promise<void> {
+export async function printViaQzTray(data: Uint8Array, printerName?: string, beforeDispatch?: () => Promise<void>): Promise<void> {
   if (isDesktopApp()) {
     // Check if printerName is an IP address
     const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
     if (printerName && ipRegex.test(printerName.trim())) {
-      await printViaDesktopSocket(data, printerName.trim(), 9100);
+      await dispatchOnce(() => printViaDesktopSocket(data, printerName.trim(), 9100), beforeDispatch);
       return;
     }
 
@@ -698,7 +694,7 @@ export async function printViaQzTray(data: Uint8Array, printerName?: string): Pr
     if (printers.length === 0) throw new Error('Nenhuma impressora encontrada no sistema.');
 
     const targetPrinter = resolveSystemPrinter(printers, printerName, null);
-    await printViaDesktopSpooler(data, targetPrinter);
+    await dispatchOnce(() => printViaDesktopSpooler(data, targetPrinter), beforeDispatch);
     lastPrinterUsed = targetPrinter;
     return;
   }
@@ -714,7 +710,7 @@ export async function printViaQzTray(data: Uint8Array, printerName?: string): Pr
   const targetPrinter = resolveSystemPrinter(printers, printerName, sysDefault);
 
   const config = qz.configs.create(targetPrinter);
-  await qz.print(config, [qzRawData(data)]);
+  await dispatchOnce(() => qz.print(config, [qzRawData(data)]), beforeDispatch);
   lastPrinterUsed = targetPrinter;
 }
 

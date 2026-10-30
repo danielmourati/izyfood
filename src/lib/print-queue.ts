@@ -22,6 +22,7 @@ export interface PrintJob {
   claimed_by: string | null;
   claimed_at: string | null;
   printed_at: string | null;
+  dispatched_at?: string | null;
   printed_on?: string | null;
   created_at: string;
   updated_at?: string;
@@ -32,8 +33,8 @@ export const MAX_PRINT_ATTEMPTS = 3;
 export const PRINT_TIMEOUT_MS = 20000;
 
 /** Failed jobs retry with a capped delay; successful/in-flight jobs never retry. */
-export function canAutoPrintJob(job: Pick<PrintJob, 'status' | 'claimed_at' | 'attempts' | 'updated_at'> & { printed_at?: string | null; id?: string }, now = Date.now()): boolean {
-  if (job.printed_at || (job.id && wasJobSent(job.id))) return false;
+export function canAutoPrintJob(job: Pick<PrintJob, 'status' | 'claimed_at' | 'attempts' | 'updated_at'> & { printed_at?: string | null; dispatched_at?: string | null; id?: string }, now = Date.now()): boolean {
+  if (job.printed_at || job.dispatched_at || (job.id && wasJobSent(job.id))) return false;
   if (job.status !== 'error') return job.status === 'pending';
   const last = Date.parse(job.updated_at || job.claimed_at || '');
   const delay = Math.min(60_000, 10_000 * 2 ** Math.min(Math.max(job.attempts - 1, 0), 3));
@@ -114,6 +115,21 @@ export async function claimPrintJob(jobId: string, claimedBy: string): Promise<P
 }
 
 const SENT_KEY = 'degust:print-jobs-sent';
+export const PRINT_QUEUE_CHANGED_EVENT = 'degust:print-queue-changed';
+
+/** Irreversible, server-side transport boundary, checked again on host takeover. */
+export async function beginPrintJobDispatch(jobId: string): Promise<void> {
+  const { data, error } = await (supabase as any).rpc('begin_print_job_dispatch', {
+    _job_id: jobId, _device_id: (await import('@/lib/printer')).getDeviceId(),
+  });
+  if (error) throw error;
+  if (data !== true) throw new Error('Envio bloqueado: cupom já enviado ou Caixa não é mais o responsável.');
+  rememberJobSent(jobId);
+}
+
+export function getQueuedOrderIntent(job: Pick<PrintJob, 'attempts' | 'payload'>): 'new' | 'reprint' {
+  return job.attempts > 1 || job.payload?.__printIntent === 'reprint' ? 'reprint' : 'new';
+}
 const SENT_TTL_MS = 24 * 60 * 60 * 1000;
 
 function readSent(): Record<string, number> {
@@ -127,6 +143,7 @@ function readSent(): Record<string, number> {
 /** Lembra no aparelho que este cupom já foi enviado à impressora: nunca reenvia sozinho. */
 export function rememberJobSent(jobId: string): void {
   try { const m = readSent(); m[jobId] = Date.now(); localStorage.setItem(SENT_KEY, JSON.stringify(m)); } catch {}
+  window.dispatchEvent(new Event(PRINT_QUEUE_CHANGED_EVENT));
 }
 
 export function forgetJobSent(jobId: string): void {
@@ -148,14 +165,17 @@ function writeDonePending(m: Record<string, string | null>) {
 
 /** Marca como impresso e tira o cupom da fila; se falhar, guarda para reenviar a marca depois (nunca reimprime). */
 export async function markPrintJobDone(jobId: string, printedOn?: string | null, delays = [2000, 5000, 10000]): Promise<boolean> {
+  const pending = readDonePending(); pending[jobId] = printedOn ?? null; writeDonePending(pending);
   rememberJobSent(jobId);
   for (let i = 0; i <= delays.length; i++) {
-    const { error } = await table().update({ status: 'done', printed_at: new Date().toISOString(), error: null, printed_on: printedOn ?? null } as any).eq('id', jobId);
-    if (!error) {
-      const m = readDonePending(); delete m[jobId]; writeDonePending(m);
-      await table().delete().eq('id', jobId).eq('status', 'done');
-      return true;
-    }
+    try {
+      const { error } = await table().update({ status: 'done', printed_at: new Date().toISOString(), error: null, printed_on: printedOn ?? null } as any).eq('id', jobId);
+      if (!error) {
+        const m = readDonePending(); delete m[jobId]; writeDonePending(m);
+        try { await table().delete().eq('id', jobId).eq('status', 'done'); } catch { /* minute cleanup will retry deletion */ }
+        return true;
+      }
+    } catch { /* Keep the durable acknowledgement; never turn this into printer failure. */ }
     if (i < delays.length) await new Promise(r => setTimeout(r, delays[i]));
   }
   const m = readDonePending(); m[jobId] = printedOn ?? null; writeDonePending(m);
@@ -169,7 +189,7 @@ export async function flushPendingDoneMarks(): Promise<void> {
 }
 
 export async function markPrintJobError(jobId: string, message: string): Promise<void> {
-  await table().update({ status: 'error', error: message.slice(0, 400) } as any).eq('id', jobId);
+  await table().update({ status: 'error', error: message.slice(0, 400) } as any).eq('id', jobId).eq('status', 'printing').is('dispatched_at', null).is('printed_at', null);
 }
 
 /** Volta cupons "Na fila"/falhos para a fila; o Caixa imprime uma vez só. */
@@ -185,8 +205,8 @@ export function isStalePrinting(job: Pick<PrintJob, 'status' | 'claimed_at'>, no
 }
 
 /** Cupom que pode ser forçado: na fila ou falho. "Imprimindo" já foi entregue a um Caixa e nunca é reenviado. */
-export function canForcePrintJob(job: Pick<PrintJob, 'status' | 'claimed_at'> & { printed_at?: string | null }, _now = Date.now()): boolean {
-  if (job.printed_at) return false;
+export function canForcePrintJob(job: Pick<PrintJob, 'status' | 'claimed_at'> & { printed_at?: string | null; dispatched_at?: string | null }, _now = Date.now()): boolean {
+  if (job.printed_at || job.dispatched_at) return false;
   return job.status === 'pending' || job.status === 'error';
 }
 
