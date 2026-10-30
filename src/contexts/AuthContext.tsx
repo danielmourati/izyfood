@@ -25,38 +25,41 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-async function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
+// One in-flight load per user, shared by login() and onAuthStateChange.
+const inflightUserLoads = new Map<string, Promise<AppUser | null>>();
+
+function fetchAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
+  const existing = inflightUserLoads.get(supaUser.id);
+  if (existing) return existing;
+  const p = loadAppUser(supaUser).finally(() => {
+    setTimeout(() => inflightUserLoads.delete(supaUser.id), 2000);
+  });
+  inflightUserLoads.set(supaUser.id, p);
+  return p;
+}
+
+async function loadAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
   try {
     return await withRetry(async () => {
-      // Fetch profile (não lançar exceção se nulo ou RLS)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name, email')
-        .eq('id', supaUser.id)
-        .maybeSingle();
-
-      // Fetch roles
-      const { data: rolesData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', supaUser.id);
+      const [{ data: profile }, { data: rolesData }, { data: memberData }] = await Promise.all([
+        supabase.from('profiles').select('name, email').eq('id', supaUser.id).maybeSingle(),
+        supabase.from('user_roles').select('role').eq('user_id', supaUser.id),
+        supabase
+          .from('tenant_members')
+          .select('tenant_id, role, tenants(id, name, slug)')
+          .eq('user_id', supaUser.id)
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
       const roles = (rolesData || []).map(r => r.role as AppRole);
       const bestRole = roles.includes('superadmin') ? 'superadmin'
         : roles.includes('admin') ? 'admin'
         : roles[0] || 'atendente';
 
-      // Fetch tenant membership + tenant info
       let tenantId = '';
       let tenantSlug = '';
       let tenantName = '';
-
-      const { data: memberData } = await supabase
-        .from('tenant_members')
-        .select('tenant_id, role, tenants(id, name, slug)')
-        .eq('user_id', supaUser.id)
-        .limit(1)
-        .maybeSingle();
 
       if (memberData) {
         const rawTenant = memberData.tenants as any;
