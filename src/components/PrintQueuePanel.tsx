@@ -208,7 +208,9 @@ export default function PrintQueuePanel({ part = 'all' }: { part?: 'all' | 'host
                 <p className="text-[11px] text-muted-foreground truncate">
                   {job.device_label || 'Aparelho'} · {fmtHour(job.created_at)}
                   {job.status === 'done' && job.printed_on ? ` · ${job.printed_on}` : ''}
+                  {job.status === 'error' && job.attempts > 0 ? ` · ${job.attempts} ${job.attempts === 1 ? 'tentativa' : 'tentativas'}` : ''}
                   {job.error ? ` · ${job.error}` : ''}
+                  {job.status === 'error' && !canAutoPrintJob(job) ? ' · aguardando ação manual' : ''}
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
