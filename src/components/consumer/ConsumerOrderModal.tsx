@@ -26,6 +26,8 @@ import { OrderItemDetails } from '@/components/OrderItemDetails';
 import { needsAuthToRemoveItem, showsRemoveItemControl, verifyTenantAdminPassword } from '@/lib/order-permissions';
 import { logAudit } from '@/lib/audit';
 import { allowOrderDelete, allowItemRemoval } from '@/lib/order-merge';
+import { TransferItemsModal } from '@/components/TransferItemsModal';
+import { isTableOccupiedError, tableMoveErrorMessage } from '@/lib/transfer-items';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -105,6 +107,8 @@ export function ConsumerOrderModal({
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [changeTypeOpen, setChangeTypeOpen] = useState(false);
+  const [transferItemsOpen, setTransferItemsOpen] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reprintModalOpen, setReprintModalOpen] = useState(false);
@@ -865,10 +869,17 @@ export function ConsumerOrderModal({
     try {
       // Troca de mesa numa única operação no banco: nenhum outro aparelho vê a mesa "solta" no meio.
       await moveOrderTable(updatedOrder.id, toTableNum);
+      setCurrentOrder(updatedOrder);
       onSaveOrder(updatedOrder);
     } catch (err) {
+      if (isTableOccupiedError(err)) {
+        // Mesa de destino já tem pedido: nunca sobrescrever.
+        setMoveError(tableMoveErrorMessage(err));
+        return;
+      }
       // Pedido ainda não gravado: grava com a nova mesa e ocupa.
       console.warn('[ConsumerOrderModal] Mudança direta de mesa falhou, gravando pedido:', err);
+      setCurrentOrder(updatedOrder);
       onSaveOrder(updatedOrder);
       try {
         if (fromNum && fromNum !== toTableNum) await freeTable(fromNum, updatedOrder.id);
@@ -877,10 +888,10 @@ export function ConsumerOrderModal({
         console.error('[ConsumerOrderModal] Falha ao mover mesa:', e2);
       }
     }
+    setMoveError(null);
     setTablePickerOpen(false);
     setChangeTypeOpen(false);
     setMoreOptionsOpen(false);
-    toast.success(`Pedido movido para Mesa ${toTableNum}`);
   };
 
   const [adminPasswordForDelete, setAdminPasswordForDelete] = useState('');
@@ -1528,6 +1539,17 @@ export function ConsumerOrderModal({
                     <RefreshCw className="h-4 w-4 text-primary" />
                     <span>Trocar Tipo de Pedido / Mesa</span>
                   </button>
+
+                  {currentOrder?.orderType === 'mesa' && (currentOrder?.items.length || 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { setMobileMenuOpen(false); setTransferItemsOpen(true); }}
+                      className="w-full flex items-center gap-2 p-2.5 rounded-md bg-muted/40 hover:bg-muted text-foreground transition-colors font-semibold"
+                    >
+                      <RefreshCw className="h-4 w-4 text-primary" />
+                      <span>Transferir itens para outra mesa</span>
+                    </button>
+                  )}
 
                   {/* Excluir Pedido Vazio (Exibido apenas com permissão ativada) */}
                   {canCancelOrDeleteMesa && (
@@ -2430,6 +2452,12 @@ export function ConsumerOrderModal({
           onClose();
           toast.success('Pedido finalizado com sucesso!');
         }}
+      />
+      <TransferItemsModal
+        open={transferItemsOpen}
+        order={currentOrder}
+        onClose={() => setTransferItemsOpen(false)}
+        onDone={({ sourceClosed }) => { if (sourceClosed || currentOrder?.items.length) onClose(); }}
       />
     </>
   );
