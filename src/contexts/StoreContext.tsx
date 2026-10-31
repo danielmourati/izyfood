@@ -1218,7 +1218,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       coupons, setCoupons: setCouponsWrapped, noteOptions, setNoteOptions: setNoteOptionsWrapped,
       settings, setSettings,
       printSettings, setPrintSettings,
-      occupyTable, freeTable, moveOrderTable,
+      occupyTable, freeTable, moveOrderTable, transferOrderItems,
       completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
        realtimeStatus, lastRealtimeEventTime, realtimeEventCounts, lastSyncError, fetchAll,
     }}>
