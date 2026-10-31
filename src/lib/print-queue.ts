@@ -32,11 +32,16 @@ export const PRINT_HOST_PRESENCE_PREFIX = 'print-host:';
 export const MAX_PRINT_ATTEMPTS = 3;
 export const PRINT_TIMEOUT_MS = 20000;
 
-/** Failed jobs retry with a capped delay; successful/in-flight jobs never retry. */
+/** Automatic printing only for fresh jobs; older or repeatedly failed jobs wait for "Forçar impressão". */
+export const AUTO_PRINT_MAX_AGE_MS = 10 * 60_000;
+
 export function canAutoPrintJob(job: Pick<PrintJob, 'status' | 'claimed_at' | 'attempts' | 'updated_at'> & { printed_at?: string | null; dispatched_at?: string | null; id?: string }, now = Date.now()): boolean {
   if (job.printed_at || job.dispatched_at || (job.id && wasJobSent(job.id))) return false;
-  if (job.status !== 'error') return job.status === 'pending';
   const last = Date.parse(job.updated_at || job.claimed_at || '');
+  // Forcing refreshes updated_at, so a forced job is fresh again.
+  if (Number.isFinite(last) && now - last > AUTO_PRINT_MAX_AGE_MS) return false;
+  if (job.status !== 'error') return job.status === 'pending';
+  if (job.attempts >= MAX_PRINT_ATTEMPTS) return false;
   const delay = Math.min(60_000, 10_000 * 2 ** Math.min(Math.max(job.attempts - 1, 0), 3));
   return !Number.isFinite(last) || now - last >= delay;
 }
