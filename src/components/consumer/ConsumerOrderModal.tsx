@@ -2170,6 +2170,7 @@ export function ConsumerOrderModal({
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold text-center">Mover para mesa livre</DialogTitle>
           </DialogHeader>
+          {moveError && <p className="text-xs text-destructive text-center">{moveError}</p>}
           <div className="py-2 max-h-80 overflow-y-auto">
             {freeTablesForMove.length === 0 ? (
               <p className="text-xs text-muted-foreground italic text-center py-4">Nenhuma mesa livre no momento.</p>
