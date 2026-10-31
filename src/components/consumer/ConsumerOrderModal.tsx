@@ -2457,7 +2457,7 @@ export function ConsumerOrderModal({
         open={transferItemsOpen}
         order={currentOrder}
         onClose={() => setTransferItemsOpen(false)}
-        onDone={({ sourceClosed }) => { if (sourceClosed || currentOrder?.items.length) onClose(); }}
+        onDone={() => onClose()}
       />
     </>
   );
