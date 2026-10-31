@@ -17,6 +17,7 @@ import {
   canCancelPrintJob,
   cancelPrintJobs,
   wasJobSent,
+  canAutoPrintJob,
   PRINT_QUEUE_CHANGED_EVENT,
   type PrintJob,
 } from '@/lib/print-queue';
