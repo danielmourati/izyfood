@@ -632,6 +632,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           device_label: string | null
+          dispatched_at: string | null
           error: string | null
           id: string
           kind: string
@@ -651,6 +652,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           device_label?: string | null
+          dispatched_at?: string | null
           error?: string | null
           id?: string
           kind?: string
@@ -670,6 +672,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           device_label?: string | null
+          dispatched_at?: string | null
           error?: string | null
           id?: string
           kind?: string
@@ -1336,6 +1339,10 @@ export type Database = {
         Returns: boolean
       }
       audit_items_summary: { Args: { _items: Json }; Returns: Json }
+      begin_print_job_dispatch: {
+        Args: { _device_id: string; _job_id: string }
+        Returns: boolean
+      }
       cancel_print_jobs: { Args: { _ids?: string[] }; Returns: number }
       claim_print_job: {
         Args: { _claimed_by: string; _job_id: string }
@@ -1347,6 +1354,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           device_label: string | null
+          dispatched_at: string | null
           error: string | null
           id: string
           kind: string
@@ -1375,6 +1383,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           device_label: string | null
+          dispatched_at: string | null
           error: string | null
           id: string
           kind: string

@@ -39,8 +39,8 @@ describe('automatic failed-job recovery', () => {
   it('does not immediately loop a recent failure', () => {
     expect(canAutoPrintJob({ ...failed, updated_at: new Date(now - 9_999).toISOString() }, now)).toBe(false);
   });
-  it('continues recovering errors beyond the old three-attempt limit', () => {
-    expect(canAutoPrintJob({ ...failed, attempts: 4, updated_at: new Date(now - 60_000).toISOString() }, now)).toBe(true);
+  it('stops recovering errors after three attempts', () => {
+    expect(canAutoPrintJob({ ...failed, attempts: 4, updated_at: new Date(now - 60_000).toISOString() }, now)).toBe(false);
   });
   it('never automatically reprints a successful job', () => {
     expect(canAutoPrintJob({ ...failed, status: 'done' }, now)).toBe(false);
