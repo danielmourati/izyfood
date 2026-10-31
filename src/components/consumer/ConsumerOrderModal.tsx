@@ -2106,6 +2106,16 @@ export function ConsumerOrderModal({
               Trocar para...
             </button>
 
+            {currentOrder?.orderType === 'mesa' && (currentOrder?.items.length || 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => { setMoreOptionsOpen(false); setTransferItemsOpen(true); }}
+                className="w-full text-center py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
+              >
+                Transferir itens para outra mesa
+              </button>
+            )}
+
             {canCancelOrDeleteMesa && (
               <button
                 type="button"
