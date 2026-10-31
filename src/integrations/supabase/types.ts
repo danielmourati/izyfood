@@ -1481,6 +1481,15 @@ export type Database = {
         Args: { _device_id: string; _label?: string; _user_name?: string }
         Returns: boolean
       }
+      transfer_order_items: {
+        Args: {
+          _create_if_missing?: boolean
+          _from_order: string
+          _items?: Json
+          _to_table: number
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "atendente" | "motoboy" | "superadmin"
