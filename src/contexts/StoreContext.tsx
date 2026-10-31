@@ -47,6 +47,7 @@ interface StoreContextType {
   occupyTable: (tableNumber: number, orderId: string) => Promise<void>;
   freeTable: (tableNumber: number, orderId?: string) => Promise<void>;
   moveOrderTable: (orderId: string, toTable: number) => Promise<void>;
+  transferOrderItems: (fromOrderId: string, toTable: number, items: { id: string; qty: number }[] | null, createIfMissing: boolean) => Promise<{ destOrderId: string; sourceClosed: boolean }>;
   completeSale: (order: Order) => void;
   deductStock: (items: OrderItem[]) => void;
   getCategoryById: (id: string) => ProductCategory | undefined;
@@ -1081,6 +1082,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     notifyCrossTabSync();
   }, [notifyCrossTabSync]);
 
+  /** Transfere itens (todos ou parte) para outra mesa numa única operação no banco. */
+  const transferOrderItems = useCallback(async (fromOrderId: string, toTable: number, items: { id: string; qty: number }[] | null, createIfMissing: boolean) => {
+    const { data, error } = await supabase.rpc('transfer_order_items' as any, {
+      _from_order: fromOrderId, _to_table: toTable, _items: items, _create_if_missing: createIfMissing,
+    } as any);
+    if (error) throw error;
+    await fetchTablesAndOrdersRef.current?.();
+    notifyCrossTabSync();
+    const r = (data || {}) as any;
+    return { destOrderId: String(r.dest_order || ''), sourceClosed: !!r.source_closed };
+  }, [notifyCrossTabSync]);
+
   const deductStock = useCallback(async (items: OrderItem[]) => {
     for (const item of items) {
       const qty = item.weight || item.quantity;
@@ -1205,7 +1218,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       coupons, setCoupons: setCouponsWrapped, noteOptions, setNoteOptions: setNoteOptionsWrapped,
       settings, setSettings,
       printSettings, setPrintSettings,
-      occupyTable, freeTable, moveOrderTable,
+      occupyTable, freeTable, moveOrderTable, transferOrderItems,
       completeSale, deductStock, getCategoryById, updateTableCount, isCashRegisterOpen, loading,
        realtimeStatus, lastRealtimeEventTime, realtimeEventCounts, lastSyncError, fetchAll,
     }}>
