@@ -183,6 +183,13 @@
       "when": 1793401626388,
       "tag": "0025_preserve_forced_print_recovery_intent",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793474354163,
+      "tag": "0026_guard_order_finalize_without_payment",
+      "breakpoints": true
     }
   ]
 }
