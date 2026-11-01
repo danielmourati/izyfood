@@ -1,0 +1,2 @@
+ALTER TABLE public.product_note_options DROP CONSTRAINT IF EXISTS product_note_options_classification_check;
+ALTER TABLE public.product_note_options ADD CONSTRAINT product_note_options_classification_check CHECK (classification = ANY (ARRAY['flavor'::text, 'additional'::text, 'both'::text]));
