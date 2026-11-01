@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Balcão: abre um pedido rápido na mesma janela usada pelas Mesas.
- * O pedido é pago e finalizado na mesma sessão; ao fechar, volta para a Home.
+ * O pedido pode ficar em aberto; ao fechar, volta para Mesas, onde aparece na área do balcão.
  */
 const Balcao = () => {
   const { setOrders } = useStore();
@@ -49,7 +49,7 @@ const Balcao = () => {
     <div className="h-full">
       <ConsumerOrderModal
         open
-        onClose={() => navigate('/')}
+        onClose={() => navigate('/mesas')}
         order={order}
         onSaveOrder={handleSave}
         onPrintOrder={async (o, intent = 'new') => {
