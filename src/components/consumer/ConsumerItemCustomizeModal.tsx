@@ -81,7 +81,7 @@ export function ConsumerItemCustomizeModal({
         return prev.map(c => same(c) ? { ...c, quantity: newQty } : c);
       } else {
         if (delta <= 0) return prev;
-        return [...prev, { name: comp.name, price: comp.price, quantity: delta, classification: comp.classification === 'flavor' ? 'flavor' : 'additional' }];
+        return [...prev, { name: comp.name, price: comp.price, quantity: delta, ...(comp.classification ? { classification: comp.classification === 'flavor' ? 'flavor' as const : 'additional' as const } : {}) }];
       }
     });
   };
@@ -108,7 +108,7 @@ export function ConsumerItemCustomizeModal({
     if (opt.type === 'note') { toggleObs(opt.name); return; }
     setComplements(prev => prev.some(c => sameComp(c, opt))
       ? prev.filter(c => !sameComp(c, opt))
-       : [...prev, { name: opt.name, price: 0, quantity: 1, classification: opt.classification === 'flavor' ? 'flavor' : 'additional' }]);
+       : [...prev, { name: opt.name, price: 0, quantity: 1, ...(opt.classification ? { classification: opt.classification === 'flavor' ? 'flavor' as const : 'additional' as const } : {}) }]);
   };
   const freeSelectedCount = freeOptions.filter(isFreeSelected).length;
   const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length;
