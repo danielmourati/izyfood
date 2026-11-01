@@ -37,7 +37,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { title: 'Início', path: '', icon: HomeIcon, adminOnly: false },
   { title: 'Mesas', path: '/mesas', icon: Grid3X3, adminOnly: true, permissionKey: 'manage_tables' },
-  { title: 'Balcão', path: '/balcao', icon: ShoppingCart, adminOnly: false },
+  { title: 'Balcão', path: '/balcao', icon: ShoppingCart, adminOnly: true, permissionKey: 'use_counter' },
   { title: 'Pedidos', path: '/pedidos', icon: ClipboardList, adminOnly: true, permissionKey: 'view_orders_history' },
   { title: 'Caixa', path: '/caixa', icon: DollarSign, adminOnly: true, permissionKey: 'view_cash_register' },
   { title: 'Clientes', path: '/clientes', icon: Users, adminOnly: true, permissionKey: 'manage_customers' },

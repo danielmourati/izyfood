@@ -74,7 +74,7 @@ export function ItemNotesModal({
                 if (newQty <= 0) return prev.filter(c => c.name !== comp.name);
                 return prev.map(c => c.name === comp.name ? { ...c, quantity: newQty } : c);
             } else if (delta > 0) {
-                return [...prev, { name: comp.name, price: comp.price, quantity: 1, classification: comp.classification || 'additional' }];
+                return [...prev, { name: comp.name, price: comp.price, quantity: 1, classification: comp.classification === 'flavor' ? 'flavor' : 'additional' }];
             }
             return prev;
         });

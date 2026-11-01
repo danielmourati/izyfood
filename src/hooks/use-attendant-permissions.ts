@@ -22,6 +22,7 @@ export interface AttendantPermissions {
   // Salon & delivery ops
   manage_deliveries: boolean;
   manage_tables: boolean;
+  use_counter: boolean;
   // Auxiliary registrations
   manage_coupons: boolean;
   manage_suppliers: boolean;
@@ -32,7 +33,7 @@ export const PERMISSION_KEYS: (keyof AttendantPermissions)[] = [
   'manage_categories','manage_products','edit_prices','manage_stock',
   'remove_order_items','cancel_orders','apply_discounts','manage_customers',
   'manage_cash','open_cash_register','close_cash_register','view_cash_register',
-  'view_reports','view_orders_history','manage_deliveries','manage_tables',
+  'view_reports','view_orders_history','manage_deliveries','manage_tables','use_counter',
   'manage_coupons','manage_suppliers','manage_printers',
 ];
 

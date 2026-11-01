@@ -41,7 +41,8 @@ export interface ProductNoteOption {
   price: number;
   categoryIds: string[];
   active: boolean;
-  classification?: 'flavor' | 'additional';
+  /** 'both' = offered as flavor and as additional; selections snapshot the group used. */
+  classification?: 'flavor' | 'additional' | 'both';
 }
 
 export interface SelectedComplement {
