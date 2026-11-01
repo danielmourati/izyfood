@@ -922,7 +922,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       setLastSyncError(null);
       notifyCrossTabSync();
-      await fetchTablesAndOrders();
+      void fetchTablesAndOrders();
     })();
     drainingRef.current = work;
     void work.finally(() => { if (drainingRef.current === work) drainingRef.current = null; }).catch(() => undefined);
