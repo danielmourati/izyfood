@@ -58,7 +58,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable, moveOrderTable, orders: storeOrders, lastSyncError, settings: storeSettings } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, moveOrderTable, confirmOrderSaved, orders: storeOrders, lastSyncError, settings: storeSettings } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const hasAllPermissions = PERMISSION_KEYS.every(k => permissions[k]);
@@ -215,7 +215,10 @@ export function ConsumerOrderModal({
         openedByName: remote.openedByName || prev.openedByName,
       } : prev));
     }
-  }, [open, storeOrders, currentOrder?.id, currentOrder?.openedBy, currentOrder?.openedByName, isLocked]);
+    if (user?.tenantSlug === 'zezinho' && JSON.stringify(remote.items) !== JSON.stringify(currentOrder.items)) {
+      setCurrentOrder(prev => prev ? { ...prev, items: remote.items, total: remote.total } : prev);
+    }
+  }, [open, storeOrders, currentOrder?.id, currentOrder?.openedBy, currentOrder?.openedByName, isLocked, user?.tenantSlug]);
 
 
 
@@ -325,6 +328,12 @@ export function ConsumerOrderModal({
 
     setPrintNotice(null);
     let blockedReason: string | null = null;
+    try {
+      await confirmOrderSaved(currentOrder);
+    } catch (error) {
+      setPrintNotice(error instanceof Error ? error.message : 'Aguardando confirmação dos itens da mesa.');
+      return;
+    }
 
     // 1. Imprimir comanda de novos itens na cozinha se houverem
     const unprintedItems = items.filter(i => !i.printed);
@@ -404,6 +413,7 @@ export function ConsumerOrderModal({
 
   // Helper to send and print order automatically via local Bluetooth printer & redirect to Mesas
   const handleEnviarOrder = async () => {
+    if (sendingOrder) return;
     if (!currentOrder || items.length === 0) {
       toast.error('Adicione itens antes de enviar o pedido.');
       return;
@@ -423,6 +433,13 @@ export function ConsumerOrderModal({
     let queuedAtHost = false;
     let noHostOnline = false;
     setPrintNotice(null);
+    try {
+      await confirmOrderSaved(currentOrder);
+    } catch (error) {
+      setPrintNotice(error instanceof Error ? error.message : 'Aguardando confirmação dos itens da mesa.');
+      setSendingOrder(false);
+      return;
+    }
     try {
       const orderToPrint = { ...currentOrder, pickupNotes: generalNotes || currentOrder.pickupNotes, items: unprintedItems };
       const res: any = onPrintOrder
@@ -812,7 +829,12 @@ export function ConsumerOrderModal({
     setPrintMenuOpen(false);
   };
 
-  const handlePrintKitchenNew = () => {
+  const handlePrintKitchenNew = async () => {
+    if (user?.tenantSlug === 'zezinho') {
+      setPrintMenuOpen(false);
+      await handleEnviarOrder();
+      return;
+    }
     const unprintedItems = items.filter(i => !i.printed);
     if (unprintedItems.length === 0) {
       toast.info('Não há itens novos para imprimir na Cozinha.');
