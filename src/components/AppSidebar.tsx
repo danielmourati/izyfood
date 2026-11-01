@@ -1,4 +1,3 @@
-import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield, Menu, Sun, Moon, Layers
 } from 'lucide-react';
