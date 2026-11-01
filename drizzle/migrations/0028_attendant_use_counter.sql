@@ -1,0 +1,1 @@
+ALTER TABLE public.attendant_permissions ADD COLUMN IF NOT EXISTS use_counter boolean NOT NULL DEFAULT true;

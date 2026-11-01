@@ -46,7 +46,7 @@ const emptyNoteOptionForm = {
   price: '',
   categoryIds: [] as string[],
   active: true,
-  classification: 'additional' as 'flavor' | 'additional',
+  classification: 'additional' as 'flavor' | 'additional' | 'both',
 };
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -999,7 +999,7 @@ const Produtos = () => {
                               <span className="font-semibold text-foreground">{opt.name}</span>
                               <span className="ml-2 text-muted-foreground">
                                 {opt.type === 'complement'
-                                  ? `+ R$ ${fmt(opt.price)} (${opt.classification === 'flavor' ? 'Sabor' : 'Adicional'})`
+                                  ? `+ R$ ${fmt(opt.price)} (${opt.classification === 'flavor' ? 'Sabor' : opt.classification === 'both' ? 'Ambos' : 'Adicional'})`
                                   : 'Observação livre'}
                               </span>
                             </div>
@@ -1154,7 +1154,7 @@ const Produtos = () => {
                           <div className="flex items-center gap-2">
                             <p className="font-semibold text-sm text-foreground">{opt.name}</p>
                             <Badge variant="secondary" className="text-[10px]">
-                              {opt.classification === 'flavor' ? 'Sabor' : 'Adicional'}
+                              {opt.classification === 'flavor' ? 'Sabor' : opt.classification === 'both' ? 'Ambos' : 'Adicional'}
                             </Badge>
                           </div>
                           <p className="text-xs font-bold text-primary tabular-nums mt-0.5">
@@ -1218,7 +1218,7 @@ const Produtos = () => {
                   <Label>Classificação</Label>
                   <Select
                     value={optForm.classification}
-                    onValueChange={(value: 'flavor' | 'additional') =>
+                    onValueChange={(value: 'flavor' | 'additional' | 'both') =>
                       setOptForm(f => ({ ...f, classification: value }))
                     }
                   >
@@ -1228,6 +1228,7 @@ const Produtos = () => {
                     <SelectContent>
                       <SelectItem value="additional">Adicional</SelectItem>
                       <SelectItem value="flavor">Sabor</SelectItem>
+                      <SelectItem value="both">Ambos</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

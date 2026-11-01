@@ -34,6 +34,7 @@ export type Database = {
           open_cash_register: boolean
           remove_order_items: boolean
           tenant_id: string
+          use_counter: boolean
           user_id: string
           view_cash_register: boolean
           view_orders_history: boolean
@@ -58,6 +59,7 @@ export type Database = {
           open_cash_register?: boolean
           remove_order_items?: boolean
           tenant_id?: string
+          use_counter?: boolean
           user_id: string
           view_cash_register?: boolean
           view_orders_history?: boolean
@@ -82,6 +84,7 @@ export type Database = {
           open_cash_register?: boolean
           remove_order_items?: boolean
           tenant_id?: string
+          use_counter?: boolean
           user_id?: string
           view_cash_register?: boolean
           view_orders_history?: boolean

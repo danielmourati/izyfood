@@ -1,4 +1,3 @@
-import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   ShoppingCart, Grid3X3, ClipboardList, Users, Package, BarChart3, UtensilsCrossed, Settings, DollarSign, LogOut, User as UserIcon, Home as HomeIcon, Shield, Menu, Sun, Moon, Layers
 } from 'lucide-react';
@@ -37,7 +36,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { title: 'Início', path: '', icon: HomeIcon, adminOnly: false },
   { title: 'Mesas', path: '/mesas', icon: Grid3X3, adminOnly: true, permissionKey: 'manage_tables' },
-  { title: 'Balcão', path: '/balcao', icon: ShoppingCart, adminOnly: false },
+  { title: 'Balcão', path: '/balcao', icon: ShoppingCart, adminOnly: true, permissionKey: 'use_counter' },
   { title: 'Pedidos', path: '/pedidos', icon: ClipboardList, adminOnly: true, permissionKey: 'view_orders_history' },
   { title: 'Caixa', path: '/caixa', icon: DollarSign, adminOnly: true, permissionKey: 'view_cash_register' },
   { title: 'Clientes', path: '/clientes', icon: Users, adminOnly: true, permissionKey: 'manage_customers' },
@@ -161,68 +160,36 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="bg-card border-t border-border p-2 space-y-2">
-        {collapsed ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-full h-9" aria-label="Menu do usuário">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="start" className="w-56">
-              <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><UserIcon className="h-4 w-4 mr-2" /> Meu Perfil</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><Settings className="h-4 w-4 mr-2" /> Configurações</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <div className="px-2 py-1.5">
-                <ThemeToggle variant="compact" className="w-full justify-center" />
-              </div>
-              {user?.role === 'superadmin' && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => { window.location.href = '/superadmin'; }}>
-                    <Shield className="h-4 w-4 mr-2" /> Área Super Admin
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout} className="text-destructive"><LogOut className="h-4 w-4 mr-2" /> Sair</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <>
+      <SidebarFooter className="bg-card border-t border-border p-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
-              onClick={() => { navigate('/configuracoes'); handleItemClick(); }}
-              className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-muted transition-colors text-left"
+              aria-label="Menu do usuário"
+              className={`flex items-center gap-3 w-full p-2 rounded-lg hover:bg-muted transition-colors text-left ${collapsed ? 'justify-center' : ''}`}
             >
               <Avatar className="h-8 w-8 shrink-0">
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{initials}</AvatarFallback>
               </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground leading-tight truncate">{user?.name}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
-              </div>
+              {!collapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground leading-tight truncate">{user?.name}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+                </div>
+              )}
             </button>
-
-            <div className="pt-1 pb-0.5">
-              <ThemeToggle variant="compact" className="w-full justify-center" />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => { navigate('/configuracoes'); handleItemClick(); }}>
-                <Settings className="h-4 w-4" /> Configurações
-              </Button>
-              <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={logout}>
-                <LogOut className="h-4 w-4" /> Sair
-              </Button>
-            </div>
-
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side={collapsed ? 'right' : 'top'} align="start" className="w-56">
+            <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><UserIcon className="h-4 w-4 mr-2" /> Meu Perfil</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { navigate('/configuracoes'); handleItemClick(); }}><Settings className="h-4 w-4 mr-2" /> Configurações</DropdownMenuItem>
             {user?.role === 'superadmin' && (
-              <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" onClick={() => { window.location.href = '/superadmin'; }}>
-                <Shield className="h-4 w-4" /> Área Super Admin
-              </Button>
+              <DropdownMenuItem onClick={() => { window.location.href = '/superadmin'; }}>
+                <Shield className="h-4 w-4 mr-2" /> Área Super Admin
+              </DropdownMenuItem>
             )}
-          </>
-        )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={logout} className="text-destructive"><LogOut className="h-4 w-4 mr-2" /> Sair</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarFooter>
     </Sidebar>
   );

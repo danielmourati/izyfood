@@ -73,38 +73,45 @@ export function ConsumerItemCustomizeModal({
 
   const updateCompQty = (comp: ProductNoteOption, delta: number) => {
     setComplements(prev => {
-      const existing = prev.find(c => c.name === comp.name);
+      const same = (c: { name: string; classification?: string }) => sameComp(c, comp);
+      const existing = prev.find(same);
       if (existing) {
         const newQty = existing.quantity + delta;
-        if (newQty <= 0) return prev.filter(c => c.name !== comp.name);
-        return prev.map(c => c.name === comp.name ? { ...c, quantity: newQty } : c);
+        if (newQty <= 0) return prev.filter(c => !same(c));
+        return prev.map(c => same(c) ? { ...c, quantity: newQty } : c);
       } else {
         if (delta <= 0) return prev;
-        return [...prev, { name: comp.name, price: comp.price, quantity: delta, ...(comp.classification ? { classification: comp.classification } : {}) }];
+        return [...prev, { name: comp.name, price: comp.price, quantity: delta, ...(comp.classification ? { classification: comp.classification === 'flavor' ? 'flavor' as const : 'additional' as const } : {}) }];
       }
     });
   };
 
-  const getCompQty = (name: string) => {
-    return complements.find(c => c.name === name)?.quantity || 0;
+  const sameComp = (c: { name: string; classification?: string }, o: { name: string; classification?: string }) =>
+    c.name === o.name && (c.classification === 'flavor') === (o.classification === 'flavor');
+  const getCompQty = (name: string, cls?: string) => {
+    return complements.find(c => sameComp(c, { name, classification: cls }))?.quantity || 0;
   };
+  // "both" options appear in the flavor list and in the additional lists; each use snapshots its group.
+  const asAdditional = availableComplements.filter(c => c.classification !== 'flavor')
+    .map(c => c.classification === 'both' ? { ...c, classification: 'additional' as const } : c);
 
   const freeOptions = sortAllAdditionalsFirst([
-    ...availableComplements.filter(c => !(c.price > 0) && c.classification !== 'flavor'),
+    ...asAdditional.filter(c => !(c.price > 0)),
     ...availableNotes.filter(n => !availableComplements.some(c => c.name === n.name)),
   ]);
-  const paidOptions = availableComplements.filter(c => c.price > 0 && c.classification !== 'flavor');
-  const flavorOptions = availableComplements.filter(c => c.classification === 'flavor');
+  const paidOptions = asAdditional.filter(c => c.price > 0);
+  const flavorOptions = availableComplements.filter(c => c.classification === 'flavor' || c.classification === 'both')
+    .map(c => ({ ...c, classification: 'flavor' as const }));
   const isFreeSelected = (opt: { name: string; type: string }) =>
-    opt.type === 'note' ? selectedObs.includes(opt.name) : getCompQty(opt.name) > 0;
+    opt.type === 'note' ? selectedObs.includes(opt.name) : getCompQty(opt.name, (opt as ProductNoteOption).classification) > 0;
   const toggleFree = (opt: ProductNoteOption) => {
     if (opt.type === 'note') { toggleObs(opt.name); return; }
-    setComplements(prev => prev.some(c => c.name === opt.name)
-      ? prev.filter(c => c.name !== opt.name)
-       : [...prev, { name: opt.name, price: 0, quantity: 1, ...(opt.classification ? { classification: opt.classification } : {}) }]);
+    setComplements(prev => prev.some(c => sameComp(c, opt))
+      ? prev.filter(c => !sameComp(c, opt))
+       : [...prev, { name: opt.name, price: 0, quantity: 1, ...(opt.classification ? { classification: opt.classification === 'flavor' ? 'flavor' as const : 'additional' as const } : {}) }]);
   };
   const freeSelectedCount = freeOptions.filter(isFreeSelected).length;
-  const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name) > 0).length;
+  const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length;
 
 
   const compsTotalUnit = complements.reduce((sum, c) => sum + c.price * c.quantity, 0);
@@ -185,7 +192,7 @@ export function ConsumerItemCustomizeModal({
                 <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores</AccordionTrigger>
                 <AccordionContent className="space-y-1 pb-3">
                   {flavorOptions.map(opt => {
-                    const qty = getCompQty(opt.name);
+                    const qty = getCompQty(opt.name, opt.classification);
                     if (opt.price > 0) return (
                       <div key={opt.id} className="flex items-center justify-between gap-2 py-2 text-xs">
                         <span className="min-w-0 break-words">{opt.name} <span className="text-primary">R$ {fmt(opt.price)}</span></span>
@@ -240,7 +247,7 @@ export function ConsumerItemCustomizeModal({
                 </AccordionTrigger>
                 <AccordionContent className="space-y-1.5 pb-3">
                   {paidOptions.map(comp => {
-                    const qty = getCompQty(comp.name);
+                    const qty = getCompQty(comp.name, comp.classification);
                     return (
                       <div key={comp.id} className={`flex justify-between items-center gap-2 p-2 rounded text-xs border ${qty > 0 ? 'bg-primary/10 border-primary/50' : 'bg-background border-border/60'}`}>
                         <span className="font-semibold text-foreground min-w-0 truncate">{comp.name} <span className="text-primary">R$ {fmt(comp.price)}</span></span>

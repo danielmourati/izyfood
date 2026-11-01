@@ -13,6 +13,7 @@ vi.mock('@/contexts/StoreContext', () => ({
       { id: '3', name: 'Sem cebola', type: 'note', price: 0, categoryIds: ['meals'], active: true },
       { id: '4', name: 'Inativo', type: 'note', price: 0, categoryIds: ['drinks'], active: false },
       { id: '6', name: 'Carne', type: 'complement', classification: 'flavor', price: 0, categoryIds: ['drinks'], active: true },
+      { id: '8', name: 'Bacon', type: 'complement', classification: 'both', price: 0, categoryIds: ['drinks'], active: true },
       { id: '7', name: 'Queijo', type: 'complement', classification: 'flavor', price: 0, categoryIds: ['drinks'], active: true },
     ],
   }),
@@ -31,6 +32,18 @@ const product: Product = {
 };
 
 describe('ConsumerItemCustomizeModal', () => {
+  it('offers a "both" option as flavor and as additional, keeping the group chosen', () => {
+    const onConfirm = vi.fn();
+    render(<ConsumerItemCustomizeModal open onClose={vi.fn()} product={product} onConfirm={onConfirm} />);
+    const bacon = screen.getAllByRole('radio', { name: 'Bacon' });
+    expect(bacon.length).toBeGreaterThanOrEqual(1);
+    const all = screen.getAllByText('Bacon');
+    expect(all.length).toBe(2);
+    fireEvent.click(bacon[0]);
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
+    const sel = onConfirm.mock.calls[0][0].selectedComplements.filter((c: { name: string }) => c.name === 'Bacon');
+    expect(sel).toEqual([{ name: 'Bacon', price: 0, quantity: 1, classification: 'flavor' }]);
+  });
   it('selects multiple flavors separately and keeps their classification after reopening', () => {
     const onConfirm = vi.fn();
     const props = { open: true, onClose: vi.fn(), product, onConfirm };
