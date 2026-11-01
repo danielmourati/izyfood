@@ -1,4 +1,6 @@
 import { mergePrintedFlags } from '@/lib/printed-guard';
+import { OrderOutbox, reconcilePendingOrders, overlayPendingOrder } from '@/lib/order-outbox';
+import { withTimeout } from '@/lib/with-timeout';
 import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete, consumeItemRemovals, allowItemRemoval } from '@/lib/order-merge';
 import { logAudit } from '@/lib/audit';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
@@ -26,6 +28,7 @@ interface StoreContextType {
   setCategories: React.Dispatch<React.SetStateAction<ProductCategory[]>>;
   orders: Order[];
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
+  confirmOrderSaved: (order: Order) => Promise<void>;
   customers: Customer[];
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   tables: TableInfo[];
@@ -178,6 +181,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [lastRealtimeEventTime, setLastRealtimeEventTime] = useState<number | null>(null);
   const [realtimeEventCounts, setRealtimeEventCounts] = useState<Record<string, number>>({});
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
+  const orderOutbox = React.useMemo(() => user?.tenantSlug === 'zezinho' && user.tenantId
+    ? new OrderOutbox(localStorage, user.tenantId) : null, [user?.tenantSlug, user?.tenantId]);
+  const drainingRef = useRef<Promise<void> | null>(null);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const broadcastSubscribedRef = useRef(false);
@@ -390,7 +396,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const parsedDbOrds = (ords || []).map(dbToOrder);
     // Calcula a lista final antes de montar as mesas (o updater do React pode rodar depois).
     const dbIds = new Set(parsedDbOrds.map(o => o.id));
-    const nextOrders: Order[] = [
+    const fetchedOrders: Order[] = [
       ...parsedDbOrds,
       ...ordersRef.current.filter(o =>
         o.status !== 'cancelado' &&
@@ -400,6 +406,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         isPendingLocalChange(o.id)
       ),
     ];
+    const nextOrders = orderOutbox ? reconcilePendingOrders(fetchedOrders, orderOutbox.list()) : fetchedOrders;
     ordersRef.current = nextOrders;
     saveLS('izy_orders', nextOrders);
     setOrders(nextOrders);
@@ -463,7 +470,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveLS('izy_tables', merged);
       return merged;
     });
-  }, [isPendingLocalChange, user?.tenantId]);
+  }, [isPendingLocalChange, user?.tenantId, orderOutbox]);
 
   const fetchOrders = fetchTablesAndOrders;
   const fetchTables = fetchTablesAndOrders;
@@ -896,13 +903,73 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     syncSuppliers(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncSuppliers]', e));
   }, [notifyCrossTabSync, markPending]);
 
+  const drainOrderOutbox = useCallback((): Promise<void> => {
+    if (!orderOutbox) return Promise.resolve();
+    if (drainingRef.current) return drainingRef.current;
+    const tenantId = user?.tenantId;
+    const work = (async () => {
+      for (;;) {
+        const entry = orderOutbox.list()[0];
+        if (!entry) break;
+        entry.removedIds.forEach(id => allowItemRemoval(entry.order.id, id));
+        await syncOrders(entry.base ? [entry.base] : [], [entry.order], markPending, clearPending, tenantId,
+          (oldId) => {
+            ordersRef.current = ordersRef.current.filter(o => o.id !== oldId);
+          }, true);
+        orderOutbox.acknowledge(entry);
+      }
+      setLastSyncError(null);
+      notifyCrossTabSync();
+      await fetchTablesAndOrders();
+    })();
+    drainingRef.current = work;
+    void work.finally(() => { if (drainingRef.current === work) drainingRef.current = null; }).catch(() => undefined);
+    return work;
+  }, [orderOutbox, user?.tenantId, markPending, clearPending, notifyCrossTabSync, fetchTablesAndOrders]);
+
+  useEffect(() => {
+    if (!orderOutbox) return;
+    const retry = () => {
+      if (!navigator.onLine || !orderOutbox.list().length) return;
+      void drainOrderOutbox().catch(() => setLastSyncError('Itens salvos neste aparelho. Aguardando conexão para atualizar a mesa nos outros dispositivos.'));
+    };
+    retry();
+    const timer = window.setInterval(retry, 10000);
+    window.addEventListener('online', retry);
+    return () => { window.clearInterval(timer); window.removeEventListener('online', retry); };
+  }, [orderOutbox, drainOrderOutbox]);
+
   const setOrdersWrapped: typeof setOrders = useCallback((updater) => {
     const prev = ordersRef.current;
     const next = typeof updater === 'function' ? updater(prev) : updater;
+    if (orderOutbox) {
+      try {
+        for (const o of next) {
+          const base = prev.find(p => p.id === o.id);
+          if (JSON.stringify(base) !== JSON.stringify(o)) {
+            const removedIds = consumeItemRemovals(o.id);
+            try { orderOutbox.enqueue(o, base, removedIds); }
+            catch (error) { removedIds.forEach(id => allowItemRemoval(o.id, id)); throw error; }
+          }
+        }
+        for (const o of prev.filter(o => !next.some(n => n.id === o.id))) orderOutbox.discard(o.id);
+      } catch (error) {
+        setLastSyncError('Não foi possível salvar neste aparelho. Não feche a mesa; verifique o armazenamento.');
+        throw error;
+      }
+    }
     ordersRef.current = next;
     setOrders(next);
     saveLS('izy_orders', next);
     setLastSyncError(null);
+    if (orderOutbox) {
+      void syncOrders(prev, prev.filter(o => next.some(n => n.id === o.id)), markPending, clearPending, user?.tenantId)
+        .catch(e => console.error('[syncOrders delete]', e));
+      void drainOrderOutbox().catch(() => {
+        setLastSyncError('Itens salvos neste aparelho. Aguardando conexão para atualizar a mesa nos outros dispositivos.');
+      });
+      return;
+    }
     const onRemap = (oldId: string, newId: string) => {
       // O pedido duplicado foi absorvido pelo pedido que já estava aberto na mesa.
       console.warn(`[syncOrders] Pedido ${oldId} juntado ao pedido aberto ${newId} da mesma mesa.`);
@@ -917,7 +984,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         console.error('[syncOrders]', e);
         setLastSyncError('Não foi possível sincronizar o pedido. Verifique a conexão e tente novamente.');
       });
-  }, [notifyCrossTabSync, markPending, clearPending, user?.tenantId, fetchTablesAndOrders]);
+  }, [notifyCrossTabSync, markPending, clearPending, user?.tenantId, fetchTablesAndOrders, orderOutbox, drainOrderOutbox]);
+
+  const confirmOrderSaved = useCallback(async (order: Order) => {
+    if (!orderOutbox) return;
+    setOrdersWrapped(prev => prev.some(o => o.id === order.id)
+      ? prev.map(o => o.id === order.id ? order : o) : [order, ...prev]);
+    try {
+      await withTimeout(drainOrderOutbox(), 15000);
+      if (orderOutbox.list().some(e => e.order.id === order.id)) throw new Error('Salvamento pendente');
+      const { data, error } = await withTimeout(supabase.from('orders').select('items,status').eq('id', order.id).eq('tenant_id', user.tenantId ?? '').maybeSingle(), 15000);
+      if (error || !data || isTerminalStatus(data.status) || order.items.some(i => !(data.items as any[])?.some(s => s.id === i.id))) {
+        throw new Error('Pedido não confirmado na mesa');
+      }
+    } catch {
+      throw new Error('Itens preservados neste aparelho. A comanda não foi enviada; aguarde a conexão e tente enviar novamente.');
+    }
+  }, [orderOutbox, setOrdersWrapped, drainOrderOutbox, user?.tenantId]);
 
   const setSalesWrapped: typeof setSales = useCallback((updater) => {
     const prev = salesRef.current;
@@ -1212,7 +1295,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return (
     <StoreContext.Provider value={{
       products, setProducts: setProductsWrapped, categories, setCategories: setCategoriesWrapped,
-      orders, setOrders: setOrdersWrapped, customers, setCustomers: setCustomersWrapped,
+      orders, setOrders: setOrdersWrapped, confirmOrderSaved, customers, setCustomers: setCustomersWrapped,
       tables, setTables: setTablesWrapped, suppliers, setSuppliers: setSuppliersWrapped,
       sales, setSales: setSalesWrapped, stockEntries, setStockEntries: setStockEntriesWrapped,
       coupons, setCoupons: setCouponsWrapped, noteOptions, setNoteOptions: setNoteOptionsWrapped,
@@ -1394,7 +1477,7 @@ function queueOrderWrite(orderId: string, write: () => Promise<void>) {
   });
 }
 
-async function syncOrders(prev: Order[], next: Order[], markPending: (id: string | number) => void, clearPending: (id: string | number) => void, tenantId?: string, onRemap?: (oldId: string, newId: string) => void) {
+async function syncOrders(prev: Order[], next: Order[], markPending: (id: string | number) => void, clearPending: (id: string | number) => void, tenantId?: string, onRemap?: (oldId: string, newId: string) => void, durable = false) {
   const added = next.filter(n => !prev.find(p => p.id === n.id));
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const updated = next.filter(n => { const p = prev.find(pp => pp.id === n.id); return p && JSON.stringify(p) !== JSON.stringify(n); });
@@ -1473,6 +1556,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
         if (readError) throw readError;
         // Pedido já finalizado/cancelado no banco nunca é reaberto por uma tela antiga.
         if (current && isTerminalStatus((current as any).status) && !isTerminalStatus(persistedStatus)) {
+          if (durable) throw new Error('A mesa foi encerrada em outro aparelho. Os itens pendentes precisam ser conferidos.');
           skipped = true;
           return;
         }
@@ -1480,6 +1564,11 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
           const prevOrder = prev.find(p => p.id === o.id);
           orderPayload.items = mergeOrderItems(orderPayload.items, prevOrder?.items as any, (current as any).items);
           orderPayload.items = mergePrintedFlags(orderPayload.items, (current as any).items);
+          if (durable) {
+            orderPayload.items = overlayPendingOrder({ ...o, items: current.items }, {
+              order: o, base: prevOrder, removedIds: [], revision: '',
+            }).items;
+          }
           if (orderPayload.items.length !== (o.items || []).length) {
             orderPayload.total = orderPayload.items.reduce((s: number, i: any) => s + (Number(i.subtotal) || 0), 0);
           }
@@ -1493,7 +1582,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
           const r1 = await supabase.from('orders').update(meta).eq('id', o.id);
           let e: any = r1.error;
           if (!e) {
-            const r2 = await supabase.rpc('save_order_items' as any, { _order_id: o.id, _items: o.items as any, _removed_ids: removedIds } as any);
+            const r2 = await supabase.rpc('save_order_items' as any, { _order_id: o.id, _items: (durable ? orderPayload.items.filter((i: OrderItem) => !removedIds.includes(i.id)) : o.items) as any, _removed_ids: removedIds } as any);
             e = r2.error;
           }
           // Falhou: a remoção pedida pelo usuário continua valendo na próxima tentativa.
@@ -1560,8 +1649,10 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
       if (o.tableNumber) clearPending(o.tableNumber);
     } catch (err) {
       console.error('[syncOrders] DB upsert error:', err);
-      clearPending(o.id);
-      if (o.tableNumber) clearPending(o.tableNumber);
+      if (!durable) {
+        clearPending(o.id);
+        if (o.tableNumber) clearPending(o.tableNumber);
+      }
       throw err;
     }
   }
