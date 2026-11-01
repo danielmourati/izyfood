@@ -1,5 +1,9 @@
 # Roadmap
 
+- [x] Investigar itens impressos ausentes no Zezinho; proteger lançamentos com pendências duráveis por loja, confirmação por revisão, atualização sem sobrescrever itens locais e salvamento antes da impressão. Comparação das comandas disponíveis com mesas abertas não encontrou itens ausentes.
+- [x] Testar persistência, reabertura, remoções explícitas, isolamento por loja e confirmação de versões; página da loja abriu sem erros.
+- [ ] Conferir lançamento, reconexão e impressão pela tela real do Zezinho — requer sessão autenticada na prévia e impressora da loja; a conta do solicitante não pôde ser encontrada automaticamente.
+
 - [x] Corrigir repetição de cupons recuperados automaticamente: contas retornam o canal real; envio persistido bloqueia novas tentativas entre aparelhos; Bluetooth não reinicia o cupom; recuperação usa uma via; confirmação pendente é persistida. 33 testes aprovados.
 - [ ] Conferir recuperação com servidor real e papel — requer sessão na prévia e impressora física; a sessão automática não encontrou conta do solicitante.
 

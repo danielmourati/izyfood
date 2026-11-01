@@ -1,5 +1,7 @@
 # Architecture decisions
 
+- Zezinho order writes use a tenant-scoped durable browser outbox, revision-matched acknowledgements, pending-change overlays, and reconnect replay without printing; production sending requires server item confirmation so network failure cannot produce unrecorded kitchen items.
+
 - Print-server ownership is a server-timed per-tenant lease acquired atomically and enforced on legacy writes; only the confirmed owning device processes the queue, preventing competing servers.
 - Forced or failed print jobs are claimed only from pending/error. Immediately before physical transport, the owning host atomically records dispatch in the database; dispatched jobs never return to pending/error, even after ambiguous transport failures or host changes. Retry only pre-dispatch failures, never restart Bluetooth receipts or switch transport after sending bytes, and treat recovered jobs as single-copy reprints to prevent duplicate output.
 

@@ -58,7 +58,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable, moveOrderTable, orders: storeOrders, lastSyncError, settings: storeSettings } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, moveOrderTable, confirmOrderSaved, orders: storeOrders, lastSyncError, settings: storeSettings } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const hasAllPermissions = PERMISSION_KEYS.every(k => permissions[k]);
@@ -215,7 +215,10 @@ export function ConsumerOrderModal({
         openedByName: remote.openedByName || prev.openedByName,
       } : prev));
     }
-  }, [open, storeOrders, currentOrder?.id, currentOrder?.openedBy, currentOrder?.openedByName, isLocked]);
+    if (user?.tenantSlug === 'zezinho' && JSON.stringify(remote.items) !== JSON.stringify(currentOrder.items)) {
+      setCurrentOrder(prev => prev ? { ...prev, items: remote.items, total: remote.total } : prev);
+    }
+  }, [open, storeOrders, currentOrder?.id, currentOrder?.openedBy, currentOrder?.openedByName, isLocked, user?.tenantSlug]);
 
 
 
@@ -325,6 +328,12 @@ export function ConsumerOrderModal({
 
     setPrintNotice(null);
     let blockedReason: string | null = null;
+    try {
+      await confirmOrderSaved(currentOrder);
+    } catch (error) {
+      setPrintNotice(error instanceof Error ? error.message : 'Aguardando confirmação dos itens da mesa.');
+      return;
+    }
 
     // 1. Imprimir comanda de novos itens na cozinha se houverem
     const unprintedItems = items.filter(i => !i.printed);
@@ -404,6 +413,7 @@ export function ConsumerOrderModal({
 
   // Helper to send and print order automatically via local Bluetooth printer & redirect to Mesas
   const handleEnviarOrder = async () => {
+    if (sendingOrder) return;
     if (!currentOrder || items.length === 0) {
       toast.error('Adicione itens antes de enviar o pedido.');
       return;
@@ -423,6 +433,13 @@ export function ConsumerOrderModal({
     let queuedAtHost = false;
     let noHostOnline = false;
     setPrintNotice(null);
+    try {
+      await confirmOrderSaved(currentOrder);
+    } catch (error) {
+      setPrintNotice(error instanceof Error ? error.message : 'Aguardando confirmação dos itens da mesa.');
+      setSendingOrder(false);
+      return;
+    }
     try {
       const orderToPrint = { ...currentOrder, pickupNotes: generalNotes || currentOrder.pickupNotes, items: unprintedItems };
       const res: any = onPrintOrder
@@ -812,7 +829,12 @@ export function ConsumerOrderModal({
     setPrintMenuOpen(false);
   };
 
-  const handlePrintKitchenNew = () => {
+  const handlePrintKitchenNew = async () => {
+    if (user?.tenantSlug === 'zezinho') {
+      setPrintMenuOpen(false);
+      await handleEnviarOrder();
+      return;
+    }
     const unprintedItems = items.filter(i => !i.printed);
     if (unprintedItems.length === 0) {
       toast.info('Não há itens novos para imprimir na Cozinha.');
@@ -1335,9 +1357,9 @@ export function ConsumerOrderModal({
                 </div>
               </div>
 
-              {printNotice && (
-                <div className="mx-2 mb-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] font-semibold leading-snug text-amber-700 dark:text-amber-400 shrink-0">
-                  {printNotice}
+              {(printNotice || lastSyncError) && (
+                <div role="status" className="mx-2 mb-1 rounded-md border border-border bg-muted p-2 text-[11px] font-semibold leading-snug text-foreground shrink-0">
+                  {printNotice || lastSyncError}
                 </div>
               )}
 
@@ -1738,7 +1760,7 @@ export function ConsumerOrderModal({
                   )}
                   {responsiblesLoading && <p className="text-[11px] text-muted-foreground">Carregando equipe...</p>}
                   {responsiblesError && <p role="alert" className="text-[11px] text-destructive">{responsiblesError}</p>}
-                  {lastSyncError && <p role="alert" className="text-[11px] text-destructive">A alteração não pôde ser salva. Tente novamente.</p>}
+                  {lastSyncError && <p role="alert" className="text-[11px] text-destructive">{lastSyncError}</p>}
                 </div>
 
                 {/* General Observation Input */}
@@ -1888,9 +1910,9 @@ export function ConsumerOrderModal({
                 )}
               </div>
 
-              {printNotice && (
-                <div className="mx-4 mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs font-semibold leading-snug text-amber-700 dark:text-amber-400 shrink-0">
-                  {printNotice}
+              {(printNotice || lastSyncError) && (
+                <div role="status" className="mx-4 mb-2 rounded-md border border-border bg-muted p-2.5 text-xs font-semibold leading-snug text-foreground shrink-0">
+                  {printNotice || lastSyncError}
                 </div>
               )}
 
