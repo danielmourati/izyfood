@@ -69,6 +69,11 @@ const Mesas = () => {
     return !canDeleteOrder(data as any, false);
   };
 
+  const balcaoOrders = useMemo(() => orders
+    .filter(o => o.orderType === 'balcao' && (o.status === 'aberto' || o.status === 'segurado') && !isFinishedOrder(o)
+      && ((o.items?.length || 0) > 0 || (o.total || 0) > 0))
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))), [orders]);
+
   const occupiedNumbers = useMemo(() => new Set(occupiedTables.map(t => t.number)), [occupiedTables]);
 
   const availableTables = useMemo(() => {
@@ -285,6 +290,47 @@ const Mesas = () => {
       </div>
 
       <div className="space-y-6">
+        {/* Pedidos do Balcão */}
+        {balcaoOrders.length > 0 && (
+          <div>
+            <h2 className="text-xs font-bold tracking-wider text-balcao uppercase flex items-center gap-1.5 mb-3">
+              <span className="text-base">•</span> Pedidos do balcão ({balcaoOrders.length})
+            </h2>
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 gap-2.5">
+              {balcaoOrders.map(order => {
+                const attendantName = getOrderAttendantName(order);
+                const minutesOpen = order.createdAt ? Math.max(0, differenceInMinutes(currentTime, new Date(order.createdAt))) || 0 : 0;
+                const customer = order.customerId ? customers.find(c => c.id === order.customerId) : null;
+                const custName = customer?.name || order.customerName || '';
+                const notes = order.pickupNotes?.trim();
+                return (
+                  <button
+                    key={order.id}
+                    onClick={() => setConsumerOrderModal({ open: true, order })}
+                    className="relative w-full aspect-square lg:aspect-auto lg:min-h-44 flex flex-col justify-between p-2 lg:p-3 rounded-xl shadow-xs hover:shadow-md hover:brightness-105 active:scale-95 transition-all text-left overflow-hidden border border-balcao/30 bg-balcao text-balcao-foreground"
+                  >
+                    <div className="flex justify-between items-start w-full lg:gap-2">
+                      <span className="hidden lg:block min-w-0 flex-1 break-words text-[11px] font-bold opacity-90">{attendantName}</span>
+                      <span className="text-[10px] sm:text-[11px] font-bold opacity-90 whitespace-nowrap ml-auto">
+                        {Math.floor(minutesOpen / 1440) > 0 ? `${Math.floor(minutesOpen / 1440)} dias` : `${minutesOpen} min`}
+                      </span>
+                    </div>
+                    <div className="flex-1 flex flex-col items-center justify-center lg:py-3">
+                      <p className="text-[10px] sm:text-xs font-bold uppercase opacity-90">Balcão</p>
+                      <p className="text-lg sm:text-2xl font-extrabold tracking-tighter">#{order.id.slice(0, 4)}</p>
+                      {custName && <p className="text-[10px] sm:text-xs font-semibold truncate w-full text-center opacity-95">{custName}</p>}
+                    </div>
+                    <div>
+                      {notes && <p className="hidden lg:block text-[11px] font-bold opacity-90 truncate">{notes}</p>}
+                      <p className="text-[11px] sm:text-sm font-extrabold">R$ {(order.total || 0).toFixed(2).replace('.', ',')}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Pedidos em Andamento */}
         {occupiedTables.length > 0 && (
           <div>

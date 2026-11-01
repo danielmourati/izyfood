@@ -238,24 +238,13 @@ export function ConsumerOrderModal({
       onClose();
       return;
     }
-    if (force !== true && !isBalcao && items.some(i => !i.printed)) {
+    if (force !== true && items.some(i => !i.printed)) {
       setUnsentAlertOpen(true);
       return;
     }
 
     const mesaNum = currentOrder.tableNumber || tableNumber;
     const hasItems = items.length > 0 || totalAmount > 0;
-
-    if (hasItems && isBalcao) {
-      if (!canCancelOrDeleteMesa) {
-        setPrintNotice('Pedido de balcão precisa ser pago ou descartado por quem tem permissão de cancelar.');
-        return;
-      }
-      if (!window.confirm('Descartar este pedido do balcão? Os itens lançados serão apagados.')) return;
-      onDeleteOrder?.(currentOrder.id);
-      onClose();
-      return;
-    }
 
     if (hasItems) {
       const updatedOrder: Order = {
@@ -265,7 +254,7 @@ export function ConsumerOrderModal({
       };
       setCurrentOrder(updatedOrder);
       onSaveOrder(updatedOrder);
-      toast.success(`Mesa ${mesaNum || ''} salva com sucesso!`);
+      toast.success(isBalcao ? 'Pedido do balcão salvo em aberto.' : `Mesa ${mesaNum || ''} salva com sucesso!`);
     } else {
       // Se não possui itens nem valor (R$0,00), libera obrigatoriamente a mesa
       const numMesa = currentOrder.tableNumber || tableNumber;
@@ -467,11 +456,7 @@ export function ConsumerOrderModal({
     } else {
       if (queuedAtHost) toast.success(PRINT_QUEUED_MESSAGE);
       // Balcão: a janela só fecha após o pagamento (ou descarte), nunca no envio.
-      if (currentOrder.orderType === 'balcao') {
-        toast.success('Comanda enviada para a cozinha. Finalize no PAGAMENTO para liberar o balcão.');
-      } else {
-        onClose();
-      }
+      onClose();
     }
   };
 
@@ -1084,7 +1069,7 @@ export function ConsumerOrderModal({
               <div className="p-3 bg-white border-t border-[#e8e4dc] flex gap-3 shrink-0">
                 <Button
                   variant="outline"
-                  onClick={handleCloseAndSaveOrDiscard}
+                  onClick={() => handleCloseAndSaveOrDiscard(true)}
                   className="flex-1 h-12 text-xs font-black bg-white hover:bg-[#f9f8f5] text-[#4a3b32] border-[#d8d3c8] flex items-center justify-center gap-2 rounded-lg shadow-sm"
                 >
                   <ChevronLeft className="h-4 w-4" /> VOLTAR

@@ -74,6 +74,10 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        balcao: {
+          DEFAULT: "hsl(var(--balcao))",
+          foreground: "hsl(var(--balcao-foreground))",
+        },
         section: {
           vendas: "hsl(var(--section-vendas))",
           "vendas-soft": "hsl(var(--section-vendas-soft))",
