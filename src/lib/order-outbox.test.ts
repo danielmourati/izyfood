@@ -10,6 +10,12 @@ const storage = () => {
 };
 
 describe('Zezinho durable table writes', () => {
+  it('preserves all items added before the first new-order acknowledgement', () => {
+    const box = new OrderOutbox(storage(), 'zezinho');
+    box.enqueue(order([item('first')]));
+    const pending = box.enqueue(order([item('first'), item('second')]), order([item('first')]));
+    expect(overlayPendingOrder(order([]), pending).items.map(i => i.id)).toEqual(['first', 'second']);
+  });
   it('keeps launched items across network failure and reopening the app', () => {
     const disk = storage();
     new OrderOutbox(disk, 'zezinho').enqueue(order([item('new')]), order([]));

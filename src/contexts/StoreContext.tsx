@@ -1547,7 +1547,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
         let current: any = null;
         let readError: any = null;
         for (let attempt = 0; attempt < 3; attempt++) {
-          const r = await supabase.from('orders').select('items,status').eq('id', o.id).maybeSingle();
+          const r = await supabase.from('orders').select('items,status').eq('id', o.id).maybeSingle().abortSignal(AbortSignal.timeout(15000));
           readError = r.error;
           current = r.data;
           if (!readError) break;
@@ -1579,10 +1579,10 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
           // para um aparelho desatualizado nunca apagar itens que não viu.
           const { items: _i, total: _t, ...meta } = orderPayload;
           const removedIds = consumeItemRemovals(o.id);
-          const r1 = await supabase.from('orders').update(meta).eq('id', o.id);
+          const r1 = await supabase.from('orders').update(meta).eq('id', o.id).abortSignal(AbortSignal.timeout(15000));
           let e: any = r1.error;
           if (!e) {
-            const r2 = await supabase.rpc('save_order_items' as any, { _order_id: o.id, _items: (durable ? orderPayload.items.filter((i: OrderItem) => !removedIds.includes(i.id)) : o.items) as any, _removed_ids: removedIds } as any);
+            const r2 = await supabase.rpc('save_order_items' as any, { _order_id: o.id, _items: (durable ? orderPayload.items.filter((i: OrderItem) => !removedIds.includes(i.id)) : o.items) as any, _removed_ids: removedIds } as any).abortSignal(AbortSignal.timeout(15000));
             e = r2.error;
           }
           // Falhou: a remoção pedida pelo usuário continua valendo na próxima tentativa.
@@ -1593,7 +1593,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
           error = await saveExisting();
         } else {
           // Pedido novo: só insere. Se outro aparelho já criou com o mesmo id, junta os itens em vez de sobrescrever.
-          error = (await supabase.from('orders').insert(orderPayload)).error;
+          error = (await supabase.from('orders').insert(orderPayload).abortSignal(AbortSignal.timeout(15000))).error;
           if (error && (error as any).code === '23505' && String((error as any).message || '').includes('orders_pkey')) {
             error = await saveExisting();
           } else if (!error) {
@@ -1642,7 +1642,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
         const { error: tableError } = await supabase.from('store_tables').upsert(
           tablePayload,
           { onConflict: 'number,tenant_id' }
-        );
+        ).abortSignal(AbortSignal.timeout(15000));
         if (tableError) throw tableError;
       }
       clearPending(o.id);

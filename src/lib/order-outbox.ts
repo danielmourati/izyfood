@@ -30,7 +30,7 @@ export class OrderOutbox {
     const previous = entries.find(e => e.order.id === order.id);
     const present = new Set(order.items.map(i => i.id));
     const entry: PendingOrderWrite = {
-      order, base: previous?.base ?? base,
+      order, base: previous ? previous.base : base,
       removedIds: [...new Set([...(previous?.removedIds ?? []), ...removedIds])].filter(id => !present.has(id)),
       revision: crypto.randomUUID(),
     };

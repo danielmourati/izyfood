@@ -1760,7 +1760,7 @@ export function ConsumerOrderModal({
                   )}
                   {responsiblesLoading && <p className="text-[11px] text-muted-foreground">Carregando equipe...</p>}
                   {responsiblesError && <p role="alert" className="text-[11px] text-destructive">{responsiblesError}</p>}
-                  {lastSyncError && <p role="alert" className="text-[11px] text-destructive">A alteração não pôde ser salva. Tente novamente.</p>}
+                  {lastSyncError && <p role="alert" className="text-[11px] text-destructive">{lastSyncError}</p>}
                 </div>
 
                 {/* General Observation Input */}
