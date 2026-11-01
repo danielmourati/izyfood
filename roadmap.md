@@ -1,5 +1,8 @@
 # Roadmap
 
+- [ ] Investigar itens impressos ausentes no Zezinho; preservar alterações localmente até confirmação, reenviar após reconexão e confirmar salvamento antes da impressão.
+- [ ] Validar perda de conexão, reabertura e sincronização da mesa; impressão no papel depende do aparelho da loja.
+
 - [x] Corrigir repetição de cupons recuperados automaticamente: contas retornam o canal real; envio persistido bloqueia novas tentativas entre aparelhos; Bluetooth não reinicia o cupom; recuperação usa uma via; confirmação pendente é persistida. 33 testes aprovados.
 - [ ] Conferir recuperação com servidor real e papel — requer sessão na prévia e impressora física; a sessão automática não encontrou conta do solicitante.
 
