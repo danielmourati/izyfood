@@ -1543,19 +1543,21 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
       if (!tenantId) throw new Error(`Pedido ${o.id} sem identificação da loja`);
       let skipped = false;
       let remappedTo: string | null = null;
+      let confirmedTableNumber = o.tableNumber;
       await queueOrderWrite(o.id, async () => {
         // Uma vez impresso, sempre impresso: não deixa cópia antiga rebaixar `printed`.
         // Se a leitura falhar (sinal fraco), nunca grava "às cegas": tenta de novo e, se não der, desiste.
         let current: any = null;
         let readError: any = null;
         for (let attempt = 0; attempt < 3; attempt++) {
-          const r = await supabase.from('orders').select('items,status').eq('id', o.id).maybeSingle().abortSignal(AbortSignal.timeout(15000));
+          const r = await supabase.from('orders').select('items,status,table_number').eq('id', o.id).abortSignal(AbortSignal.timeout(15000)).maybeSingle();
           readError = r.error;
           current = r.data;
           if (!readError) break;
           await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
         }
         if (readError) throw readError;
+        if (durable && current?.table_number) confirmedTableNumber = current.table_number;
         // Pedido já finalizado/cancelado no banco nunca é reaberto por uma tela antiga.
         if (current && isTerminalStatus((current as any).status) && !isTerminalStatus(persistedStatus)) {
           if (durable) throw new Error('A mesa foi encerrada em outro aparelho. Os itens pendentes precisam ser conferidos.');
@@ -1649,7 +1651,7 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
       }
 
       if (o.orderType === 'mesa' && o.tableNumber && o.status !== 'cancelado' && o.status !== 'concluido' && o.status !== 'finalizado' && persistedStatus !== 'finalizado') {
-        const tablePayload: any = { number: Number(o.tableNumber), status: 'occupied', order_id: o.id };
+        const tablePayload: any = { number: Number(confirmedTableNumber), status: 'occupied', order_id: o.id };
         if (tenantId) tablePayload.tenant_id = tenantId;
 
         const { error: tableError } = await supabase.from('store_tables').upsert(
