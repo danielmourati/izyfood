@@ -1008,7 +1008,7 @@ export function ConsumerOrderModal({
             <div className="flex-1 flex flex-col h-full bg-[#faf8f5] overflow-hidden">
               {/* Blue Header */}
               <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
-                <span className="text-lg font-black tracking-tight">Novo Pedido - Mesa {displayMesaNum}</span>
+                <span className="text-lg font-black tracking-tight">{currentOrder?.orderType === 'balcao' ? 'Novo Pedido - Balcão' : `Novo Pedido - Mesa ${displayMesaNum}`}</span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1018,6 +1018,23 @@ export function ConsumerOrderModal({
                   <Menu className="h-6 w-6" />
                 </Button>
               </div>
+              {currentOrder?.orderType === 'balcao' && (
+                <div className="px-4 pt-3 shrink-0">
+                  <Input
+                    value={generalNotes}
+                    placeholder="Nome do cliente ou observação"
+                    onChange={e => {
+                      setGeneralNotes(e.target.value);
+                      if (currentOrder) {
+                        const updated = { ...currentOrder, pickupNotes: e.target.value };
+                        setCurrentOrder(updated);
+                        onSaveOrder(updated);
+                      }
+                    }}
+                    className="bg-background"
+                  />
+                </div>
+              )}
 
               {/* Search Bar */}
               <div className="p-3 bg-[#faf8f5] border-b border-[#e8e4dc] flex items-center gap-2 shrink-0">
@@ -1090,7 +1107,7 @@ export function ConsumerOrderModal({
             <div className="flex-1 flex flex-col h-full bg-[#faf8f5] overflow-hidden">
               {/* Blue Header */}
               <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
-                <span className="text-lg font-black tracking-tight">Novo Pedido - Mesa {displayMesaNum}</span>
+                <span className="text-lg font-black tracking-tight">{currentOrder?.orderType === 'balcao' ? 'Novo Pedido - Balcão' : `Novo Pedido - Mesa ${displayMesaNum}`}</span>
                 <Button
                   variant="ghost"
                   size="icon"
