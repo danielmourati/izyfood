@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
   { title: 'Produtos', path: '/produtos', icon: UtensilsCrossed, adminOnly: true, permissionKey: 'manage_products' },
   { title: 'Estoque', path: '/estoque', icon: Package, adminOnly: true, permissionKey: 'manage_stock' },
   { title: 'Relatórios', path: '/relatorios', icon: BarChart3, adminOnly: true, permissionKey: 'view_reports' },
+  { title: 'Configurações', path: '/configuracoes', icon: Settings, adminOnly: true },
 ];
 
 export function AppSidebar() {
