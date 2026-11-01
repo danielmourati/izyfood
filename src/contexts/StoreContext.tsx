@@ -917,6 +917,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ordersRef.current = ordersRef.current.filter(o => o.id !== oldId);
           }, true);
         orderOutbox.acknowledge(entry);
+        ++seqRef.current.orders;
+        ++seqRef.current.tables;
       }
       setLastSyncError(null);
       notifyCrossTabSync();
@@ -993,8 +995,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       await withTimeout(drainOrderOutbox(), 15000);
       if (orderOutbox.list().some(e => e.order.id === order.id)) throw new Error('Salvamento pendente');
-      const { data, error } = await withTimeout(supabase.from('orders').select('items,status').eq('id', order.id).eq('tenant_id', user.tenantId ?? '').maybeSingle(), 15000);
-      if (error || !data || isTerminalStatus(data.status) || order.items.some(i => !(data.items as any[])?.some(s => s.id === i.id))) {
+      const { data, error } = await withTimeout(supabase.from('orders').select('items,status,table_number').eq('id', order.id).eq('tenant_id', user?.tenantId ?? '').maybeSingle(), 15000);
+      if (error || !data || isTerminalStatus(data.status) || data.table_number !== order.tableNumber || order.items.some(i => !(data.items as any[])?.some(s => s.id === i.id && Number(s.quantity) === i.quantity && Number(s.subtotal) === i.subtotal))) {
         throw new Error('Pedido não confirmado na mesa');
       }
     } catch {
@@ -1578,6 +1580,17 @@ async function syncOrders(prev: Order[], next: Order[], markPending: (id: string
           // Pedido já existe: metadados por update e itens por junção atômica no banco,
           // para um aparelho desatualizado nunca apagar itens que não viu.
           const { items: _i, total: _t, ...meta } = orderPayload;
+          if (durable) {
+            const base = prev.find(p => p.id === o.id);
+            // Replay must not undo another device's table move, lock or attribution.
+            if (base?.tableNumber === o.tableNumber) delete meta.table_number;
+            if (base?.status === o.status && base?.isLocked === o.isLocked) {
+              delete meta.status;
+              delete meta.held_at;
+            }
+            if (base?.openedBy === o.openedBy) delete meta.opened_by;
+            if (base?.openedByName === o.openedByName) delete meta.opened_by_name;
+          }
           const removedIds = consumeItemRemovals(o.id);
           const r1 = await supabase.from('orders').update(meta).eq('id', o.id).abortSignal(AbortSignal.timeout(15000));
           let e: any = r1.error;

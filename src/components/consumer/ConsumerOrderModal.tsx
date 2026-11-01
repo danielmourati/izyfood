@@ -1357,9 +1357,9 @@ export function ConsumerOrderModal({
                 </div>
               </div>
 
-              {printNotice && (
-                <div className="mx-2 mb-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] font-semibold leading-snug text-amber-700 dark:text-amber-400 shrink-0">
-                  {printNotice}
+              {(printNotice || lastSyncError) && (
+                <div role="status" className="mx-2 mb-1 rounded-md border border-border bg-muted p-2 text-[11px] font-semibold leading-snug text-foreground shrink-0">
+                  {printNotice || lastSyncError}
                 </div>
               )}
 
@@ -1910,9 +1910,9 @@ export function ConsumerOrderModal({
                 )}
               </div>
 
-              {printNotice && (
-                <div className="mx-4 mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs font-semibold leading-snug text-amber-700 dark:text-amber-400 shrink-0">
-                  {printNotice}
+              {(printNotice || lastSyncError) && (
+                <div role="status" className="mx-4 mb-2 rounded-md border border-border bg-muted p-2.5 text-xs font-semibold leading-snug text-foreground shrink-0">
+                  {printNotice || lastSyncError}
                 </div>
               )}
 
