@@ -50,14 +50,6 @@ function SlugRedirectToLogin() {
 }
 
 function TenantStartPage() {
-  const isMobile = useIsMobile();
-  const { isAdmin } = useAuth();
-  const { permissions, loading } = useAttendantPermissions();
-
-  if (loading) return <AppSkeleton />;
-  if (isMobile && (isAdmin || permissions.manage_tables)) {
-    return <Navigate to="mesas" replace />;
-  }
   return <Home />;
 }
 

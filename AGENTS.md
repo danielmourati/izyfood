@@ -9,7 +9,7 @@
 - Use `OrderItemDetails` and `getOrderItemNoteLines` for item customization display, so carts and receipts handle structured and legacy notes consistently.
 - Group item customization through getOrderItemCustomizationGroups and formatCustomizationLine, snapshot each selected option's classification, and treat unclassified legacy options as additions; 'both' options appear in both groups and items snapshot the group used, so history never changes when the catalog is edited.
 - Product administration uses a compact, image-free table while the existing StoreContext setters remain the single CRUD synchronization path.
-- On mobile browsers, the tenant root opens Mesas when the signed-in user has table access; desktop keeps Home as the root.
+- The tenant root always opens Home on every device, so the sidebar Início link always works.
 - Production printing carries an explicit `new` or `reprint` intent, so per-printer duplicate-copy settings never affect manual reprints.
 - Kitchen tickets identify table orders by table number and omit order IDs; headings stay enlarged while products, additions, and notes follow each printer's font-size setting and active column width.
 - Receipt generation and preview use the shared receiptColumnsForWidth rule, and double-width text halves that capacity, so preview wrapping matches printed output at every paper size.

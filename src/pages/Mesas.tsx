@@ -317,11 +317,10 @@ const Mesas = () => {
                     </div>
                     <div className="flex-1 flex flex-col items-center justify-center lg:py-3">
                       <p className="text-[10px] sm:text-xs font-bold uppercase opacity-90">Balcão</p>
-                      <p className="text-lg sm:text-2xl font-extrabold tracking-tighter">#{order.id.slice(0, 4)}</p>
-                      {custName && <p className="text-[10px] sm:text-xs font-semibold truncate w-full text-center opacity-95">{custName}</p>}
+                      {(custName || notes) && <p className="text-sm sm:text-lg font-extrabold leading-tight line-clamp-2 break-words w-full text-center">{custName || notes}</p>}
                     </div>
                     <div>
-                      {notes && <p className="hidden lg:block text-[11px] font-bold opacity-90 truncate">{notes}</p>}
+                      {custName && notes && <p className="hidden lg:block text-[11px] font-bold opacity-90 truncate">{notes}</p>}
                       <p className="text-[11px] sm:text-sm font-extrabold">R$ {(order.total || 0).toFixed(2).replace('.', ',')}</p>
                     </div>
                   </button>
