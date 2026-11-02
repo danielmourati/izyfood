@@ -49,6 +49,11 @@ function SlugRedirectToLogin() {
   return <Navigate to={`/${slug}/login`} replace />;
 }
 
+function SlugGate({ children }: { children: React.ReactNode }) {
+  const { slug } = useParams<{ slug: string }>();
+  return <TenantGate slug={slug}>{children}</TenantGate>;
+}
+
 function TenantStartPage() {
   return <Home />;
 }
@@ -148,8 +153,8 @@ function AppRoutes() {
   if (!user) {
     return (
       <Routes>
-        <Route path="/:slug/login" element={<Login />} />
-        <Route path="/:slug/*" element={<SlugRedirectToLogin />} />
+        <Route path="/:slug/login" element={<SlugGate><Login /></SlugGate>} />
+        <Route path="/:slug/*" element={<SlugGate><SlugRedirectToLogin /></SlugGate>} />
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -160,7 +165,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Navigate to={user.role === 'superadmin' ? '/superadmin' : `/${user.tenantSlug}`} replace />} />
       <Route path="/superadmin/*" element={<SuperAdminRoutes />} />
-      <Route path="/:slug/*" element={<TenantRoutes />} />
+      <Route path="/:slug/*" element={<SlugGate><TenantRoutes /></SlugGate>} />
       <Route path="/" element={<Navigate to={user.role === 'superadmin' ? '/superadmin' : `/${user.tenantSlug}`} replace />} />
       <Route path="*" element={<Navigate to={user.role === 'superadmin' ? '/superadmin' : `/${user.tenantSlug}`} replace />} />
     </Routes>
@@ -168,6 +173,7 @@ function AppRoutes() {
 }
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { TenantGate } from "@/components/TenantGate";
 
 const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:';
 const RouterComponent = isDesktopApp() || isFileProtocol ? HashRouter : BrowserRouter;
