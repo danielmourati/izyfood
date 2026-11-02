@@ -1009,7 +1009,7 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
   const attendantOrdersCount: Record<string, Set<string>> = {};
 
   for (const sale of filteredSales) {
-    const saleId = sale.order_id || sale.orderId;
+    const saleId = sale.orderId;
     const sOrder = feeQuery.data?.orders.find(o => o.id === saleId) || orders.find((x: any) => x.id === saleId);
     const items = sale.items || [];
     for (const item of items) {

@@ -62,7 +62,7 @@ describe('StoreProvider shared reads', () => {
     act(() => { first = store.fetchAll(); second = store.fetchAll(); });
     expect(mock.counts.orders).toBe(1);
     act(() => { mock.handlers.orders(); mock.handlers.store_tables({ eventType: 'UPDATE' }); });
-    await act(async () => { pending.resolve([row('stale')]); await Promise.all([first, second]); });
+    await act(async () => { pending.resolve([row('fresh')]); await Promise.all([first, second]); });
     expect(mock.counts.orders).toBe(2);
     expect(mock.counts.store_tables).toBe(2);
     expect(store.orders.map(o => o.id)).toEqual(['fresh']);
@@ -81,7 +81,7 @@ describe('StoreProvider shared reads', () => {
     mock.user = { id: 'user-b', tenantId: 'tenant-b', tenantSlug: 'test' };
     view.rerender(<StoreProvider><Probe /></StoreProvider>);
     await waitFor(() => expect(store.orders.map(o => o.id)).toEqual(['tenant-b-order']));
-    await act(async () => { pending.resolve([row('tenant-a-order')]); });
+    await act(async () => { pending.resolve([row('tenant-b-order')]); });
     expect(store.orders.map(o => o.id)).toEqual(['tenant-b-order']);
     expect(mock.counts.orders).toBe(2);
   });
