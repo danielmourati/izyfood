@@ -115,7 +115,7 @@ export function ConsumerItemCustomizeModal({
   const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length;
 
 
-  const flavorLimit = getFlavorLimitState(categories.find(c => c.id === categoryId), complements);
+  const flavorLimit = getFlavorLimitState((categories ?? []).find(c => c.id === categoryId), complements);
   const compsTotalUnit = complements.reduce((sum, c) => sum + c.price * c.quantity, 0);
   const unitPrice = (product.price || 0) + compsTotalUnit;
   const totalPrice = unitPrice * quantity;
@@ -192,7 +192,7 @@ export function ConsumerItemCustomizeModal({
           <Accordion type="multiple" defaultValue={['flavors', 'free', 'paid']} className="space-y-2">
             {flavorOptions.length > 0 && (
               <AccordionItem value="flavors" className="border border-border rounded bg-card px-3">
-                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores{flavorLimit.label ? ` — ${flavorLimit.label}` : ''}{flavorLimit.label ? <span className="ml-auto mr-2 text-xs font-medium text-muted-foreground">{flavorLimit.count}{categories.find(c => c.id === categoryId)?.flavorMax != null ? ` de ${categories.find(c => c.id === categoryId)?.flavorMax}` : ''}</span> : null}</AccordionTrigger>
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores{flavorLimit.label ? ` — ${flavorLimit.label}` : ''}{flavorLimit.label ? <span className="ml-auto mr-2 text-xs font-medium text-muted-foreground">{flavorLimit.count}{(categories ?? []).find(c => c.id === categoryId)?.flavorMax != null ? ` de ${(categories ?? []).find(c => c.id === categoryId)?.flavorMax}` : ''}</span> : null}</AccordionTrigger>
                 <AccordionContent className="space-y-1 pb-3">
                   {flavorOptions.map(opt => {
                     const qty = getCompQty(opt.name, opt.classification);
