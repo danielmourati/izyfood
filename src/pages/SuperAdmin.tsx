@@ -1376,12 +1376,11 @@ export function SuperAdminContent({ withHeader = true, initialTab = 'dashboard',
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleToggleTenant = async (id: string, active: boolean) => {
-    const { error } = await supabase.from('tenants').update({ active }).eq('id', id);
-    if (error) {
-      toast.error('Erro ao atualizar status do estabelecimento');
-      return;
+    setTenants(prev => prev.map(t => t.id === id ? { ...t, active } : t));
+    const { data, error } = await supabase.from('tenants').update({ active }).eq('id', id).select('active').maybeSingle();
+    if (error || !data || data.active !== active) {
+      setTenants(prev => prev.map(t => t.id === id ? { ...t, active: !active } : t));
     }
-    toast.success(active ? 'Estabelecimento ativado' : 'Estabelecimento desativado');
     fetchData();
   };
 
