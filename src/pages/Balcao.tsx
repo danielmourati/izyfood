@@ -49,7 +49,7 @@ const Balcao = () => {
     <div className="h-full">
       <ConsumerOrderModal
         open
-        onClose={() => navigate('/mesas')}
+        onClose={() => navigate('/')}
         order={order}
         onSaveOrder={handleSave}
         onPrintOrder={async (o, intent = 'new') => {
