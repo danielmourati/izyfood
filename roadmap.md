@@ -44,4 +44,5 @@
 - [x] Mesas só liberadas pelo pedido dono; banco bloqueia liberação de mesa com pedido aberto e recoloca itens perdidos fora da lixeira.
 
 - [x] Unificar recargas simultâneas por entidade e sessão, compartilhando consultas em andamento; preservar reconferência após eventos e gravações.
-- [ ] Validar recargas e mudanças concorrentes; conferência na loja real depende de sessão autenticada disponível.
+- [x] Validar recargas e mudanças concorrentes: 30 testes aprovados, incluindo eventos durante consultas, troca de tenant e itens pendentes.
+- [ ] Conferir primeira otimização na loja real — sessão automática indisponível; requer login na prévia.
