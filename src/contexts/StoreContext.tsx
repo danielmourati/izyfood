@@ -94,6 +94,9 @@ function dbToCategory(r: any): ProductCategory {
     name: r.name,
     printSector: r.print_sector || undefined,
     orderIndex: r.order_index != null ? Number(r.order_index) : undefined,
+    flavorRequired: r.flavor_required ?? false,
+    flavorMin: r.flavor_min ?? null,
+    flavorMax: r.flavor_max ?? null,
   };
 }
 function dbToCustomer(r: any): Customer {
@@ -1370,7 +1373,7 @@ async function syncCategories(prev: ProductCategory[], next: ProductCategory[], 
   const orderChanged = prev.map(c => c.id).join(',') !== next.map(c => c.id).join(',');
   const updated = next.filter(n => {
     const p = prev.find(pp => pp.id === n.id);
-    return p && (p.name !== n.name || p.printSector !== n.printSector || p.orderIndex !== n.orderIndex);
+    return p && (p.name !== n.name || p.printSector !== n.printSector || p.orderIndex !== n.orderIndex || p.flavorRequired !== n.flavorRequired || p.flavorMin !== n.flavorMin || p.flavorMax !== n.flavorMax);
   });
 
   for (const c of added) {
@@ -1380,6 +1383,7 @@ async function syncCategories(prev: ProductCategory[], next: ProductCategory[], 
       name: c.name,
       print_sector: c.printSector || null,
       order_index: c.orderIndex ?? next.indexOf(c),
+      flavor_required: c.flavorRequired ?? false, flavor_min: c.flavorMin ?? null, flavor_max: c.flavorMax ?? null,
     };
     if (tenantId) item.tenant_id = tenantId;
     const { error } = await supabase.from('categories').insert(item);
@@ -1400,6 +1404,7 @@ async function syncCategories(prev: ProductCategory[], next: ProductCategory[], 
       name: c.name,
       print_sector: c.printSector || null,
       order_index: c.orderIndex ?? next.indexOf(c),
+      flavor_required: c.flavorRequired ?? false, flavor_min: c.flavorMin ?? null, flavor_max: c.flavorMax ?? null,
     };
     const { error } = await supabase.from('categories').update(updateItem).eq('id', c.id);
     if (error) {

@@ -5,6 +5,9 @@ export interface ProductCategory {
   name: string;
   printSector?: string;
   orderIndex?: number;
+  flavorRequired?: boolean;
+  flavorMin?: number | null;
+  flavorMax?: number | null;
 }
 export type OrderType = 'balcao' | 'mesa' | 'delivery' | 'retirada';
 export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | 'pronto' | 'concluido';

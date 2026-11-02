@@ -6,6 +6,7 @@ import { Minus, Plus, Check, ChevronLeft, X } from 'lucide-react';
 import { Product, OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt, sortAllAdditionalsFirst } from '@/lib/utils';
+import { getFlavorLimitState } from '@/lib/flavor-limits';
 
 interface ConsumerItemCustomizeModalProps {
   open: boolean;
@@ -27,7 +28,7 @@ export function ConsumerItemCustomizeModal({
   itemToEdit,
   onConfirm,
 }: ConsumerItemCustomizeModalProps) {
-  const { noteOptions } = useStore();
+  const { noteOptions, categories } = useStore();
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedObs, setSelectedObs] = useState<string[]>([]);
   const [otherNotes, setOtherNotes] = useState<string>('');
@@ -114,11 +115,13 @@ export function ConsumerItemCustomizeModal({
   const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length;
 
 
+  const flavorLimit = getFlavorLimitState(categories.find(c => c.id === categoryId), complements);
   const compsTotalUnit = complements.reduce((sum, c) => sum + c.price * c.quantity, 0);
   const unitPrice = (product.price || 0) + compsTotalUnit;
   const totalPrice = unitPrice * quantity;
 
   const handleSave = () => {
+    if (!flavorLimit.canConfirm) return;
     onConfirm({
       quantity,
       selectedNotes: selectedObs,
@@ -189,7 +192,7 @@ export function ConsumerItemCustomizeModal({
           <Accordion type="multiple" defaultValue={['flavors', 'free', 'paid']} className="space-y-2">
             {flavorOptions.length > 0 && (
               <AccordionItem value="flavors" className="border border-border rounded bg-card px-3">
-                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores</AccordionTrigger>
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores{flavorLimit.label ? ` — ${flavorLimit.label}` : ''}{flavorLimit.label ? <span className="ml-auto mr-2 text-xs font-medium text-muted-foreground">{flavorLimit.count}{categories.find(c => c.id === categoryId)?.flavorMax != null ? ` de ${categories.find(c => c.id === categoryId)?.flavorMax}` : ''}</span> : null}</AccordionTrigger>
                 <AccordionContent className="space-y-1 pb-3">
                   {flavorOptions.map(opt => {
                     const qty = getCompQty(opt.name, opt.classification);
@@ -199,12 +202,12 @@ export function ConsumerItemCustomizeModal({
                         <div className="flex shrink-0 items-center gap-2">
                           <Button variant="ghost" size="icon" aria-label={`Diminuir ${opt.name}`} disabled={qty === 0} onClick={() => updateCompQty(opt, -1)}><Minus className="h-3 w-3" /></Button>
                           <span>{qty}</span>
-                          <Button variant="ghost" size="icon" aria-label={`Aumentar ${opt.name}`} onClick={() => updateCompQty(opt, 1)}><Plus className="h-3 w-3" /></Button>
+                          <Button variant="ghost" size="icon" aria-label={`Aumentar ${opt.name}`} disabled={!flavorLimit.canAddMore} onClick={() => updateCompQty(opt, 1)}><Plus className="h-3 w-3" /></Button>
                         </div>
                       </div>
                     );
                     return (
-                      <Button key={opt.id} variant="outline" role="radio" aria-checked={qty > 0} onClick={() => toggleFree(opt)} className="w-full justify-start gap-3 whitespace-normal text-left text-xs">
+                      <Button key={opt.id} variant="outline" role="radio" aria-checked={qty > 0} disabled={qty === 0 && !flavorLimit.canAddMore} onClick={() => toggleFree(opt)} className="w-full justify-start gap-3 whitespace-normal text-left text-xs">
                         <span className={`h-4 w-4 shrink-0 rounded-full border-2 ${qty > 0 ? 'border-primary bg-primary' : 'border-muted-foreground'}`} />
                         {opt.name}
                       </Button>
@@ -288,8 +291,10 @@ export function ConsumerItemCustomizeModal({
             <ChevronLeft className="h-4 w-4" /> VOLTAR
           </Button>
 
+          {flavorLimit.missingMessage && <span className="self-center text-xs font-medium text-destructive">{flavorLimit.missingMessage}</span>}
           <Button
             onClick={handleSave}
+            disabled={!flavorLimit.canConfirm}
             className="w-full bg-success hover:bg-success/90 text-success-foreground text-sm h-12 px-5 flex items-center gap-2 font-bold shadow-md active:scale-95 transition-all"
           >
             <Check className="h-4 w-4 stroke-[3]" /> OK
