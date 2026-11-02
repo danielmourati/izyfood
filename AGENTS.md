@@ -1,5 +1,7 @@
 # Architecture decisions
 
+- StoreContext reads share a session/tenant-scoped SharedRefresh flight per entity (orders and tables share one key); realtime and post-write invalidations require a trailing read, while focus/poll overlap joins existing reads, so deduplication never drops changes and settled data is not cached.
+
 - Zezinho order writes use a tenant-scoped durable browser outbox, revision-matched acknowledgements, pending-change overlays, and reconnect replay without printing; production sending requires server item confirmation so network failure cannot produce unrecorded kitchen items.
 
 - Print-server ownership is a server-timed per-tenant lease acquired atomically and enforced on legacy writes; only the confirmed owning device processes the queue, preventing competing servers.

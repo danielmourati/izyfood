@@ -1,6 +1,7 @@
 import { mergePrintedFlags } from '@/lib/printed-guard';
 import { OrderOutbox, reconcilePendingOrders, overlayPendingOrder } from '@/lib/order-outbox';
 import { withTimeout } from '@/lib/with-timeout';
+import { SharedRefresh } from '@/lib/shared-refresh';
 import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete, consumeItemRemovals, allowItemRemoval } from '@/lib/order-merge';
 import { logAudit } from '@/lib/audit';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
@@ -187,6 +188,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const orderOutbox = React.useMemo(() => user?.tenantSlug === 'zezinho' && user.tenantId
     ? new OrderOutbox(localStorage, user.tenantId) : null, [user?.tenantSlug, user?.tenantId]);
   const drainingRef = useRef<Promise<void> | null>(null);
+  const sharedRefresh = React.useMemo(() => new SharedRefresh(), [user?.id, user?.tenantId]);
+  const activeRefreshRef = useRef(sharedRefresh);
+  activeRefreshRef.current = sharedRefresh;
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const broadcastSubscribedRef = useRef(false);
@@ -243,13 +247,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const debounceTimersRef = useRef<{ [entity: string]: NodeJS.Timeout }>({});
 
   const debounceFetch = useCallback((entity: string, fetchFn: () => Promise<void>, delay = 300) => {
+    const key = entity === 'orders' || entity === 'tables' ? 'tablesAndOrders' : entity;
+    const keys = key === 'all'
+      ? ['categories', 'products', 'customers', 'suppliers', 'sales', 'stockEntries', 'tablesAndOrders', 'coupons', 'noteOptions', 'settings']
+      : [key];
+    // Invalidate now, not after debounce: changes during a read need a trailing read.
+    keys.forEach(k => sharedRefresh.invalidate(k));
+    entity = key;
     if (debounceTimersRef.current[entity]) {
       clearTimeout(debounceTimersRef.current[entity]);
     }
     debounceTimersRef.current[entity] = setTimeout(() => {
-      fetchFn();
+      delete debounceTimersRef.current[entity];
+      void fetchFn().catch(err => console.warn('[StoreContext] refresh error:', err));
     }, delay);
-  }, []);
+  }, [sharedRefresh]);
 
   const notifyCrossTabSync = useCallback(() => {
     try {
@@ -271,14 +283,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Granular Entity Fetchers
-  const fetchCategories = useCallback(async () => {
+  const readCategories = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.categories;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.categories; }
     const currentSeq = ++seqRef.current.categories;
     let res = await supabase.from('categories').select('*').order('order_index' as any, { ascending: true, nullsFirst: false });
     if (res.error) {
       res = await supabase.from('categories').select('*');
     }
     const cats = res.data;
-    if (seqRef.current.categories !== currentSeq) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.categories !== currentSeq) return;
     if (cats) {
       setCategories(prev => {
         const orderIds = loadLS<string[]>('izy_categories_order', []);
@@ -290,12 +305,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return merged;
       });
     }
-  }, [isPendingLocalChange]);
+  }, [sharedRefresh, isPendingLocalChange]);
 
-  const fetchProducts = useCallback(async () => {
+  const fetchCategories = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.categories;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.categories; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('categories', readCategories, fresh);
+  }, [sharedRefresh, readCategories]);
+
+  const readProducts = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.products;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.products; }
     const currentSeq = ++seqRef.current.products;
     const { data: prods } = await supabase.from('products').select('*');
-    if (seqRef.current.products !== currentSeq) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.products !== currentSeq) return;
     if (prods) {
       setProducts(prev => {
         const dbProds = prods.map(dbToProduct);
@@ -306,12 +331,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return merged;
       });
     }
-  }, [isPendingLocalChange]);
+  }, [sharedRefresh, isPendingLocalChange]);
 
-  const fetchCustomers = useCallback(async () => {
+  const fetchProducts = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.products;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.products; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('products', readProducts, fresh);
+  }, [sharedRefresh, readProducts]);
+
+  const readCustomers = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.customers;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.customers; }
     const currentSeq = ++seqRef.current.customers;
     const { data: custs } = await supabase.from('customers').select('*');
-    if (seqRef.current.customers !== currentSeq) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.customers !== currentSeq) return;
     if (custs) {
       setCustomers(prev => {
         const dbCusts = custs.map(dbToCustomer);
@@ -322,12 +357,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return merged;
       });
     }
-  }, [isPendingLocalChange]);
+  }, [sharedRefresh, isPendingLocalChange]);
 
-  const fetchSuppliers = useCallback(async () => {
+  const fetchCustomers = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.customers;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.customers; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('customers', readCustomers, fresh);
+  }, [sharedRefresh, readCustomers]);
+
+  const readSuppliers = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.suppliers;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.suppliers; }
     const currentSeq = ++seqRef.current.suppliers;
     const { data: supps } = await supabase.from('suppliers').select('*');
-    if (seqRef.current.suppliers !== currentSeq) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.suppliers !== currentSeq) return;
     if (supps) {
       setSuppliers(prev => {
         const dbSupps = supps.map(dbToSupplier);
@@ -338,29 +383,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return merged;
       });
     }
-  }, [isPendingLocalChange]);
+  }, [sharedRefresh, isPendingLocalChange]);
 
-  const fetchSales = useCallback(async () => {
+  const fetchSuppliers = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.suppliers;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.suppliers; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('suppliers', readSuppliers, fresh);
+  }, [sharedRefresh, readSuppliers]);
+
+  const readSales = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.sales;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.sales; }
     const currentSeq = ++seqRef.current.sales;
     const { data: sls } = await supabase.from('sales').select('*').order('date', { ascending: false });
-    if (seqRef.current.sales !== currentSeq) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.sales !== currentSeq) return;
     if (sls) {
       const parsedSls = sls.map(dbToSale);
       setSales(parsedSls);
       saveLS('izy_sales', parsedSls);
     }
-  }, []);
+  }, [sharedRefresh]);
 
-  const fetchStockEntries = useCallback(async () => {
+  const fetchSales = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.sales;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.sales; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('sales', readSales, fresh);
+  }, [sharedRefresh, readSales]);
+
+  const readStockEntries = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.stockEntries;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.stockEntries; }
     const currentSeq = ++seqRef.current.stockEntries;
     const { data: stks } = await supabase.from('stock_entries').select('*').order('date', { ascending: false });
-    if (seqRef.current.stockEntries !== currentSeq) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.stockEntries !== currentSeq) return;
     if (stks) {
       const parsedStks = stks.map(dbToStockEntry);
       setStockEntries(parsedStks);
       saveLS('izy_stock_entries', parsedStks);
     }
-  }, []);
+  }, [sharedRefresh]);
+
+  const fetchStockEntries = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.stockEntries;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.stockEntries; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('stockEntries', readStockEntries, fresh);
+  }, [sharedRefresh, readStockEntries]);
 
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
@@ -368,7 +440,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  const fetchTablesAndOrders = useCallback(async () => {
+  const readTablesAndOrders = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.tablesAndOrders;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.tablesAndOrders; }
     const currentSeqTables = ++seqRef.current.tables;
     const currentSeqOrders = ++seqRef.current.orders;
 
@@ -387,7 +462,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orderQuery,
     ]);
 
-    if (seqRef.current.tables !== currentSeqTables || seqRef.current.orders !== currentSeqOrders) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.tables !== currentSeqTables || seqRef.current.orders !== currentSeqOrders) return;
     // Resposta com erro (rede instável, sessão renovando): manter a tela como está
     // em vez de tratar como "nenhum pedido/mesa" e liberar as mesas por engano.
     if (tblErr || ordErr || !tbls || !ords) {
@@ -473,26 +548,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveLS('izy_tables', merged);
       return merged;
     });
-  }, [isPendingLocalChange, user?.tenantId, orderOutbox]);
+  }, [sharedRefresh, isPendingLocalChange, user?.tenantId, orderOutbox]);
+
+  const fetchTablesAndOrders = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.tablesAndOrders;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.tablesAndOrders; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('tablesAndOrders', readTablesAndOrders, fresh);
+  }, [sharedRefresh, readTablesAndOrders]);
 
   const fetchOrders = fetchTablesAndOrders;
   const fetchTables = fetchTablesAndOrders;
 
-  const fetchCoupons = useCallback(async () => {
+  const readCoupons = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.coupons;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.coupons; }
     const currentSeq = ++seqRef.current.coupons;
     const { data: cpns } = await supabase.from('coupons').select('*');
-    if (seqRef.current.coupons !== currentSeq) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.coupons !== currentSeq) return;
     if (cpns) {
       const parsedCpns = cpns.map(dbToCoupon);
       setCoupons(parsedCpns);
       saveLS('izy_coupons', parsedCpns);
     }
-  }, []);
+  }, [sharedRefresh]);
 
-  const fetchNoteOptions = useCallback(async () => {
+  const fetchCoupons = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.coupons;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.coupons; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('coupons', readCoupons, fresh);
+  }, [sharedRefresh, readCoupons]);
+
+  const readNoteOptions = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.noteOptions;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.noteOptions; }
     const currentSeq = ++seqRef.current.noteOptions;
     const { data: opts } = await supabase.from('product_note_options').select('*');
-    if (seqRef.current.noteOptions !== currentSeq) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.noteOptions !== currentSeq) return;
     if (opts) {
       setNoteOptions(prev => {
         const dbOpts = opts.map(dbToNoteOption);
@@ -503,9 +598,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return merged;
       });
     }
-  }, [isPendingLocalChange]);
+  }, [sharedRefresh, isPendingLocalChange]);
 
-  const fetchSettings = useCallback(async () => {
+  const fetchNoteOptions = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.noteOptions;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.noteOptions; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('noteOptions', readNoteOptions, fresh);
+  }, [sharedRefresh, readNoteOptions]);
+
+  const readSettings = useCallback(async () => {
+    if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.settings;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.settings; }
     const currentSeq = ++seqRef.current.settings;
     const tenantId = user?.tenantId;
     tenantIdRef.current = tenantId;
@@ -521,7 +626,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         : Promise.resolve({ data: null, error: null }),
     ]);
 
-    if (seqRef.current.settings !== currentSeq) return;
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.settings !== currentSeq) return;
 
     if (setts && setts.length > 0) {
       setSettings({
@@ -544,7 +649,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }
     setIsCashRegisterOpen(!!(cashRegs && cashRegs.length > 0));
-  }, [user?.tenantId]);
+  }, [sharedRefresh, user?.tenantId]);
+
+  const fetchSettings = useCallback((fresh = false) => {
+    const timer = debounceTimersRef.current.settings;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.settings; }
+    if (activeRefreshRef.current !== sharedRefresh) return Promise.resolve();
+    return sharedRefresh.run('settings', readSettings, fresh);
+  }, [sharedRefresh, readSettings]);
 
   const fetchAll = useCallback(async () => {
     if (!user?.id) return;
@@ -725,9 +837,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_registers' }, () => {
         recordRealtimeEvent('cash_registers');
-        supabase.from('cash_registers').select('id').is('closed_at', null).limit(1).then(({ data }) => {
-          setIsCashRegisterOpen(!!(data && data.length > 0));
-        });
+        debounceFetch('settings', fetchSettings, 300);
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
@@ -779,7 +889,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const bc = new BroadcastChannel('izyfood-realtime-cross-tab');
         bc.onmessage = (ev) => {
           if (ev.data && ev.data.senderId !== tabIdRef.current) {
-            fetchAll();
+            debounceFetch('all', fetchAll, 300);
           }
         };
         broadcastRef.current = bc;
@@ -828,6 +938,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('storage', handleStorage);
       clearInterval(silentSyncIntervalId);
+      Object.values(debounceTimersRef.current).forEach(clearTimeout);
+      debounceTimersRef.current = {};
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (broadcastRef.current) {
         broadcastRef.current.close();
@@ -925,7 +1037,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       setLastSyncError(null);
       notifyCrossTabSync();
-      void fetchTablesAndOrders();
+      void fetchTablesAndOrders(true);
     })();
     drainingRef.current = work;
     void work.finally(() => { if (drainingRef.current === work) drainingRef.current = null; }).catch(() => undefined);
@@ -981,7 +1093,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ordersRef.current = ordersRef.current.filter(o => o.id !== oldId);
       setOrders(ordersRef.current);
       saveLS('izy_orders', ordersRef.current);
-      fetchTablesAndOrders();
+      fetchTablesAndOrders(true);
     };
     syncOrders(prev, next, markPending, clearPending, user?.tenantId, onRemap)
       .then(() => notifyCrossTabSync())
@@ -1138,14 +1250,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (orderId) {
         const { data, error } = await supabase.rpc('release_table' as any, { _number: tableNumber, _order_id: orderId } as any);
         if (error) throw error;
-        if (data === false) fetchTablesAndOrdersRef.current?.();
+        if (data === false) fetchTablesAndOrdersRef.current?.(true);
       } else {
         const tenantId = user?.tenantId || tenantIdRef.current;
         const item: any = { number: tableNumber, status: 'available', order_id: null };
         if (tenantId) item.tenant_id = tenantId;
         await supabase.from('store_tables').upsert(item, { onConflict: 'number,tenant_id' });
         // O banco recusa liberar mesa com pedido aberto: confere o estado real.
-        fetchTablesAndOrdersRef.current?.();
+        fetchTablesAndOrdersRef.current?.(true);
       }
     } catch (err) {
       console.error('[freeTable] DB error:', err);
@@ -1176,7 +1288,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       _from_order: fromOrderId, _to_table: toTable, _items: items, _create_if_missing: createIfMissing,
     } as any);
     if (error) throw error;
-    await fetchTablesAndOrdersRef.current?.();
+    await fetchTablesAndOrdersRef.current?.(true);
     notifyCrossTabSync();
     const r = (data || {}) as any;
     return { destOrderId: String(r.dest_order || ''), sourceClosed: !!r.source_closed };

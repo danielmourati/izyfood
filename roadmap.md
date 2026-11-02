@@ -42,3 +42,7 @@
 - [x] Aplicar 32 colunas normais / 16 duplas em 55/58 mm a todos os cupons e prévias, preservando 40/20 em 80 mm; 61 testes e 12 prévias validados. Indicação da tela usa a regra compartilhada; conferência autenticada bloqueada por ausência de sessão.
 - [x] Cancelar cupons "Na fila"/"Falhou" (um a um e todos) com confirmação na tela.
 - [x] Mesas só liberadas pelo pedido dono; banco bloqueia liberação de mesa com pedido aberto e recoloca itens perdidos fora da lixeira.
+
+- [x] Unificar recargas simultâneas por entidade e sessão, compartilhando consultas em andamento; preservar reconferência após eventos e gravações.
+- [x] Validar recargas e mudanças concorrentes: 30 testes aprovados, incluindo eventos durante consultas, troca de tenant e itens pendentes.
+- [ ] Conferir primeira otimização na loja real — sessão automática indisponível; requer login na prévia.
