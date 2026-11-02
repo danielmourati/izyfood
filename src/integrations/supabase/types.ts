@@ -1493,6 +1493,7 @@ export type Database = {
         Args: { _device_id: string; _label?: string; _user_name?: string }
         Returns: boolean
       }
+      tenant_status: { Args: { _slug: string }; Returns: string }
       transfer_order_items: {
         Args: {
           _create_if_missing?: boolean

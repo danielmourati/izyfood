@@ -218,6 +218,13 @@
       "when": 1793648917051,
       "tag": "0030_category_flavor_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793649221348,
+      "tag": "0031_block_inactive_tenants",
+      "breakpoints": true
     }
   ]
 }
