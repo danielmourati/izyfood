@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { usePeriodSales } from '@/hooks/use-period-sales';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { fmt } from '@/lib/utils';
@@ -36,7 +37,7 @@ const presets: { key: PresetKey; label: string; getRange: () => { from: Date; to
 ];
 
 const Relatorios = () => {
-  const { sales, customers, products, categories, getCategoryById, orders, settings, printSettings } = useStore();
+  const { customers, products, categories, getCategoryById, settings, printSettings } = useStore();
   const { user } = useAuth();
 
   const [activePreset, setActivePreset] = useState<PresetKey>('hoje');
@@ -86,6 +87,18 @@ const Relatorios = () => {
     const preset = presets.find(p => p.key === activePreset);
     return preset ? preset.getRange() : presets[0].getRange();
   }, [activePreset, customRange]);
+
+  const periodQuery = usePeriodSales(dateRange.from.toISOString(), dateRange.to.toISOString());
+  const sales = periodQuery.data?.sales || [];
+  const orders = periodQuery.data?.orders || [];
+  const [allTimeRevenue, setAllTimeRevenue] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.rpc('sales_total' as any).then(({ data, error }) => {
+      if (!cancelled && !error) setAllTimeRevenue(Number(data || 0));
+    });
+    return () => { cancelled = true; };
+  }, [user?.tenantId, periodQuery.dataUpdatedAt]);
 
   const filteredSales = useMemo(() =>
     sales.filter(s => {
@@ -785,6 +798,11 @@ const Relatorios = () => {
     </Popover>
   );
 
+  if (periodQuery.isPending || periodQuery.isError) return <div className="p-6 space-y-3 text-foreground">
+    <p>{periodQuery.isError ? 'Não foi possível carregar todas as vendas do período.' : 'Carregando vendas…'}</p>
+    {periodQuery.isError && <Button variant="outline" onClick={() => void periodQuery.refetch()}>Tentar novamente</Button>}
+  </div>;
+
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -838,7 +856,7 @@ const Relatorios = () => {
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs md:text-sm text-muted-foreground">Total Geral</p>
-                  <p className="text-lg md:text-2xl font-bold text-foreground truncate">R$ {fmt(sales.reduce((s, v) => s + v.total, 0))}</p>
+                  <p className="text-lg md:text-2xl font-bold text-foreground truncate">{allTimeRevenue == null ? '—' : `R$ ${fmt(allTimeRevenue)}`}</p>
                 </div>
               </CardContent>
             </Card>

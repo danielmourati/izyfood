@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/contexts/StoreContext';
+import { usePeriodSales } from '@/hooks/use-period-sales';
+import { readPeriodSales } from '@/lib/period-sales';
+import { brazilDayBounds, brazilToday } from '@/lib/query-pages';
 import { useAttendantPermissions } from '@/hooks/use-attendant-permissions';
 import { CashRegister } from '@/types';
 import { logAudit } from '@/lib/audit';
@@ -50,7 +53,7 @@ function fmt(v: number) {
 
 export default function Caixa() {
   const { user, isAdmin } = useAuth();
-  const { sales, orders } = useStore();
+  const { orders } = useStore();
   const { permissions } = useAttendantPermissions();
   const [currentRegister, setCurrentRegister] = useState<CashRegister | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,10 +80,13 @@ export default function Caixa() {
   
   // History filters
   const [historyUsers, setHistoryUsers] = useState<{id: string, name: string}[]>([]);
-  const [filterStartDate, setFilterStartDate] = useState(() => new Date().toLocaleDateString('en-CA'));
-  const [filterEndDate, setFilterEndDate] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [filterStartDate, setFilterStartDate] = useState(() => brazilToday());
+  const [filterEndDate, setFilterEndDate] = useState(() => brazilToday());
   const [filterUser, setFilterUser] = useState('all');
   const [isFiltering, setIsFiltering] = useState(false);
+  const [salesError, setSalesError] = useState<string | null>(null);
+  const registerSales = usePeriodSales(currentRegister?.openedAt || '', '9999-12-31T23:59:59.999Z', !!currentRegister);
+  const sales = registerSales.data?.sales || [];
 
   useEffect(() => { fetchCurrent(); handleFilterHistory(); }, []);
 
@@ -264,10 +270,15 @@ export default function Caixa() {
     const openedAt = new Date(currentRegister.openedAt);
     const now = new Date();
 
-    const salesInPeriod = sales.filter(s => {
-      const d = new Date(s.date);
-      return d >= openedAt && d <= now;
-    });
+    let salesInPeriod;
+    try {
+      const confirmed = await readPeriodSales(user?.tenantId || '', openedAt.toISOString(), now.toISOString());
+      salesInPeriod = confirmed.sales;
+      setSalesError(null);
+    } catch {
+      setSalesError('Não foi possível conferir todas as vendas. O caixa não foi fechado; tente novamente.');
+      return;
+    }
 
     let totalCash = 0, totalPix = 0, totalCard = 0, totalFiado = 0;
     for (const s of salesInPeriod) {
@@ -456,7 +467,11 @@ export default function Caixa() {
   const totalEntradas = movements.filter(m => m.type === 'entrada').reduce((s, m) => s + m.amount, 0);
   const totalSaidas = movements.filter(m => m.type === 'saida').reduce((s, m) => s + m.amount, 0);
 
-  if (loading) {
+  if (registerSales.isError && currentRegister) return <div className="p-6 space-y-3 text-foreground">
+    <p>Não foi possível conferir as vendas do caixa.</p>
+    <Button variant="outline" onClick={() => void registerSales.refetch()}>Tentar novamente</Button>
+  </div>;
+  if (loading || (!!currentRegister && registerSales.isPending)) {
     return (
       <div className="h-full overflow-y-auto p-4 md:p-6 space-y-6 max-w-2xl mx-auto">
         <Skeleton className="h-8 w-32" />
@@ -481,6 +496,7 @@ export default function Caixa() {
     <div className="h-full overflow-y-auto p-4 md:p-6 pb-24 space-y-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-foreground">Caixa</h1>
 
+      {salesError && <Alert variant="destructive"><AlertDescription>{salesError}</AlertDescription></Alert>}
       {!currentRegister ? (
         <Card>
           <CardHeader>
@@ -917,10 +933,12 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
   const { user } = useAuth();
   const { settings, printSettings } = useStore();
   const [attendants, setAttendants] = useState<{ id: string; name: string; commission: number }[]>([]);
-  const [filteredSales, setFilteredSales] = useState<any[]>([]);
-  const [startDate, setStartDate] = useState(() => new Date().toLocaleDateString('en-CA'));
-  const [endDate, setEndDate] = useState(() => new Date().toLocaleDateString('en-CA'));
-  const [orderFees, setOrderFees] = useState<Record<string, { type: string; fee: number }>>({});
+  const [appliedDates, setAppliedDates] = useState(() => ({ start: brazilToday(), end: brazilToday() }));
+  const feeQuery = usePeriodSales(brazilDayBounds(appliedDates.start).from, brazilDayBounds(appliedDates.end).to);
+  const filteredSales = feeQuery.data?.sales || [];
+  const [startDate, setStartDate] = useState(() => brazilToday());
+  const [endDate, setEndDate] = useState(() => brazilToday());
+  const orderFees = Object.fromEntries((feeQuery.data?.orders || []).map(o => [o.id, { type: o.orderType, fee: o.serviceFee, openedBy: o.openedBy }]));
   const [selectedAttendant, setSelectedAttendant] = useState('all');
   const [isSearching, setIsSearching] = useState(false);
   const [filterLabel, setFilterLabel] = useState('');
@@ -963,35 +981,13 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
   }, []);
 
   async function handleSearch() {
-    setIsSearching(true);
-    let query = supabase.from('sales').select('*');
-
-    if (startDate) {
-      query = query.gte('date', new Date(startDate + 'T00:00:00').toISOString());
+    if (!startDate || !endDate || startDate > endDate) return;
+    setAppliedDates({ start: startDate, end: endDate });
+    if (startDate === appliedDates.start && endDate === appliedDates.end) {
+      setIsSearching(true);
+      try { await feeQuery.refetch(); } finally { setIsSearching(false); }
     }
-    if (endDate) {
-      const end = new Date(endDate + 'T00:00:00');
-      end.setHours(23, 59, 59, 999);
-      query = query.lte('date', end.toISOString());
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      toast.error('Erro ao buscar vendas');
-    } else {
-      setFilteredSales(data || []);
-      const ids = Array.from(new Set((data || []).map((s: any) => s.order_id).filter(Boolean)));
-      const fees: Record<string, { type: string; fee: number }> = {};
-      if (ids.length) {
-        const { data: ords } = await supabase.from('orders').select('id, order_type, service_fee').in('id', ids);
-        for (const o of ords || []) fees[o.id] = { type: o.order_type, fee: Number(o.service_fee || 0) };
-      }
-      setOrderFees(fees);
-    }
-    setIsSearching(false);
   }
-
-  useEffect(() => { handleSearch(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Calculate service fee total from mesa orders in filtered period
   const orderInfo = (s: any) => {
@@ -1013,8 +1009,8 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
   const attendantOrdersCount: Record<string, Set<string>> = {};
 
   for (const sale of filteredSales) {
-    const saleId = sale.order_id || sale.orderId;
-    const sOrder = orders.find((x: any) => x.id === saleId);
+    const saleId = sale.orderId;
+    const sOrder = feeQuery.data?.orders.find(o => o.id === saleId) || orders.find((x: any) => x.id === saleId);
     const items = sale.items || [];
     for (const item of items) {
       const attId = item.addedBy || sOrder?.openedBy;
@@ -1174,6 +1170,11 @@ function ServiceFeeCommissionCard({ orders }: { orders: any[] }) {
     win.focus();
     setTimeout(() => { win.print(); }, 400);
   };
+
+  if (feeQuery.isPending || feeQuery.isError) return <div className="space-y-3 text-foreground">
+    <p>{feeQuery.isError ? 'Não foi possível conferir as vendas e taxas do período.' : 'Carregando vendas e taxas…'}</p>
+    {feeQuery.isError && <Button variant="outline" onClick={() => void feeQuery.refetch()}>Tentar novamente</Button>}
+  </div>;
 
   return (
     <div className="space-y-4">

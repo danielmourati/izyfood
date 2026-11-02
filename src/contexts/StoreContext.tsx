@@ -2,6 +2,7 @@ import { mergePrintedFlags } from '@/lib/printed-guard';
 import { OrderOutbox, reconcilePendingOrders, overlayPendingOrder } from '@/lib/order-outbox';
 import { withTimeout } from '@/lib/with-timeout';
 import { SharedRefresh } from '@/lib/shared-refresh';
+import { collectPages, brazilDayBounds, brazilToday } from '@/lib/query-pages';
 import { mergeOrderItems, isTerminalStatus, absorbDuplicateOrderItems, canDeleteOrder, consumeOrderDelete, consumeItemRemovals, allowItemRemoval } from '@/lib/order-merge';
 import { logAudit } from '@/lib/audit';
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
@@ -263,10 +264,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, delay);
   }, [sharedRefresh]);
 
-  const notifyCrossTabSync = useCallback(() => {
+  const notifyCrossTabSync = useCallback((entities: string[]) => {
     try {
       broadcastRef.current?.postMessage({
         type: 'IZYFOOD_SYNC_UPDATE',
+        tenantId: user?.tenantId, entities,
         senderId: tabIdRef.current,
         timestamp: Date.now(),
       });
@@ -276,11 +278,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'store_update',
-          payload: { senderId: tabIdRef.current, timestamp: Date.now() },
+          payload: { senderId: tabIdRef.current, timestamp: Date.now(), tenantId: user?.tenantId, entities },
         });
       }
     } catch { }
-  }, []);
+  }, [user?.tenantId]);
 
   // Granular Entity Fetchers
   const readCategories = useCallback(async () => {
@@ -397,7 +399,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = debounceTimersRef.current.sales;
     if (timer) { clearTimeout(timer); delete debounceTimersRef.current.sales; }
     const currentSeq = ++seqRef.current.sales;
-    const { data: sls } = await supabase.from('sales').select('*').order('date', { ascending: false });
+    const bounds = brazilDayBounds(brazilToday());
+    const sls = await collectPages<any>((offset, size) => supabase.from('sales').select('*').eq('tenant_id', user?.tenantId || '').gte('date', bounds.from).lte('date', bounds.to).order('date', { ascending: false }).order('id', { ascending: false }).range(offset, offset + size - 1));
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.sales !== currentSeq) return;
     if (sls) {
       const parsedSls = sls.map(dbToSale);
@@ -449,26 +452,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     const tenantId = user?.tenantId || tenantIdRef.current;
 
-    let tableQuery = supabase.from('store_tables').select('*').order('number');
-    let orderQuery = supabase.from('orders').select('*').order('created_at', { ascending: false });
-
-    if (tenantId && tenantId !== 'default') {
-      tableQuery = tableQuery.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
-      orderQuery = orderQuery.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
-    }
-
-    const [{ data: tbls, error: tblErr }, { data: ords, error: ordErr }] = await Promise.all([
-      tableQuery,
-      orderQuery,
-    ]);
-
-    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.tables !== currentSeqTables || seqRef.current.orders !== currentSeqOrders) return;
-    // Resposta com erro (rede instável, sessão renovando): manter a tela como está
-    // em vez de tratar como "nenhum pedido/mesa" e liberar as mesas por engano.
-    if (tblErr || ordErr || !tbls || !ords) {
-      console.warn('[fetchTablesAndOrders] resposta ignorada:', tblErr || ordErr || 'dados vazios');
+    if (!tenantId) return;
+    let tbls: any[];
+    let ords: any[];
+    try {
+      [tbls, ords] = await Promise.all([
+        collectPages<any>((offset, size) => supabase.from('store_tables').select('*').eq('tenant_id', tenantId).order('number').range(offset, offset + size - 1)),
+        collectPages<any>((offset, size) => supabase.from('orders').select('*').eq('tenant_id', tenantId).in('status', ['aberto', 'segurado', 'pronto']).order('created_at', { ascending: false }).order('id', { ascending: false }).range(offset, offset + size - 1)),
+      ]);
+      // Check every linked order, including closed ones, plus previously open orders
+      // that vanished from the active query (payment, deletion, or transfer elsewhere).
+      const activeIds = new Set(ords.map(o => o.id));
+      const checkIds = [...new Set<string>([
+        ...tbls.map(t => t.order_id).filter(Boolean),
+        ...ordersRef.current.filter(o => !isTerminalStatus(o.status)).map(o => o.id),
+      ])].filter(id => !activeIds.has(id));
+      for (let i = 0; i < checkIds.length; i += 100) {
+        const { data, error } = await supabase.from('orders').select('*').eq('tenant_id', tenantId).in('id', checkIds.slice(i, i + 100));
+        if (error || !data) throw error || new Error('Não foi possível conferir os pedidos vinculados.');
+        ords.push(...data);
+      }
+    } catch (error) {
+      console.warn('[fetchTablesAndOrders] resposta ignorada:', error);
       return;
     }
+    if (activeRefreshRef.current !== sharedRefresh || seqRef.current.tables !== currentSeqTables || seqRef.current.orders !== currentSeqOrders) return;
 
     // 1. Process Orders
     const parsedDbOrds = (ords || []).map(dbToOrder);
@@ -658,20 +666,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return sharedRefresh.run('settings', readSettings, fresh);
   }, [sharedRefresh, readSettings]);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (fresh = false) => {
     if (!user?.id) return;
     try {
       await Promise.all([
-        fetchCategories(),
-        fetchProducts(),
-        fetchCustomers(),
-        fetchSuppliers(),
-        fetchOrders(),
-        fetchSales(),
-        fetchStockEntries(),
-        fetchCoupons(),
-        fetchNoteOptions(),
-        fetchSettings(),
+        fetchCategories(fresh),
+        fetchProducts(fresh),
+        fetchCustomers(fresh),
+        fetchSuppliers(fresh),
+        fetchOrders(fresh),
+        fetchSales(fresh),
+        fetchStockEntries(fresh),
+        fetchCoupons(fresh),
+        fetchNoteOptions(fresh),
+        fetchSettings(fresh),
       ]);
     } catch (err) {
       console.warn('[StoreContext] fetchAll error:', err);
@@ -682,6 +690,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     fetchOrders, fetchSales, fetchStockEntries, fetchTables,
     fetchCoupons, fetchNoteOptions, fetchSettings
   ]);
+
+  const refreshChangedEntities = useCallback((message: { tenantId?: string; entities?: string[] }) => {
+    if (message.tenantId && message.tenantId !== user?.tenantId) return;
+    const readers: Record<string, () => Promise<void>> = {
+      categories: fetchCategories, products: fetchProducts, customers: fetchCustomers,
+      suppliers: fetchSuppliers, sales: fetchSales, stockEntries: fetchStockEntries,
+      tablesAndOrders: fetchTablesAndOrders, orders: fetchTablesAndOrders, tables: fetchTablesAndOrders,
+      coupons: fetchCoupons, noteOptions: fetchNoteOptions, settings: fetchSettings,
+    };
+    // Older clients send no entity; reconcile fully for backwards compatibility.
+    if (!Array.isArray(message.entities) || !message.entities.length) {
+      debounceFetch('all', fetchAll, 300);
+      return;
+    }
+    for (const entity of new Set(message.entities)) {
+      const read = readers[entity];
+      if (read) debounceFetch(entity, read, 300);
+    }
+  }, [user?.tenantId, fetchAll, debounceFetch, fetchCategories, fetchProducts, fetchCustomers, fetchSuppliers, fetchSales, fetchStockEntries, fetchTablesAndOrders, fetchCoupons, fetchNoteOptions, fetchSettings]);
+
+  // Complete payloads update only their entity. In-flight reads are invalidated
+  // before patching so a late snapshot cannot erase an incoming event.
+  const applyLiveEntity = useCallback((entity: string, payload: any, map: (row: any) => any, set: React.Dispatch<React.SetStateAction<any[]>>, read: () => Promise<void>) => {
+    const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+    if (row?.tenant_id && row.tenant_id !== user?.tenantId) return;
+    const required: Record<string, string[]> = {
+      products: ['name', 'price', 'stock', 'type', 'unit'], categories: ['name'],
+      customers: ['name', 'phone', 'address', 'credit_balance', 'loyalty_points'],
+      suppliers: ['name', 'contact'], stockEntries: ['product_id', 'quantity', 'date'],
+      coupons: ['code', 'type', 'value', 'active'], noteOptions: ['name', 'type', 'category_ids', 'active'],
+    };
+    if (!row?.id || (payload.eventType !== 'DELETE' && (!row.tenant_id || required[entity]?.some(field => !(field in row))))) {
+      debounceFetch(entity, read, 300);
+      return;
+    }
+    sharedRefresh.invalidate(entity);
+    ++seqRef.current[entity];
+    if (isPendingLocalChange(row.id)) { debounceFetch(entity, read, 300); return; }
+    set(prev => {
+      const next = payload.eventType === 'DELETE' ? prev.filter(r => r.id !== row.id)
+        : [...prev.filter(r => r.id !== row.id), map(row)];
+      const ordered = entity === 'categories' ? sortCategories(next, loadLS<string[]>('izy_categories_order', [])) : next;
+      const lsKeys: Record<string, string> = { stockEntries: 'stock_entries', noteOptions: 'note_options' };
+      saveLS(`izy_${lsKeys[entity] || entity}`, ordered);
+      return ordered;
+    });
+  }, [sharedRefresh, user?.tenantId, isPendingLocalChange, debounceFetch]);
 
   // Initial data fetch
   const userId = user?.id;
@@ -722,7 +777,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .on('broadcast', { event: 'store_update' }, (payload) => {
         if (payload?.payload?.senderId !== tabIdRef.current) {
           recordRealtimeEvent('broadcast');
-          debounceFetch('all', fetchAll, 300);
+          refreshChangedEntities(payload.payload || {});
         }
       })
       .subscribe((status) => {
@@ -756,80 +811,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         debounceFetch('tables', fetchTablesAndOrders, 300);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products', ...(tenantFilter ? { filter: tenantFilter } : {}) }, (payload) => {
         recordRealtimeEvent('products');
-        if (payload.eventType === 'INSERT') setProducts(prev => prev.some(p => p.id === payload.new.id) ? prev : [...prev, dbToProduct(payload.new)]);
-        else if (payload.eventType === 'UPDATE') setProducts(prev => prev.map(p => p.id === payload.new.id ? dbToProduct(payload.new) : p));
-        else if (payload.eventType === 'DELETE') {
-          if (!isPendingLocalChange(payload.old.id)) {
-            setProducts(prev => prev.filter(p => p.id !== payload.old.id));
-          }
-        }
-        debounceFetch('products', fetchProducts, 300);
+        applyLiveEntity('products', payload, dbToProduct, setProducts, fetchProducts);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories', ...(tenantFilter ? { filter: tenantFilter } : {}) }, (payload) => {
         recordRealtimeEvent('categories');
-        if (payload.eventType === 'INSERT') setCategories(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, dbToCategory(payload.new)]);
-        else if (payload.eventType === 'UPDATE') setCategories(prev => prev.map(c => c.id === payload.new.id ? dbToCategory(payload.new) : c));
-        else if (payload.eventType === 'DELETE') {
-          if (!isPendingLocalChange(payload.old.id)) {
-            setCategories(prev => prev.filter(c => c.id !== payload.old.id));
-          }
-        }
-        debounceFetch('categories', fetchCategories, 300);
+        applyLiveEntity('categories', payload, dbToCategory, setCategories, fetchCategories);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers', ...(tenantFilter ? { filter: tenantFilter } : {}) }, (payload) => {
         recordRealtimeEvent('customers');
-        if (payload.eventType === 'INSERT') setCustomers(prev => prev.some(c => c.id === payload.new.id) ? prev : [...prev, dbToCustomer(payload.new)]);
-        else if (payload.eventType === 'UPDATE') setCustomers(prev => prev.map(c => c.id === payload.new.id ? dbToCustomer(payload.new) : c));
-        else if (payload.eventType === 'DELETE') {
-          if (!isPendingLocalChange(payload.old.id)) {
-            setCustomers(prev => prev.filter(c => c.id !== payload.old.id));
-          }
-        }
-        debounceFetch('customers', fetchCustomers, 300);
+        applyLiveEntity('customers', payload, dbToCustomer, setCustomers, fetchCustomers);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers', ...(tenantFilter ? { filter: tenantFilter } : {}) }, (payload) => {
         recordRealtimeEvent('suppliers');
-        if (payload.eventType === 'INSERT') setSuppliers(prev => prev.some(s => s.id === payload.new.id) ? prev : [...prev, dbToSupplier(payload.new)]);
-        else if (payload.eventType === 'UPDATE') setSuppliers(prev => prev.map(s => s.id === payload.new.id ? dbToSupplier(payload.new) : s));
-        else if (payload.eventType === 'DELETE') {
-          if (!isPendingLocalChange(payload.old.id)) {
-            setSuppliers(prev => prev.filter(s => s.id !== payload.old.id));
-          }
-        }
-        debounceFetch('suppliers', fetchSuppliers, 300);
+        applyLiveEntity('suppliers', payload, dbToSupplier, setSuppliers, fetchSuppliers);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales', ...(tenantFilter ? { filter: tenantFilter } : {}) }, () => {
         recordRealtimeEvent('sales');
-        if (payload.eventType === 'INSERT') setSales(prev => [dbToSale(payload.new), ...prev]);
-        else if (payload.eventType === 'UPDATE') setSales(prev => prev.map(s => s.id === payload.new.id ? dbToSale(payload.new) : s));
-        else if (payload.eventType === 'DELETE') setSales(prev => prev.filter(s => s.id !== payload.old.id));
         debounceFetch('sales', fetchSales, 300);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_entries' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_entries', ...(tenantFilter ? { filter: tenantFilter } : {}) }, (payload) => {
         recordRealtimeEvent('stock_entries');
-        if (payload.eventType === 'INSERT') setStockEntries(prev => [dbToStockEntry(payload.new), ...prev]);
-        else if (payload.eventType === 'DELETE') setStockEntries(prev => prev.filter(s => s.id !== payload.old.id));
-        debounceFetch('stockEntries', fetchStockEntries, 300);
+        applyLiveEntity('stockEntries', payload, dbToStockEntry, setStockEntries, fetchStockEntries);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons', ...(tenantFilter ? { filter: tenantFilter } : {}) }, (payload) => {
         recordRealtimeEvent('coupons');
-        if (payload.eventType === 'INSERT') setCoupons(prev => [...prev, dbToCoupon(payload.new)]);
-        else if (payload.eventType === 'UPDATE') setCoupons(prev => prev.map(c => c.id === payload.new.id ? dbToCoupon(payload.new) : c));
-        else if (payload.eventType === 'DELETE') setCoupons(prev => prev.filter(c => c.id !== payload.old.id));
-        debounceFetch('coupons', fetchCoupons, 300);
+        applyLiveEntity('coupons', payload, dbToCoupon, setCoupons, fetchCoupons);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_note_options' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_note_options', ...(tenantFilter ? { filter: tenantFilter } : {}) }, (payload) => {
         recordRealtimeEvent('product_note_options');
-        if (payload.eventType === 'INSERT') setNoteOptions(prev => prev.some(o => o.id === payload.new.id) ? prev : [...prev, dbToNoteOption(payload.new)]);
-        else if (payload.eventType === 'UPDATE') setNoteOptions(prev => prev.map(o => o.id === payload.new.id ? dbToNoteOption(payload.new) : o));
-        else if (payload.eventType === 'DELETE') {
-          if (!isPendingLocalChange(payload.old.id)) {
-            setNoteOptions(prev => prev.filter(o => o.id !== payload.old.id));
-          }
-        }
-        debounceFetch('noteOptions', fetchNoteOptions, 300);
+        applyLiveEntity('noteOptions', payload, dbToNoteOption, setNoteOptions, fetchNoteOptions);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
         recordRealtimeEvent('store_settings');
@@ -842,6 +854,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           setRealtimeStatus('SUBSCRIBED');
+          void fetchAll();
           subscriptionsStartingRef.current = false;
           retryDelayRef.current = 1000;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -856,7 +869,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     userId, user?.tenantId, recordRealtimeEvent, debounceFetch, fetchAll,
     fetchOrders, fetchProducts, fetchCategories, fetchCustomers,
     fetchSuppliers, fetchSales, fetchStockEntries, fetchCoupons, fetchNoteOptions,
-    fetchSettings, isPendingLocalChange
+    fetchSettings, isPendingLocalChange, refreshChangedEntities, applyLiveEntity
   ]);
 
   const scheduleReconnect = useCallback(() => {
@@ -889,7 +902,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const bc = new BroadcastChannel('izyfood-realtime-cross-tab');
         bc.onmessage = (ev) => {
           if (ev.data && ev.data.senderId !== tabIdRef.current) {
-            debounceFetch('all', fetchAll, 300);
+            refreshChangedEntities(ev.data);
           }
         };
         broadcastRef.current = bc;
@@ -901,14 +914,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Window Visibility & Online listeners
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchAll();
+        void fetchAll(true);
         if (realtimeStatusRef.current !== 'SUBSCRIBED') {
           setupRealtimeSubscriptions();
         }
       }
     };
     const handleOnline = () => {
-      fetchAll();
+      void fetchAll(true);
       if (realtimeStatusRef.current !== 'SUBSCRIBED') {
         setupRealtimeSubscriptions();
       }
@@ -933,7 +946,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }, 20000);
 
+    // Low-frequency fallback repairs silently missed non-order events without
+    // restoring a broad reload for every individual change.
+    const reconciliationIntervalId = setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) void fetchAll(true);
+    }, 300000);
+
     return () => {
+      clearInterval(reconciliationIntervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('storage', handleStorage);
@@ -955,7 +975,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       subscriptionsStartingRef.current = false;
     };
-  }, [userId, setupRealtimeSubscriptions, fetchAll, fetchTablesAndOrders]);
+  }, [userId, setupRealtimeSubscriptions, fetchAll, fetchTablesAndOrders, refreshChangedEntities]);
 
   const getCategoryById = useCallback((id: string) => categories.find(c => c.id === id), [categories]);
 
@@ -987,7 +1007,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     productsRef.current = next;
     setProducts(next);
     saveLS('izy_products', next);
-    syncProducts(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync()).catch(e => console.error('[syncProducts]', e));
+    syncProducts(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync(['products'])).catch(e => console.error('[syncProducts]', e));
   }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   const setCategoriesWrapped: typeof setCategories = useCallback((updater) => {
@@ -997,7 +1017,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCategories(next);
     saveLS('izy_categories', next);
     saveLS('izy_categories_order', next.map(c => c.id));
-    syncCategories(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCategories]', e));
+    syncCategories(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync(['categories', 'settings'])).catch(e => console.error('[syncCategories]', e));
   }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   const setCustomersWrapped: typeof setCustomers = useCallback((updater) => {
@@ -1006,7 +1026,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     customersRef.current = next;
     setCustomers(next);
     saveLS('izy_customers', next);
-    syncCustomers(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCustomers]', e));
+    syncCustomers(prev, next, markPending).then(() => notifyCrossTabSync(['customers'])).catch(e => console.error('[syncCustomers]', e));
   }, [notifyCrossTabSync, markPending]);
 
   const setSuppliersWrapped: typeof setSuppliers = useCallback((updater) => {
@@ -1015,7 +1035,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     suppliersRef.current = next;
     setSuppliers(next);
     saveLS('izy_suppliers', next);
-    syncSuppliers(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncSuppliers]', e));
+    syncSuppliers(prev, next, markPending).then(() => notifyCrossTabSync(['suppliers'])).catch(e => console.error('[syncSuppliers]', e));
   }, [notifyCrossTabSync, markPending]);
 
   const drainOrderOutbox = useCallback((): Promise<void> => {
@@ -1036,7 +1056,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ++seqRef.current.tables;
       }
       setLastSyncError(null);
-      notifyCrossTabSync();
+      notifyCrossTabSync(['tablesAndOrders']);
       void fetchTablesAndOrders(true);
     })();
     drainingRef.current = work;
@@ -1096,7 +1116,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       fetchTablesAndOrders(true);
     };
     syncOrders(prev, next, markPending, clearPending, user?.tenantId, onRemap)
-      .then(() => notifyCrossTabSync())
+      .then(() => notifyCrossTabSync(['tablesAndOrders']))
       .catch(e => {
         console.error('[syncOrders]', e);
         setLastSyncError('Não foi possível sincronizar o pedido. Verifique a conexão e tente novamente.');
@@ -1125,7 +1145,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     salesRef.current = next;
     setSales(next);
     saveLS('izy_sales', next);
-    syncSales(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncSales]', e));
+    syncSales(prev, next).then(() => notifyCrossTabSync(['sales'])).catch(e => console.error('[syncSales]', e));
   }, [notifyCrossTabSync]);
 
   const setStockEntriesWrapped: typeof setStockEntries = useCallback((updater) => {
@@ -1134,7 +1154,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     stockEntriesRef.current = next;
     setStockEntries(next);
     saveLS('izy_stock_entries', next);
-    syncStockEntries(prev, next).then(() => notifyCrossTabSync()).catch(e => console.error('[syncStockEntries]', e));
+    syncStockEntries(prev, next).then(() => notifyCrossTabSync(['stockEntries'])).catch(e => console.error('[syncStockEntries]', e));
   }, [notifyCrossTabSync]);
 
   const setTablesWrapped: typeof setTables = useCallback((updater) => {
@@ -1143,7 +1163,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     tablesRef.current = next;
     setTables(next);
     saveLS('izy_tables', next);
-    syncTables(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync()).catch(e => console.error('[syncTables]', e));
+    syncTables(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync(['tablesAndOrders'])).catch(e => console.error('[syncTables]', e));
   }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   const setCouponsWrapped: typeof setCoupons = useCallback((updater) => {
@@ -1152,7 +1172,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     couponsRef.current = next;
     setCoupons(next);
     saveLS('izy_coupons', next);
-    syncCoupons(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncCoupons]', e));
+    syncCoupons(prev, next, markPending).then(() => notifyCrossTabSync(['coupons'])).catch(e => console.error('[syncCoupons]', e));
   }, [notifyCrossTabSync, markPending]);
 
   const setNoteOptionsWrapped: typeof setNoteOptions = useCallback((updater) => {
@@ -1161,7 +1181,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     noteOptionsRef.current = next;
     setNoteOptions(next);
     saveLS('izy_note_options', next);
-    syncNoteOptions(prev, next, markPending).then(() => notifyCrossTabSync()).catch(e => console.error('[syncNoteOptions]', e));
+    syncNoteOptions(prev, next, markPending).then(() => notifyCrossTabSync(['noteOptions'])).catch(e => console.error('[syncNoteOptions]', e));
   }, [notifyCrossTabSync, markPending]);
 
   const updateTableCount = useCallback(async (count: number) => {
@@ -1209,7 +1229,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const mappedTables = uniqueTbls.map(dbToTable);
     setTables(mappedTables);
     saveLS('izy_tables', mappedTables);
-    notifyCrossTabSync();
+    notifyCrossTabSync(['tablesAndOrders']);
   }, [notifyCrossTabSync, clearPending, user?.tenantId]);
 
   const occupyTable = useCallback(async (tableNumber: number, orderId: string) => {
@@ -1231,7 +1251,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('[occupyTable] DB upsert error:', err);
     }
-    notifyCrossTabSync();
+    notifyCrossTabSync(['tablesAndOrders']);
   }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   /**
@@ -1262,7 +1282,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('[freeTable] DB error:', err);
     }
-    notifyCrossTabSync();
+    notifyCrossTabSync(['tablesAndOrders']);
   }, [notifyCrossTabSync, clearPending, user?.tenantId]);
 
   /** Muda o pedido de mesa numa única operação no banco (sem janela para outro aparelho). */
@@ -1279,7 +1299,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
     setTables(tablesRef.current);
     saveLS('izy_tables', tablesRef.current);
-    notifyCrossTabSync();
+    notifyCrossTabSync(['tablesAndOrders']);
   }, [notifyCrossTabSync]);
 
   /** Transfere itens (todos ou parte) para outra mesa numa única operação no banco. */
@@ -1289,7 +1309,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } as any);
     if (error) throw error;
     await fetchTablesAndOrdersRef.current?.(true);
-    notifyCrossTabSync();
+    notifyCrossTabSync(['tablesAndOrders']);
     const r = (data || {}) as any;
     return { destOrderId: String(r.dest_order || ''), sourceClosed: !!r.source_closed };
   }, [notifyCrossTabSync]);
@@ -1405,7 +1425,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     clearPending(order.id);
-    notifyCrossTabSync();
+    notifyCrossTabSync(['tablesAndOrders', 'sales', 'products', 'customers']);
   }, [deductStock, products, freeTable, markPending, clearPending, notifyCrossTabSync]);
 
 

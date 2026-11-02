@@ -1,6 +1,8 @@
 # Architecture decisions
 
 - StoreContext reads share a session/tenant-scoped SharedRefresh flight per entity (orders and tables share one key); realtime and post-write invalidations require a trailing read, while focus/poll overlap joins existing reads, so deduplication never drops changes and settled data is not cached.
+- Store notifications carry changed entities and tenant identity; complete catalog payloads patch local state while reconnect/focus and periodic reconciliation repair missed events. Operational orders load all active pages plus linked and recently missing order IDs, never treating a failed partial read as an empty table.
+- Historical orders use a separate dated paginated query; sales reports and register totals collect every page for their own period plus minimal order attribution, and closeout re-reads the full shift before persisting totals so partial pages cannot understate money.
 
 - Zezinho order writes use a tenant-scoped durable browser outbox, revision-matched acknowledgements, pending-change overlays, and reconnect replay without printing; production sending requires server item confirmation so network failure cannot produce unrecorded kitchen items.
 

@@ -1485,6 +1485,7 @@ export type Database = {
         Args: { _email: string; _slug: string }
         Returns: string
       }
+      sales_total: { Args: never; Returns: number }
       save_order_items: {
         Args: { _items: Json; _order_id: string; _removed_ids?: string[] }
         Returns: Json
