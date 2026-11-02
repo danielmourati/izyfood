@@ -13,7 +13,7 @@ vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: mock.user }) 
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {
   from: (table: string) => {
     const builder: Record<string, unknown> = {};
-    for (const method of ['select', 'order', 'eq', 'or', 'is', 'limit', 'maybeSingle']) builder[method] = () => builder;
+    for (const method of ['select', 'order', 'eq', 'or', 'is', 'limit', 'maybeSingle', 'gte', 'lte', 'range', 'in']) builder[method] = () => builder;
     builder.then = (resolve: (value: unknown) => void, reject: (error: unknown) => void) => {
       const count = mock.counts[table] = (mock.counts[table] || 0) + 1;
       return (mock.read?.(table, count) ?? Promise.resolve([])).then(data => resolve({ data, error: null }), reject);
