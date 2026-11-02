@@ -237,6 +237,9 @@ export type Database = {
       categories: {
         Row: {
           created_at: string
+          flavor_max: number | null
+          flavor_min: number | null
+          flavor_required: boolean
           id: string
           name: string
           print_sector: string | null
@@ -244,6 +247,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          flavor_max?: number | null
+          flavor_min?: number | null
+          flavor_required?: boolean
           id?: string
           name: string
           print_sector?: string | null
@@ -251,6 +257,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          flavor_max?: number | null
+          flavor_min?: number | null
+          flavor_required?: boolean
           id?: string
           name?: string
           print_sector?: string | null
