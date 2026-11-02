@@ -225,6 +225,13 @@
       "when": 1793649221348,
       "tag": "0031_block_inactive_tenants",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793661802048,
+      "tag": "0032_period_query_indexes_and_sales_total",
+      "breakpoints": true
     }
   ]
 }
