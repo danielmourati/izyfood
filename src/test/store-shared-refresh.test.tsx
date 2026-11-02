@@ -6,7 +6,7 @@ import { StoreProvider, useStore } from '@/contexts/StoreContext';
 const mock = vi.hoisted(() => ({
   user: { id: 'user-a', tenantId: 'tenant-a', tenantSlug: 'test' },
   counts: {} as Record<string, number>,
-  handlers: {} as Record<string, () => void>,
+  handlers: {} as Record<string, (payload?: { eventType: string }) => void>,
   read: null as null | ((table: string, count: number) => Promise<unknown[]>),
 }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: mock.user }) }));
@@ -22,7 +22,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: {
   },
   channel: () => {
     const channel = {
-      on: (_event: string, filter: { table?: string }, handler: () => void) => {
+      on: (_event: string, filter: { table?: string }, handler: (payload?: { eventType: string }) => void) => {
         if (filter.table) mock.handlers[filter.table] = handler;
         return channel;
       },
@@ -61,7 +61,7 @@ describe('StoreProvider shared reads', () => {
     let second = Promise.resolve();
     act(() => { first = store.fetchAll(); second = store.fetchAll(); });
     expect(mock.counts.orders).toBe(1);
-    act(() => { mock.handlers.orders(); mock.handlers.store_tables(); });
+    act(() => { mock.handlers.orders(); mock.handlers.store_tables({ eventType: 'UPDATE' }); });
     await act(async () => { pending.resolve([row('stale')]); await Promise.all([first, second]); });
     expect(mock.counts.orders).toBe(2);
     expect(mock.counts.store_tables).toBe(2);
