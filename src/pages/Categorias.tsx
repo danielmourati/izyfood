@@ -6,6 +6,7 @@ import { sectorLabel, buildSectorOptions, PRINT_SECTOR_OPTIONS } from '@/lib/pri
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -17,7 +18,11 @@ import type { ProductCategory } from '@/types';
 const emptyCategoryForm = {
   name: '',
   printSector: 'cozinha',
+  flavorRequired: false,
+  flavorMin: '',
+  flavorMax: '',
 };
+const toLimit = (v: string) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
 
 const Categorias = () => {
   const { categories, setCategories, products } = useStore();
@@ -30,6 +35,7 @@ const Categorias = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyCategoryForm);
+  const [limitError, setLimitError] = useState('');
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProductCategory | null>(null);
@@ -81,7 +87,11 @@ const Categorias = () => {
     setForm({
       name: cat.name,
       printSector: cat.printSector || 'cozinha',
+      flavorRequired: !!cat.flavorRequired,
+      flavorMin: cat.flavorMin != null ? String(cat.flavorMin) : '',
+      flavorMax: cat.flavorMax != null ? String(cat.flavorMax) : '',
     });
+    setLimitError('');
     setDialogOpen(true);
   };
 
@@ -102,11 +112,20 @@ const Categorias = () => {
       return;
     }
 
+    const flavorMin = toLimit(form.flavorMin);
+    const flavorMax = toLimit(form.flavorMax);
+    if ((flavorMin != null && flavorMin < 0) || (flavorMax != null && flavorMax < 1) || (flavorMin != null && flavorMax != null && flavorMin > flavorMax)) {
+      setLimitError('O mínimo não pode ser maior que o máximo, e o máximo deve ser pelo menos 1.');
+      return;
+    }
+    setLimitError('');
+    const limits = { flavorRequired: form.flavorRequired, flavorMin, flavorMax };
+
     if (editingId) {
       setCategories(prev =>
         prev.map(c =>
           c.id === editingId
-            ? { ...c, name: catName, printSector: form.printSector || 'cozinha' }
+            ? { ...c, name: catName, printSector: form.printSector || 'cozinha', ...limits }
             : c
         )
       );
@@ -117,6 +136,7 @@ const Categorias = () => {
         name: catName,
         printSector: form.printSector || 'cozinha',
         orderIndex: categories.length,
+        ...limits,
       };
       setCategories(prev => [...prev, newCategory]);
       toast.success(`Categoria "${catName}" criada com sucesso!`);
@@ -413,6 +433,28 @@ const Categorias = () => {
               <p className="text-[11px] text-muted-foreground">
                 Os produtos cadastrados nesta categoria utilizarão este setor por padrão, a menos que especificado individualmente.
               </p>
+            </div>
+
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label htmlFor="category-flavor-required">Sabores obrigatórios</Label>
+                  <p className="text-[11px] text-muted-foreground">Exige que o atendente escolha sabores</p>
+                </div>
+                <Switch id="category-flavor-required" checked={form.flavorRequired} onCheckedChange={v => setForm(f => ({ ...f, flavorRequired: v }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="category-flavor-min">Mínimo</Label>
+                  <Input id="category-flavor-min" type="number" min={0} inputMode="numeric" placeholder="Sem limite" value={form.flavorMin} onChange={e => setForm(f => ({ ...f, flavorMin: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="category-flavor-max">Máximo</Label>
+                  <Input id="category-flavor-max" type="number" min={1} inputMode="numeric" placeholder="Sem limite" value={form.flavorMax} onChange={e => setForm(f => ({ ...f, flavorMax: e.target.value }))} />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Quantidade de sabores por item. Deixe vazio para não limitar.</p>
+              {limitError && <p className="text-xs font-medium text-destructive">{limitError}</p>}
             </div>
 
             <DialogFooter className="gap-2 pt-2">

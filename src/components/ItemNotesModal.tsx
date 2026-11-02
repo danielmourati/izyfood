@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
+import { getFlavorLimitState } from '@/lib/flavor-limits';
 import { sortAllAdditionalsFirst } from '@/lib/utils';
 
 export function ItemNotesModal({
@@ -19,7 +20,7 @@ export function ItemNotesModal({
     item: OrderItem | null;
     onConfirm: (itemId: string, payload: { notes: string; selectedNotes: string[]; otherNotes: string }, newComplements: { name: string; price: number; quantity: number }[]) => void;
 }) {
-    const { noteOptions, products } = useStore();
+    const { noteOptions, products, categories } = useStore();
     const [selectedObs, setSelectedObs] = useState<string[]>([]);
     const [otherNotes, setOtherNotes] = useState('');
     const [complements, setComplements] = useState<SelectedComplement[]>([]);
@@ -66,7 +67,9 @@ export function ItemNotesModal({
         setSelectedObs(prev => prev.includes(obs) ? prev.filter(o => o !== obs) : [...prev, obs]);
     };
 
+    const flavorLimit = getFlavorLimitState((categories ?? []).find(c => c.id === categoryId), complements);
     const handleComplementQty = (comp: ProductNoteOption, delta: number) => {
+        if (delta > 0 && comp.classification === 'flavor' && !flavorLimit.canAddMore) return;
         setComplements(prev => {
             const existing = prev.find(c => c.name === comp.name);
             if (existing) {
@@ -83,6 +86,7 @@ export function ItemNotesModal({
     const getCompQty = (name: string) => complements.find(c => c.name === name)?.quantity || 0;
 
     const handleConfirm = () => {
+        if (!flavorLimit.canConfirm) return;
         const finalNotesArray = [...selectedObs];
         if (otherNotes.trim()) {
             finalNotesArray.push(otherNotes.trim());
@@ -176,7 +180,8 @@ export function ItemNotesModal({
                 <Button variant="ghost" size="icon" className="h-14 w-14 shrink-0 rounded-full" onClick={onClose}>
                     <ArrowLeft className="h-6 w-6" />
                 </Button>
-                <Button className="flex-1 h-14 rounded-2xl text-lg font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md" onClick={handleConfirm}>
+                {flavorLimit.missingMessage && <span className="text-xs font-medium text-destructive">{flavorLimit.missingMessage}</span>}
+                <Button disabled={!flavorLimit.canConfirm} className="flex-1 h-14 rounded-2xl text-lg font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md" onClick={handleConfirm}>
                     CONFIRMAR
                 </Button>
             </div>

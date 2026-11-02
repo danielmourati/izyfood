@@ -1,0 +1,2 @@
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS flavor_required boolean NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS flavor_min integer, ADD COLUMN IF NOT EXISTS flavor_max integer;
+ALTER TABLE public.categories ADD CONSTRAINT categories_flavor_limits_chk CHECK ((flavor_min IS NULL OR flavor_min >= 0) AND (flavor_max IS NULL OR flavor_max >= 1) AND (flavor_min IS NULL OR flavor_max IS NULL OR flavor_min <= flavor_max));
