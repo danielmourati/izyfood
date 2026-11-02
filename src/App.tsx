@@ -49,7 +49,7 @@ function SlugRedirectToLogin() {
   return <Navigate to={`/${slug}/login`} replace />;
 }
 
-function SlugGate({ children }: { children: React.ReactNode }) {
+function SlugGate({ children }: { children: import("react").ReactNode }) {
   const { slug } = useParams<{ slug: string }>();
   return <TenantGate slug={slug}>{children}</TenantGate>;
 }
