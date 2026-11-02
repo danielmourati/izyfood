@@ -285,6 +285,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Granular Entity Fetchers
   const readCategories = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.categories;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.categories; }
     const currentSeq = ++seqRef.current.categories;
     let res = await supabase.from('categories').select('*').order('order_index' as any, { ascending: true, nullsFirst: false });
     if (res.error) {
@@ -314,6 +316,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const readProducts = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.products;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.products; }
     const currentSeq = ++seqRef.current.products;
     const { data: prods } = await supabase.from('products').select('*');
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.products !== currentSeq) return;
@@ -338,6 +342,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const readCustomers = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.customers;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.customers; }
     const currentSeq = ++seqRef.current.customers;
     const { data: custs } = await supabase.from('customers').select('*');
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.customers !== currentSeq) return;
@@ -362,6 +368,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const readSuppliers = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.suppliers;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.suppliers; }
     const currentSeq = ++seqRef.current.suppliers;
     const { data: supps } = await supabase.from('suppliers').select('*');
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.suppliers !== currentSeq) return;
@@ -386,6 +394,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const readSales = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.sales;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.sales; }
     const currentSeq = ++seqRef.current.sales;
     const { data: sls } = await supabase.from('sales').select('*').order('date', { ascending: false });
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.sales !== currentSeq) return;
@@ -405,6 +415,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const readStockEntries = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.stockEntries;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.stockEntries; }
     const currentSeq = ++seqRef.current.stockEntries;
     const { data: stks } = await supabase.from('stock_entries').select('*').order('date', { ascending: false });
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.stockEntries !== currentSeq) return;
@@ -430,6 +442,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const readTablesAndOrders = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.tablesAndOrders;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.tablesAndOrders; }
     const currentSeqTables = ++seqRef.current.tables;
     const currentSeqOrders = ++seqRef.current.orders;
 
@@ -548,6 +562,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const readCoupons = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.coupons;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.coupons; }
     const currentSeq = ++seqRef.current.coupons;
     const { data: cpns } = await supabase.from('coupons').select('*');
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.coupons !== currentSeq) return;
@@ -567,6 +583,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const readNoteOptions = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.noteOptions;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.noteOptions; }
     const currentSeq = ++seqRef.current.noteOptions;
     const { data: opts } = await supabase.from('product_note_options').select('*');
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.noteOptions !== currentSeq) return;
@@ -591,6 +609,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const readSettings = useCallback(async () => {
     if (activeRefreshRef.current !== sharedRefresh) return;
+    const timer = debounceTimersRef.current.settings;
+    if (timer) { clearTimeout(timer); delete debounceTimersRef.current.settings; }
     const currentSeq = ++seqRef.current.settings;
     const tenantId = user?.tenantId;
     tenantIdRef.current = tenantId;

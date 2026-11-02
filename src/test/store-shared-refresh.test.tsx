@@ -66,7 +66,7 @@ describe('StoreProvider shared reads', () => {
     expect(mock.counts.orders).toBe(2);
     expect(mock.counts.store_tables).toBe(2);
     expect(store.orders.map(o => o.id)).toEqual(['fresh']);
-    await new Promise(resolve => setTimeout(resolve, 350));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 350)); });
     expect(mock.counts.orders).toBe(2);
   });
 
