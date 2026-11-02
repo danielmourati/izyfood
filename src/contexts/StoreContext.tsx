@@ -666,20 +666,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return sharedRefresh.run('settings', readSettings, fresh);
   }, [sharedRefresh, readSettings]);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (fresh = false) => {
     if (!user?.id) return;
     try {
       await Promise.all([
-        fetchCategories(),
-        fetchProducts(),
-        fetchCustomers(),
-        fetchSuppliers(),
-        fetchOrders(),
-        fetchSales(),
-        fetchStockEntries(),
-        fetchCoupons(),
-        fetchNoteOptions(),
-        fetchSettings(),
+        fetchCategories(fresh),
+        fetchProducts(fresh),
+        fetchCustomers(fresh),
+        fetchSuppliers(fresh),
+        fetchOrders(fresh),
+        fetchSales(fresh),
+        fetchStockEntries(fresh),
+        fetchCoupons(fresh),
+        fetchNoteOptions(fresh),
+        fetchSettings(fresh),
       ]);
     } catch (err) {
       console.warn('[StoreContext] fetchAll error:', err);
@@ -715,7 +715,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const applyLiveEntity = useCallback((entity: string, payload: any, map: (row: any) => any, set: React.Dispatch<React.SetStateAction<any[]>>, read: () => Promise<void>) => {
     const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
     if (row?.tenant_id && row.tenant_id !== user?.tenantId) return;
-    if (!row?.id || (payload.eventType !== 'DELETE' && !row.tenant_id)) {
+    const required: Record<string, string[]> = {
+      products: ['name', 'price', 'stock', 'type', 'unit'], categories: ['name'],
+      customers: ['name', 'phone', 'address', 'credit_balance', 'loyalty_points'],
+      suppliers: ['name', 'contact'], stockEntries: ['product_id', 'quantity', 'date'],
+      coupons: ['code', 'type', 'value', 'active'], noteOptions: ['name', 'type', 'category_ids', 'active'],
+    };
+    if (!row?.id || (payload.eventType !== 'DELETE' && (!row.tenant_id || required[entity]?.some(field => !(field in row))))) {
       debounceFetch(entity, read, 300);
       return;
     }
@@ -908,14 +914,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Window Visibility & Online listeners
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchAll();
+        void fetchAll(true);
         if (realtimeStatusRef.current !== 'SUBSCRIBED') {
           setupRealtimeSubscriptions();
         }
       }
     };
     const handleOnline = () => {
-      fetchAll();
+      void fetchAll(true);
       if (realtimeStatusRef.current !== 'SUBSCRIBED') {
         setupRealtimeSubscriptions();
       }
@@ -940,7 +946,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }, 20000);
 
+    // Low-frequency fallback repairs silently missed non-order events without
+    // restoring a broad reload for every individual change.
+    const reconciliationIntervalId = setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) void fetchAll(true);
+    }, 300000);
+
     return () => {
+      clearInterval(reconciliationIntervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('storage', handleStorage);
