@@ -1261,7 +1261,7 @@ export function ConsumerOrderModal({
             <div className="flex-1 flex flex-col h-full bg-[#faf8f5] overflow-hidden">
               {/* Blue Header */}
               <div className="bg-[#0099ff] text-white px-4 py-3 flex justify-between items-center shadow-sm shrink-0">
-                <span className="text-lg font-black tracking-tight">Mesa {displayMesaNum}</span>
+                <span className="text-lg font-black tracking-tight">{currentOrder?.orderType === 'balcao' ? 'Balcão' : `Mesa ${displayMesaNum}`}</span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1482,7 +1482,7 @@ export function ConsumerOrderModal({
             <DialogContent className="bg-card text-card-foreground border-border max-w-md p-4 font-sans shadow-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader className="border-b border-border pb-2">
                 <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
-                  <Menu className="h-5 w-5 text-primary" /> Menu do Pedido - Mesa {displayMesaNum}
+                  <Menu className="h-5 w-5 text-primary" /> Menu do Pedido - {currentOrder?.orderType === 'balcao' ? 'Balcão' : `Mesa ${displayMesaNum}`}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
                   Comanda #{shortOrderId} ({currentOrder.orderType.toUpperCase()})
