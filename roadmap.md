@@ -46,3 +46,8 @@
 - [x] Unificar recargas simultâneas por entidade e sessão, compartilhando consultas em andamento; preservar reconferência após eventos e gravações.
 - [x] Validar recargas e mudanças concorrentes: 30 testes aprovados, incluindo eventos durante consultas, troca de tenant e itens pendentes.
 - [ ] Conferir primeira otimização na loja real — sessão automática indisponível; requer login na prévia.
+
+- [ ] Identificar entidade nas notificações e aproveitar atualizações ao vivo, mantendo reconciliação após falhas.
+- [ ] Separar pedidos ativos do histórico; conferir todos os pedidos vinculados às mesas.
+- [ ] Carregar vendas e históricos por período com paginação, sem truncar totais do Caixa/Relatórios.
+- [ ] Testar recargas seletivas, históricos, lançamentos pendentes e atualização entre aparelhos.
