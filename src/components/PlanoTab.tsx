@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { decodePlanPricing } from '@/lib/plan-pricing';
 import {
   CreditCard, Check, Loader2, Copy, CheckCircle2, XCircle,
   QrCode, Lock, Sparkles, ExternalLink, ShieldCheck, Gift
@@ -21,6 +22,7 @@ interface Plan {
   status: PlanStatus;
   trial_ends_at: string | null;
   current_period_end: string | null;
+  mp_customer_id?: string | null;
   monthly_price?: number | null;
   yearly_price?: number | null;
   monthly_discount_pct?: number | null;
@@ -71,20 +73,33 @@ export function PlanoTab() {
     if (!user?.tenantId) return;
     let { data, error } = await supabase
       .from('tenant_plans' as any)
-      .select('plan, status, trial_ends_at, current_period_end, monthly_price, yearly_price, monthly_discount_pct, yearly_discount_pct, courtesy_months, max_installments')
+      .select('plan, status, trial_ends_at, current_period_end, mp_customer_id, monthly_price, yearly_price, monthly_discount_pct, yearly_discount_pct, courtesy_months, max_installments')
       .eq('tenant_id', user.tenantId)
       .maybeSingle();
 
     if (error) {
       const fallback = await supabase
         .from('tenant_plans' as any)
-        .select('plan, status, trial_ends_at, current_period_end')
+        .select('plan, status, trial_ends_at, current_period_end, mp_customer_id')
         .eq('tenant_id', user.tenantId)
         .maybeSingle();
       data = fallback.data;
     }
 
-    setPlan((data as any) || null);
+    if (data) {
+      const decoded = decodePlanPricing(data);
+      setPlan({
+        ...(data as any),
+        monthly_price: decoded.monthly_price,
+        yearly_price: decoded.yearly_price,
+        monthly_discount_pct: decoded.monthly_discount_pct,
+        yearly_discount_pct: decoded.yearly_discount_pct,
+        courtesy_months: decoded.courtesy_months,
+        max_installments: decoded.max_installments,
+      });
+    } else {
+      setPlan(null);
+    }
     setLoading(false);
   }, [user?.tenantId]);
 
@@ -99,16 +114,17 @@ export function PlanoTab() {
   }, []);
 
   // Pricing calculations with tenant-specific discounts & courtesy months
-  const monthlyBase = Number(plan?.monthly_price ?? 157);
-  const monthlyDisc = Math.min(100, Math.max(0, Number(plan?.monthly_discount_pct ?? 0)));
+  const decodedPricing = decodePlanPricing(plan);
+  const monthlyBase = decodedPricing.monthly_price;
+  const monthlyDisc = decodedPricing.monthly_discount_pct;
   const monthlyFinal = Math.round(monthlyBase * (1 - monthlyDisc / 100) * 100) / 100;
 
-  const yearlyBase = Number(plan?.yearly_price ?? 1570);
-  const yearlyDisc = Math.min(100, Math.max(0, Number(plan?.yearly_discount_pct ?? 0)));
+  const yearlyBase = decodedPricing.yearly_price;
+  const yearlyDisc = decodedPricing.yearly_discount_pct;
   const yearlyFinal = Math.round(yearlyBase * (1 - yearlyDisc / 100) * 100) / 100;
 
-  const courtesyMonths = Math.max(0, Number(plan?.courtesy_months ?? 2));
-  const maxInstallments = Math.min(10, Math.max(1, Number(plan?.max_installments ?? 10)));
+  const courtesyMonths = decodedPricing.courtesy_months;
+  const maxInstallments = decodedPricing.max_installments;
   const yearlySavings = Math.max(0, monthlyFinal * 12 - yearlyFinal);
   const installmentOptions = Array.from({ length: maxInstallments }, (_, i) => i + 1);
 
@@ -277,6 +293,15 @@ export function PlanoTab() {
               ) : (
                 <>Próxima renovação em <strong className="text-foreground">{periodEnd.toLocaleDateString('pt-BR')}</strong>.</>
               )}
+            </p>
+          )}
+
+          {isPro && (
+            <p className="text-sm text-muted-foreground">
+              Valor configurado para sua loja:{' '}
+              <strong className="text-foreground">
+                {plan?.plan === 'pro_yearly' ? `${fmtBRL(yearlyFinal)}/ano` : `${fmtBRL(monthlyFinal)}/mês`}
+              </strong>
             </p>
           )}
         </CardContent>

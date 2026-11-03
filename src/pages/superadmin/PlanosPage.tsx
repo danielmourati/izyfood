@@ -15,6 +15,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatBRLInput, parseBRLInput } from '@/lib/utils';
 import {
+  DEFAULT_MONTHLY_PRICE,
+  DEFAULT_YEARLY_PRICE,
+  decodePlanPricing,
+  encodePlanPricingMeta,
+} from '@/lib/plan-pricing';
+import {
   CreditCard, Loader2, Ban, PlayCircle, Gift, Receipt, Search,
   SlidersHorizontal, AlertTriangle,
   Sparkles, RefreshCw, Infinity as InfinityIcon, DollarSign, Percent
@@ -24,9 +30,6 @@ import { toast } from 'sonner';
 type PlanType = 'trial' | 'pro_monthly' | 'pro_yearly';
 type PlanStatus = 'active' | 'expired' | 'canceled' | 'pending_payment' | 'suspended';
 
-const DEFAULT_MONTHLY_PRICE = 157;
-const DEFAULT_YEARLY_PRICE = 1570;
-
 interface TenantPlanRow {
   id: string;
   tenant_id: string;
@@ -35,6 +38,7 @@ interface TenantPlanRow {
   trial_ends_at: string | null;
   current_period_end: string | null;
   last_payment_at: string | null;
+  mp_customer_id?: string | null;
   monthly_price?: number | null;
   yearly_price?: number | null;
   monthly_discount_pct?: number | null;
@@ -61,14 +65,6 @@ const planLabels: Record<PlanType, string> = {
   pro_yearly: 'PRO Anual',
 };
 
-const statusVariant: Record<PlanStatus, 'default' | 'destructive' | 'secondary' | 'outline'> = {
-  active: 'default',
-  expired: 'destructive',
-  canceled: 'secondary',
-  pending_payment: 'outline',
-  suspended: 'destructive',
-};
-
 const statusLabel: Record<PlanStatus, string> = {
   active: 'Ativo',
   expired: 'Expirado',
@@ -78,16 +74,14 @@ const statusLabel: Record<PlanStatus, string> = {
 };
 
 function computeEffectivePrices(row: Partial<TenantPlanRow>) {
-  const monthlyBase = Number(row.monthly_price ?? DEFAULT_MONTHLY_PRICE);
-  const monthlyDisc = Math.min(100, Math.max(0, Number(row.monthly_discount_pct ?? 0)));
+  const decoded = decodePlanPricing(row);
+  const monthlyBase = decoded.monthly_price;
+  const monthlyDisc = decoded.monthly_discount_pct;
   const monthlyFinal = Math.round(monthlyBase * (1 - monthlyDisc / 100) * 100) / 100;
 
-  const yearlyBase = Number(row.yearly_price ?? DEFAULT_YEARLY_PRICE);
-  const yearlyDisc = Math.min(100, Math.max(0, Number(row.yearly_discount_pct ?? 0)));
+  const yearlyBase = decoded.yearly_price;
+  const yearlyDisc = decoded.yearly_discount_pct;
   const yearlyFinal = Math.round(yearlyBase * (1 - yearlyDisc / 100) * 100) / 100;
-
-  const courtesyMonths = Math.max(0, Number(row.courtesy_months ?? 0));
-  const maxInstallments = Math.min(10, Math.max(1, Number(row.max_installments ?? 10)));
 
   return {
     monthlyBase,
@@ -96,8 +90,9 @@ function computeEffectivePrices(row: Partial<TenantPlanRow>) {
     yearlyBase,
     yearlyDisc,
     yearlyFinal,
-    courtesyMonths,
-    maxInstallments,
+    courtesyMonths: decoded.courtesy_months,
+    maxInstallments: decoded.max_installments,
+    notes: decoded.notes,
   };
 }
 
@@ -205,18 +200,33 @@ export function PlanosPage() {
   const [payments, setPayments] = useState<Record<string, Payment[]>>({});
   const [loadingPayments, setLoadingPayments] = useState(false);
 
+  const normalizeRow = (raw: any): TenantPlanRow => {
+    const decoded = decodePlanPricing(raw);
+    return {
+      ...raw,
+      monthly_price: decoded.monthly_price,
+      yearly_price: decoded.yearly_price,
+      monthly_discount_pct: decoded.monthly_discount_pct,
+      yearly_discount_pct: decoded.yearly_discount_pct,
+      courtesy_months: decoded.courtesy_months,
+      max_installments: decoded.max_installments,
+      notes: decoded.notes,
+    };
+  };
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     let { data, error } = await supabase
       .from('tenant_plans' as any)
-      .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, monthly_price, yearly_price, monthly_discount_pct, yearly_discount_pct, courtesy_months, max_installments, notes, tenants(name, slug, active)')
+      .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, mp_customer_id, monthly_price, yearly_price, monthly_discount_pct, yearly_discount_pct, courtesy_months, max_installments, notes, tenants(name, slug, active)')
       .order('created_at', { ascending: false });
 
-    // Fallback caso a migration de precificação ainda não tenha sido aplicada no banco remoto
+    // Fallback se a migration de colunas dedicadas ainda não foi aplicada no banco remoto:
+    // lê mp_customer_id (coluna nativa de tenant_plans) onde os metadados de preço ficam persistidos.
     if (error) {
       const fallback = await supabase
         .from('tenant_plans' as any)
-        .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, tenants(name, slug, active)')
+        .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, mp_customer_id, tenants(name, slug, active)')
         .order('created_at', { ascending: false });
       data = fallback.data;
       error = fallback.error;
@@ -226,7 +236,7 @@ export function PlanosPage() {
       console.error('Erro ao buscar planos:', error);
       toast.error('Erro ao carregar planos');
     }
-    setRows((data as any) || []);
+    setRows(((data as any[]) || []).map(normalizeRow));
     setLoading(false);
   }, []);
 
@@ -249,9 +259,13 @@ export function PlanosPage() {
 
   // Inline status update
   const updateStatus = async (id: string, status: PlanStatus) => {
-    const { error } = await supabase.from('tenant_plans' as any).update({ status }).eq('id', id);
-    if (error) {
-      toast.error('Erro ao atualizar status do plano');
+    const { data, error } = await supabase
+      .from('tenant_plans' as any)
+      .update({ status })
+      .eq('id', id)
+      .select('id');
+    if (error || !data || data.length === 0) {
+      toast.error(error?.message || 'Erro ao atualizar status do plano no banco');
       return;
     }
     toast.success(`Status alterado para: ${statusLabel[status]}`);
@@ -261,7 +275,8 @@ export function PlanosPage() {
   // Inline plan update
   const updatePlan = async (row: TenantPlanRow, plan: PlanType) => {
     const patch: any = { plan };
-    const courtesy = Math.max(0, Number(row.courtesy_months ?? 0));
+    const decoded = decodePlanPricing(row);
+    const courtesy = decoded.courtesy_months;
     if (plan === 'pro_monthly') {
       patch.status = 'active';
       patch.current_period_end = new Date(Date.now() + 30 * 864e5).toISOString();
@@ -275,9 +290,13 @@ export function PlanosPage() {
       patch.trial_ends_at = new Date(Date.now() + 14 * 864e5).toISOString();
       patch.current_period_end = null;
     }
-    const { error } = await supabase.from('tenant_plans' as any).update(patch).eq('id', row.id);
-    if (error) {
-      toast.error('Erro ao atualizar plano');
+    const { data, error } = await supabase
+      .from('tenant_plans' as any)
+      .update(patch)
+      .eq('id', row.id)
+      .select('id');
+    if (error || !data || data.length === 0) {
+      toast.error(error?.message || 'Erro ao atualizar plano no banco');
       return;
     }
     toast.success(`Plano atualizado para: ${planLabels[plan]}`);
@@ -286,6 +305,7 @@ export function PlanosPage() {
 
   // Open unified management modal on desired tab
   const openManageModal = (row: TenantPlanRow, tab: 'assinatura' | 'valores' | 'cobrancas' = 'assinatura') => {
+    const decoded = decodePlanPricing(row);
     setEditRow(row);
     setActiveModalTab(tab);
     setEditForm({
@@ -294,13 +314,13 @@ export function PlanosPage() {
       trial_ends_at: row.trial_ends_at ? row.trial_ends_at.slice(0, 10) : '',
       current_period_end: row.current_period_end ? row.current_period_end.slice(0, 10) : '',
       last_payment_at: row.last_payment_at ? row.last_payment_at.slice(0, 10) : '',
-      monthly_price: formatBRLInput(row.monthly_price ?? DEFAULT_MONTHLY_PRICE),
-      yearly_price: formatBRLInput(row.yearly_price ?? DEFAULT_YEARLY_PRICE),
-      monthly_discount_pct: String(row.monthly_discount_pct ?? 0),
-      yearly_discount_pct: String(row.yearly_discount_pct ?? 0),
-      courtesy_months: String(row.courtesy_months ?? 2),
-      max_installments: String(row.max_installments ?? 10),
-      notes: row.notes || '',
+      monthly_price: formatBRLInput(decoded.monthly_price),
+      yearly_price: formatBRLInput(decoded.yearly_price),
+      monthly_discount_pct: String(decoded.monthly_discount_pct),
+      yearly_discount_pct: String(decoded.yearly_discount_pct),
+      courtesy_months: String(decoded.courtesy_months),
+      max_installments: String(decoded.max_installments),
+      notes: decoded.notes || '',
     });
     if (tab === 'cobrancas') {
       void loadPaymentsForTenant(row.tenant_id);
@@ -338,7 +358,6 @@ export function PlanosPage() {
     const chargedMonths = Math.max(1, 12 - months);
     const suggestedYearly = mPrice * chargedMonths;
 
-    // Estende a data de vencimento se já houver uma ou a partir de hoje (12 meses + meses cortesia)
     const base = editForm.current_period_end && new Date(`${editForm.current_period_end}T23:59:59Z`) > new Date()
       ? new Date(`${editForm.current_period_end}T23:59:59Z`)
       : new Date();
@@ -362,45 +381,87 @@ export function PlanosPage() {
     if (!editRow) return;
     setSavingEdit(true);
     try {
-      const mPrice = parseBRLInput(editForm.monthly_price);
-      const yPrice = parseBRLInput(editForm.yearly_price);
+      const parsedMonthly = parseBRLInput(editForm.monthly_price);
+      const parsedYearly = parseBRLInput(editForm.yearly_price);
+      const mPrice = !isNaN(parsedMonthly) && parsedMonthly > 0 ? parsedMonthly : DEFAULT_MONTHLY_PRICE;
+      const yPrice = !isNaN(parsedYearly) && parsedYearly > 0 ? parsedYearly : DEFAULT_YEARLY_PRICE;
       const mDisc = Math.min(100, Math.max(0, Number(editForm.monthly_discount_pct) || 0));
       const yDisc = Math.min(100, Math.max(0, Number(editForm.yearly_discount_pct) || 0));
       const cMonths = Math.min(12, Math.max(0, parseInt(editForm.courtesy_months) || 0));
       const maxInst = Math.min(10, Math.max(1, parseInt(editForm.max_installments) || 10));
+      const cleanNotes = editForm.notes.trim() || null;
 
-      const basePatch: any = {
+      // Codifica os valores também em mp_customer_id (coluna TEXT que já existe em tenant_plans)
+      // garantindo persistência no banco mesmo antes da migration das colunas dedicadas.
+      const encodedMeta = encodePlanPricingMeta(
+        {
+          monthly_price: mPrice,
+          yearly_price: yPrice,
+          monthly_discount_pct: mDisc,
+          yearly_discount_pct: yDisc,
+          courtesy_months: cMonths,
+          max_installments: maxInst,
+          notes: cleanNotes,
+        },
+        editRow.mp_customer_id
+      );
+
+      const basePatchWithMeta: any = {
         plan: editForm.plan,
         status: editForm.status,
         trial_ends_at: editForm.trial_ends_at ? new Date(`${editForm.trial_ends_at}T23:59:59Z`).toISOString() : null,
         current_period_end: editForm.current_period_end ? new Date(`${editForm.current_period_end}T23:59:59Z`).toISOString() : null,
         last_payment_at: editForm.last_payment_at ? new Date(`${editForm.last_payment_at}T12:00:00Z`).toISOString() : null,
+        mp_customer_id: encodedMeta,
       };
 
       const fullPatch: any = {
-        ...basePatch,
-        monthly_price: !isNaN(mPrice) && mPrice > 0 ? mPrice : DEFAULT_MONTHLY_PRICE,
-        yearly_price: !isNaN(yPrice) && yPrice > 0 ? yPrice : DEFAULT_YEARLY_PRICE,
+        ...basePatchWithMeta,
+        monthly_price: mPrice,
+        yearly_price: yPrice,
         monthly_discount_pct: mDisc,
         yearly_discount_pct: yDisc,
         courtesy_months: cMonths,
         max_installments: maxInst,
-        notes: editForm.notes.trim() || null,
+        notes: cleanNotes,
       };
 
-      let { error } = await supabase.from('tenant_plans' as any).update(fullPatch).eq('id', editRow.id);
+      let { data: updatedData, error } = await supabase
+        .from('tenant_plans' as any)
+        .update(fullPatch)
+        .eq('id', editRow.id)
+        .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, mp_customer_id');
+
       if (error) {
-        // Fallback se as colunas novas ainda não existirem no banco
-        const retry = await supabase.from('tenant_plans' as any).update(basePatch).eq('id', editRow.id);
+        // Fallback: grava na tabela tenant_plans usando mp_customer_id (coluna nativa)
+        const retry = await supabase
+          .from('tenant_plans' as any)
+          .update(basePatchWithMeta)
+          .eq('id', editRow.id)
+          .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, mp_customer_id');
+        updatedData = retry.data;
         error = retry.error;
       }
-      if (error) throw error;
 
-      toast.success(`Assinatura e valores de ${editRow.tenants?.name} salvos com sucesso!`);
+      if (error) throw error;
+      if (!updatedData || updatedData.length === 0) {
+        throw new Error('Nenhuma linha foi gravada no banco. Verifique as permissões de SuperAdmin.');
+      }
+
+      // Atualiza imediatamente a linha na memória com os dados confirmados pelo banco
+      const savedRow = normalizeRow({
+        ...editRow,
+        ...(updatedData[0] as any),
+        tenants: editRow.tenants,
+      });
+      setRows(prev => prev.map(r => r.id === editRow.id ? savedRow : r));
+
+      toast.success(`Assinatura e valores de ${editRow.tenants?.name} gravados no banco com sucesso!`);
       setEditRow(null);
-      fetchData();
+      void fetchData();
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao salvar alterações da assinatura');
+      console.error('Erro ao salvar assinatura:', err);
+      toast.error(err.message || 'Erro ao salvar alterações da assinatura no banco');
     } finally {
       setSavingEdit(false);
     }
@@ -667,7 +728,7 @@ export function PlanosPage() {
                                   ? `${fmtBRL(pricing.yearlyFinal)}/ano`
                                   : `${fmtBRL(pricing.monthlyFinal)}/mês`}
                               </span>
-                              {r.plan === 'pro_monthly' && pricing.monthlyDisc > 0 && (
+                              {r.plan !== 'pro_yearly' && pricing.monthlyDisc > 0 && (
                                 <Badge variant="outline" className="text-[10px] px-1 py-0 text-success border-success/30">
                                   -{pricing.monthlyDisc}%
                                 </Badge>
@@ -871,7 +932,7 @@ export function PlanosPage() {
                   </div>
                 </div>
 
-                {/* Quick Extension & Courtesy Buttons (mesclados do antigo modal de cortesia) */}
+                {/* Quick Extension & Courtesy Buttons */}
                 <div className="p-3.5 rounded-xl border bg-muted/30 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold flex items-center gap-1.5">

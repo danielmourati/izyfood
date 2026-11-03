@@ -11,6 +11,20 @@ const DEFAULT_PRICES: Record<string, number> = {
   pro_yearly: 1570.0,
 };
 
+function parsePlanPricingRow(row: any) {
+  let meta: any = null;
+  if (row?.mp_customer_id && typeof row.mp_customer_id === 'string' && row.mp_customer_id.startsWith('{')) {
+    try { meta = JSON.parse(row.mp_customer_id); } catch { meta = null; }
+  }
+  return {
+    monthly_price: Number(row?.monthly_price ?? meta?.monthly_price ?? DEFAULT_PRICES.pro_monthly),
+    yearly_price: Number(row?.yearly_price ?? meta?.yearly_price ?? DEFAULT_PRICES.pro_yearly),
+    monthly_discount_pct: Number(row?.monthly_discount_pct ?? meta?.monthly_discount_pct ?? 0),
+    yearly_discount_pct: Number(row?.yearly_discount_pct ?? meta?.yearly_discount_pct ?? 0),
+    courtesy_months: Number(row?.courtesy_months ?? meta?.courtesy_months ?? 2),
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -50,20 +64,26 @@ Deno.serve(async (req) => {
       .from('profiles').select('email, name').eq('id', userId).maybeSingle();
 
     // Ler precificação personalizada e descontos configurados para o tenant
-    const { data: planRow } = await admin
+    let { data: planRow, error: planErr } = await admin
       .from('tenant_plans')
-      .select('monthly_price, yearly_price, monthly_discount_pct, yearly_discount_pct, courtesy_months')
+      .select('mp_customer_id, monthly_price, yearly_price, monthly_discount_pct, yearly_discount_pct, courtesy_months')
       .eq('tenant_id', member.tenant_id)
       .maybeSingle();
 
-    const basePrice = plan === 'pro_monthly'
-      ? Number(planRow?.monthly_price ?? DEFAULT_PRICES.pro_monthly)
-      : Number(planRow?.yearly_price ?? DEFAULT_PRICES.pro_yearly);
-    const discountPct = plan === 'pro_monthly'
-      ? Number(planRow?.monthly_discount_pct ?? 0)
-      : Number(planRow?.yearly_discount_pct ?? 0);
+    if (planErr) {
+      const fb = await admin
+        .from('tenant_plans')
+        .select('mp_customer_id')
+        .eq('tenant_id', member.tenant_id)
+        .maybeSingle();
+      planRow = fb.data as any;
+    }
+
+    const parsedPricing = parsePlanPricingRow(planRow);
+    const basePrice = plan === 'pro_monthly' ? parsedPricing.monthly_price : parsedPricing.yearly_price;
+    const discountPct = plan === 'pro_monthly' ? parsedPricing.monthly_discount_pct : parsedPricing.yearly_discount_pct;
     const amount = Math.max(1, Math.round(basePrice * (1 - Math.min(100, Math.max(0, discountPct)) / 100) * 100) / 100);
-    const courtesyMonths = plan === 'pro_yearly' ? Number(planRow?.courtesy_months ?? 0) : 0;
+    const courtesyMonths = plan === 'pro_yearly' ? Math.max(0, parsedPricing.courtesy_months) : 0;
 
     const mpToken = Deno.env.get('MP_ACCESS_TOKEN');
     if (!mpToken) return json({ error: 'MP not configured' }, 500);
