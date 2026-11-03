@@ -4,22 +4,28 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatBRLInput, parseBRLInput } from '@/lib/utils';
 import {
   CreditCard, Loader2, Ban, PlayCircle, Gift, Receipt, Search,
-  Calendar, Clock, SlidersHorizontal, AlertTriangle, CheckCircle2,
-  Sparkles, RefreshCw, Infinity as InfinityIcon
+  SlidersHorizontal, AlertTriangle,
+  Sparkles, RefreshCw, Infinity as InfinityIcon, DollarSign, Percent
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type PlanType = 'trial' | 'pro_monthly' | 'pro_yearly';
 type PlanStatus = 'active' | 'expired' | 'canceled' | 'pending_payment' | 'suspended';
+
+const DEFAULT_MONTHLY_PRICE = 157;
+const DEFAULT_YEARLY_PRICE = 1570;
 
 interface TenantPlanRow {
   id: string;
@@ -29,6 +35,13 @@ interface TenantPlanRow {
   trial_ends_at: string | null;
   current_period_end: string | null;
   last_payment_at: string | null;
+  monthly_price?: number | null;
+  yearly_price?: number | null;
+  monthly_discount_pct?: number | null;
+  yearly_discount_pct?: number | null;
+  courtesy_months?: number | null;
+  max_installments?: number | null;
+  notes?: string | null;
   tenants: { name: string; slug: string; active: boolean } | null;
 }
 
@@ -64,7 +77,30 @@ const statusLabel: Record<PlanStatus, string> = {
   suspended: 'Suspenso',
 };
 
-// Returns relative expiration information in days
+function computeEffectivePrices(row: Partial<TenantPlanRow>) {
+  const monthlyBase = Number(row.monthly_price ?? DEFAULT_MONTHLY_PRICE);
+  const monthlyDisc = Math.min(100, Math.max(0, Number(row.monthly_discount_pct ?? 0)));
+  const monthlyFinal = Math.round(monthlyBase * (1 - monthlyDisc / 100) * 100) / 100;
+
+  const yearlyBase = Number(row.yearly_price ?? DEFAULT_YEARLY_PRICE);
+  const yearlyDisc = Math.min(100, Math.max(0, Number(row.yearly_discount_pct ?? 0)));
+  const yearlyFinal = Math.round(yearlyBase * (1 - yearlyDisc / 100) * 100) / 100;
+
+  const courtesyMonths = Math.max(0, Number(row.courtesy_months ?? 0));
+  const maxInstallments = Math.min(10, Math.max(1, Number(row.max_installments ?? 10)));
+
+  return {
+    monthlyBase,
+    monthlyDisc,
+    monthlyFinal,
+    yearlyBase,
+    yearlyDisc,
+    yearlyFinal,
+    courtesyMonths,
+    maxInstallments,
+  };
+}
+
 function getExpirationInfo(row: TenantPlanRow): {
   daysLeft: number | null;
   isExpired: boolean;
@@ -133,38 +169,59 @@ export function PlanosPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPlan, setFilterPlan] = useState<string>('all');
 
-  // Quick extension / courtesy modal
-  const [quickRow, setQuickRow] = useState<TenantPlanRow | null>(null);
-  const [customDate, setCustomDate] = useState('');
-  const [applyingQuick, setApplyingQuick] = useState(false);
-
-  // Full edit plan modal
+  // Unified Plan & Billing Modal
   const [editRow, setEditRow] = useState<TenantPlanRow | null>(null);
+  const [activeModalTab, setActiveModalTab] = useState<'assinatura' | 'valores' | 'cobrancas'>('assinatura');
   const [editForm, setEditForm] = useState<{
     plan: PlanType;
     status: PlanStatus;
     trial_ends_at: string;
     current_period_end: string;
     last_payment_at: string;
+    monthly_price: string;
+    yearly_price: string;
+    monthly_discount_pct: string;
+    yearly_discount_pct: string;
+    courtesy_months: string;
+    max_installments: string;
+    notes: string;
   }>({
     plan: 'pro_monthly',
     status: 'active',
     trial_ends_at: '',
     current_period_end: '',
     last_payment_at: '',
+    monthly_price: formatBRLInput(DEFAULT_MONTHLY_PRICE),
+    yearly_price: formatBRLInput(DEFAULT_YEARLY_PRICE),
+    monthly_discount_pct: '0',
+    yearly_discount_pct: '0',
+    courtesy_months: '2',
+    max_installments: '10',
+    notes: '',
   });
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Payments modal
+  // Payments cache inside unified modal
   const [payments, setPayments] = useState<Record<string, Payment[]>>({});
-  const [paymentsRow, setPaymentsRow] = useState<TenantPlanRow | null>(null);
+  const [loadingPayments, setLoadingPayments] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('tenant_plans' as any)
-      .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, tenants(name, slug, active)')
+      .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, monthly_price, yearly_price, monthly_discount_pct, yearly_discount_pct, courtesy_months, max_installments, notes, tenants(name, slug, active)')
       .order('created_at', { ascending: false });
+
+    // Fallback caso a migration de precificação ainda não tenha sido aplicada no banco remoto
+    if (error) {
+      const fallback = await supabase
+        .from('tenant_plans' as any)
+        .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, tenants(name, slug, active)')
+        .order('created_at', { ascending: false });
+      data = fallback.data;
+      error = fallback.error;
+    }
+
     if (error) {
       console.error('Erro ao buscar planos:', error);
       toast.error('Erro ao carregar planos');
@@ -176,6 +233,19 @@ export function PlanosPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const loadPaymentsForTenant = async (tenantId: string) => {
+    if (payments[tenantId]) return;
+    setLoadingPayments(true);
+    const { data } = await supabase
+      .from('payment_intents' as any)
+      .select('id, amount, status, paid_at, created_at, plan, mp_payment_id')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    setPayments(prev => ({ ...prev, [tenantId]: (data as any) || [] }));
+    setLoadingPayments(false);
+  };
 
   // Inline status update
   const updateStatus = async (id: string, status: PlanStatus) => {
@@ -189,22 +259,23 @@ export function PlanosPage() {
   };
 
   // Inline plan update
-  const updatePlan = async (id: string, plan: PlanType) => {
+  const updatePlan = async (row: TenantPlanRow, plan: PlanType) => {
     const patch: any = { plan };
+    const courtesy = Math.max(0, Number(row.courtesy_months ?? 0));
     if (plan === 'pro_monthly') {
       patch.status = 'active';
       patch.current_period_end = new Date(Date.now() + 30 * 864e5).toISOString();
       patch.last_payment_at = new Date().toISOString();
     } else if (plan === 'pro_yearly') {
       patch.status = 'active';
-      patch.current_period_end = new Date(Date.now() + 365 * 864e5).toISOString();
+      patch.current_period_end = new Date(Date.now() + (365 + courtesy * 30) * 864e5).toISOString();
       patch.last_payment_at = new Date().toISOString();
     } else {
       patch.status = 'active';
       patch.trial_ends_at = new Date(Date.now() + 14 * 864e5).toISOString();
       patch.current_period_end = null;
     }
-    const { error } = await supabase.from('tenant_plans' as any).update(patch).eq('id', id);
+    const { error } = await supabase.from('tenant_plans' as any).update(patch).eq('id', row.id);
     if (error) {
       toast.error('Erro ao atualizar plano');
       return;
@@ -213,119 +284,92 @@ export function PlanosPage() {
     fetchData();
   };
 
-  // Quick date extension handlers
-  const openQuickModal = (row: TenantPlanRow) => {
-    setQuickRow(row);
-    const target = row.plan === 'trial' ? row.trial_ends_at : row.current_period_end;
-    if (target) {
-      const d = new Date(target);
-      if (!isNaN(d.getTime())) {
-        setCustomDate(d.toISOString().slice(0, 10));
-      } else {
-        setCustomDate('');
-      }
-    } else {
-      setCustomDate('');
-    }
-  };
-
-  const applyQuickDays = async (days: number) => {
-    if (!quickRow) return;
-    setApplyingQuick(true);
-    try {
-      const currentTarget = quickRow.plan === 'trial' ? quickRow.trial_ends_at : quickRow.current_period_end;
-      const base = currentTarget && new Date(currentTarget) > new Date()
-        ? new Date(currentTarget)
-        : new Date();
-
-      const newDate = new Date(base.getTime() + days * 864e5).toISOString();
-      const patch: any = { status: 'active' };
-
-      if (quickRow.plan === 'trial') {
-        patch.trial_ends_at = newDate;
-      } else {
-        patch.current_period_end = newDate;
-      }
-
-      const { error } = await supabase.from('tenant_plans' as any).update(patch).eq('id', quickRow.id);
-      if (error) throw error;
-
-      toast.success(`Adicionados +${days} dias para ${quickRow.tenants?.name}!`);
-      setQuickRow(null);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao aplicar extensão de dias');
-    } finally {
-      setApplyingQuick(false);
-    }
-  };
-
-  const applyLifetime = async () => {
-    if (!quickRow) return;
-    setApplyingQuick(true);
-    try {
-      const lifetimeDate = new Date('2099-12-31T23:59:59Z').toISOString();
-      const patch: any = {
-        status: 'active',
-        plan: quickRow.plan === 'trial' ? 'pro_yearly' : quickRow.plan,
-        current_period_end: lifetimeDate,
-        last_payment_at: new Date().toISOString(),
-      };
-      const { error } = await supabase.from('tenant_plans' as any).update(patch).eq('id', quickRow.id);
-      if (error) throw error;
-      toast.success(`Plano Vitalício definido para ${quickRow.tenants?.name}!`);
-      setQuickRow(null);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao aplicar plano vitalício');
-    } finally {
-      setApplyingQuick(false);
-    }
-  };
-
-  const applyCustomDate = async () => {
-    if (!quickRow || !customDate) {
-      toast.error('Selecione uma data válida');
-      return;
-    }
-    setApplyingQuick(true);
-    try {
-      const selected = new Date(`${customDate}T23:59:59Z`).toISOString();
-      const patch: any = { status: 'active' };
-      if (quickRow.plan === 'trial') {
-        patch.trial_ends_at = selected;
-      } else {
-        patch.current_period_end = selected;
-      }
-      const { error } = await supabase.from('tenant_plans' as any).update(patch).eq('id', quickRow.id);
-      if (error) throw error;
-      toast.success(`Data atualizada para ${new Date(selected).toLocaleDateString('pt-BR')}!`);
-      setQuickRow(null);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao definir data');
-    } finally {
-      setApplyingQuick(false);
-    }
-  };
-
-  // Full edit modal handlers
-  const openEditModal = (row: TenantPlanRow) => {
+  // Open unified management modal on desired tab
+  const openManageModal = (row: TenantPlanRow, tab: 'assinatura' | 'valores' | 'cobrancas' = 'assinatura') => {
     setEditRow(row);
+    setActiveModalTab(tab);
     setEditForm({
       plan: row.plan,
       status: row.status,
       trial_ends_at: row.trial_ends_at ? row.trial_ends_at.slice(0, 10) : '',
       current_period_end: row.current_period_end ? row.current_period_end.slice(0, 10) : '',
       last_payment_at: row.last_payment_at ? row.last_payment_at.slice(0, 10) : '',
+      monthly_price: formatBRLInput(row.monthly_price ?? DEFAULT_MONTHLY_PRICE),
+      yearly_price: formatBRLInput(row.yearly_price ?? DEFAULT_YEARLY_PRICE),
+      monthly_discount_pct: String(row.monthly_discount_pct ?? 0),
+      yearly_discount_pct: String(row.yearly_discount_pct ?? 0),
+      courtesy_months: String(row.courtesy_months ?? 2),
+      max_installments: String(row.max_installments ?? 10),
+      notes: row.notes || '',
     });
+    if (tab === 'cobrancas') {
+      void loadPaymentsForTenant(row.tenant_id);
+    }
+  };
+
+  // Add days to current form date
+  const addDaysToFormDate = (days: number) => {
+    const isTrialPlan = editForm.plan === 'trial';
+    const currentStr = isTrialPlan ? editForm.trial_ends_at : editForm.current_period_end;
+    const base = currentStr && new Date(`${currentStr}T23:59:59Z`) > new Date()
+      ? new Date(`${currentStr}T23:59:59Z`)
+      : new Date();
+    const nextDate = new Date(base.getTime() + days * 864e5).toISOString().slice(0, 10);
+    setEditForm(f => ({
+      ...f,
+      status: 'active',
+      ...(isTrialPlan ? { trial_ends_at: nextDate } : { current_period_end: nextDate }),
+    }));
+  };
+
+  const setLifetimeInForm = () => {
+    setEditForm(f => ({
+      ...f,
+      plan: f.plan === 'trial' ? 'pro_yearly' : f.plan,
+      status: 'active',
+      current_period_end: '2099-12-31',
+      last_payment_at: new Date().toISOString().slice(0, 10),
+    }));
+  };
+
+  const applyCourtesyMonthsDiscountAndValidity = (months: number) => {
+    const mPrice = parseBRLInput(editForm.monthly_price) || DEFAULT_MONTHLY_PRICE;
+    const full12Price = mPrice * 12;
+    const chargedMonths = Math.max(1, 12 - months);
+    const suggestedYearly = mPrice * chargedMonths;
+
+    // Estende a data de vencimento se já houver uma ou a partir de hoje (12 meses + meses cortesia)
+    const base = editForm.current_period_end && new Date(`${editForm.current_period_end}T23:59:59Z`) > new Date()
+      ? new Date(`${editForm.current_period_end}T23:59:59Z`)
+      : new Date();
+    const newEnd = new Date(base.getTime() + (365 + months * 30) * 864e5).toISOString().slice(0, 10);
+
+    setEditForm(f => ({
+      ...f,
+      courtesy_months: String(months),
+      yearly_price: formatBRLInput(suggestedYearly),
+      yearly_discount_pct: '0',
+      current_period_end: f.current_period_end || newEnd,
+    }));
+    toast.info(
+      months > 0
+        ? `Anual ajustado: paga ${chargedMonths} meses (${fmtBRL(suggestedYearly)} de ${fmtBRL(full12Price)}) com +${months} mês(es) de cortesia.`
+        : `Anual ajustado para 12 meses cheios (${fmtBRL(full12Price)}).`
+    );
   };
 
   const handleSaveEdit = async () => {
     if (!editRow) return;
     setSavingEdit(true);
     try {
-      const patch: any = {
+      const mPrice = parseBRLInput(editForm.monthly_price);
+      const yPrice = parseBRLInput(editForm.yearly_price);
+      const mDisc = Math.min(100, Math.max(0, Number(editForm.monthly_discount_pct) || 0));
+      const yDisc = Math.min(100, Math.max(0, Number(editForm.yearly_discount_pct) || 0));
+      const cMonths = Math.min(12, Math.max(0, parseInt(editForm.courtesy_months) || 0));
+      const maxInst = Math.min(10, Math.max(1, parseInt(editForm.max_installments) || 10));
+
+      const basePatch: any = {
         plan: editForm.plan,
         status: editForm.status,
         trial_ends_at: editForm.trial_ends_at ? new Date(`${editForm.trial_ends_at}T23:59:59Z`).toISOString() : null,
@@ -333,10 +377,26 @@ export function PlanosPage() {
         last_payment_at: editForm.last_payment_at ? new Date(`${editForm.last_payment_at}T12:00:00Z`).toISOString() : null,
       };
 
-      const { error } = await supabase.from('tenant_plans' as any).update(patch).eq('id', editRow.id);
+      const fullPatch: any = {
+        ...basePatch,
+        monthly_price: !isNaN(mPrice) && mPrice > 0 ? mPrice : DEFAULT_MONTHLY_PRICE,
+        yearly_price: !isNaN(yPrice) && yPrice > 0 ? yPrice : DEFAULT_YEARLY_PRICE,
+        monthly_discount_pct: mDisc,
+        yearly_discount_pct: yDisc,
+        courtesy_months: cMonths,
+        max_installments: maxInst,
+        notes: editForm.notes.trim() || null,
+      };
+
+      let { error } = await supabase.from('tenant_plans' as any).update(fullPatch).eq('id', editRow.id);
+      if (error) {
+        // Fallback se as colunas novas ainda não existirem no banco
+        const retry = await supabase.from('tenant_plans' as any).update(basePatch).eq('id', editRow.id);
+        error = retry.error;
+      }
       if (error) throw error;
 
-      toast.success(`Assinatura de ${editRow.tenants?.name} atualizada com sucesso!`);
+      toast.success(`Assinatura e valores de ${editRow.tenants?.name} salvos com sucesso!`);
       setEditRow(null);
       fetchData();
     } catch (err: any) {
@@ -346,23 +406,9 @@ export function PlanosPage() {
     }
   };
 
-  // Payments modal
-  const openPayments = async (row: TenantPlanRow) => {
-    setPaymentsRow(row);
-    if (!payments[row.tenant_id]) {
-      const { data } = await supabase
-        .from('payment_intents' as any)
-        .select('id, amount, status, paid_at, created_at, plan, mp_payment_id')
-        .eq('tenant_id', row.tenant_id)
-        .order('created_at', { ascending: false })
-        .limit(20);
-      setPayments(prev => ({ ...prev, [row.tenant_id]: (data as any) || [] }));
-    }
-  };
-
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
   const fmtDateTime = (d: string | null) => d ? new Date(d).toLocaleString('pt-BR') : '—';
-  const fmtBRL = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`;
+  const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   // Filtered rows
   const filteredRows = rows.filter(r => {
@@ -396,6 +442,28 @@ export function PlanosPage() {
   }).length;
   const suspensosCount = rows.filter(r => r.status === 'suspended').length;
   const expiradosCount = rows.filter(r => r.status === 'expired').length;
+  const mrrEstimado = rows
+    .filter(r => r.plan !== 'trial' && r.status === 'active')
+    .reduce((acc, r) => {
+      const p = computeEffectivePrices(r);
+      return acc + (r.plan === 'pro_monthly' ? p.monthlyFinal : p.yearlyFinal / 12);
+    }, 0);
+
+  // Live preview inside modal
+  const modalPreview = (() => {
+    const mBase = parseBRLInput(editForm.monthly_price) || DEFAULT_MONTHLY_PRICE;
+    const mDisc = Math.min(100, Math.max(0, Number(editForm.monthly_discount_pct) || 0));
+    const mFinal = Math.round(mBase * (1 - mDisc / 100) * 100) / 100;
+
+    const yBase = parseBRLInput(editForm.yearly_price) || DEFAULT_YEARLY_PRICE;
+    const yDisc = Math.min(100, Math.max(0, Number(editForm.yearly_discount_pct) || 0));
+    const yFinal = Math.round(yBase * (1 - yDisc / 100) * 100) / 100;
+
+    const cMonths = Math.max(0, parseInt(editForm.courtesy_months) || 0);
+    const maxInst = Math.min(10, Math.max(1, parseInt(editForm.max_installments) || 10));
+
+    return { mBase, mDisc, mFinal, yBase, yDisc, yFinal, cMonths, maxInst };
+  })();
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -406,9 +474,9 @@ export function PlanosPage() {
             <CreditCard className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-heading font-bold text-foreground">Controle de Planos & Licenças</h1>
+            <h1 className="text-2xl font-heading font-bold text-foreground">Controle de Planos, Assinaturas & Cobranças</h1>
             <p className="text-xs text-muted-foreground">
-              Supervisão total de assinaturas, vigências, cortesias e status de cada estabelecimento.
+              Gestão unificada de mensalidades, anuidades, descontos, meses de cortesia e pagamentos de cada tenant.
             </p>
           </div>
         </div>
@@ -419,7 +487,7 @@ export function PlanosPage() {
       </div>
 
       {/* Top Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-4">
           <p className="text-xs text-muted-foreground font-medium">Total Estabelecimentos</p>
           <p className="text-2xl font-bold text-foreground mt-1">{totalLicencas}</p>
@@ -432,6 +500,10 @@ export function PlanosPage() {
           <p className="text-xs text-muted-foreground font-medium">Planos PRO Ativos</p>
           <p className="text-2xl font-bold text-success mt-1">{proAtivosCount}</p>
         </Card>
+        <Card className="p-4 border-success/30 bg-success/5">
+          <p className="text-xs text-success font-semibold">MRR Estimado</p>
+          <p className="text-xl font-bold text-success mt-1">{fmtBRL(mrrEstimado)}</p>
+        </Card>
         <Card className="p-4 border-amber-500/30 bg-amber-500/5">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">Vencendo em Breve</p>
@@ -439,7 +511,7 @@ export function PlanosPage() {
           </div>
           <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{expiringSoonCount}</p>
         </Card>
-        <Card className="p-4 col-span-2 sm:col-span-1">
+        <Card className="p-4">
           <p className="text-xs text-muted-foreground font-medium">Suspensos / Expirados</p>
           <p className="text-2xl font-bold text-destructive mt-1">{suspensosCount + expiradosCount}</p>
         </Card>
@@ -516,7 +588,7 @@ export function PlanosPage() {
                     <th className="py-2.5 pr-4">Estabelecimento</th>
                     <th className="py-2.5 pr-4">Plano Atual</th>
                     <th className="py-2.5 pr-4">Status</th>
-                    <th className="py-2.5 pr-4">Trial até</th>
+                    <th className="py-2.5 pr-4">Valores & Benefícios</th>
                     <th className="py-2.5 pr-4">Renovação / Vigência</th>
                     <th className="py-2.5 text-right">Ações SuperAdmin</th>
                   </tr>
@@ -524,6 +596,7 @@ export function PlanosPage() {
                 <tbody>
                   {filteredRows.map(r => {
                     const expInfo = getExpirationInfo(r);
+                    const pricing = computeEffectivePrices(r);
                     return (
                       <tr key={r.id} className="border-b last:border-0 hover:bg-muted/40 transition-colors">
                         {/* Tenant */}
@@ -547,7 +620,7 @@ export function PlanosPage() {
 
                         {/* Plan selection */}
                         <td className="py-3 pr-4">
-                          <Select value={r.plan} onValueChange={(v) => updatePlan(r.id, v as PlanType)}>
+                          <Select value={r.plan} onValueChange={(v) => updatePlan(r, v as PlanType)}>
                             <SelectTrigger className="h-8 w-36 text-xs font-medium">
                               <SelectValue />
                             </SelectTrigger>
@@ -585,9 +658,35 @@ export function PlanosPage() {
                           </Select>
                         </td>
 
-                        {/* Trial Date */}
-                        <td className="py-3 pr-4 text-muted-foreground text-xs">
-                          {fmtDate(r.trial_ends_at)}
+                        {/* Pricing & discounts summary */}
+                        <td className="py-3 pr-4 text-xs">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-foreground">
+                                {r.plan === 'pro_yearly'
+                                  ? `${fmtBRL(pricing.yearlyFinal)}/ano`
+                                  : `${fmtBRL(pricing.monthlyFinal)}/mês`}
+                              </span>
+                              {r.plan === 'pro_monthly' && pricing.monthlyDisc > 0 && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 text-success border-success/30">
+                                  -{pricing.monthlyDisc}%
+                                </Badge>
+                              )}
+                              {r.plan === 'pro_yearly' && pricing.yearlyDisc > 0 && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 text-success border-success/30">
+                                  -{pricing.yearlyDisc}%
+                                </Badge>
+                              )}
+                              {pricing.courtesyMonths > 0 && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                                  +{pricing.courtesyMonths}m brinde
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                              Anual: {fmtBRL(pricing.yearlyFinal)} (até {pricing.maxInstallments}x)
+                            </p>
+                          </div>
                         </td>
 
                         {/* Renewal Date with countdown */}
@@ -616,41 +715,38 @@ export function PlanosPage() {
                           </div>
                         </td>
 
-                        {/* SuperAdmin Actions */}
+                        {/* SuperAdmin Actions (Unificadas) */}
                         <td className="py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {/* Full edit modal button */}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-8 px-2 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
-                                  onClick={() => openEditModal(r)}
+                                  className="h-8 px-2.5 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+                                  onClick={() => openManageModal(r, 'assinatura')}
                                 >
                                   <SlidersHorizontal className="h-3.5 w-3.5" />
-                                  <span className="hidden lg:inline">Gerenciar</span>
+                                  <span className="hidden lg:inline">Gerenciar Assinatura</span>
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Controle total da assinatura (datas, plano, pagamentos)</TooltipContent>
+                              <TooltipContent>Gestão completa: vigência, valores, descontos, cortesias e cobranças</TooltipContent>
                             </Tooltip>
 
-                            {/* Quick Extension / Courtesy */}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   size="icon"
                                   variant="ghost"
                                   className="h-8 w-8 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                                  onClick={() => openQuickModal(r)}
+                                  onClick={() => openManageModal(r, 'valores')}
                                 >
-                                  <Gift className="h-4 w-4" />
+                                  <DollarSign className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Adicionar dias / Estender vigência / Vitalício</TooltipContent>
+                              <TooltipContent>Configurar mensalidade, anuidade, descontos e meses de brinde</TooltipContent>
                             </Tooltip>
 
-                            {/* Suspend or Activate toggle */}
                             {r.status === 'suspended' ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -681,19 +777,18 @@ export function PlanosPage() {
                               </Tooltip>
                             )}
 
-                            {/* MP Payments history */}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   size="icon"
                                   variant="ghost"
                                   className="h-8 w-8"
-                                  onClick={() => openPayments(r)}
+                                  onClick={() => openManageModal(r, 'cobrancas')}
                                 >
                                   <Receipt className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Ver histórico de pagamentos Mercado Pago</TooltipContent>
+                              <TooltipContent>Histórico de cobranças e pagamentos Mercado Pago</TooltipContent>
                             </Tooltip>
                           </div>
                         </td>
@@ -707,273 +802,409 @@ export function PlanosPage() {
         </CardContent>
       </Card>
 
-      {/* MODAL 1: Quick Extension & Courtesy */}
-      <Dialog open={!!quickRow} onOpenChange={(v) => !v && setQuickRow(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Gift className="h-5 w-5 text-amber-500" />
-              Estender Vigência / Cortesia
-            </DialogTitle>
-            <DialogDescription>
-              Adicione dias ao plano de <strong>{quickRow?.tenants?.name}</strong> com apenas um clique.
-            </DialogDescription>
-          </DialogHeader>
-
-          {quickRow && (
-            <div className="space-y-4 py-2">
-              <div className="p-3 rounded-lg bg-muted/60 space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Plano Atual:</span>
-                  <span className="font-semibold">{planLabels[quickRow.plan]}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Status Atual:</span>
-                  <Badge variant={statusVariant[quickRow.status]}>{statusLabel[quickRow.status]}</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Vencimento Atual:</span>
-                  <span className="font-medium text-foreground">
-                    {quickRow.plan === 'trial' ? fmtDate(quickRow.trial_ends_at) : fmtDate(quickRow.current_period_end)}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Extensões Rápidas:
-                </Label>
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={applyingQuick}
-                    onClick={() => applyQuickDays(7)}
-                    className="text-xs"
-                  >
-                    +7 dias
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={applyingQuick}
-                    onClick={() => applyQuickDays(15)}
-                    className="text-xs"
-                  >
-                    +15 dias
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={applyingQuick}
-                    onClick={() => applyQuickDays(30)}
-                    className="text-xs font-medium border-primary/30 text-primary hover:bg-primary/10"
-                  >
-                    +30 dias (1 mês)
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={applyingQuick}
-                    onClick={() => applyQuickDays(60)}
-                    className="text-xs"
-                  >
-                    +60 dias (2 meses)
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={applyingQuick}
-                    onClick={() => applyQuickDays(90)}
-                    className="text-xs"
-                  >
-                    +90 dias (3 meses)
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={applyingQuick}
-                    onClick={() => applyQuickDays(365)}
-                    className="text-xs font-medium text-success border-success/30 hover:bg-success/10"
-                  >
-                    +1 ano (365d)
-                  </Button>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full gap-2 text-xs border-primary/40 bg-primary/5 hover:bg-primary/15 text-primary"
-                  disabled={applyingQuick}
-                  onClick={applyLifetime}
-                >
-                  <Sparkles className="h-4 w-4" /> Conceder Plano Vitalício (Ano 2099)
-                </Button>
-              </div>
-
-              <div className="space-y-2 pt-2 border-t">
-                <Label htmlFor="custom-end" className="text-xs font-semibold">
-                  Ou defina uma data exata:
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="custom-end"
-                    type="date"
-                    value={customDate}
-                    onChange={e => setCustomDate(e.target.value)}
-                    className="text-sm font-mono"
-                  />
-                  <Button onClick={applyCustomDate} disabled={applyingQuick || !customDate} size="sm">
-                    {applyingQuick ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Aplicar Data'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setQuickRow(null)} disabled={applyingQuick}>
-              Fechar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* MODAL 2: Full Plan Management */}
+      {/* UNIFIED MODAL: Gestão Completa da Assinatura, Valores, Descontos, Cortesias & Cobranças */}
       <Dialog open={!!editRow} onOpenChange={(v) => !v && setEditRow(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <SlidersHorizontal className="h-5 w-5 text-primary" />
-              Gestão Completa da Assinatura
+              Gestão Completa da Assinatura · {editRow?.tenants?.name}
             </DialogTitle>
             <DialogDescription>
-              Configuração manual de todos os parâmetros da licença de <strong>{editRow?.tenants?.name}</strong>.
+              Configure vigência, cortesias, valores personalizados (mensal e anual), descontos e consulte o histórico de pagamentos de <strong>/{editRow?.tenants?.slug}</strong>.
             </DialogDescription>
           </DialogHeader>
 
           {editRow && (
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-3">
+            <Tabs
+              value={activeModalTab}
+              onValueChange={(v) => {
+                const next = v as 'assinatura' | 'valores' | 'cobrancas';
+                setActiveModalTab(next);
+                if (next === 'cobrancas') void loadPaymentsForTenant(editRow.tenant_id);
+              }}
+              className="w-full"
+            >
+              <TabsList className="grid grid-cols-3 w-full">
+                <TabsTrigger value="assinatura" className="text-xs gap-1.5">
+                  <SlidersHorizontal className="h-3.5 w-3.5" /> Vigência & Cortesia
+                </TabsTrigger>
+                <TabsTrigger value="valores" className="text-xs gap-1.5">
+                  <DollarSign className="h-3.5 w-3.5" /> Valores & Descontos
+                </TabsTrigger>
+                <TabsTrigger value="cobrancas" className="text-xs gap-1.5">
+                  <Receipt className="h-3.5 w-3.5" /> Cobranças MP
+                </TabsTrigger>
+              </TabsList>
+
+              {/* TAB 1: VIGÊNCIA, PLANO E EXTENSÕES RÁPIDAS */}
+              <TabsContent value="assinatura" className="space-y-4 pt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Tipo de Plano</Label>
+                    <Select value={editForm.plan} onValueChange={(v) => setEditForm(f => ({ ...f, plan: v as PlanType }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="trial">Trial (Teste)</SelectItem>
+                        <SelectItem value="pro_monthly">PRO Mensal</SelectItem>
+                        <SelectItem value="pro_yearly">PRO Anual</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Status da Assinatura</Label>
+                    <Select value={editForm.status} onValueChange={(v) => setEditForm(f => ({ ...f, status: v as PlanStatus }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Ativo</SelectItem>
+                        <SelectItem value="suspended">Suspenso</SelectItem>
+                        <SelectItem value="expired">Expirado</SelectItem>
+                        <SelectItem value="pending_payment">Aguardando Pagamento</SelectItem>
+                        <SelectItem value="canceled">Cancelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Quick Extension & Courtesy Buttons (mesclados do antigo modal de cortesia) */}
+                <div className="p-3.5 rounded-xl border bg-muted/30 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <Gift className="h-4 w-4 text-amber-500" />
+                      Extensão Rápida de Vigência / Cortesia
+                    </Label>
+                    <span className="text-[11px] text-muted-foreground">
+                      Soma dias à data atual ou futura
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {[
+                      { label: '+7 dias', days: 7 },
+                      { label: '+15 dias', days: 15 },
+                      { label: '+1 mês', days: 30 },
+                      { label: '+2 meses', days: 60 },
+                      { label: '+3 meses', days: 90 },
+                      { label: '+1 ano', days: 365 },
+                    ].map(btn => (
+                      <Button
+                        key={btn.days}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => addDaysToFormDate(btn.days)}
+                      >
+                        {btn.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 gap-1.5 text-xs border-primary/40 bg-primary/5 hover:bg-primary/15 text-primary"
+                    onClick={setLifetimeInForm}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Conceder Plano Vitalício (Ano 2099)
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="period-end" className="text-xs">Vencimento / Renovação (PRO)</Label>
+                      <button
+                        type="button"
+                        className="text-[11px] text-primary hover:underline"
+                        onClick={() => addDaysToFormDate(30)}
+                      >
+                        +30d
+                      </button>
+                    </div>
+                    <Input
+                      id="period-end"
+                      type="date"
+                      value={editForm.current_period_end}
+                      onChange={e => setEditForm(f => ({ ...f, current_period_end: e.target.value }))}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="trial-end" className="text-xs">Fim do Trial</Label>
+                      <button
+                        type="button"
+                        className="text-[11px] text-primary hover:underline"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setDate(d.getDate() + 14);
+                          setEditForm(f => ({ ...f, trial_ends_at: d.toISOString().slice(0, 10) }));
+                        }}
+                      >
+                        +14d
+                      </button>
+                    </div>
+                    <Input
+                      id="trial-end"
+                      type="date"
+                      value={editForm.trial_ends_at}
+                      onChange={e => setEditForm(f => ({ ...f, trial_ends_at: e.target.value }))}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="last-pay" className="text-xs">Último Pagamento</Label>
+                      <button
+                        type="button"
+                        className="text-[11px] text-primary hover:underline"
+                        onClick={() => setEditForm(f => ({ ...f, last_payment_at: new Date().toISOString().slice(0, 10) }))}
+                      >
+                        Hoje
+                      </button>
+                    </div>
+                    <Input
+                      id="last-pay"
+                      type="date"
+                      value={editForm.last_payment_at}
+                      onChange={e => setEditForm(f => ({ ...f, last_payment_at: e.target.value }))}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  <Label>Tipo de Plano</Label>
-                  <Select value={editForm.plan} onValueChange={(v) => setEditForm(f => ({ ...f, plan: v as PlanType }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="trial">Trial (Teste)</SelectItem>
-                      <SelectItem value="pro_monthly">PRO Mensal</SelectItem>
-                      <SelectItem value="pro_yearly">PRO Anual</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="plan-notes" className="text-xs">Observações Internas da Assinatura</Label>
+                  <Input
+                    id="plan-notes"
+                    value={editForm.notes}
+                    onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="Ex: Condição comercial especial acordada na implantação..."
+                    className="text-xs"
+                  />
+                </div>
+              </TabsContent>
+
+              {/* TAB 2: VALORES, DESCONTOS E MESES DE BRINDE/CORTESIA */}
+              <TabsContent value="valores" className="space-y-4 pt-3">
+                {/* Resumo calculado em tempo real */}
+                <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/20 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">PRO Mensal (Final)</p>
+                    <p className="text-lg font-bold text-foreground">
+                      {fmtBRL(modalPreview.mFinal)}<span className="text-xs font-normal text-muted-foreground">/mês</span>
+                    </p>
+                    {modalPreview.mDisc > 0 && (
+                      <p className="text-success text-[11px]">
+                        Desconto de {modalPreview.mDisc}% sobre {fmtBRL(modalPreview.mBase)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">PRO Anual (Final)</p>
+                    <p className="text-lg font-bold text-foreground">
+                      {fmtBRL(modalPreview.yFinal)}<span className="text-xs font-normal text-muted-foreground">/ano</span>
+                    </p>
+                    <p className="text-muted-foreground text-[11px]">
+                      Até <strong>{modalPreview.maxInst}x de {fmtBRL(modalPreview.yFinal / modalPreview.maxInst)}</strong> no cartão
+                      {modalPreview.cMonths > 0 && (
+                        <span className="text-amber-600 dark:text-amber-400 font-semibold ml-1">
+                          · +{modalPreview.cMonths} mês(es) brinde
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label>Status da Assinatura</Label>
-                  <Select value={editForm.status} onValueChange={(v) => setEditForm(f => ({ ...f, status: v as PlanStatus }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Ativo</SelectItem>
-                      <SelectItem value="suspended">Suspenso</SelectItem>
-                      <SelectItem value="expired">Expirado</SelectItem>
-                      <SelectItem value="pending_payment">Aguardando Pagamento</SelectItem>
-                      <SelectItem value="canceled">Cancelado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                {/* Configuração Plano Mensal */}
+                <div className="p-3.5 rounded-xl border space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">Plano Mensal</h4>
+                    <div className="flex gap-1">
+                      {[0, 10, 15, 20].map(pct => (
+                        <Button
+                          key={pct}
+                          type="button"
+                          variant={Number(editForm.monthly_discount_pct) === pct ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-6 px-2 text-[11px]"
+                          onClick={() => setEditForm(f => ({ ...f, monthly_discount_pct: String(pct) }))}
+                        >
+                          {pct === 0 ? 'Sem desc.' : `-${pct}%`}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="period-end">Data de Vencimento / Renovação (PRO)</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[11px] text-primary px-1.5"
-                    onClick={() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 30);
-                      setEditForm(f => ({ ...f, current_period_end: d.toISOString().slice(0, 10) }));
-                    }}
-                  >
-                    +30 dias
-                  </Button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Valor da Mensalidade (R$)</Label>
+                      <CurrencyInput
+                        value={editForm.monthly_price}
+                        onValueChange={(v) => setEditForm(f => ({ ...f, monthly_price: v }))}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs flex items-center gap-1">
+                        <Percent className="h-3 w-3" /> Desconto no Mensal (%)
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={editForm.monthly_discount_pct}
+                        onChange={e => setEditForm(f => ({ ...f, monthly_discount_pct: e.target.value }))}
+                        className="font-mono"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <Input
-                  id="period-end"
-                  type="date"
-                  value={editForm.current_period_end}
-                  onChange={e => setEditForm(f => ({ ...f, current_period_end: e.target.value }))}
-                  className="font-mono"
-                />
-              </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="trial-end">Data de Fim do Trial</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[11px] text-primary px-1.5"
-                    onClick={() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 14);
-                      setEditForm(f => ({ ...f, trial_ends_at: d.toISOString().slice(0, 10) }));
-                    }}
-                  >
-                    +14 dias
-                  </Button>
-                </div>
-                <Input
-                  id="trial-end"
-                  type="date"
-                  value={editForm.trial_ends_at}
-                  onChange={e => setEditForm(f => ({ ...f, trial_ends_at: e.target.value }))}
-                  className="font-mono"
-                />
-              </div>
+                {/* Configuração Plano Anual + Meses de Cortesia */}
+                <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                        Plano Anual & Meses de Brinde/Cortesia
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Defina a anuidade, desconto percentual e/ou meses de cortesia para o assinante anual.
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="last-pay">Data do Último Pagamento</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[11px] text-primary px-1.5"
-                    onClick={() => {
-                      setEditForm(f => ({ ...f, last_payment_at: new Date().toISOString().slice(0, 10) }));
-                    }}
-                  >
-                    Hoje
-                  </Button>
+                  {/* Atalhos de meses de brinde no plano anual */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Atalhos de Benefício (Meses de Cortesia no Anual):</Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {[
+                        { months: 0, label: 'Sem brinde (12x)' },
+                        { months: 1, label: '1 mês grátis (paga 11)' },
+                        { months: 2, label: '2 meses grátis (paga 10)' },
+                        { months: 3, label: '3 meses grátis (paga 9)' },
+                      ].map(opt => (
+                        <Button
+                          key={opt.months}
+                          type="button"
+                          variant={parseInt(editForm.courtesy_months) === opt.months ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-8 text-[11px]"
+                          onClick={() => applyCourtesyMonthsDiscountAndValidity(opt.months)}
+                        >
+                          {opt.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Valor da Anuidade (R$)</Label>
+                      <CurrencyInput
+                        value={editForm.yearly_price}
+                        onValueChange={(v) => setEditForm(f => ({ ...f, yearly_price: v }))}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Desconto Anual (%)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={editForm.yearly_discount_pct}
+                        onChange={e => setEditForm(f => ({ ...f, yearly_discount_pct: e.target.value }))}
+                        className="font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Meses de Brinde</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="12"
+                        step="1"
+                        value={editForm.courtesy_months}
+                        onChange={e => setEditForm(f => ({ ...f, courtesy_months: e.target.value }))}
+                        className="font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Máx. Parcelas Cartão</Label>
+                      <Select value={editForm.max_installments} onValueChange={v => setEditForm(f => ({ ...f, max_installments: v }))}>
+                        <SelectTrigger className="font-mono">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                            <SelectItem key={n} value={String(n)}>Até {n}x</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-                <Input
-                  id="last-pay"
-                  type="date"
-                  value={editForm.last_payment_at}
-                  onChange={e => setEditForm(f => ({ ...f, last_payment_at: e.target.value }))}
-                  className="font-mono"
-                />
-              </div>
-            </div>
+              </TabsContent>
+
+              {/* TAB 3: HISTÓRICO DE COBRANÇAS MERCADO PAGO */}
+              <TabsContent value="cobrancas" className="pt-3">
+                {loadingPayments ? (
+                  <div className="space-y-2 py-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border rounded-xl">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/40 text-left text-muted-foreground text-xs uppercase tracking-wider">
+                          <th className="py-2.5 px-3">Data/Hora</th>
+                          <th className="py-2.5 px-3">Plano</th>
+                          <th className="py-2.5 px-3">Valor</th>
+                          <th className="py-2.5 px-3">Status</th>
+                          <th className="py-2.5 px-3">Pago em</th>
+                          <th className="py-2.5 px-3">ID Mercado Pago</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(payments[editRow.tenant_id] || []).map(p => (
+                          <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
+                            <td className="py-2.5 px-3 text-xs text-muted-foreground">{fmtDateTime(p.created_at)}</td>
+                            <td className="py-2.5 px-3 font-medium text-xs">{planLabels[p.plan as PlanType] || p.plan}</td>
+                            <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{fmtBRL(Number(p.amount))}</td>
+                            <td className="py-2.5 px-3">
+                              <Badge variant={p.status === 'approved' || p.status === 'paid' ? 'default' : 'secondary'} className="text-[10px]">
+                                {p.status}
+                              </Badge>
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-muted-foreground">{fmtDateTime(p.paid_at)}</td>
+                            <td className="py-2.5 px-3 font-mono text-xs">{p.mp_payment_id || '—'}</td>
+                          </tr>
+                        ))}
+                        {(payments[editRow.tenant_id] || []).length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-muted-foreground text-xs">
+                              Nenhum pagamento registrado no Mercado Pago para este estabelecimento.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           )}
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
             <Button variant="outline" onClick={() => setEditRow(null)} disabled={savingEdit}>
               Cancelar
             </Button>
@@ -987,61 +1218,6 @@ export function PlanosPage() {
               )}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* MODAL 3: Payments modal */}
-      <Dialog open={!!paymentsRow} onOpenChange={(v) => !v && setPaymentsRow(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-primary" />
-              Histórico de Pagamentos · {paymentsRow?.tenants?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Transações e tentativas de pagamento via Mercado Pago registradas para este estabelecimento.
-            </DialogDescription>
-          </DialogHeader>
-
-          {paymentsRow && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground text-xs uppercase tracking-wider">
-                    <th className="py-2.5 pr-3">Data/Hora</th>
-                    <th className="py-2.5 pr-3">Plano</th>
-                    <th className="py-2.5 pr-3">Valor</th>
-                    <th className="py-2.5 pr-3">Status</th>
-                    <th className="py-2.5 pr-3">Pago em</th>
-                    <th className="py-2.5">ID Mercado Pago</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(payments[paymentsRow.tenant_id] || []).map(p => (
-                    <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="py-2.5 pr-3 text-xs text-muted-foreground">{fmtDateTime(p.created_at)}</td>
-                      <td className="py-2.5 pr-3 font-medium">{p.plan}</td>
-                      <td className="py-2.5 pr-3 font-semibold text-foreground">{fmtBRL(Number(p.amount))}</td>
-                      <td className="py-2.5 pr-3">
-                        <Badge variant={p.status === 'approved' || p.status === 'paid' ? 'default' : 'secondary'}>
-                          {p.status}
-                        </Badge>
-                      </td>
-                      <td className="py-2.5 pr-3 text-xs text-muted-foreground">{fmtDateTime(p.paid_at)}</td>
-                      <td className="py-2.5 font-mono text-xs">{p.mp_payment_id || '—'}</td>
-                    </tr>
-                  ))}
-                  {(payments[paymentsRow.tenant_id] || []).length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-muted-foreground text-sm">
-                        Nenhum pagamento registrado no Mercado Pago para este estabelecimento.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
     </div>

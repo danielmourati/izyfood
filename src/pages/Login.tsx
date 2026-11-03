@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, WifiOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,6 +29,12 @@ const Login = () => {
       if (!result.success) {
         setError(result.error || 'Credenciais inválidas. Verifique seu e-mail e senha.');
         setIsLoading(false);
+        return;
+      }
+      if (result.role === 'superadmin') {
+        navigate('/superadmin', { replace: true });
+      } else if (result.tenantSlug) {
+        navigate(`/${result.tenantSlug}`, { replace: true });
       }
     } catch (err: unknown) {
       setError(formatAuthError(err));
@@ -126,7 +133,6 @@ const Login = () => {
           </footer>
         </section>
       </main>
-
     </>
   );
 };

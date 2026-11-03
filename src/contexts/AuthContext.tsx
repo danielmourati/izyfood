@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 import { formatAuthError, withRetry } from '@/lib/auth-errors';
 import { withTimeout, TimeoutError } from '@/lib/with-timeout';
 
@@ -21,7 +21,7 @@ export interface AppUser {
 interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
-  login: (email: string, password: string, slug?: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, slug?: string) => Promise<{ success: boolean; error?: string; role?: AppRole; tenantSlug?: string }>;
   logout: () => Promise<void>;
   isAdmin: boolean;
 }
@@ -56,7 +56,10 @@ async function loadAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
       ]);
 
       const roles = (rolesData || []).map(r => r.role as AppRole);
-      const bestRole = roles.includes('superadmin') ? 'superadmin'
+      if (memberData?.role && !roles.includes(memberData.role as AppRole)) {
+        roles.push(memberData.role as AppRole);
+      }
+      const bestRole: AppRole = roles.includes('superadmin') ? 'superadmin'
         : roles.includes('admin') ? 'admin'
         : roles[0] || 'atendente';
 
@@ -116,7 +119,6 @@ async function loadAppUser(supaUser: SupabaseUser): Promise<AppUser | null> {
       tenantName: 'Minha Loja',
     };
   }
-
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -240,7 +242,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Preencha o e-mail e a senha.' };
     }
 
-    // Demo login fallback disabled: it masked real credential errors.
     const isDemo = false;
 
     try {
@@ -273,33 +274,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
           setUser(demoUser);
           localStorage.setItem('izyfood_demo_user', JSON.stringify(demoUser));
-          return { success: true };
+          return { success: true, role: demoUser.role, tenantSlug: demoUser.tenantSlug };
         }
         return { success: false, error: formatAuthError(res.error) };
       }
 
+      let resolvedUser: AppUser | null = null;
       if (res.data?.user) {
         const supaUser = res.data.user;
         localStorage.removeItem('izyfood_demo_user');
         const load = fetchAppUser(supaUser);
         try {
           const appUser = await withTimeout(load, Math.min(8000, remaining()));
+          resolvedUser = appUser;
           setUser(appUser);
         } catch {
-          // Slow store data: enter with cached data if it is this user, finish in background.
           let cached: AppUser | null = null;
           try { cached = JSON.parse(localStorage.getItem('izyfood_cached_user') || 'null'); } catch {}
           if (cached && cached.id === supaUser.id) {
+            resolvedUser = cached;
             setUser(cached);
             load.then(u => { if (u) setUser(u); }).catch(() => {});
           } else {
             const appUser = await withTimeout(load, 7000);
+            resolvedUser = appUser;
             setUser(appUser);
           }
         }
       }
 
-      return { success: true };
+      return {
+        success: true,
+        role: resolvedUser?.role,
+        tenantSlug: resolvedUser?.tenantSlug,
+      };
     } catch (err: any) {
       if (isDemo) {
         const demoUser: AppUser = {
@@ -313,7 +321,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
         setUser(demoUser);
         localStorage.setItem('izyfood_demo_user', JSON.stringify(demoUser));
-        return { success: true };
+        return { success: true, role: demoUser.role, tenantSlug: demoUser.tenantSlug };
       }
       if (err instanceof TimeoutError) return { success: false, error: err.message };
       return { success: false, error: formatAuthError(err) };

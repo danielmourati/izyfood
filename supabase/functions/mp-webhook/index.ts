@@ -105,11 +105,23 @@ Deno.serve(async (req) => {
       return new Response('mp fetch failed', { status: 502, headers: corsHeaders });
     }
 
-    const { data: intent } = await admin
+    let { data: intent } = await admin
       .from('payment_intents')
       .select('*')
       .eq('mp_payment_id', String(payment.id))
       .maybeSingle();
+
+    if (!intent && payment.metadata?.tenant_id) {
+      const { data: fallbackIntent } = await admin
+        .from('payment_intents')
+        .select('*')
+        .eq('tenant_id', payment.metadata.tenant_id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      intent = fallbackIntent;
+    }
 
     if (!intent) {
       console.warn('No intent found for payment', payment.id);
@@ -118,6 +130,7 @@ Deno.serve(async (req) => {
     }
 
     await admin.from('payment_intents').update({
+      mp_payment_id: String(payment.id),
       status: payment.status,
       paid_at: payment.status === 'approved' ? (payment.date_approved || new Date().toISOString()) : intent.paid_at,
       raw: payment,
@@ -125,8 +138,16 @@ Deno.serve(async (req) => {
 
     if (payment.status === 'approved' && intent.status !== 'approved') {
       const now = new Date();
-      const periodDays = intent.plan === 'pro_yearly' ? 365 : 30;
-      const newEnd = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000);
+      const { data: planRow } = await admin
+        .from('tenant_plans')
+        .select('courtesy_months, current_period_end')
+        .eq('tenant_id', intent.tenant_id)
+        .maybeSingle();
+      const courtesyMonths = intent.plan === 'pro_yearly' ? Math.max(0, Number(planRow?.courtesy_months ?? payment.metadata?.courtesy_months ?? 0)) : 0;
+      const currentEnd = planRow?.current_period_end ? new Date(planRow.current_period_end) : null;
+      const baseDate = currentEnd && currentEnd > now ? currentEnd : now;
+      const periodDays = (intent.plan === 'pro_yearly' ? 365 : 30) + courtesyMonths * 30;
+      const newEnd = new Date(baseDate.getTime() + periodDays * 24 * 60 * 60 * 1000);
 
       await admin.from('tenant_plans').update({
         plan: intent.plan,

@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { StoreProvider } from "@/contexts/StoreContext";
 import { useAttendantPermissions, AttendantPermissions } from "@/hooks/use-attendant-permissions";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Layout } from "@/components/Layout";
 import Login from "./pages/Login";
 import Balcao from "./pages/Balcao";
@@ -23,6 +22,9 @@ import Configuracoes from "./pages/Configuracoes";
 import { SuperAdminRoutes } from "./pages/superadmin/SuperAdminRoutes";
 import DiagnosticoSync from "./pages/DiagnosticoSync";
 import NotFound from "./pages/NotFound";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { TenantGate } from "@/components/TenantGate";
 
 const queryClient = new QueryClient();
 
@@ -33,7 +35,6 @@ function ProtectedRoute({ children, adminOnly = false, superadminOnly = false, p
   const { permissions, loading: permsLoading } = useAttendantPermissions();
   if (!user) return <Navigate to="/login" replace />;
   if (superadminOnly && user.role !== 'superadmin') return <Navigate to={`/${user.tenantSlug}`} replace />;
-  // For admin-only routes with a permissionKey, allow if admin OR has permission
   if (adminOnly && !isAdmin) {
     if (permsLoading) {
       return <AppSkeleton />;
@@ -44,6 +45,7 @@ function ProtectedRoute({ children, adminOnly = false, superadminOnly = false, p
   }
   return <>{children}</>;
 }
+
 function SlugRedirectToLogin() {
   const { slug } = useParams<{ slug: string }>();
   return <Navigate to={`/${slug}/login`} replace />;
@@ -62,8 +64,8 @@ function TenantRoutes() {
   const { slug } = useParams<{ slug: string }>();
   const { user } = useAuth();
 
-  // If the slug doesn't match the user's tenant, redirect to correct one
-  if (user && slug && slug !== user.tenantSlug) {
+  // If the slug doesn't match the user's tenant (and not superadmin inspecting a tenant), redirect to correct one
+  if (user && slug && slug !== user.tenantSlug && user.role !== 'superadmin') {
     if (user.id === 'demo-admin-id') {
       user.tenantSlug = slug;
     } else {
@@ -76,7 +78,7 @@ function TenantRoutes() {
       <Routes>
         <Route path="/" element={<ProtectedRoute><TenantStartPage /></ProtectedRoute>} />
         <Route path="/mesas" element={<ProtectedRoute adminOnly permissionKey="manage_tables"><Mesas /></ProtectedRoute>} />
-        <Route path="/login" element={<Navigate to={`/${slug}`} replace />} />
+        <Route path="/login" element={<Navigate to={user?.role === 'superadmin' ? '/superadmin' : `/${slug}`} replace />} />
         <Route path="/balcao" element={<ProtectedRoute adminOnly permissionKey="use_counter"><Balcao /></ProtectedRoute>} />
         <Route path="/pdv" element={<Navigate to={`/${slug}`} replace />} />
         <Route path="/pedidos" element={<ProtectedRoute adminOnly permissionKey="view_orders_history"><Pedidos /></ProtectedRoute>} />
@@ -93,8 +95,6 @@ function TenantRoutes() {
     </Layout>
   );
 }
-
-import { Skeleton } from "@/components/ui/skeleton";
 
 function AppSkeleton() {
   return (
@@ -164,6 +164,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Navigate to={user.role === 'superadmin' ? '/superadmin' : `/${user.tenantSlug}`} replace />} />
+      <Route path="/:slug/login" element={<Navigate to={user.role === 'superadmin' ? '/superadmin' : `/${user.tenantSlug}`} replace />} />
       <Route path="/superadmin/*" element={<SuperAdminRoutes />} />
       <Route path="/:slug/*" element={<SlugGate><TenantRoutes /></SlugGate>} />
       <Route path="/" element={<Navigate to={user.role === 'superadmin' ? '/superadmin' : `/${user.tenantSlug}`} replace />} />
@@ -171,9 +172,6 @@ function AppRoutes() {
     </Routes>
   );
 }
-
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { TenantGate } from "@/components/TenantGate";
 
 const isFileProtocol = typeof window !== 'undefined' && window.location.protocol === 'file:';
 const RouterComponent = isDesktopApp() || isFileProtocol ? HashRouter : BrowserRouter;

@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const PRICES: Record<string, number> = {
+const DEFAULT_PRICES: Record<string, number> = {
   pro_monthly: 157.0,
   pro_yearly: 1570.0,
 };
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const plan = body?.plan as 'pro_monthly' | 'pro_yearly';
-    if (!plan || !(plan in PRICES)) return json({ error: 'Invalid plan' }, 400);
+    if (!plan || !(plan in DEFAULT_PRICES)) return json({ error: 'Invalid plan' }, 400);
 
     const { data: member } = await admin
       .from('tenant_members')
@@ -49,7 +49,22 @@ Deno.serve(async (req) => {
     const { data: profile } = await admin
       .from('profiles').select('email, name').eq('id', userId).maybeSingle();
 
-    const amount = PRICES[plan];
+    // Ler precificação personalizada e descontos configurados para o tenant
+    const { data: planRow } = await admin
+      .from('tenant_plans')
+      .select('monthly_price, yearly_price, monthly_discount_pct, yearly_discount_pct, courtesy_months')
+      .eq('tenant_id', member.tenant_id)
+      .maybeSingle();
+
+    const basePrice = plan === 'pro_monthly'
+      ? Number(planRow?.monthly_price ?? DEFAULT_PRICES.pro_monthly)
+      : Number(planRow?.yearly_price ?? DEFAULT_PRICES.pro_yearly);
+    const discountPct = plan === 'pro_monthly'
+      ? Number(planRow?.monthly_discount_pct ?? 0)
+      : Number(planRow?.yearly_discount_pct ?? 0);
+    const amount = Math.max(1, Math.round(basePrice * (1 - Math.min(100, Math.max(0, discountPct)) / 100) * 100) / 100);
+    const courtesyMonths = plan === 'pro_yearly' ? Number(planRow?.courtesy_months ?? 0) : 0;
+
     const mpToken = Deno.env.get('MP_ACCESS_TOKEN');
     if (!mpToken) return json({ error: 'MP not configured' }, 500);
 
@@ -72,6 +87,7 @@ Deno.serve(async (req) => {
         tenant_id: member.tenant_id,
         plan,
         user_id: userId,
+        courtesy_months: courtesyMonths,
       },
     };
 
