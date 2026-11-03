@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { decodePlanPricing } from '@/lib/plan-pricing';
 import {
   CreditCard, Check, Loader2, Copy, CheckCircle2, XCircle,
-  QrCode, Lock, Sparkles, ExternalLink, ShieldCheck, Gift
+  QrCode, Lock, Sparkles, ExternalLink, ShieldCheck, Gift, AlertTriangle
 } from 'lucide-react';
 
 type PlanType = 'trial' | 'pro_monthly' | 'pro_yearly';
@@ -53,6 +54,7 @@ function fmtBRL(v: number) {
 
 export function PlanoTab() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -131,16 +133,28 @@ export function PlanoTab() {
   const isTrial = plan?.plan === 'trial';
   const isPro = plan && plan.plan !== 'trial' && plan.status === 'active';
   const trialEnds = plan?.trial_ends_at ? new Date(plan.trial_ends_at) : null;
-  const now = new Date();
-  const daysLeft = trialEnds ? Math.max(0, Math.ceil((trialEnds.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
   const periodEnd = plan?.current_period_end ? new Date(plan.current_period_end) : null;
   const isLifetime = periodEnd && periodEnd.getFullYear() >= 2090;
+
+  // Cálculo de proximidade de vencimento por dia civil local
+  const targetDueDate = isTrial ? trialEnds : periodEnd;
+  const dueDaysLeft = (() => {
+    if (!targetDueDate || isLifetime) return null;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const targetStart = new Date(targetDueDate.getFullYear(), targetDueDate.getMonth(), targetDueDate.getDate()).getTime();
+    return Math.round((targetStart - todayStart) / (1000 * 60 * 60 * 24));
+  })();
+  const daysLeft = trialEnds ? Math.max(0, dueDaysLeft ?? 0) : 0;
+
+  const isExpiredOrDueToday = dueDaysLeft !== null && dueDaysLeft <= 0;
+  const isDueSoon = dueDaysLeft !== null && dueDaysLeft <= 7;
 
   const activeAmount = selectedPlan === 'pro_monthly' ? monthlyFinal : yearlyFinal;
   const selectedInstallmentsNum = selectedPlan === 'pro_yearly' ? Math.min(maxInstallments, Math.max(1, parseInt(installments) || 1)) : 1;
   const installmentValue = activeAmount / selectedInstallmentsNum;
 
-  const startPolling = (intentId: string) => {
+  const startPolling = useCallback((intentId: string) => {
     if (pollTimer.current) window.clearInterval(pollTimer.current);
     pollTimer.current = window.setInterval(async () => {
       try {
@@ -158,23 +172,9 @@ export function PlanoTab() {
         console.error(e);
       }
     }, 3000) as unknown as number;
-  };
+  }, [loadPlan]);
 
-  const openCheckoutModal = (which: 'pro_monthly' | 'pro_yearly', mode: PayMode) => {
-    if (pollTimer.current) window.clearInterval(pollTimer.current);
-    setSelectedPlan(which);
-    setPayMode(mode);
-    setInstallments(which === 'pro_yearly' ? String(maxInstallments) : '1');
-    setIntent(null);
-    setPayStatus('pending');
-    setCreateError(null);
-    setCheckoutOpen(true);
-    if (mode === 'pix') {
-      void generatePixPayment(which);
-    }
-  };
-
-  const generatePixPayment = async (which: 'pro_monthly' | 'pro_yearly') => {
+  const generatePixPayment = useCallback(async (which: 'pro_monthly' | 'pro_yearly') => {
     setCreating(true);
     setCreateError(null);
     setPayStatus('pending');
@@ -191,7 +191,39 @@ export function PlanoTab() {
     } finally {
       setCreating(false);
     }
-  };
+  }, [startPolling]);
+
+  const openCheckoutModal = useCallback((which: 'pro_monthly' | 'pro_yearly', mode: PayMode) => {
+    if (pollTimer.current) window.clearInterval(pollTimer.current);
+    setSelectedPlan(which);
+    setPayMode(mode);
+    setInstallments(which === 'pro_yearly' ? String(maxInstallments) : '1');
+    setIntent(null);
+    setPayStatus('pending');
+    setCreateError(null);
+    setCheckoutOpen(true);
+    if (mode === 'pix') {
+      void generatePixPayment(which);
+    }
+  }, [maxInstallments, generatePixPayment]);
+
+  // Se veio do botão "Pagar agora" do cabeçalho (?tab=plano&pay=pix), abre o modal e gera o QR Code PIX automaticamente
+  const payParam = searchParams.get('pay');
+  const planParam = searchParams.get('plan');
+  const triggerTimestamp = searchParams.get('t');
+
+  useEffect(() => {
+    if (loading || !payParam) return;
+    const targetPlan: 'pro_monthly' | 'pro_yearly' =
+      planParam === 'pro_yearly' || (plan?.plan === 'pro_yearly' && planParam !== 'pro_monthly')
+        ? 'pro_yearly'
+        : 'pro_monthly';
+    const mode: PayMode = payParam === 'card' ? 'card' : 'pix';
+
+    // Remove os parâmetros de disparo para não reabrir ao atualizar a página
+    setSearchParams({ tab: 'plano' }, { replace: true });
+    openCheckoutModal(targetPlan, mode);
+  }, [loading, payParam, planParam, triggerTimestamp, plan?.plan, openCheckoutModal, setSearchParams]);
 
   const startCardCheckout = async () => {
     setCreating(true);
@@ -252,6 +284,9 @@ export function PlanoTab() {
     );
   }
 
+  const currentPlanKey: 'pro_monthly' | 'pro_yearly' = plan?.plan === 'pro_yearly' ? 'pro_yearly' : 'pro_monthly';
+  const currentPlanAmount = currentPlanKey === 'pro_yearly' ? yearlyFinal : monthlyFinal;
+
   return (
     <div className="space-y-4">
       {/* Status do Plano Atual */}
@@ -270,6 +305,48 @@ export function PlanoTab() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Alerta de Proximidade de Vencimento no Cabeçalho do Plano */}
+          {isDueSoon && targetDueDate && (
+            <div
+              role="alert"
+              className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border ${
+                isExpiredOrDueToday
+                  ? 'bg-destructive/10 border-destructive/30 text-foreground'
+                  : 'bg-amber-500/10 border-amber-500/30 text-foreground'
+              }`}
+            >
+              <div className="flex items-start gap-2.5 text-xs">
+                <AlertTriangle
+                  className={`h-4 w-4 mt-0.5 shrink-0 ${
+                    isExpiredOrDueToday ? 'text-destructive' : 'text-amber-600 dark:text-amber-400'
+                  }`}
+                />
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-sm">
+                    {dueDaysLeft! < 0
+                      ? `Assinatura vencida em ${targetDueDate.toLocaleDateString('pt-BR')}`
+                      : dueDaysLeft === 0
+                      ? `Sua assinatura vence HOJE (${targetDueDate.toLocaleDateString('pt-BR')})`
+                      : `Sua assinatura vence em ${dueDaysLeft} ${dueDaysLeft === 1 ? 'dia' : 'dias'} (${targetDueDate.toLocaleDateString('pt-BR')})`}
+                  </p>
+                  <p className="text-muted-foreground">
+                    Realize o pagamento de <strong>{fmtBRL(currentPlanAmount)}</strong> via PIX para renovar instantaneamente.
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                size="sm"
+                variant={isExpiredOrDueToday ? 'destructive' : 'default'}
+                className="gap-1.5 shrink-0 font-semibold"
+                onClick={() => openCheckoutModal(currentPlanKey, 'pix')}
+              >
+                <QrCode className="h-4 w-4" />
+                Pagar agora ({fmtBRL(currentPlanAmount)})
+              </Button>
+            </div>
+          )}
+
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-3xl font-heading font-bold text-foreground">
               {plan ? planLabels[plan.plan] : '—'}

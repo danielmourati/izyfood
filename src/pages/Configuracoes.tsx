@@ -41,7 +41,7 @@ const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: bo
   { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true, mobileAllowed: true },
   { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true, mobileAllowed: false },
   { key: 'permissoes', label: 'Permissões', icon: KeyRound, adminOnly: true, mobileAllowed: false },
-  { key: 'plano', label: 'Plano', icon: CreditCard, adminOnly: true, mobileAllowed: false },
+  { key: 'plano', label: 'Plano', icon: CreditCard, adminOnly: true, mobileAllowed: true },
 ];
 
 const roleLabels: Record<AppRole, string> = {
