@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Corrigir erro React ao abrir histórico de cobranças com forma de pagamento estruturada pelo Mercado Pago; validar regressão sem alterar pagamentos.
+- [x] Corrigir erro React ao abrir histórico de cobranças com forma de pagamento estruturada pelo Mercado Pago; erro reproduzido e 6 testes aprovados, sem alterar pagamentos. Conferência autenticada indisponível: não há conta correspondente ao solicitante.
 
 - [x] Investigar itens impressos ausentes no Zezinho; proteger lançamentos com pendências duráveis por loja, confirmação por revisão, atualização sem sobrescrever itens locais e salvamento antes da impressão. Comparação das comandas disponíveis com mesas abertas não encontrou itens ausentes.
 - [x] Testar persistência, reabertura, remoções explícitas, isolamento por loja e confirmação de versões; página da loja abriu sem erros.
