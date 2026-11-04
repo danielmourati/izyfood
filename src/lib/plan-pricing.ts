@@ -44,6 +44,31 @@ export interface PlanPricingConfig {
   manual_payments?: ManualPaymentRecord[];
 }
 
+export function resolvePaymentMethodLabel(value: unknown, fallback = 'Mercado Pago'): string {
+  if (!value) return fallback;
+  if (typeof value === 'string') {
+    return MANUAL_PAYMENT_METHOD_LABELS[value as ManualPaymentMethod] || value;
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.type === 'string') {
+      const mpTypeMap: Record<string, string> = {
+        bank_transfer: 'PIX',
+        pix: 'PIX',
+        credit_card: 'Cartão de Crédito',
+        debit_card: 'Cartão de Débito',
+        ticket: 'Boleto',
+        account_money: 'Mercado Pago',
+      };
+      return mpTypeMap[obj.type] || obj.type;
+    }
+    if (typeof obj.id === 'string') {
+      return obj.id === 'pix' ? 'PIX' : obj.id;
+    }
+  }
+  return fallback;
+}
+
 /**
  * Serializes custom pricing and manual payments into `mp_customer_id` (a native TEXT column on `tenant_plans`)
  * so that pricing, discounts, courtesy months, and manual payments are persisted in the database immediately,
@@ -75,7 +100,9 @@ export function encodePlanPricingMeta(config: PlanPricingConfig, existingMpCusto
   const lastPaymentMethod =
     config.last_payment_method !== undefined
       ? config.last_payment_method
-      : existingParsed?.last_payment_method ?? null;
+      : typeof existingParsed?.last_payment_method === 'string'
+      ? existingParsed.last_payment_method
+      : null;
 
   return JSON.stringify({
     __v: 1,
@@ -128,9 +155,20 @@ export function decodePlanPricing(row: any): PlanPricingConfig {
     10,
     Math.max(1, Number(row?.max_installments ?? meta?.max_installments ?? 10))
   );
-  const notes = (row?.notes ?? meta?.notes ?? null) as string | null;
-  const last_payment_method = (row?.last_payment_method ?? meta?.last_payment_method ?? null) as ManualPaymentMethod | null;
-  const manual_payments = Array.isArray(meta?.manual_payments) ? (meta.manual_payments as ManualPaymentRecord[]) : [];
+  const rawNotes = row?.notes ?? meta?.notes;
+  const notes = typeof rawNotes === 'string' ? rawNotes : null;
+
+  const rawMethod = row?.last_payment_method ?? meta?.last_payment_method;
+  const last_payment_method =
+    typeof rawMethod === 'string' ? (rawMethod as ManualPaymentMethod) : null;
+
+  const manual_payments = Array.isArray(meta?.manual_payments)
+    ? (meta.manual_payments as ManualPaymentRecord[]).map(m => ({
+        ...m,
+        payment_method: (typeof m.payment_method === 'string' ? m.payment_method : 'pix') as ManualPaymentMethod,
+        notes: typeof m.notes === 'string' ? m.notes : null,
+      }))
+    : [];
 
   return {
     monthly_price: monthly_price > 0 ? monthly_price : DEFAULT_MONTHLY_PRICE,
