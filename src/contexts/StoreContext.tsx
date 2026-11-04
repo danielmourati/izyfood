@@ -71,7 +71,9 @@ const StoreContext = createContext<StoreContextType | null>(null);
 // ============ DB <-> App mappers ============
 
 function dbToProduct(r: any): Product {
-  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false, controlStock: r.control_stock ?? true, searchCode: r.search_code || undefined, costPrice: r.cost_price != null ? Number(r.cost_price) : undefined, minStock: Number(r.min_stock ?? 0), serviceFeeExempt: r.service_fee_exempt ?? false, printSector: r.print_sector || undefined };
+  const inactiveIds = loadLS<string[]>('izy_inactive_products', []);
+  const active = r.active !== undefined ? Boolean(r.active) : !inactiveIds.includes(r.id);
+  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false, controlStock: r.control_stock ?? true, searchCode: r.search_code || undefined, costPrice: r.cost_price != null ? Number(r.cost_price) : undefined, minStock: Number(r.min_stock ?? 0), serviceFeeExempt: r.service_fee_exempt ?? false, printSector: r.print_sector || undefined, active };
 }
 function dbToNoteOption(r: any): ProductNoteOption {
   return { id: r.id, name: r.name, type: r.type, price: Number(r.price), categoryIds: r.category_ids || [], active: r.active ?? true, classification: r.classification || 'additional' };
@@ -654,6 +656,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           saveLS('izy_categories_order', dbPs.categories_order);
           setCategories(prev => sortCategories(prev, dbPs.categories_order));
         }
+        if (Array.isArray(dbPs.inactive_product_ids)) {
+          const inactiveSet = new Set<string>(dbPs.inactive_product_ids);
+          saveLS('izy_inactive_products', dbPs.inactive_product_ids);
+          setProducts(prev => {
+            const nextProds = prev.map(p => ({ ...p, active: !inactiveSet.has(p.id) }));
+            saveLS('izy_products', nextProds);
+            return nextProds;
+          });
+        }
       }
     }
     setIsCashRegisterOpen(!!(cashRegs && cashRegs.length > 0));
@@ -1007,7 +1018,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     productsRef.current = next;
     setProducts(next);
     saveLS('izy_products', next);
-    syncProducts(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync(['products'])).catch(e => console.error('[syncProducts]', e));
+    saveLS('izy_inactive_products', next.filter(p => p.active === false).map(p => p.id));
+    const activeChanged = prev.filter(p => p.active === false).map(p => p.id).sort().join(',') !== next.filter(p => p.active === false).map(p => p.id).sort().join(',');
+    syncProducts(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync(activeChanged ? ['products', 'settings'] : ['products'])).catch(e => console.error('[syncProducts]', e));
   }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   const setCategoriesWrapped: typeof setCategories = useCallback((updater) => {
@@ -1462,6 +1475,8 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
     const p = prev.find(pp => pp.id === n.id);
     return p && JSON.stringify(p) !== JSON.stringify(n);
   });
+  const activeChanged = prev.filter(p => p.active === false).map(p => p.id).sort().join(',') !==
+    next.filter(p => p.active === false).map(p => p.id).sort().join(',');
 
   for (const p of added) {
     markPending(p.id);
@@ -1471,26 +1486,53 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
       search_code: p.searchCode || null, cost_price: p.costPrice ?? null, min_stock: p.minStock ?? 0,
       service_fee_exempt: p.serviceFeeExempt ?? false, print_sector: p.printSector || null,
+      active: p.active !== false,
     };
     if (tenantId) item.tenant_id = tenantId;
     const { error } = await supabase.from('products').insert(item);
     if (error) {
-      console.warn('Initial product insert with tenant_id failed, fallback without tenant_id:', error.message);
-      delete item.tenant_id;
-      const { error: err2 } = await supabase.from('products').insert(item);
-      if (err2) console.error('Error inserting product into Supabase:', err2);
+      delete item.active;
+      const { error: errRetry } = await supabase.from('products').insert(item);
+      if (errRetry) {
+        console.warn('Product insert with tenant_id failed, fallback without tenant_id:', errRetry.message);
+        delete item.tenant_id;
+        const { error: err2 } = await supabase.from('products').insert(item);
+        if (err2) console.error('Error inserting product into Supabase:', err2);
+      }
     }
   }
   for (const p of updated) {
     markPending(p.id);
-    const { error } = await supabase.from('products').update({
+    const updatePayload: any = {
       name: p.name, description: p.description || null, price: p.price,
       category_id: p.categoryId || null, type: p.type, unit: p.unit, stock: p.stock, image: p.image || null,
       loyalty_eligible: p.loyaltyEligible, control_stock: p.controlStock,
       search_code: p.searchCode || null, cost_price: p.costPrice ?? null, min_stock: p.minStock ?? 0,
       service_fee_exempt: p.serviceFeeExempt ?? false, print_sector: p.printSector || null,
-    }).eq('id', p.id);
-    if (error) console.error('Error updating product in Supabase:', error);
+      active: p.active !== false,
+    };
+    const { error } = await supabase.from('products').update(updatePayload).eq('id', p.id);
+    if (error) {
+      delete updatePayload.active;
+      const { error: err2 } = await supabase.from('products').update(updatePayload).eq('id', p.id);
+      if (err2) console.error('Error updating product in Supabase:', err2);
+    }
+  }
+  if (activeChanged && tenantId) {
+    try {
+      const { data: st } = await supabase
+        .from('store_settings')
+        .select('id, print_settings')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      if (st) {
+        const ps = (st.print_settings && typeof st.print_settings === 'object' ? { ...st.print_settings } : {}) as any;
+        ps.inactive_product_ids = next.filter(p => p.active === false).map(p => p.id);
+        await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
+      }
+    } catch (e) {
+      console.warn('[syncProducts] Falha ao persistir inactive_product_ids em store_settings:', e);
+    }
   }
   for (const p of removed) {
     markPending(p.id);

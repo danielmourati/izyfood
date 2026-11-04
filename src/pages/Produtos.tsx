@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -38,6 +39,7 @@ const emptyProductForm = {
   minStock: '',
   serviceFeeExempt: false,
   printSector: '',
+  active: true,
 };
 
 const emptyNoteOptionForm = {
@@ -81,7 +83,7 @@ const Produtos = () => {
   // Estados principais
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterStockStatus, setFilterStockStatus] = useState<'all' | 'low' | 'regular' | 'untracked'>('all');
+  const [filterStockStatus, setFilterStockStatus] = useState<'all' | 'low' | 'regular' | 'untracked' | 'active' | 'inactive'>('all');
 
   // Sincronizar filtro com query params da URL (ex: /produtos?categoria=ID)
   useEffect(() => {
@@ -145,6 +147,10 @@ const Produtos = () => {
         matchStock = p.controlStock && p.stock > (p.minStock ?? 0);
       } else if (filterStockStatus === 'untracked') {
         matchStock = !p.controlStock;
+      } else if (filterStockStatus === 'active') {
+        matchStock = p.active !== false;
+      } else if (filterStockStatus === 'inactive') {
+        matchStock = p.active === false;
       }
 
       return matchSearch && matchCat && matchStock;
@@ -166,6 +172,11 @@ const Produtos = () => {
   const untrackedStockCount = products.filter(p => !p.controlStock).length;
 
   // ---- CRUD de Produtos ----
+  const toggleProductActive = (product: Product, checked: boolean) => {
+    setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, active: checked } : p)));
+    toast.success(`Produto "${product.name}" ${checked ? 'ativado' : 'desativado'}!`);
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setActiveTab('dados');
@@ -195,6 +206,7 @@ const Produtos = () => {
       minStock: String(p.minStock ?? 0),
       serviceFeeExempt: p.serviceFeeExempt ?? false,
       printSector: p.printSector || '',
+      active: p.active !== false,
     });
     setDialogOpen(true);
   };
@@ -205,6 +217,7 @@ const Produtos = () => {
       id: crypto.randomUUID(),
       name: `${p.name} (Cópia)`,
       searchCode: p.searchCode ? `${p.searchCode}-COP` : undefined,
+      active: p.active !== false,
     };
     setProducts(prev => [...prev, newProduct]);
     toast.success(`Cópia de "${p.name}" criada com sucesso!`, {
@@ -265,6 +278,7 @@ const Produtos = () => {
       minStock: parseFloat(form.minStock) || 0,
       serviceFeeExempt: form.serviceFeeExempt,
       printSector: form.printSector || undefined,
+      active: form.active,
     };
 
     if (editingId) {
@@ -280,13 +294,23 @@ const Produtos = () => {
     setForm(emptyProductForm);
   };
 
-  // ---- CRUD de NoteOptions (Adicionais & Observações) ----
-  const openCreateOpt = (type: 'note' | 'complement' = 'note') => {
+  // ---- CRUD de NoteOptions (Observações, Adicionais & Complementos) ----
+  const toggleOptActive = (opt: ProductNoteOption, checked: boolean) => {
+    setNoteOptions(prev => prev.map(o => (o.id === opt.id ? { ...o, active: checked } : o)));
+    toast.success(`"${opt.name}" ${checked ? 'ativado(a)' : 'desativado(a)'}!`);
+  };
+
+  const openCreateOpt = (
+    type: 'note' | 'complement' = 'note',
+    classification: 'flavor' | 'additional' | 'both' = 'additional'
+  ) => {
     setEditingOptId(null);
     setOptForm({
       ...emptyNoteOptionForm,
       type,
+      classification,
       categoryIds: categories.map(c => c.id),
+      active: true,
     });
     setOptFormOpen(true);
   };
@@ -339,6 +363,16 @@ const Produtos = () => {
     return noteOptions.filter(o => o.categoryIds.includes(form.categoryId));
   }, [noteOptions, form.categoryId]);
 
+  const noteItems = useMemo(() => noteOptions.filter(o => o.type === 'note'), [noteOptions]);
+  const additionalItems = useMemo(
+    () => noteOptions.filter(o => o.type === 'complement' && (!o.classification || o.classification === 'additional')),
+    [noteOptions]
+  );
+  const complementFlavorItems = useMemo(
+    () => noteOptions.filter(o => o.type === 'complement' && (o.classification === 'flavor' || o.classification === 'both')),
+    [noteOptions]
+  );
+
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 space-y-5">
       {/* Header section */}
@@ -371,10 +405,10 @@ const Produtos = () => {
             variant="outline"
             onClick={() => setOptsDialogOpen(true)}
             className="gap-2"
-            title="Gerenciar adicionais e observações vinculadas"
+            title="Gerenciar observações, adicionais e complementos vinculados"
           >
             <Tag className="h-4 w-4" />
-            Observações & Adicionais
+            Observações, Adicionais & Complementos
           </Button>
           <Button onClick={openCreate} className="gap-2">
             <Plus className="h-4 w-4" />
@@ -429,18 +463,20 @@ const Produtos = () => {
             )}
           </div>
 
-          {/* Filtro de Estoque */}
+          {/* Filtro de Estoque / Status */}
           <div className="flex items-center gap-2">
             <Select
               value={filterStockStatus}
               onValueChange={(val: any) => setFilterStockStatus(val)}
             >
-              <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs">
+              <SelectTrigger className="w-full sm:w-[190px] h-9 text-xs">
                 <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5 opacity-70" />
-                <SelectValue placeholder="Situação de estoque" />
+                <SelectValue placeholder="Situação" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as situações</SelectItem>
+                <SelectItem value="active">Somente ativos</SelectItem>
+                <SelectItem value="inactive">Somente desativados</SelectItem>
                 <SelectItem value="regular">Estoque regular</SelectItem>
                 <SelectItem value="low">Estoque baixo</SelectItem>
                 <SelectItem value="untracked">Não controlado</SelectItem>
@@ -501,16 +537,17 @@ const Produtos = () => {
       {/* Compact Product Table (Em conformidade com AGENTS.md) */}
       <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[940px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="border-b bg-muted/60 text-xs font-semibold uppercase text-muted-foreground">
               <tr>
-                <th className="w-28 px-4 py-3">Código</th>
+                <th className="w-24 px-4 py-3">Código</th>
                 <th className="px-4 py-3">Produto</th>
                 <th className="w-40 px-4 py-3">Categoria</th>
                 <th className="w-32 px-4 py-3 text-right">Preço Venda</th>
-                <th className="w-28 px-4 py-3 text-right">Estoque</th>
-                <th className="w-32 px-4 py-3">Situação</th>
-                <th className="w-44 px-4 py-3">Imprimir em</th>
+                <th className="w-24 px-4 py-3 text-right">Estoque</th>
+                <th className="w-28 px-4 py-3">Situação</th>
+                <th className="w-40 px-4 py-3">Imprimir em</th>
+                <th className="w-28 px-4 py-3 text-center">Ativo</th>
                 <th className="w-28 px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -518,13 +555,17 @@ const Produtos = () => {
               {filtered.map(product => {
                 const cat = getCat(product.categoryId);
                 const stockLow = product.controlStock && product.stock <= (product.minStock ?? 0);
+                const isActive = product.active !== false;
                 const printDestination =
                   product.printSector === 'none'
                     ? 'Não imprimir'
                     : sectorLabel(product.printSector || cat?.printSector || 'cozinha');
 
                 return (
-                  <tr key={product.id} className="transition-colors hover:bg-muted/30">
+                  <tr
+                    key={product.id}
+                    className={`transition-colors hover:bg-muted/30 ${!isActive ? 'opacity-60 bg-muted/15' : ''}`}
+                  >
                     {/* Código de busca */}
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                       {product.searchCode || '—'}
@@ -532,13 +573,20 @@ const Produtos = () => {
 
                     {/* Nome e descrição */}
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(product)}
-                        className="text-left font-semibold text-foreground hover:text-primary transition-colors block"
-                      >
-                        {product.name}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(product)}
+                          className="text-left font-semibold text-foreground hover:text-primary transition-colors block"
+                        >
+                          {product.name}
+                        </button>
+                        {!isActive && (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                            Inativo
+                          </Badge>
+                        )}
+                      </div>
                       {product.description && (
                         <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1 max-w-sm">
                           {product.description}
@@ -593,6 +641,17 @@ const Produtos = () => {
                       <div className="flex items-center gap-1.5 truncate">
                         <Printer className="h-3.5 w-3.5 shrink-0 opacity-60" />
                         <span className="truncate">{printDestination}</span>
+                      </div>
+                    </td>
+
+                    {/* Toggle Ativo / Inativo */}
+                    <td className="px-4 py-3 text-center">
+                      <div className="inline-flex items-center justify-center gap-1.5">
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={checked => toggleProductActive(product, checked)}
+                          aria-label={`${isActive ? 'Desativar' : 'Ativar'} ${product.name}`}
+                        />
                       </div>
                     </td>
 
@@ -820,6 +879,18 @@ const Produtos = () => {
                   </div>
 
                   <Section title="Opções Adicionais">
+                    <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                      <div className="text-sm">
+                        <strong className="text-foreground">Produto ativo no cardápio (Storefront)</strong>
+                        <p className="text-xs text-muted-foreground">
+                          Quando desativado, não será exibido no cardápio e lançamentos de pedidos.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={form.active}
+                        onCheckedChange={v => setForm(f => ({ ...f, active: v }))}
+                      />
+                    </div>
                     <CheckOption
                       checked={form.serviceFeeExempt}
                       onChange={v => setForm(f => ({ ...f, serviceFeeExempt: v }))}
@@ -957,7 +1028,7 @@ const Produtos = () => {
                           Opções Vinculadas à Categoria
                         </h4>
                         <p className="text-xs text-muted-foreground">
-                          Adicionais e sabores disponíveis para a categoria selecionada.
+                          Observações, adicionais e complementos disponíveis para a categoria selecionada.
                         </p>
                       </div>
                       <Button
@@ -968,7 +1039,7 @@ const Produtos = () => {
                         className="text-xs gap-1"
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        Criar Nova Opção
+                        Gerenciar Opções
                       </Button>
                     </div>
 
@@ -976,7 +1047,7 @@ const Produtos = () => {
                       <div className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">
                         <Tag className="h-6 w-6 mx-auto mb-2 opacity-40" />
                         <p className="text-xs font-medium">
-                          Nenhum adicional ou observação vinculada a esta categoria.
+                          Nenhum adicional, complemento ou observação vinculada a esta categoria.
                         </p>
                         <Button
                           type="button"
@@ -993,19 +1064,26 @@ const Produtos = () => {
                         {currentCategoryNoteOptions.map(opt => (
                           <div
                             key={opt.id}
-                            className="p-3 flex items-center justify-between text-xs"
+                            className={`p-3 flex items-center justify-between text-xs ${!opt.active ? 'opacity-60 bg-muted/15' : ''}`}
                           >
                             <div>
                               <span className="font-semibold text-foreground">{opt.name}</span>
                               <span className="ml-2 text-muted-foreground">
                                 {opt.type === 'complement'
-                                  ? `+ R$ ${fmt(opt.price)} (${opt.classification === 'flavor' ? 'Sabor' : opt.classification === 'both' ? 'Ambos' : 'Adicional'})`
+                                  ? `+ R$ ${fmt(opt.price)} (${opt.classification === 'flavor' ? 'Complemento / Sabor' : opt.classification === 'both' ? 'Ambos' : 'Adicional'})`
                                   : 'Observação livre'}
                               </span>
                             </div>
-                            <Badge variant={opt.active ? 'secondary' : 'outline'} className="text-[10px]">
-                              {opt.active ? 'Ativo' : 'Inativo'}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={opt.active ? 'secondary' : 'outline'} className="text-[10px]">
+                                {opt.active ? 'Ativo' : 'Inativo'}
+                              </Badge>
+                              <Switch
+                                checked={opt.active !== false}
+                                onCheckedChange={checked => toggleOptActive(opt, checked)}
+                                aria-label={`${opt.active ? 'Desativar' : 'Ativar'} ${opt.name}`}
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1051,136 +1129,218 @@ const Produtos = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Central de Observações & Adicionais */}
+      {/* Modal Central de Observações, Adicionais & Complementos */}
       <Dialog open={optsDialogOpen} onOpenChange={setOptsDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-5 border-b flex flex-row items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <Tag className="h-4 w-4 text-primary" />
-              Observações & Adicionais
+              Observações, Adicionais & Complementos
             </DialogTitle>
           </DialogHeader>
 
-          <div className="p-4 bg-muted/20 border-b flex gap-2">
+          <div className="p-4 bg-muted/20 border-b flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="outline"
               className="flex-1 gap-1 text-xs"
               onClick={() => openCreateOpt('note')}
             >
-              <Plus className="h-3.5 w-3.5" /> Nova Observação Livre
+              <Plus className="h-3.5 w-3.5" /> Nova Observação
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 gap-1 text-xs"
+              onClick={() => openCreateOpt('complement', 'additional')}
+            >
+              <Plus className="h-3.5 w-3.5" /> Novo Adicional
             </Button>
             <Button
               size="sm"
               className="flex-1 gap-1 text-xs"
-              onClick={() => openCreateOpt('complement')}
+              onClick={() => openCreateOpt('complement', 'flavor')}
             >
-              <Plus className="h-3.5 w-3.5" /> Novo Adicional Pago
+              <Plus className="h-3.5 w-3.5" /> Novo Complemento / Sabor
             </Button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-5">
-            {/* Observações Livres */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            {/* 1. Observações Livres */}
             <div>
               <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
                 <span className="inline-block w-2 h-2 rounded-full bg-secondary" />
-                Observações Livres ({noteOptions.filter(o => o.type === 'note').length})
+                Observações ({noteItems.length})
               </h3>
-              {noteOptions.filter(o => o.type === 'note').length === 0 ? (
+              {noteItems.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
                   Nenhuma observação cadastrada.
                 </p>
               ) : (
                 <div className="grid gap-2">
-                  {noteOptions
-                    .filter(o => o.type === 'note')
-                    .map(opt => (
-                      <div
-                        key={opt.id}
-                        className="flex items-center justify-between p-3 border rounded-lg bg-card"
-                      >
-                        <div>
+                  {noteItems.map(opt => (
+                    <div
+                      key={opt.id}
+                      className={`flex items-center justify-between p-3 border rounded-lg bg-card ${!opt.active ? 'opacity-60 bg-muted/15' : ''}`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
                           <p className="font-semibold text-sm text-foreground">{opt.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {opt.categoryIds.length === categories.length
-                              ? 'Todas as categorias'
-                              : `${opt.categoryIds.length} categoria(s)`}
-                          </p>
+                          <Badge variant={opt.active ? 'secondary' : 'outline'} className="text-[10px]">
+                            {opt.active ? 'Ativo' : 'Inativo'}
+                          </Badge>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => openEditOpt(opt)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => deleteOpt(opt.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {opt.categoryIds.length === categories.length
+                            ? 'Todas as categorias'
+                            : `${opt.categoryIds.length} categoria(s)`}
+                        </p>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={opt.active !== false}
+                          onCheckedChange={checked => toggleOptActive(opt, checked)}
+                          aria-label={`${opt.active ? 'Desativar' : 'Ativar'} ${opt.name}`}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => openEditOpt(opt)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => deleteOpt(opt.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Adicionais Pagos */}
+            {/* 2. Adicionais */}
             <div>
               <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
                 <span className="inline-block w-2 h-2 rounded-full bg-primary" />
-                Adicionais e Sabores ({noteOptions.filter(o => o.type === 'complement').length})
+                Adicionais ({additionalItems.length})
               </h3>
-              {noteOptions.filter(o => o.type === 'complement').length === 0 ? (
+              {additionalItems.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
                   Nenhum adicional cadastrado.
                 </p>
               ) : (
                 <div className="grid gap-2">
-                  {noteOptions
-                    .filter(o => o.type === 'complement')
-                    .map(opt => (
-                      <div
-                        key={opt.id}
-                        className="flex items-center justify-between p-3 border rounded-lg bg-card"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-sm text-foreground">{opt.name}</p>
-                            <Badge variant="secondary" className="text-[10px]">
-                              {opt.classification === 'flavor' ? 'Sabor' : opt.classification === 'both' ? 'Ambos' : 'Adicional'}
-                            </Badge>
-                          </div>
-                          <p className="text-xs font-bold text-primary tabular-nums mt-0.5">
-                            + R$ {fmt(opt.price)}
-                          </p>
+                  {additionalItems.map(opt => (
+                    <div
+                      key={opt.id}
+                      className={`flex items-center justify-between p-3 border rounded-lg bg-card ${!opt.active ? 'opacity-60 bg-muted/15' : ''}`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm text-foreground">{opt.name}</p>
+                          <Badge variant="secondary" className="text-[10px]">
+                            Adicional
+                          </Badge>
+                          <Badge variant={opt.active ? 'secondary' : 'outline'} className="text-[10px]">
+                            {opt.active ? 'Ativo' : 'Inativo'}
+                          </Badge>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => openEditOpt(opt)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => deleteOpt(opt.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                        <p className="text-xs font-bold text-primary tabular-nums mt-0.5">
+                          + R$ {fmt(opt.price)}
+                        </p>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={opt.active !== false}
+                          onCheckedChange={checked => toggleOptActive(opt, checked)}
+                          aria-label={`${opt.active ? 'Desativar' : 'Ativar'} ${opt.name}`}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => openEditOpt(opt)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => deleteOpt(opt.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Complementos e Sabores */}
+            <div>
+              <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                Complementos e Sabores ({complementFlavorItems.length})
+              </h3>
+              {complementFlavorItems.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+                  Nenhum complemento ou sabor cadastrado.
+                </p>
+              ) : (
+                <div className="grid gap-2">
+                  {complementFlavorItems.map(opt => (
+                    <div
+                      key={opt.id}
+                      className={`flex items-center justify-between p-3 border rounded-lg bg-card ${!opt.active ? 'opacity-60 bg-muted/15' : ''}`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm text-foreground">{opt.name}</p>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {opt.classification === 'both' ? 'Ambos (Adicional & Sabor)' : 'Complemento / Sabor'}
+                          </Badge>
+                          <Badge variant={opt.active ? 'secondary' : 'outline'} className="text-[10px]">
+                            {opt.active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs font-bold text-primary tabular-nums mt-0.5">
+                          + R$ {fmt(opt.price)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={opt.active !== false}
+                          onCheckedChange={checked => toggleOptActive(opt, checked)}
+                          aria-label={`${opt.active ? 'Desativar' : 'Ativar'} ${opt.name}`}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => openEditOpt(opt)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => deleteOpt(opt.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -1197,6 +1357,8 @@ const Produtos = () => {
                 ? 'Editar Opção'
                 : optForm.type === 'note'
                 ? 'Nova Observação'
+                : optForm.classification === 'flavor'
+                ? 'Novo Complemento / Sabor'
                 : 'Novo Adicional'}
             </DialogTitle>
           </DialogHeader>
@@ -1227,7 +1389,7 @@ const Produtos = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="additional">Adicional</SelectItem>
-                      <SelectItem value="flavor">Sabor</SelectItem>
+                      <SelectItem value="flavor">Complemento / Sabor</SelectItem>
                       <SelectItem value="both">Ambos</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1242,6 +1404,19 @@ const Produtos = () => {
                 </div>
               </div>
             )}
+
+            <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/20">
+              <div>
+                <p className="text-xs font-semibold text-foreground">Ativo no Cardápio (Storefront)</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Desative para ocultar esta opção no lançamento de pedidos.
+                </p>
+              </div>
+              <Switch
+                checked={optForm.active}
+                onCheckedChange={checked => setOptForm(f => ({ ...f, active: checked }))}
+              />
+            </div>
 
             <div className="space-y-1.5">
               <Label>Disponível para as categorias: *</Label>

@@ -51,10 +51,16 @@ export function ConsumerProductFinderModal({
   }, [open]);
 
   const filteredProducts = useMemo(() => {
-    let list = selectedCatId === 'all' ? products : products.filter(p => p.categoryId === selectedCatId);
+    const activeProducts = products.filter(p => p.active !== false);
+    let list = selectedCatId === 'all' ? activeProducts : activeProducts.filter(p => p.categoryId === selectedCatId);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      list = list.filter(p => (p.name || '').toLowerCase().includes(q) || (p.id || '').toLowerCase().includes(q));
+      list = list.filter(
+        p =>
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.id || '').toLowerCase().includes(q) ||
+          (p.searchCode || '').toLowerCase().includes(q)
+      );
     }
     return list;
   }, [products, selectedCatId, searchQuery]);
@@ -275,7 +281,7 @@ export function ConsumerProductFinderModal({
             ) : (
               /* Grid View */
               <div className="flex-1 overflow-auto p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {filteredProducts.map((prod, idx) => {
+                {filteredProducts.map((prod) => {
                   const cat = getCategoryById(prod.categoryId);
                   return (
                     <div

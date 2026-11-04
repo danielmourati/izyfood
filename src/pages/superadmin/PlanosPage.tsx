@@ -17,13 +17,17 @@ import { formatBRLInput, parseBRLInput } from '@/lib/utils';
 import {
   DEFAULT_MONTHLY_PRICE,
   DEFAULT_YEARLY_PRICE,
+  MANUAL_PAYMENT_METHOD_LABELS,
+  ManualPaymentMethod,
+  ManualPaymentRecord,
   decodePlanPricing,
   encodePlanPricingMeta,
 } from '@/lib/plan-pricing';
 import {
   CreditCard, Loader2, Ban, PlayCircle, Gift, Receipt, Search,
   SlidersHorizontal, AlertTriangle,
-  Sparkles, RefreshCw, Infinity as InfinityIcon, DollarSign, Percent
+  Sparkles, RefreshCw, Infinity as InfinityIcon, DollarSign, Percent,
+  Banknote, PlusCircle, Trash2, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -46,6 +50,8 @@ interface TenantPlanRow {
   courtesy_months?: number | null;
   max_installments?: number | null;
   notes?: string | null;
+  last_payment_method?: ManualPaymentMethod | null;
+  manual_payments?: ManualPaymentRecord[];
   tenants: { name: string; slug: string; active: boolean } | null;
 }
 
@@ -57,6 +63,7 @@ interface Payment {
   created_at: string;
   plan: string;
   mp_payment_id: string | null;
+  raw?: any;
 }
 
 const planLabels: Record<PlanType, string> = {
@@ -93,6 +100,8 @@ function computeEffectivePrices(row: Partial<TenantPlanRow>) {
     courtesyMonths: decoded.courtesy_months,
     maxInstallments: decoded.max_installments,
     notes: decoded.notes,
+    lastPaymentMethod: decoded.last_payment_method,
+    manualPayments: decoded.manual_payments || [],
   };
 }
 
@@ -140,8 +149,9 @@ function getExpirationInfo(row: TenantPlanRow): {
   }
 
   const now = new Date();
-  const diffTime = targetDate.getTime() - now.getTime();
-  const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const targetStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
+  const daysLeft = Math.round((targetStart - todayStart) / (1000 * 60 * 60 * 24));
   const isExpired = daysLeft < 0;
   const isExpiringSoon = daysLeft >= 0 && daysLeft <= 7;
   const displayDate = targetDate.toLocaleDateString('pt-BR');
@@ -153,6 +163,23 @@ function getExpirationInfo(row: TenantPlanRow): {
   else badgeText = `Expirou há ${Math.abs(daysLeft)}d`;
 
   return { daysLeft, isExpired, isExpiringSoon, isLifetime: false, displayDate, badgeText };
+}
+
+function computeNextEndDate(
+  baseDateStr: string | null | undefined,
+  paymentDateStr: string,
+  plan: 'pro_monthly' | 'pro_yearly',
+  courtesyMonths: number
+): string {
+  const payDate = paymentDateStr ? new Date(`${paymentDateStr}T12:00:00Z`) : new Date();
+  const currentEnd = baseDateStr ? new Date(baseDateStr) : null;
+  const startBase =
+    currentEnd && !isNaN(currentEnd.getTime()) && currentEnd.getTime() > payDate.getTime() && currentEnd.getFullYear() < 2090
+      ? currentEnd
+      : payDate;
+
+  const daysToAdd = plan === 'pro_yearly' ? 365 + courtesyMonths * 30 : 30;
+  return new Date(startBase.getTime() + daysToAdd * 864e5).toISOString().slice(0, 10);
 }
 
 export function PlanosPage() {
@@ -173,6 +200,7 @@ export function PlanosPage() {
     trial_ends_at: string;
     current_period_end: string;
     last_payment_at: string;
+    last_payment_method: ManualPaymentMethod;
     monthly_price: string;
     yearly_price: string;
     monthly_discount_pct: string;
@@ -186,6 +214,7 @@ export function PlanosPage() {
     trial_ends_at: '',
     current_period_end: '',
     last_payment_at: '',
+    last_payment_method: 'pix',
     monthly_price: formatBRLInput(DEFAULT_MONTHLY_PRICE),
     yearly_price: formatBRLInput(DEFAULT_YEARLY_PRICE),
     monthly_discount_pct: '0',
@@ -195,6 +224,26 @@ export function PlanosPage() {
     notes: '',
   });
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Manual Payment Registration State
+  const [manualForm, setManualForm] = useState<{
+    plan: 'pro_monthly' | 'pro_yearly';
+    amount: string;
+    paid_at: string;
+    payment_method: ManualPaymentMethod;
+    renew_validity: boolean;
+    new_period_end: string;
+    notes: string;
+  }>({
+    plan: 'pro_monthly',
+    amount: formatBRLInput(DEFAULT_MONTHLY_PRICE),
+    paid_at: new Date().toISOString().slice(0, 10),
+    payment_method: 'pix',
+    renew_validity: true,
+    new_period_end: '',
+    notes: '',
+  });
+  const [savingManualPayment, setSavingManualPayment] = useState(false);
 
   // Payments cache inside unified modal
   const [payments, setPayments] = useState<Record<string, Payment[]>>({});
@@ -211,6 +260,8 @@ export function PlanosPage() {
       courtesy_months: decoded.courtesy_months,
       max_installments: decoded.max_installments,
       notes: decoded.notes,
+      last_payment_method: decoded.last_payment_method,
+      manual_payments: decoded.manual_payments || [],
     };
   };
 
@@ -221,8 +272,6 @@ export function PlanosPage() {
       .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, mp_customer_id, monthly_price, yearly_price, monthly_discount_pct, yearly_discount_pct, courtesy_months, max_installments, notes, tenants(name, slug, active)')
       .order('created_at', { ascending: false });
 
-    // Fallback se a migration de colunas dedicadas ainda não foi aplicada no banco remoto:
-    // lê mp_customer_id (coluna nativa de tenant_plans) onde os metadados de preço ficam persistidos.
     if (error) {
       const fallback = await supabase
         .from('tenant_plans' as any)
@@ -244,15 +293,15 @@ export function PlanosPage() {
     fetchData();
   }, [fetchData]);
 
-  const loadPaymentsForTenant = async (tenantId: string) => {
-    if (payments[tenantId]) return;
+  const loadPaymentsForTenant = async (tenantId: string, force = false) => {
+    if (payments[tenantId] && !force) return;
     setLoadingPayments(true);
     const { data } = await supabase
       .from('payment_intents' as any)
-      .select('id, amount, status, paid_at, created_at, plan, mp_payment_id')
+      .select('id, amount, status, paid_at, created_at, plan, mp_payment_id, raw')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(30);
     setPayments(prev => ({ ...prev, [tenantId]: (data as any) || [] }));
     setLoadingPayments(false);
   };
@@ -306,6 +355,11 @@ export function PlanosPage() {
   // Open unified management modal on desired tab
   const openManageModal = (row: TenantPlanRow, tab: 'assinatura' | 'valores' | 'cobrancas' = 'assinatura') => {
     const decoded = decodePlanPricing(row);
+    const pricing = computeEffectivePrices(row);
+    const defaultManualPlan: 'pro_monthly' | 'pro_yearly' =
+      row.plan === 'pro_yearly' ? 'pro_yearly' : 'pro_monthly';
+    const todayStr = new Date().toISOString().slice(0, 10);
+
     setEditRow(row);
     setActiveModalTab(tab);
     setEditForm({
@@ -314,6 +368,7 @@ export function PlanosPage() {
       trial_ends_at: row.trial_ends_at ? row.trial_ends_at.slice(0, 10) : '',
       current_period_end: row.current_period_end ? row.current_period_end.slice(0, 10) : '',
       last_payment_at: row.last_payment_at ? row.last_payment_at.slice(0, 10) : '',
+      last_payment_method: decoded.last_payment_method || 'pix',
       monthly_price: formatBRLInput(decoded.monthly_price),
       yearly_price: formatBRLInput(decoded.yearly_price),
       monthly_discount_pct: String(decoded.monthly_discount_pct),
@@ -321,6 +376,22 @@ export function PlanosPage() {
       courtesy_months: String(decoded.courtesy_months),
       max_installments: String(decoded.max_installments),
       notes: decoded.notes || '',
+    });
+    setManualForm({
+      plan: defaultManualPlan,
+      amount: formatBRLInput(
+        defaultManualPlan === 'pro_yearly' ? pricing.yearlyFinal : pricing.monthlyFinal
+      ),
+      paid_at: todayStr,
+      payment_method: decoded.last_payment_method || 'pix',
+      renew_validity: true,
+      new_period_end: computeNextEndDate(
+        row.current_period_end,
+        todayStr,
+        defaultManualPlan,
+        decoded.courtesy_months
+      ),
+      notes: '',
     });
     if (tab === 'cobrancas') {
       void loadPaymentsForTenant(row.tenant_id);
@@ -377,6 +448,167 @@ export function PlanosPage() {
     );
   };
 
+  const handleRegisterManualPayment = async () => {
+    if (!editRow) return;
+    const amountNum = parseBRLInput(manualForm.amount);
+    if (isNaN(amountNum) || amountNum < 0) {
+      toast.error('Informe um valor válido para o pagamento.');
+      return;
+    }
+    if (!manualForm.paid_at) {
+      toast.error('Selecione a data do pagamento.');
+      return;
+    }
+
+    setSavingManualPayment(true);
+    try {
+      const decoded = decodePlanPricing(editRow);
+      const paymentIso = new Date(`${manualForm.paid_at}T12:00:00Z`).toISOString();
+      const newRecord: ManualPaymentRecord = {
+        id: crypto.randomUUID(),
+        amount: amountNum,
+        paid_at: paymentIso,
+        payment_method: manualForm.payment_method,
+        plan: manualForm.plan,
+        notes: manualForm.notes.trim() || null,
+        created_at: new Date().toISOString(),
+      };
+
+      const nextManualPayments = [newRecord, ...(decoded.manual_payments || [])];
+
+      const encodedMeta = encodePlanPricingMeta(
+        {
+          ...decoded,
+          last_payment_method: manualForm.payment_method,
+          manual_payments: nextManualPayments,
+        },
+        editRow.mp_customer_id
+      );
+
+      const nextPeriodEndIso =
+        manualForm.renew_validity && manualForm.new_period_end
+          ? new Date(`${manualForm.new_period_end}T23:59:59Z`).toISOString()
+          : editRow.current_period_end;
+
+      const patch: any = {
+        plan: manualForm.plan,
+        status: 'active',
+        last_payment_at: paymentIso,
+        current_period_end: nextPeriodEndIso,
+        mp_customer_id: encodedMeta,
+      };
+
+      const { data: updatedData, error } = await supabase
+        .from('tenant_plans' as any)
+        .update(patch)
+        .eq('id', editRow.id)
+        .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, mp_customer_id');
+
+      if (error) throw error;
+      if (!updatedData || updatedData.length === 0) {
+        throw new Error('Não foi possível gravar o pagamento no banco. Verifique as permissões de SuperAdmin.');
+      }
+
+      // Tenta também registrar em payment_intents caso a policy de SuperAdmin já esteja ativa
+      try {
+        await supabase.from('payment_intents' as any).insert({
+          id: newRecord.id,
+          tenant_id: editRow.tenant_id,
+          plan: manualForm.plan,
+          amount: amountNum,
+          mp_payment_id: `MANUAL-${newRecord.id.slice(0, 8).toUpperCase()}`,
+          status: 'approved',
+          paid_at: paymentIso,
+          raw: {
+            manual: true,
+            payment_method: manualForm.payment_method,
+            notes: newRecord.notes,
+          },
+        });
+      } catch {
+        // Ignora caso RLS em payment_intents ainda seja somente leitura; o registro já está salvo em tenant_plans
+      }
+
+      const savedRow = normalizeRow({
+        ...editRow,
+        ...(updatedData[0] as any),
+        tenants: editRow.tenants,
+      });
+
+      setEditRow(savedRow);
+      setRows(prev => prev.map(r => (r.id === editRow.id ? savedRow : r)));
+      setEditForm(f => ({
+        ...f,
+        plan: savedRow.plan,
+        status: savedRow.status,
+        last_payment_at: manualForm.paid_at,
+        last_payment_method: manualForm.payment_method,
+        current_period_end: savedRow.current_period_end ? savedRow.current_period_end.slice(0, 10) : f.current_period_end,
+      }));
+      setManualForm(f => ({
+        ...f,
+        notes: '',
+        new_period_end: computeNextEndDate(
+          savedRow.current_period_end,
+          f.paid_at,
+          f.plan,
+          decoded.courtesy_months
+        ),
+      }));
+
+      void loadPaymentsForTenant(editRow.tenant_id, true);
+      toast.success(
+        `Pagamento manual de ${fmtBRL(amountNum)} (${MANUAL_PAYMENT_METHOD_LABELS[manualForm.payment_method]}) registrado com sucesso!`
+      );
+    } catch (err: any) {
+      console.error('Erro ao registrar pagamento manual:', err);
+      toast.error(err.message || 'Erro ao registrar pagamento manual');
+    } finally {
+      setSavingManualPayment(false);
+    }
+  };
+
+  const handleDeleteManualPayment = async (paymentId: string) => {
+    if (!editRow) return;
+    try {
+      const decoded = decodePlanPricing(editRow);
+      const nextManualPayments = (decoded.manual_payments || []).filter(p => p.id !== paymentId);
+      const encodedMeta = encodePlanPricingMeta(
+        {
+          ...decoded,
+          manual_payments: nextManualPayments,
+        },
+        editRow.mp_customer_id
+      );
+
+      const { data: updatedData, error } = await supabase
+        .from('tenant_plans' as any)
+        .update({ mp_customer_id: encodedMeta })
+        .eq('id', editRow.id)
+        .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, mp_customer_id');
+
+      if (error) throw error;
+
+      try {
+        await supabase.from('payment_intents' as any).delete().eq('id', paymentId);
+      } catch {}
+
+      if (updatedData && updatedData[0]) {
+        const savedRow = normalizeRow({
+          ...editRow,
+          ...(updatedData[0] as any),
+          tenants: editRow.tenants,
+        });
+        setEditRow(savedRow);
+        setRows(prev => prev.map(r => (r.id === editRow.id ? savedRow : r)));
+      }
+      void loadPaymentsForTenant(editRow.tenant_id, true);
+      toast.success('Registro de pagamento manual removido.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao remover pagamento manual');
+    }
+  };
+
   const handleSaveEdit = async () => {
     if (!editRow) return;
     setSavingEdit(true);
@@ -391,8 +623,7 @@ export function PlanosPage() {
       const maxInst = Math.min(10, Math.max(1, parseInt(editForm.max_installments) || 10));
       const cleanNotes = editForm.notes.trim() || null;
 
-      // Codifica os valores também em mp_customer_id (coluna TEXT que já existe em tenant_plans)
-      // garantindo persistência no banco mesmo antes da migration das colunas dedicadas.
+      const decoded = decodePlanPricing(editRow);
       const encodedMeta = encodePlanPricingMeta(
         {
           monthly_price: mPrice,
@@ -402,6 +633,8 @@ export function PlanosPage() {
           courtesy_months: cMonths,
           max_installments: maxInst,
           notes: cleanNotes,
+          last_payment_method: editForm.last_payment_method,
+          manual_payments: decoded.manual_payments || [],
         },
         editRow.mp_customer_id
       );
@@ -433,7 +666,6 @@ export function PlanosPage() {
         .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, last_payment_at, mp_customer_id');
 
       if (error) {
-        // Fallback: grava na tabela tenant_plans usando mp_customer_id (coluna nativa)
         const retry = await supabase
           .from('tenant_plans' as any)
           .update(basePatchWithMeta)
@@ -448,13 +680,12 @@ export function PlanosPage() {
         throw new Error('Nenhuma linha foi gravada no banco. Verifique as permissões de SuperAdmin.');
       }
 
-      // Atualiza imediatamente a linha na memória com os dados confirmados pelo banco
       const savedRow = normalizeRow({
         ...editRow,
         ...(updatedData[0] as any),
         tenants: editRow.tenants,
       });
-      setRows(prev => prev.map(r => r.id === editRow.id ? savedRow : r));
+      setRows(prev => prev.map(r => (r.id === editRow.id ? savedRow : r)));
 
       toast.success(`Assinatura e valores de ${editRow.tenants?.name} gravados no banco com sucesso!`);
       setEditRow(null);
@@ -524,6 +755,63 @@ export function PlanosPage() {
     const maxInst = Math.min(10, Math.max(1, parseInt(editForm.max_installments) || 10));
 
     return { mBase, mDisc, mFinal, yBase, yDisc, yFinal, cMonths, maxInst };
+  })();
+
+  // Combined payment list (Manual + Mercado Pago) for the active tenant in modal
+  const combinedPayments = (() => {
+    if (!editRow) return [];
+    const manualList = decodePlanPricing(editRow).manual_payments || [];
+    const mpList = payments[editRow.tenant_id] || [];
+    const manualIds = new Set(manualList.map(m => m.id));
+
+    const unified: {
+      id: string;
+      isManual: boolean;
+      amount: number;
+      plan: string;
+      status: string;
+      paid_at: string | null;
+      created_at: string;
+      paymentMethodLabel: string;
+      reference: string;
+    }[] = [
+      ...manualList.map(m => ({
+        id: m.id,
+        isManual: true,
+        amount: Number(m.amount),
+        plan: m.plan,
+        status: 'paid',
+        paid_at: m.paid_at,
+        created_at: m.created_at,
+        paymentMethodLabel: MANUAL_PAYMENT_METHOD_LABELS[m.payment_method] || m.payment_method,
+        reference: m.notes || 'Pagamento manual',
+      })),
+      ...mpList
+        .filter(p => !manualIds.has(p.id))
+        .map(p => {
+          const isManualRaw = !!(p.raw && typeof p.raw === 'object' && p.raw.manual);
+          const methodKey = p.raw?.payment_method as ManualPaymentMethod | undefined;
+          return {
+            id: p.id,
+            isManual: isManualRaw,
+            amount: Number(p.amount),
+            plan: p.plan,
+            status: p.status,
+            paid_at: p.paid_at,
+            created_at: p.created_at,
+            paymentMethodLabel: methodKey
+              ? MANUAL_PAYMENT_METHOD_LABELS[methodKey] || methodKey
+              : 'Mercado Pago',
+            reference: p.raw?.notes || p.mp_payment_id || '—',
+          };
+        }),
+    ];
+
+    return unified.sort(
+      (a, b) =>
+        new Date(b.paid_at || b.created_at).getTime() -
+        new Date(a.paid_at || a.created_at).getTime()
+    );
   })();
 
   return (
@@ -750,7 +1038,7 @@ export function PlanosPage() {
                           </div>
                         </td>
 
-                        {/* Renewal Date with countdown */}
+                        {/* Renewal Date with countdown & last payment */}
                         <td className="py-3 pr-4">
                           <div className="space-y-0.5">
                             <p className="text-xs font-medium text-foreground">
@@ -773,6 +1061,14 @@ export function PlanosPage() {
                                 {expInfo.badgeText}
                               </span>
                             )}
+                            {r.last_payment_at && (
+                              <p className="text-[10px] text-muted-foreground pt-0.5">
+                                Últ. pagto: {fmtDate(r.last_payment_at)}
+                                {pricing.lastPaymentMethod
+                                  ? ` · ${MANUAL_PAYMENT_METHOD_LABELS[pricing.lastPaymentMethod] || pricing.lastPaymentMethod}`
+                                  : ''}
+                              </p>
+                            )}
                           </div>
                         </td>
 
@@ -792,6 +1088,20 @@ export function PlanosPage() {
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>Gestão completa: vigência, valores, descontos, cortesias e cobranças</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                                  onClick={() => openManageModal(r, 'cobrancas')}
+                                >
+                                  <Banknote className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Registrar pagamento avulso/manual (data e forma de pagamento)</TooltipContent>
                             </Tooltip>
 
                             <Tooltip>
@@ -849,7 +1159,7 @@ export function PlanosPage() {
                                   <Receipt className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Histórico de cobranças e pagamentos Mercado Pago</TooltipContent>
+                              <TooltipContent>Histórico de pagamentos (Manual & Mercado Pago)</TooltipContent>
                             </Tooltip>
                           </div>
                         </td>
@@ -863,7 +1173,7 @@ export function PlanosPage() {
         </CardContent>
       </Card>
 
-      {/* UNIFIED MODAL: Gestão Completa da Assinatura, Valores, Descontos, Cortesias & Cobranças */}
+      {/* UNIFIED MODAL: Gestão Completa da Assinatura, Valores, Descontos, Cortesias & Pagamentos */}
       <Dialog open={!!editRow} onOpenChange={(v) => !v && setEditRow(null)}>
         <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
@@ -872,7 +1182,7 @@ export function PlanosPage() {
               Gestão Completa da Assinatura · {editRow?.tenants?.name}
             </DialogTitle>
             <DialogDescription>
-              Configure vigência, cortesias, valores personalizados (mensal e anual), descontos e consulte o histórico de pagamentos de <strong>/{editRow?.tenants?.slug}</strong>.
+              Configure vigência, cortesias, valores personalizados, descontos e registre pagamentos avulsos/manuais de <strong>/{editRow?.tenants?.slug}</strong>.
             </DialogDescription>
           </DialogHeader>
 
@@ -894,7 +1204,7 @@ export function PlanosPage() {
                   <DollarSign className="h-3.5 w-3.5" /> Valores & Descontos
                 </TabsTrigger>
                 <TabsTrigger value="cobrancas" className="text-xs gap-1.5">
-                  <Receipt className="h-3.5 w-3.5" /> Cobranças MP
+                  <Banknote className="h-3.5 w-3.5" /> Pagamentos & Cobranças
                 </TabsTrigger>
               </TabsList>
 
@@ -975,10 +1285,10 @@ export function PlanosPage() {
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="period-end" className="text-xs">Vencimento / Renovação (PRO)</Label>
+                      <Label htmlFor="period-end" className="text-xs">Vencimento (PRO)</Label>
                       <button
                         type="button"
                         className="text-[11px] text-primary hover:underline"
@@ -1022,7 +1332,7 @@ export function PlanosPage() {
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="last-pay" className="text-xs">Último Pagamento</Label>
+                      <Label htmlFor="last-pay" className="text-xs">Data Últ. Pagamento</Label>
                       <button
                         type="button"
                         className="text-[11px] text-primary hover:underline"
@@ -1039,6 +1349,48 @@ export function PlanosPage() {
                       className="font-mono text-xs"
                     />
                   </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Forma do Pagamento</Label>
+                    <Select
+                      value={editForm.last_payment_method}
+                      onValueChange={(v) => setEditForm(f => ({ ...f, last_payment_method: v as ManualPaymentMethod }))}
+                    >
+                      <SelectTrigger className="h-10 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.entries(MANUAL_PAYMENT_METHOD_LABELS) as [ManualPaymentMethod, string][]).map(
+                          ([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">Deseja registrar um pagamento avulso/manual completo?</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Escolha valor, data do pagamento, forma de pagamento e renove a vigência com histórico.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-xs border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 shrink-0"
+                    onClick={() => {
+                      setActiveModalTab('cobrancas');
+                      void loadPaymentsForTenant(editRow.tenant_id);
+                    }}
+                  >
+                    <PlusCircle className="h-3.5 w-3.5" /> Registrar Pagamento
+                  </Button>
                 </div>
 
                 <div className="space-y-1.5">
@@ -1215,52 +1567,261 @@ export function PlanosPage() {
                 </div>
               </TabsContent>
 
-              {/* TAB 3: HISTÓRICO DE COBRANÇAS MERCADO PAGO */}
-              <TabsContent value="cobrancas" className="pt-3">
-                {loadingPayments ? (
-                  <div className="space-y-2 py-4">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
+              {/* TAB 3: REGISTRO DE PAGAMENTO AVULSO/MANUAL + HISTÓRICO DE PAGAMENTOS */}
+              <TabsContent value="cobrancas" className="space-y-4 pt-3">
+                {/* Formulário de Pagamento Avulso / Manual */}
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                        Registrar Pagamento Avulso / Manual
+                      </h4>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
+                      Ativa assinatura imediatamente
+                    </Badge>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto border rounded-xl">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-muted/40 text-left text-muted-foreground text-xs uppercase tracking-wider">
-                          <th className="py-2.5 px-3">Data/Hora</th>
-                          <th className="py-2.5 px-3">Plano</th>
-                          <th className="py-2.5 px-3">Valor</th>
-                          <th className="py-2.5 px-3">Status</th>
-                          <th className="py-2.5 px-3">Pago em</th>
-                          <th className="py-2.5 px-3">ID Mercado Pago</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(payments[editRow.tenant_id] || []).map(p => (
-                          <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
-                            <td className="py-2.5 px-3 text-xs text-muted-foreground">{fmtDateTime(p.created_at)}</td>
-                            <td className="py-2.5 px-3 font-medium text-xs">{planLabels[p.plan as PlanType] || p.plan}</td>
-                            <td className="py-2.5 px-3 font-semibold text-foreground text-xs">{fmtBRL(Number(p.amount))}</td>
-                            <td className="py-2.5 px-3">
-                              <Badge variant={p.status === 'approved' || p.status === 'paid' ? 'default' : 'secondary'} className="text-[10px]">
-                                {p.status}
-                              </Badge>
-                            </td>
-                            <td className="py-2.5 px-3 text-xs text-muted-foreground">{fmtDateTime(p.paid_at)}</td>
-                            <td className="py-2.5 px-3 font-mono text-xs">{p.mp_payment_id || '—'}</td>
-                          </tr>
-                        ))}
-                        {(payments[editRow.tenant_id] || []).length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="py-8 text-center text-muted-foreground text-xs">
-                              Nenhum pagamento registrado no Mercado Pago para este estabelecimento.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Plano Referência</Label>
+                      <Select
+                        value={manualForm.plan}
+                        onValueChange={(v) => {
+                          const nextPlan = v as 'pro_monthly' | 'pro_yearly';
+                          const suggestedAmount =
+                            nextPlan === 'pro_yearly' ? modalPreview.yFinal : modalPreview.mFinal;
+                          const nextEnd = computeNextEndDate(
+                            editRow.current_period_end,
+                            manualForm.paid_at,
+                            nextPlan,
+                            modalPreview.cMonths
+                          );
+                          setManualForm(f => ({
+                            ...f,
+                            plan: nextPlan,
+                            amount: formatBRLInput(suggestedAmount),
+                            new_period_end: nextEnd,
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-xs bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pro_monthly">PRO Mensal</SelectItem>
+                          <SelectItem value="pro_yearly">PRO Anual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Valor Pago (R$)</Label>
+                      <CurrencyInput
+                        value={manualForm.amount}
+                        onValueChange={amount => setManualForm(f => ({ ...f, amount }))}
+                        className="h-9 text-xs bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">Data do Pagamento</Label>
+                        <button
+                          type="button"
+                          className="text-[10px] text-primary hover:underline"
+                          onClick={() => {
+                            const today = new Date().toISOString().slice(0, 10);
+                            setManualForm(f => ({
+                              ...f,
+                              paid_at: today,
+                              new_period_end: computeNextEndDate(
+                                editRow.current_period_end,
+                                today,
+                                f.plan,
+                                modalPreview.cMonths
+                              ),
+                            }));
+                          }}
+                        >
+                          Hoje
+                        </button>
+                      </div>
+                      <Input
+                        type="date"
+                        value={manualForm.paid_at}
+                        onChange={e => {
+                          const nextPaidAt = e.target.value;
+                          setManualForm(f => ({
+                            ...f,
+                            paid_at: nextPaidAt,
+                            new_period_end: computeNextEndDate(
+                              editRow.current_period_end,
+                              nextPaidAt,
+                              f.plan,
+                              modalPreview.cMonths
+                            ),
+                          }));
+                        }}
+                        className="h-9 font-mono text-xs bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Forma de Pagamento</Label>
+                      <Select
+                        value={manualForm.payment_method}
+                        onValueChange={v =>
+                          setManualForm(f => ({ ...f, payment_method: v as ManualPaymentMethod }))
+                        }
+                      >
+                        <SelectTrigger className="h-9 text-xs bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.entries(MANUAL_PAYMENT_METHOD_LABELS) as [ManualPaymentMethod, string][]).map(
+                            ([key, label]) => (
+                              <SelectItem key={key} value={key}>
+                                {label}
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2 text-xs font-medium cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={manualForm.renew_validity}
+                          onChange={e => setManualForm(f => ({ ...f, renew_validity: e.target.checked }))}
+                          className="rounded border-border text-primary"
+                        />
+                        <span>Novo Vencimento da Assinatura</span>
+                      </label>
+                      <Input
+                        type="date"
+                        disabled={!manualForm.renew_validity}
+                        value={manualForm.new_period_end}
+                        onChange={e => setManualForm(f => ({ ...f, new_period_end: e.target.value }))}
+                        className="h-9 font-mono text-xs bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Observação / Comprovante (opcional)</Label>
+                      <Input
+                        value={manualForm.notes}
+                        onChange={e => setManualForm(f => ({ ...f, notes: e.target.value }))}
+                        placeholder="Ex: PIX direto no CNPJ, Cartão 3x..."
+                        className="h-9 text-xs bg-background"
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={handleRegisterManualPayment}
+                      disabled={savingManualPayment}
+                      className="h-9 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      {savingManualPayment ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Registrando...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Confirmar Pagamento Manual
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Histórico Unificado de Pagamentos */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Histórico de Pagamentos ({combinedPayments.length})
+                  </h4>
+
+                  {loadingPayments ? (
+                    <div className="space-y-2 py-4">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border rounded-xl">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/40 text-left text-muted-foreground text-xs uppercase tracking-wider">
+                            <th className="py-2.5 px-3">Data do Pagto</th>
+                            <th className="py-2.5 px-3">Forma</th>
+                            <th className="py-2.5 px-3">Plano</th>
+                            <th className="py-2.5 px-3">Valor</th>
+                            <th className="py-2.5 px-3">Status</th>
+                            <th className="py-2.5 px-3">Obs / ID</th>
+                            <th className="py-2.5 px-3 text-right"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {combinedPayments.map(p => (
+                            <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
+                              <td className="py-2.5 px-3 text-xs font-medium text-foreground">
+                                {fmtDate(p.paid_at || p.created_at)}
+                              </td>
+                              <td className="py-2.5 px-3 text-xs">
+                                <Badge variant="outline" className="text-[10px]">
+                                  {p.paymentMethodLabel}
+                                </Badge>
+                              </td>
+                              <td className="py-2.5 px-3 font-medium text-xs">
+                                {planLabels[p.plan as PlanType] || p.plan}
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-foreground text-xs">
+                                {fmtBRL(p.amount)}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <Badge
+                                  variant={p.status === 'approved' || p.status === 'paid' ? 'default' : 'secondary'}
+                                  className="text-[10px]"
+                                >
+                                  {p.isManual ? 'Manual · Pago' : p.status === 'approved' ? 'Aprovado' : p.status}
+                                </Badge>
+                              </td>
+                              <td className="py-2.5 px-3 text-xs text-muted-foreground max-w-[180px] truncate" title={p.reference}>
+                                {p.reference}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                {p.isManual && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive hover:text-destructive"
+                                    title="Remover registro manual"
+                                    onClick={() => handleDeleteManualPayment(p.id)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {combinedPayments.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-muted-foreground text-xs">
+                                Nenhum pagamento (manual ou Mercado Pago) registrado para este estabelecimento.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
           )}

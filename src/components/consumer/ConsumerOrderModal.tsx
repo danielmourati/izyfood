@@ -499,8 +499,9 @@ export function ConsumerOrderModal({
 
   // Busca dinâmica: enquanto digita, sugere produtos do catálogo para lançar
   const normQ = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const activeProducts = useMemo(() => products.filter(p => p.active !== false), [products]);
   const productSearchResults = itemSearchQuery.trim()
-    ? products
+    ? activeProducts
         .filter(p => {
           const q = normQ(itemSearchQuery);
           return normQ(p.name).includes(q) || normQ(p.searchCode || '').includes(q);
@@ -988,8 +989,8 @@ export function ConsumerOrderModal({
 
     // Com busca ativa, procura em todas as categorias (nome, código e descrição)
     const categoryProducts = selectedCategory && !mobileQ
-      ? products.filter(p => p.categoryId === selectedCategory)
-      : products;
+      ? activeProducts.filter(p => p.categoryId === selectedCategory)
+      : activeProducts;
 
     const filteredCategoryProducts = mobileQ
       ? categoryProducts.filter(p =>

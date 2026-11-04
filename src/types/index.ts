@@ -35,6 +35,7 @@ export interface Product {
   serviceFeeExempt?: boolean;
   /** null/undefined = herda da categoria; 'none' = não imprime */
   printSector?: string;
+  active?: boolean;
 }
 
 export interface ProductNoteOption {
