@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Corrigir erro React ao abrir histórico de cobranças com forma de pagamento estruturada pelo Mercado Pago; validar regressão sem alterar pagamentos.
+
 - [x] Investigar itens impressos ausentes no Zezinho; proteger lançamentos com pendências duráveis por loja, confirmação por revisão, atualização sem sobrescrever itens locais e salvamento antes da impressão. Comparação das comandas disponíveis com mesas abertas não encontrou itens ausentes.
 - [x] Testar persistência, reabertura, remoções explícitas, isolamento por loja e confirmação de versões; página da loja abriu sem erros.
 - [ ] Conferir lançamento, reconexão e impressão pela tela real do Zezinho — requer sessão autenticada na prévia e impressora da loja; a conta do solicitante não pôde ser encontrada automaticamente.
