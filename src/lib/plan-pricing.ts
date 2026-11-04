@@ -47,7 +47,9 @@ export interface PlanPricingConfig {
 export function resolvePaymentMethodLabel(value: unknown, fallback = 'Mercado Pago'): string {
   if (!value) return fallback;
   if (typeof value === 'string') {
-    return MANUAL_PAYMENT_METHOD_LABELS[value as ManualPaymentMethod] || value;
+    return Object.prototype.hasOwnProperty.call(MANUAL_PAYMENT_METHOD_LABELS, value)
+      ? MANUAL_PAYMENT_METHOD_LABELS[value as ManualPaymentMethod]
+      : value;
   }
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>;
@@ -60,7 +62,9 @@ export function resolvePaymentMethodLabel(value: unknown, fallback = 'Mercado Pa
         ticket: 'Boleto',
         account_money: 'Mercado Pago',
       };
-      return mpTypeMap[obj.type] || obj.type;
+      return Object.prototype.hasOwnProperty.call(mpTypeMap, obj.type)
+        ? mpTypeMap[obj.type]
+        : obj.type;
     }
     if (typeof obj.id === 'string') {
       return obj.id === 'pix' ? 'PIX' : obj.id;

@@ -22,6 +22,7 @@ import {
   ManualPaymentRecord,
   decodePlanPricing,
   encodePlanPricingMeta,
+  resolvePaymentMethodLabel,
 } from '@/lib/plan-pricing';
 import {
   CreditCard, Loader2, Ban, PlayCircle, Gift, Receipt, Search,
@@ -63,7 +64,7 @@ interface Payment {
   created_at: string;
   plan: string;
   mp_payment_id: string | null;
-  raw?: any;
+  raw?: unknown;
 }
 
 const planLabels: Record<PlanType, string> = {
@@ -783,14 +784,16 @@ export function PlanosPage() {
         status: 'paid',
         paid_at: m.paid_at,
         created_at: m.created_at,
-        paymentMethodLabel: MANUAL_PAYMENT_METHOD_LABELS[m.payment_method] || m.payment_method,
+        paymentMethodLabel: resolvePaymentMethodLabel(m.payment_method),
         reference: m.notes || 'Pagamento manual',
       })),
       ...mpList
         .filter(p => !manualIds.has(p.id))
         .map(p => {
-          const isManualRaw = !!(p.raw && typeof p.raw === 'object' && p.raw.manual);
-          const methodKey = p.raw?.payment_method as ManualPaymentMethod | undefined;
+          const raw = p.raw && typeof p.raw === 'object' && !Array.isArray(p.raw)
+            ? p.raw as Record<string, unknown>
+            : undefined;
+          const isManualRaw = raw?.manual === true;
           return {
             id: p.id,
             isManual: isManualRaw,
@@ -799,10 +802,10 @@ export function PlanosPage() {
             status: p.status,
             paid_at: p.paid_at,
             created_at: p.created_at,
-            paymentMethodLabel: methodKey
-              ? MANUAL_PAYMENT_METHOD_LABELS[methodKey] || methodKey
-              : 'Mercado Pago',
-            reference: p.raw?.notes || p.mp_payment_id || '—',
+            paymentMethodLabel: resolvePaymentMethodLabel(raw?.payment_method),
+            reference: typeof raw?.notes === 'string' && raw.notes
+              ? raw.notes
+              : p.mp_payment_id || '—',
           };
         }),
     ];

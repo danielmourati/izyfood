@@ -817,7 +817,6 @@ export type Database = {
       }
       products: {
         Row: {
-          active: boolean
           category_id: string | null
           control_stock: boolean
           cost_price: number | null
