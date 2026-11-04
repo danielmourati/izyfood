@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { PlanosPage } from '@/pages/superadmin/PlanosPage';
 import { resolvePaymentMethodLabel } from '@/lib/plan-pricing';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -37,10 +38,10 @@ describe('plan payment data', () => {
   });
 
   it('opens billing history with provider object data without throwing', async () => {
-    render(<PlanosPage />);
+    render(<TooltipProvider><PlanosPage /></TooltipProvider>);
     await screen.findByText('Loja teste');
     fireEvent.click(screen.getByRole('button', { name: 'Gerenciar Assinatura' }));
-    fireEvent.click(screen.getByRole('tab', { name: /Pagamentos & Cobranças/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Pagamentos & Cobranças/ }), { button: 0, ctrlKey: false });
     const paymentId = await screen.findByText('123456');
     const row = paymentId.closest('tr');
     if (!row) throw new Error('Payment row missing');
