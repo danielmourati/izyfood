@@ -33,6 +33,9 @@ describe('plan payment data', () => {
     ['cash', 'Dinheiro'],
     [{ issuer_id: '1' }, 'Mercado Pago'],
     [null, 'Mercado Pago'],
+    ['constructor', 'constructor'],
+    [{ type: 'constructor' }, 'constructor'],
+    [[], 'Mercado Pago'],
   ])('normalizes provider payment method %j', (method, expected) => {
     expect(resolvePaymentMethodLabel(method)).toBe(expected);
   });
