@@ -89,11 +89,12 @@ export function sortProducts(prods: Product[], orderIds?: string[]): Product[] {
 function dbToProduct(r: any): Product {
   const inactiveIds = loadLS<string[]>('izy_inactive_products', []);
   const active = r.active !== undefined ? Boolean(r.active) : !inactiveIds.includes(r.id);
-  const flavorRules = loadLS<Record<string, { flavorRequired?: boolean; flavorMin?: number | null; flavorMax?: number | null }>>('izy_product_flavor_limits', {});
+  const flavorRules = loadLS<Record<string, { flavorRequired?: boolean; flavorMin?: number | null; flavorMax?: number | null; defaultFlavors?: string[] }>>('izy_product_flavor_limits', {});
   const localRule = flavorRules[r.id];
   const flavorRequired = r.flavor_required !== undefined ? Boolean(r.flavor_required) : (localRule?.flavorRequired ?? false);
   const flavorMin = r.flavor_min !== undefined ? r.flavor_min : (localRule?.flavorMin ?? null);
   const flavorMax = r.flavor_max !== undefined ? r.flavor_max : (localRule?.flavorMax ?? null);
+  const defaultFlavors = Array.isArray(r.default_flavors) ? r.default_flavors : (Array.isArray(localRule?.defaultFlavors) ? localRule.defaultFlavors : undefined);
   return {
     id: r.id,
     name: r.name,
@@ -116,6 +117,7 @@ function dbToProduct(r: any): Product {
     flavorRequired,
     flavorMin,
     flavorMax,
+    defaultFlavors,
   };
 }
 function dbToNoteOption(r: any): ProductNoteOption {
@@ -740,6 +742,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                       flavorRequired: Boolean(fRule.flavorRequired),
                       flavorMin: fRule.flavorMin ?? null,
                       flavorMax: fRule.flavorMax ?? null,
+                      defaultFlavors: Array.isArray(fRule.defaultFlavors) ? fRule.defaultFlavors : p.defaultFlavors,
                     }
                   : {}),
               };
@@ -1104,13 +1107,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     saveLS('izy_products', next);
     saveLS('izy_products_order', next.map(p => p.id));
     saveLS('izy_inactive_products', next.filter(p => p.active === false).map(p => p.id));
-    const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null }> = {};
+    const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null; defaultFlavors?: string[] }> = {};
     for (const p of next) {
-      if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null) {
+      if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null || (p.defaultFlavors && p.defaultFlavors.length > 0)) {
         flavorLimitsMap[p.id] = {
           flavorRequired: Boolean(p.flavorRequired),
           flavorMin: p.flavorMin ?? null,
           flavorMax: p.flavorMax ?? null,
+          defaultFlavors: p.defaultFlavors && p.defaultFlavors.length > 0 ? p.defaultFlavors : undefined,
         };
       }
     }
@@ -1573,8 +1577,8 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
   });
   const activeChanged = prev.filter(p => p.active === false).map(p => p.id).sort().join(',') !==
     next.filter(p => p.active === false).map(p => p.id).sort().join(',');
-  const flavorChanged = JSON.stringify(prev.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null])) !==
-    JSON.stringify(next.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null]));
+  const flavorChanged = JSON.stringify(prev.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || []])) !==
+    JSON.stringify(next.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || []]));
 
   for (const p of added) {
     markPending(p.id);
@@ -1643,13 +1647,14 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
         const ps = (st.print_settings && typeof st.print_settings === 'object' ? { ...st.print_settings } : {}) as any;
         ps.inactive_product_ids = next.filter(p => p.active === false).map(p => p.id);
         ps.products_order = next.map(p => p.id);
-        const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null }> = {};
+        const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null; defaultFlavors?: string[] }> = {};
         for (const p of next) {
-          if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null) {
+          if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null || (p.defaultFlavors && p.defaultFlavors.length > 0)) {
             flavorLimitsMap[p.id] = {
               flavorRequired: Boolean(p.flavorRequired),
               flavorMin: p.flavorMin ?? null,
               flavorMax: p.flavorMax ?? null,
+              defaultFlavors: p.defaultFlavors && p.defaultFlavors.length > 0 ? p.defaultFlavors : undefined,
             };
           }
         }

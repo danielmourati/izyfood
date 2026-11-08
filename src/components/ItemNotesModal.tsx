@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
-import { getFlavorLimitState } from '@/lib/flavor-limits';
+import { getFlavorLimitState, getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
 import { sortAllAdditionalsFirst } from '@/lib/utils';
 
 export function ItemNotesModal({
@@ -27,6 +27,15 @@ export function ItemNotesModal({
 
     const product = item ? products.find(p => p.id === item.productId) : null;
     const categoryId = product?.categoryId;
+    const category = useMemo(() => (categories ?? []).find(c => c.id === categoryId), [categories, categoryId]);
+    const preselectedComplements = useMemo(
+        () => getPreselectedFlavorsForProduct(product, noteOptions, category),
+        [product, noteOptions, category]
+    );
+    const preselectedFlavorCount = useMemo(
+        () => preselectedComplements.filter(c => c.classification === 'flavor').reduce((s, c) => s + (c.quantity || 1), 0),
+        [preselectedComplements]
+    );
 
     const availableNotes = useMemo(() =>
         sortAllAdditionalsFirst(noteOptions.filter(o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId)))),
@@ -57,9 +66,11 @@ export function ItemNotesModal({
                 setSelectedObs(parsedObs);
                 setOtherNotes(others.join(', '));
             }
-            setComplements(item.selectedComplements || []);
+            const existingComps = item.selectedComplements || [];
+            setComplements(existingComps.length > 0 ? existingComps : getPreselectedFlavorsForProduct(product, noteOptions, category));
         }
-    }, [open, item, noteOptions]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, item?.id, product?.id]);
 
     if (!open || !item) return null;
 
@@ -67,9 +78,9 @@ export function ItemNotesModal({
         setSelectedObs(prev => prev.includes(obs) ? prev.filter(o => o !== obs) : [...prev, obs]);
     };
 
-    const flavorLimit = getFlavorLimitState((categories ?? []).find(c => c.id === categoryId), complements, product);
+    const flavorLimit = getFlavorLimitState(category, complements, product, preselectedFlavorCount);
     const handleComplementQty = (comp: ProductNoteOption, delta: number) => {
-        if (delta > 0 && comp.classification === 'flavor' && !flavorLimit.canAddMore) return;
+        if (delta > 0 && (comp.classification === 'flavor' || comp.classification === 'both') && !flavorLimit.canAddMore) return;
         setComplements(prev => {
             const existing = prev.find(c => c.name === comp.name);
             if (existing) {
@@ -77,7 +88,7 @@ export function ItemNotesModal({
                 if (newQty <= 0) return prev.filter(c => c.name !== comp.name);
                 return prev.map(c => c.name === comp.name ? { ...c, quantity: newQty } : c);
             } else if (delta > 0) {
-                return [...prev, { name: comp.name, price: comp.price, quantity: 1, classification: comp.classification === 'flavor' ? 'flavor' : 'additional' }];
+                return [...prev, { name: comp.name, price: comp.price, quantity: 1, classification: (comp.classification === 'flavor' || comp.classification === 'both') ? 'flavor' : 'additional' }];
             }
             return prev;
         });

@@ -4,6 +4,7 @@ import { useStore } from '@/contexts/StoreContext';
 import { usePrinter } from '@/hooks/use-printer';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
+import { getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
 import { sectorLabel, buildSectorOptions, PRINT_SECTOR_OPTIONS } from '@/lib/print-sectors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,7 @@ const emptyProductForm = {
   flavorRequired: false,
   flavorMin: '',
   flavorMax: '',
+  defaultFlavors: [] as string[],
 };
 
 const toLimit = (v: string) => {
@@ -244,6 +246,7 @@ const Produtos = () => {
       flavorRequired: !!p.flavorRequired,
       flavorMin: p.flavorMin != null ? String(p.flavorMin) : '',
       flavorMax: p.flavorMax != null ? String(p.flavorMax) : '',
+      defaultFlavors: Array.isArray(p.defaultFlavors) ? p.defaultFlavors : [],
     });
     setDialogOpen(true);
   };
@@ -335,6 +338,7 @@ const Produtos = () => {
       flavorRequired: form.flavorRequired,
       flavorMin,
       flavorMax,
+      defaultFlavors: form.defaultFlavors.length > 0 ? form.defaultFlavors : undefined,
     };
 
     if (editingId) {
@@ -1025,6 +1029,80 @@ const Produtos = () => {
                       Quantidade de sabores por item. Deixe vazio para não limitar.
                     </p>
                     {limitError && <p className="text-xs font-medium text-destructive">{limitError}</p>}
+
+                    {(() => {
+                      const catFlavorOpts = currentCategoryNoteOptions.filter(
+                        o => o.active !== false && o.type === 'complement' && (o.classification === 'flavor' || o.classification === 'both')
+                      );
+                      const autoPreselected = getPreselectedFlavorsForProduct(
+                        {
+                          description: form.description,
+                          categoryId: form.categoryId,
+                          defaultFlavors: form.defaultFlavors.length > 0 ? form.defaultFlavors : undefined,
+                          flavorMax: toLimit(form.flavorMax),
+                        },
+                        noteOptions,
+                        getCat(form.categoryId)
+                      );
+                      const selectedFlavorNames = autoPreselected.filter(c => c.classification === 'flavor').map(c => c.name);
+                      if (catFlavorOpts.length === 0 && selectedFlavorNames.length === 0) return null;
+                      return (
+                        <div className="pt-2 border-t border-border/60 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <Label className="text-xs font-semibold">Recheios / Sabores pré-selecionados na montagem</Label>
+                              <p className="text-[11px] text-muted-foreground">
+                                {form.defaultFlavors.length > 0
+                                  ? 'Selecionados manualmente para vir pré-marcados (o atendente pode mudar ou remover).'
+                                  : selectedFlavorNames.length > 0
+                                  ? `Detectados automaticamente da descrição: ${selectedFlavorNames.join(', ')}`
+                                  : 'Sabores citados na descrição vêm pré-selecionados automaticamente, ou clique abaixo para definir.'}
+                              </p>
+                            </div>
+                            {form.defaultFlavors.length > 0 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-[11px]"
+                                onClick={() => setForm(f => ({ ...f, defaultFlavors: [] }))}
+                              >
+                                Usar automático
+                              </Button>
+                            )}
+                          </div>
+                          {catFlavorOpts.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
+                              {catFlavorOpts.map(opt => {
+                                const isSelected = selectedFlavorNames.includes(opt.name);
+                                return (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setForm(f => {
+                                        const base = f.defaultFlavors.length > 0 ? f.defaultFlavors : selectedFlavorNames;
+                                        const next = base.includes(opt.name)
+                                          ? base.filter(n => n !== opt.name)
+                                          : [...base, opt.name];
+                                        return { ...f, defaultFlavors: next };
+                                      });
+                                    }}
+                                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
+                                      isSelected
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-background text-muted-foreground border-border hover:text-foreground'
+                                    }`}
+                                  >
+                                    {opt.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <Section title="Opções Adicionais">

@@ -6,7 +6,7 @@ import { Minus, Plus, Check, ChevronLeft, X } from 'lucide-react';
 import { Product, OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt, sortAllAdditionalsFirst } from '@/lib/utils';
-import { getFlavorLimitState } from '@/lib/flavor-limits';
+import { getFlavorLimitState, getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
 
 interface ConsumerItemCustomizeModalProps {
   open: boolean;
@@ -35,6 +35,16 @@ export function ConsumerItemCustomizeModal({
   const [complements, setComplements] = useState<SelectedComplement[]>([]);
 
   const categoryId = product?.categoryId;
+  const category = useMemo(() => (categories ?? []).find(c => c.id === categoryId), [categories, categoryId]);
+
+  const preselectedComplements = useMemo(
+    () => getPreselectedFlavorsForProduct(product, noteOptions, category),
+    [product, noteOptions, category]
+  );
+  const preselectedFlavorCount = useMemo(
+    () => preselectedComplements.filter(c => c.classification === 'flavor').reduce((s, c) => s + (c.quantity || 1), 0),
+    [preselectedComplements]
+  );
 
   const availableNotes = useMemo(() => {
     return sortAllAdditionalsFirst(noteOptions.filter(
@@ -54,15 +64,17 @@ export function ConsumerItemCustomizeModal({
         setQuantity(itemToEdit.quantity || 1);
         setSelectedObs(itemToEdit.selectedNotes || []);
         setOtherNotes(itemToEdit.otherNotes || '');
-        setComplements(itemToEdit.selectedComplements || []);
+        const existing = itemToEdit.selectedComplements || [];
+        setComplements(existing.length > 0 ? existing : getPreselectedFlavorsForProduct(product, noteOptions, category));
       } else {
         setQuantity(1);
         setSelectedObs([]);
         setOtherNotes('');
-        setComplements([]);
+        setComplements(getPreselectedFlavorsForProduct(product, noteOptions, category));
       }
     }
-  }, [open, itemToEdit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, itemToEdit?.id, product?.id]);
 
   if (!open || !product) return null;
 
@@ -115,7 +127,7 @@ export function ConsumerItemCustomizeModal({
   const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length;
 
 
-  const flavorLimit = getFlavorLimitState((categories ?? []).find(c => c.id === categoryId), complements, product);
+  const flavorLimit = getFlavorLimitState(category, complements, product, preselectedFlavorCount);
   const compsTotalUnit = complements.reduce((sum, c) => sum + c.price * c.quantity, 0);
   const unitPrice = (product.price || 0) + compsTotalUnit;
   const totalPrice = unitPrice * quantity;
@@ -177,7 +189,12 @@ export function ConsumerItemCustomizeModal({
             </div>
 
             {/* Product Title */}
-            <h2 className="text-sm sm:text-lg font-bold text-foreground truncate max-w-md">{product.name}</h2>
+            <div className="min-w-0 max-w-md">
+              <h2 className="text-sm sm:text-lg font-bold text-foreground truncate">{product.name}</h2>
+              {product.description && (
+                <p className="text-xs text-muted-foreground truncate">{product.description}</p>
+              )}
+            </div>
           </div>
 
           {/* Price Tag */}
@@ -192,7 +209,7 @@ export function ConsumerItemCustomizeModal({
           <Accordion type="multiple" defaultValue={['flavors', 'free', 'paid']} className="space-y-2">
             {flavorOptions.length > 0 && (
               <AccordionItem value="flavors" className="border border-border rounded bg-card px-3">
-                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores{flavorLimit.label ? ` — ${flavorLimit.label}` : ''}{flavorLimit.label ? <span className="ml-auto mr-2 text-xs font-medium text-muted-foreground">{flavorLimit.count}{(categories ?? []).find(c => c.id === categoryId)?.flavorMax != null ? ` de ${(categories ?? []).find(c => c.id === categoryId)?.flavorMax}` : ''}</span> : null}</AccordionTrigger>
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores{flavorLimit.label ? ` — ${flavorLimit.label}` : ''}{flavorLimit.label ? <span className="ml-auto mr-2 text-xs font-medium text-muted-foreground">{flavorLimit.count}{flavorLimit.max != null ? ` de ${flavorLimit.max}` : ''}</span> : null}</AccordionTrigger>
                 <AccordionContent className="space-y-1 pb-3">
                   {flavorOptions.map(opt => {
                     const qty = getCompQty(opt.name, opt.classification);

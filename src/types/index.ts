@@ -8,6 +8,7 @@ export interface ProductCategory {
   flavorRequired?: boolean;
   flavorMin?: number | null;
   flavorMax?: number | null;
+  defaultFlavors?: string[];
 }
 export type OrderType = 'balcao' | 'mesa' | 'delivery' | 'retirada';
 export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | 'pronto' | 'concluido';
@@ -40,6 +41,7 @@ export interface Product {
   flavorRequired?: boolean;
   flavorMin?: number | null;
   flavorMax?: number | null;
+  defaultFlavors?: string[];
 }
 
 export interface ProductNoteOption {
