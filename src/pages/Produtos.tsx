@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Plus, Pencil, Trash2, Search, Copy, Tag, Layers, Building2,
   PackageOpen, X, Printer, Package, UtensilsCrossed, ExternalLink, SlidersHorizontal,
-  FileText, Check, AlertTriangle
+  FileText, Check, AlertTriangle, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
@@ -40,6 +40,14 @@ const emptyProductForm = {
   serviceFeeExempt: false,
   printSector: '',
   active: true,
+  flavorRequired: false,
+  flavorMin: '',
+  flavorMax: '',
+};
+
+const toLimit = (v: string) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : null;
 };
 
 const emptyNoteOptionForm = {
@@ -100,6 +108,7 @@ const Produtos = () => {
   const [activeTab, setActiveTab] = useState<'dados' | 'impressao' | 'estoque' | 'adicionais'>('dados');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyProductForm);
+  const [limitError, setLimitError] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Exclusão de Produto
@@ -171,7 +180,30 @@ const Produtos = () => {
   const lowStockCount = products.filter(p => p.controlStock && p.stock <= (p.minStock ?? 0)).length;
   const untrackedStockCount = products.filter(p => !p.controlStock).length;
 
-  // ---- CRUD de Produtos ----
+  // ---- Reordenação e CRUD de Produtos ----
+  const moveProduct = (indexInFiltered: number, direction: 'up' | 'down') => {
+    const currentProd = filtered[indexInFiltered];
+    const neighborProd = filtered[direction === 'up' ? indexInFiltered - 1 : indexInFiltered + 1];
+    if (!currentProd || !neighborProd) return;
+
+    const idxA = products.findIndex(p => p.id === currentProd.id);
+    const idxB = products.findIndex(p => p.id === neighborProd.id);
+    if (idxA === -1 || idxB === -1) return;
+
+    const nextProducts = [...products];
+    const temp = nextProducts[idxA];
+    nextProducts[idxA] = nextProducts[idxB];
+    nextProducts[idxB] = temp;
+
+    const ordered = nextProducts.map((p, i) => ({
+      ...p,
+      orderIndex: i,
+    }));
+
+    setProducts(ordered);
+    toast.success(`Produto "${currentProd.name}" reordenado.`);
+  };
+
   const toggleProductActive = (product: Product, checked: boolean) => {
     setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, active: checked } : p)));
     toast.success(`Produto "${product.name}" ${checked ? 'ativado' : 'desativado'}!`);
@@ -180,6 +212,7 @@ const Produtos = () => {
   const openCreate = () => {
     setEditingId(null);
     setActiveTab('dados');
+    setLimitError('');
     setForm({
       ...emptyProductForm,
       categoryId: filterCategory !== 'all' ? filterCategory : categories[0]?.id || '',
@@ -190,6 +223,7 @@ const Produtos = () => {
   const openEdit = (p: Product) => {
     setEditingId(p.id);
     setActiveTab('dados');
+    setLimitError('');
     setForm({
       name: p.name,
       description: p.description || '',
@@ -207,6 +241,9 @@ const Produtos = () => {
       serviceFeeExempt: p.serviceFeeExempt ?? false,
       printSector: p.printSector || '',
       active: p.active !== false,
+      flavorRequired: !!p.flavorRequired,
+      flavorMin: p.flavorMin != null ? String(p.flavorMin) : '',
+      flavorMax: p.flavorMax != null ? String(p.flavorMax) : '',
     });
     setDialogOpen(true);
   };
@@ -218,6 +255,7 @@ const Produtos = () => {
       name: `${p.name} (Cópia)`,
       searchCode: p.searchCode ? `${p.searchCode}-COP` : undefined,
       active: p.active !== false,
+      orderIndex: products.length,
     };
     setProducts(prev => [...prev, newProduct]);
     toast.success(`Cópia de "${p.name}" criada com sucesso!`, {
@@ -260,6 +298,20 @@ const Produtos = () => {
       return;
     }
 
+    const flavorMin = toLimit(form.flavorMin);
+    const flavorMax = toLimit(form.flavorMax);
+    if (
+      (flavorMin != null && flavorMin < 0) ||
+      (flavorMax != null && flavorMax < 1) ||
+      (flavorMin != null && flavorMax != null && flavorMin > flavorMax)
+    ) {
+      setLimitError('O mínimo não pode ser maior que o máximo, e o máximo deve ser pelo menos 1.');
+      setActiveTab('dados');
+      return;
+    }
+    setLimitError('');
+
+    const existingProd = editingId ? products.find(p => p.id === editingId) : undefined;
     const product: Product = {
       id: editingId || crypto.randomUUID(),
       name: form.name.trim(),
@@ -269,7 +321,7 @@ const Produtos = () => {
       type: form.type,
       unit: form.type === 'weight' ? 'kg' : 'un',
       stock: parseFloat(form.stock) || 0,
-      image: editingId ? products.find(p => p.id === editingId)?.image : undefined,
+      image: existingProd?.image,
       loyaltyEligible: form.loyaltyEligible,
       controlStock: form.controlStock,
       supplierId: form.supplierId || undefined,
@@ -279,6 +331,10 @@ const Produtos = () => {
       serviceFeeExempt: form.serviceFeeExempt,
       printSector: form.printSector || undefined,
       active: form.active,
+      orderIndex: existingProd?.orderIndex ?? products.length,
+      flavorRequired: form.flavorRequired,
+      flavorMin,
+      flavorMax,
     };
 
     if (editingId) {
@@ -537,9 +593,10 @@ const Produtos = () => {
       {/* Compact Product Table (Em conformidade com AGENTS.md) */}
       <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="border-b bg-muted/60 text-xs font-semibold uppercase text-muted-foreground">
               <tr>
+                <th className="w-20 px-3 py-3 text-center">Ordem</th>
                 <th className="w-24 px-4 py-3">Código</th>
                 <th className="px-4 py-3">Produto</th>
                 <th className="w-40 px-4 py-3">Categoria</th>
@@ -552,10 +609,13 @@ const Produtos = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map(product => {
+              {filtered.map((product, index) => {
                 const cat = getCat(product.categoryId);
                 const stockLow = product.controlStock && product.stock <= (product.minStock ?? 0);
                 const isActive = product.active !== false;
+                const isFirst = index === 0;
+                const isLast = index === filtered.length - 1;
+                const canReorder = search.trim().length === 0 && filterStockStatus === 'all';
                 const printDestination =
                   product.printSector === 'none'
                     ? 'Não imprimir'
@@ -566,6 +626,32 @@ const Produtos = () => {
                     key={product.id}
                     className={`transition-colors hover:bg-muted/30 ${!isActive ? 'opacity-60 bg-muted/15' : ''}`}
                   >
+                    {/* Setas de Ordenação */}
+                    <td className="px-3 py-3 text-center">
+                      <div className="flex items-center justify-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          disabled={isFirst || !canReorder}
+                          title={!canReorder ? 'Limpe a busca/filtro de situação para reordenar' : 'Mover para cima'}
+                          onClick={() => moveProduct(index, 'up')}
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          disabled={isLast || !canReorder}
+                          title={!canReorder ? 'Limpe a busca/filtro de situação para reordenar' : 'Mover para baixo'}
+                          onClick={() => moveProduct(index, 'down')}
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+
                     {/* Código de busca */}
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                       {product.searchCode || '—'}
@@ -573,7 +659,7 @@ const Produtos = () => {
 
                     {/* Nome e descrição */}
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <button
                           type="button"
                           onClick={() => openEdit(product)}
@@ -584,6 +670,13 @@ const Produtos = () => {
                         {!isActive && (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">
                             Inativo
+                          </Badge>
+                        )}
+                        {(product.flavorRequired || product.flavorMin != null || product.flavorMax != null) && (
+                          <Badge variant="outline" className="text-[10px] text-primary border-primary/30 bg-primary/5">
+                            Sabores: {product.flavorMin != null && product.flavorMax != null && product.flavorMin === product.flavorMax
+                              ? product.flavorMax
+                              : `${product.flavorMin ?? (product.flavorRequired ? 1 : 0)}–${product.flavorMax ?? '∞'}`}
                           </Badge>
                         )}
                       </div>
@@ -876,6 +969,62 @@ const Produtos = () => {
                       onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                       placeholder="Ingredientes, detalhes e informações para o cliente..."
                     />
+                  </div>
+
+                  <div className="space-y-3 rounded-lg border p-3.5 bg-card">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label htmlFor="prod-flavor-required" className="text-sm font-semibold">
+                          Sabores obrigatórios
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Exige que o atendente escolha sabores (será padrão em caso de ativado, mesmo tendo categoria ativada)
+                        </p>
+                      </div>
+                      <Switch
+                        id="prod-flavor-required"
+                        checked={form.flavorRequired}
+                        onCheckedChange={v => setForm(f => ({ ...f, flavorRequired: v }))}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="prod-flavor-min">Mínimo</Label>
+                        <Input
+                          id="prod-flavor-min"
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          placeholder={
+                            getCat(form.categoryId)?.flavorMin != null
+                              ? `Padrão da categoria (${getCat(form.categoryId)?.flavorMin})`
+                              : 'Sem limite'
+                          }
+                          value={form.flavorMin}
+                          onChange={e => setForm(f => ({ ...f, flavorMin: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="prod-flavor-max">Máximo</Label>
+                        <Input
+                          id="prod-flavor-max"
+                          type="number"
+                          min={1}
+                          inputMode="numeric"
+                          placeholder={
+                            getCat(form.categoryId)?.flavorMax != null
+                              ? `Padrão da categoria (${getCat(form.categoryId)?.flavorMax})`
+                              : 'Sem limite'
+                          }
+                          value={form.flavorMax}
+                          onChange={e => setForm(f => ({ ...f, flavorMax: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Quantidade de sabores por item. Deixe vazio para não limitar.
+                    </p>
+                    {limitError && <p className="text-xs font-medium text-destructive">{limitError}</p>}
                   </div>
 
                   <Section title="Opções Adicionais">

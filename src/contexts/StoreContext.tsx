@@ -70,10 +70,53 @@ const StoreContext = createContext<StoreContextType | null>(null);
 
 // ============ DB <-> App mappers ============
 
+export function sortProducts(prods: Product[], orderIds?: string[]): Product[] {
+  if (orderIds && orderIds.length > 0) {
+    const orderMap = new Map<string, number>();
+    orderIds.forEach((id, idx) => orderMap.set(id, idx));
+    return [...prods].sort((a, b) => {
+      const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : (a.orderIndex ?? 999999);
+      const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : (b.orderIndex ?? 999999);
+      if (idxA !== idxB) return idxA - idxB;
+      return (a.orderIndex ?? 0) - (b.orderIndex ?? 0);
+    });
+  }
+  const hasOrderIndex = prods.some(p => p.orderIndex != null);
+  if (!hasOrderIndex) return prods;
+  return [...prods].sort((a, b) => (a.orderIndex ?? 999999) - (b.orderIndex ?? 999999));
+}
+
 function dbToProduct(r: any): Product {
   const inactiveIds = loadLS<string[]>('izy_inactive_products', []);
   const active = r.active !== undefined ? Boolean(r.active) : !inactiveIds.includes(r.id);
-  return { id: r.id, name: r.name, description: r.description || undefined, price: Number(r.price), categoryId: r.category_id || '', type: r.type, unit: r.unit, stock: Number(r.stock), image: r.image || undefined, loyaltyEligible: r.loyalty_eligible ?? false, controlStock: r.control_stock ?? true, searchCode: r.search_code || undefined, costPrice: r.cost_price != null ? Number(r.cost_price) : undefined, minStock: Number(r.min_stock ?? 0), serviceFeeExempt: r.service_fee_exempt ?? false, printSector: r.print_sector || undefined, active };
+  const flavorRules = loadLS<Record<string, { flavorRequired?: boolean; flavorMin?: number | null; flavorMax?: number | null }>>('izy_product_flavor_limits', {});
+  const localRule = flavorRules[r.id];
+  const flavorRequired = r.flavor_required !== undefined ? Boolean(r.flavor_required) : (localRule?.flavorRequired ?? false);
+  const flavorMin = r.flavor_min !== undefined ? r.flavor_min : (localRule?.flavorMin ?? null);
+  const flavorMax = r.flavor_max !== undefined ? r.flavor_max : (localRule?.flavorMax ?? null);
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description || undefined,
+    price: Number(r.price),
+    categoryId: r.category_id || '',
+    type: r.type,
+    unit: r.unit,
+    stock: Number(r.stock),
+    image: r.image || undefined,
+    loyaltyEligible: r.loyalty_eligible ?? false,
+    controlStock: r.control_stock ?? true,
+    searchCode: r.search_code || undefined,
+    costPrice: r.cost_price != null ? Number(r.cost_price) : undefined,
+    minStock: Number(r.min_stock ?? 0),
+    serviceFeeExempt: r.service_fee_exempt ?? false,
+    printSector: r.print_sector || undefined,
+    active,
+    orderIndex: r.order_index != null ? Number(r.order_index) : undefined,
+    flavorRequired,
+    flavorMin,
+    flavorMax,
+  };
 }
 function dbToNoteOption(r: any): ProductNoteOption {
   return { id: r.id, name: r.name, type: r.type, price: Number(r.price), categoryIds: r.category_ids || [], active: r.active ?? true, classification: r.classification || 'additional' };
@@ -165,7 +208,11 @@ const PENDING_GRACE_MS = 8000;
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<Product[]>(() => loadLS('izy_products', []));
+  const [products, setProducts] = useState<Product[]>(() => {
+    const loaded = loadLS<Product[]>('izy_products', []);
+    const orderIds = loadLS<string[]>('izy_products_order', []);
+    return sortProducts(loaded, orderIds);
+  });
   const [categories, setCategories] = useState<ProductCategory[]>(() => {
     const loaded = loadLS<ProductCategory[]>('izy_categories', []);
     const orderIds = loadLS<string[]>('izy_categories_order', []);
@@ -323,14 +370,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = debounceTimersRef.current.products;
     if (timer) { clearTimeout(timer); delete debounceTimersRef.current.products; }
     const currentSeq = ++seqRef.current.products;
-    const { data: prods } = await supabase.from('products').select('*');
+    let res = await supabase.from('products').select('*').order('order_index' as any, { ascending: true, nullsFirst: false });
+    if (res.error) {
+      res = await supabase.from('products').select('*');
+    }
+    const prods = res.data;
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.products !== currentSeq) return;
     if (prods) {
       setProducts(prev => {
+        const orderIds = loadLS<string[]>('izy_products_order', []);
         const dbProds = prods.map(dbToProduct);
         const dbIds = new Set(dbProds.map(p => p.id));
         const pendingLocal = prev.filter(p => !dbIds.has(p.id) && isPendingLocalChange(p.id));
-        const merged = [...dbProds, ...pendingLocal];
+        const merged = sortProducts([...dbProds, ...pendingLocal], orderIds);
         saveLS('izy_products', merged);
         return merged;
       });
@@ -656,11 +708,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           saveLS('izy_categories_order', dbPs.categories_order);
           setCategories(prev => sortCategories(prev, dbPs.categories_order));
         }
-        if (Array.isArray(dbPs.inactive_product_ids)) {
-          const inactiveSet = new Set<string>(dbPs.inactive_product_ids);
-          saveLS('izy_inactive_products', dbPs.inactive_product_ids);
+        if (Array.isArray(dbPs.products_order) && dbPs.products_order.length > 0) {
+          saveLS('izy_products_order', dbPs.products_order);
+        }
+        if (dbPs.product_flavor_limits && typeof dbPs.product_flavor_limits === 'object') {
+          saveLS('izy_product_flavor_limits', dbPs.product_flavor_limits);
+        }
+        if (
+          Array.isArray(dbPs.inactive_product_ids) ||
+          (Array.isArray(dbPs.products_order) && dbPs.products_order.length > 0) ||
+          (dbPs.product_flavor_limits && typeof dbPs.product_flavor_limits === 'object')
+        ) {
+          const inactiveSet = Array.isArray(dbPs.inactive_product_ids) ? new Set<string>(dbPs.inactive_product_ids) : null;
+          if (Array.isArray(dbPs.inactive_product_ids)) {
+            saveLS('izy_inactive_products', dbPs.inactive_product_ids);
+          }
+          const flavorMap = (dbPs.product_flavor_limits && typeof dbPs.product_flavor_limits === 'object')
+            ? dbPs.product_flavor_limits
+            : null;
+          const orderIds = Array.isArray(dbPs.products_order) && dbPs.products_order.length > 0
+            ? dbPs.products_order
+            : loadLS<string[]>('izy_products_order', []);
           setProducts(prev => {
-            const nextProds = prev.map(p => ({ ...p, active: !inactiveSet.has(p.id) }));
+            const mapped = prev.map(p => {
+              const fRule = flavorMap ? flavorMap[p.id] : undefined;
+              return {
+                ...p,
+                ...(inactiveSet ? { active: !inactiveSet.has(p.id) } : {}),
+                ...(fRule
+                  ? {
+                      flavorRequired: Boolean(fRule.flavorRequired),
+                      flavorMin: fRule.flavorMin ?? null,
+                      flavorMax: fRule.flavorMax ?? null,
+                    }
+                  : {}),
+              };
+            });
+            const nextProds = sortProducts(mapped, orderIds);
             saveLS('izy_products', nextProds);
             return nextProds;
           });
@@ -742,7 +826,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     set(prev => {
       const next = payload.eventType === 'DELETE' ? prev.filter(r => r.id !== row.id)
         : [...prev.filter(r => r.id !== row.id), map(row)];
-      const ordered = entity === 'categories' ? sortCategories(next, loadLS<string[]>('izy_categories_order', [])) : next;
+      const ordered = entity === 'categories' ? sortCategories(next, loadLS<string[]>('izy_categories_order', [])) : entity === 'products' ? sortProducts(next, loadLS<string[]>('izy_products_order', [])) : next;
       const lsKeys: Record<string, string> = { stockEntries: 'stock_entries', noteOptions: 'note_options' };
       saveLS(`izy_${lsKeys[entity] || entity}`, ordered);
       return ordered;
@@ -1018,9 +1102,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     productsRef.current = next;
     setProducts(next);
     saveLS('izy_products', next);
+    saveLS('izy_products_order', next.map(p => p.id));
     saveLS('izy_inactive_products', next.filter(p => p.active === false).map(p => p.id));
-    const activeChanged = prev.filter(p => p.active === false).map(p => p.id).sort().join(',') !== next.filter(p => p.active === false).map(p => p.id).sort().join(',');
-    syncProducts(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync(activeChanged ? ['products', 'settings'] : ['products'])).catch(e => console.error('[syncProducts]', e));
+    const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null }> = {};
+    for (const p of next) {
+      if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null) {
+        flavorLimitsMap[p.id] = {
+          flavorRequired: Boolean(p.flavorRequired),
+          flavorMin: p.flavorMin ?? null,
+          flavorMax: p.flavorMax ?? null,
+        };
+      }
+    }
+    saveLS('izy_product_flavor_limits', flavorLimitsMap);
+    syncProducts(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync(['products', 'settings'])).catch(e => console.error('[syncProducts]', e));
   }, [notifyCrossTabSync, markPending, user?.tenantId]);
 
   const setCategoriesWrapped: typeof setCategories = useCallback((updater) => {
@@ -1471,12 +1566,15 @@ export const useStore = () => {
 async function syncProducts(prev: Product[], next: Product[], markPending: (id: string) => void, tenantId?: string) {
   const added = next.filter(n => !prev.find(p => p.id === n.id));
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
+  const orderChanged = prev.map(p => p.id).join(',') !== next.map(p => p.id).join(',');
   const updated = next.filter(n => {
     const p = prev.find(pp => pp.id === n.id);
     return p && JSON.stringify(p) !== JSON.stringify(n);
   });
   const activeChanged = prev.filter(p => p.active === false).map(p => p.id).sort().join(',') !==
     next.filter(p => p.active === false).map(p => p.id).sort().join(',');
+  const flavorChanged = JSON.stringify(prev.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null])) !==
+    JSON.stringify(next.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null]));
 
   for (const p of added) {
     markPending(p.id);
@@ -1487,11 +1585,19 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       search_code: p.searchCode || null, cost_price: p.costPrice ?? null, min_stock: p.minStock ?? 0,
       service_fee_exempt: p.serviceFeeExempt ?? false, print_sector: p.printSector || null,
       active: p.active !== false,
+      order_index: p.orderIndex ?? next.indexOf(p),
+      flavor_required: p.flavorRequired ?? false,
+      flavor_min: p.flavorMin ?? null,
+      flavor_max: p.flavorMax ?? null,
     };
     if (tenantId) item.tenant_id = tenantId;
     const { error } = await supabase.from('products').insert(item);
     if (error) {
       delete item.active;
+      delete item.order_index;
+      delete item.flavor_required;
+      delete item.flavor_min;
+      delete item.flavor_max;
       const { error: errRetry } = await supabase.from('products').insert(item);
       if (errRetry) {
         console.warn('Product insert with tenant_id failed, fallback without tenant_id:', errRetry.message);
@@ -1510,15 +1616,23 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       search_code: p.searchCode || null, cost_price: p.costPrice ?? null, min_stock: p.minStock ?? 0,
       service_fee_exempt: p.serviceFeeExempt ?? false, print_sector: p.printSector || null,
       active: p.active !== false,
+      order_index: p.orderIndex ?? next.indexOf(p),
+      flavor_required: p.flavorRequired ?? false,
+      flavor_min: p.flavorMin ?? null,
+      flavor_max: p.flavorMax ?? null,
     };
     const { error } = await supabase.from('products').update(updatePayload).eq('id', p.id);
     if (error) {
       delete updatePayload.active;
+      delete updatePayload.order_index;
+      delete updatePayload.flavor_required;
+      delete updatePayload.flavor_min;
+      delete updatePayload.flavor_max;
       const { error: err2 } = await supabase.from('products').update(updatePayload).eq('id', p.id);
       if (err2) console.error('Error updating product in Supabase:', err2);
     }
   }
-  if (activeChanged && tenantId) {
+  if ((activeChanged || orderChanged || flavorChanged) && tenantId) {
     try {
       const { data: st } = await supabase
         .from('store_settings')
@@ -1528,10 +1642,22 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       if (st) {
         const ps = (st.print_settings && typeof st.print_settings === 'object' ? { ...st.print_settings } : {}) as any;
         ps.inactive_product_ids = next.filter(p => p.active === false).map(p => p.id);
+        ps.products_order = next.map(p => p.id);
+        const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null }> = {};
+        for (const p of next) {
+          if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null) {
+            flavorLimitsMap[p.id] = {
+              flavorRequired: Boolean(p.flavorRequired),
+              flavorMin: p.flavorMin ?? null,
+              flavorMax: p.flavorMax ?? null,
+            };
+          }
+        }
+        ps.product_flavor_limits = flavorLimitsMap;
         await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
       }
     } catch (e) {
-      console.warn('[syncProducts] Falha ao persistir inactive_product_ids em store_settings:', e);
+      console.warn('[syncProducts] Falha ao persistir metadados de produtos em store_settings:', e);
     }
   }
   for (const p of removed) {

@@ -36,6 +36,10 @@ export interface Product {
   /** null/undefined = herda da categoria; 'none' = não imprime */
   printSector?: string;
   active?: boolean;
+  orderIndex?: number;
+  flavorRequired?: boolean;
+  flavorMin?: number | null;
+  flavorMax?: number | null;
 }
 
 export interface ProductNoteOption {

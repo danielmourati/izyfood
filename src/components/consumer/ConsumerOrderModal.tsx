@@ -28,6 +28,7 @@ import { logAudit } from '@/lib/audit';
 import { allowOrderDelete, allowItemRemoval } from '@/lib/order-merge';
 import { TransferItemsModal } from '@/components/TransferItemsModal';
 import { isTableOccupiedError, tableMoveErrorMessage } from '@/lib/transfer-items';
+import { getFlavorLimitState } from '@/lib/flavor-limits';
 
 interface ConsumerOrderModalProps {
   open: boolean;
@@ -515,6 +516,12 @@ export function ConsumerOrderModal({
   const handleAddDirect = (prod: Product) => {
     if (isLocked) {
       toast.error('Mesa fechada. Clique em REABRIR para lançar novos produtos.');
+      return;
+    }
+    const cat = categories.find(c => c.id === prod.categoryId);
+    const flavorCheck = getFlavorLimitState(cat, [], prod);
+    if (!flavorCheck.canConfirm) {
+      handlePersonalizeProduct(prod);
       return;
     }
     setSelectedMobileProduct(prod);

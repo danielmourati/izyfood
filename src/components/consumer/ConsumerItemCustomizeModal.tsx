@@ -115,7 +115,7 @@ export function ConsumerItemCustomizeModal({
   const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length;
 
 
-  const flavorLimit = getFlavorLimitState((categories ?? []).find(c => c.id === categoryId), complements);
+  const flavorLimit = getFlavorLimitState((categories ?? []).find(c => c.id === categoryId), complements, product);
   const compsTotalUnit = complements.reduce((sum, c) => sum + c.price * c.quantity, 0);
   const unitPrice = (product.price || 0) + compsTotalUnit;
   const totalPrice = unitPrice * quantity;
