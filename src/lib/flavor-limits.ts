@@ -45,6 +45,7 @@ export function getFlavorLimitState(
   selected: SelectedComplement[],
   product?: FlavorLimitSource | null,
   preselectedFlavorCount = 0,
+  availableFlavorCount?: number,
 ): FlavorLimitState {
   const effective = resolveEffectiveFlavorLimits(category, product);
   const count = selected.filter(c => c.classification === 'flavor').reduce((s, c) => s + (c.quantity || 1), 0);
@@ -67,6 +68,9 @@ export function getFlavorLimitState(
       min = Math.max(effective?.flavorMin ?? 1, 1);
     }
   }
+
+  // No flavors available to pick: never block the attendant.
+  if (availableFlavorCount === 0) min = 0;
 
   let label = '';
   if (max != null && min === max) label = `escolha ${max}`;
