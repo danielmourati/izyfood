@@ -78,7 +78,7 @@ export function ItemNotesModal({
         setSelectedObs(prev => prev.includes(obs) ? prev.filter(o => o !== obs) : [...prev, obs]);
     };
 
-    const flavorLimit = getFlavorLimitState(category, complements, product, preselectedFlavorCount);
+    const flavorLimit = getFlavorLimitState(category, complements, product, preselectedFlavorCount, availableComplements.filter(c => c.classification === 'flavor' || c.classification === 'both').length);
     const handleComplementQty = (comp: ProductNoteOption, delta: number) => {
         if (delta > 0 && (comp.classification === 'flavor' || comp.classification === 'both') && !flavorLimit.canAddMore) return;
         setComplements(prev => {
