@@ -90,3 +90,17 @@ describe('getPreselectedFlavorsForProduct', () => {
     expect(res.map(r => r.name)).toEqual(['Pernil', 'Queijo coalho']);
   });
 });
+
+describe('sem sabores disponíveis', () => {
+  it('obrigatório sem sabores cadastrados não bloqueia', () => {
+    const s = getFlavorLimitState({ flavorRequired: true, flavorMin: 2, flavorMax: 2 }, [], null, 0, 0);
+    expect(s.canConfirm).toBe(true);
+    expect(s.missingMessage).toBe('');
+  });
+  it('obrigatório com sabores cadastrados ainda exige mínimo', () => {
+    expect(getFlavorLimitState({ flavorRequired: true, flavorMin: 2 }, [], null, 0, 5).canConfirm).toBe(false);
+  });
+  it('sem exigência não bloqueia', () => {
+    expect(getFlavorLimitState({ flavorMin: 2 }, [], null, 0, 5).canConfirm).toBe(true);
+  });
+});
