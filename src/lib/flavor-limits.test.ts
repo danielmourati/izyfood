@@ -104,3 +104,30 @@ describe('sem sabores disponíveis', () => {
     expect(getFlavorLimitState({ flavorMin: 2 }, [], null, 0, 5).canConfirm).toBe(true);
   });
 });
+
+describe('recheio carne corresponde a carne moída', () => {
+  const options: Pick<ProductNoteOption, 'name' | 'price' | 'type' | 'classification' | 'active' | 'categoryIds'>[] = [
+    { name: 'Carne moída', price: 5, type: 'complement', classification: 'additional', active: true, categoryIds: ['cat-1'] },
+    { name: 'Carne de sol', price: 6, type: 'complement', classification: 'flavor', active: true, categoryIds: ['cat-1'] },
+  ];
+
+  it('reconhece carne na descrição como carne moída da receita sem cobrar adicional', () => {
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-1', description: 'Carne e queijo' }, options))
+      .toEqual([{ name: 'Carne moída', price: 0, quantity: 1, classification: 'flavor' }]);
+  });
+
+  it('resolve carne explicitamente cadastrada nos recheios e não duplica carne moída', () => {
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-1', defaultFlavors: ['carne', 'Carne moída'] }, options).map(c => c.name))
+      .toEqual(['Carne moída']);
+  });
+
+  it('não confunde carne de sol nem carne seca com carne moída', () => {
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-1', description: 'Carne de sol e carne seca' }, options).map(c => c.name))
+      .toEqual(['Carne de sol']);
+  });
+
+  it('respeita categoria e disponibilidade do complemento', () => {
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-2', description: 'Carne' }, options)).toEqual([]);
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-1', description: 'Carne' }, options.map(o => ({ ...o, active: false })))).toEqual([]);
+  });
+});
