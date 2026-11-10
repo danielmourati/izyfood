@@ -124,9 +124,12 @@ export function getPreselectedFlavorsForProduct(
     for (const rawName of product.defaultFlavors) {
       const normTarget = normalizeFlavorText(rawName);
       if (!normTarget) continue;
-      const matched = flavorCandidates.find(c => normalizeFlavorText(c.name) === normTarget);
+      const matched = flavorCandidates.find(c => normalizeFlavorText(c.name) === normTarget)
+        ?? (normTarget === 'carne'
+          ? categoryComplements.find(c => normalizeFlavorText(c.name) === 'carne moida')
+          : undefined);
       if (matched) {
-        explicit.push({
+        if (!explicit.some(c => normalizeFlavorText(c.name) === normalizeFlavorText(matched.name))) explicit.push({
           name: matched.name,
           price: 0,
           quantity: 1,
@@ -167,6 +170,19 @@ export function getPreselectedFlavorsForProduct(
   }
 
   // Order flavors by appearance in the description
+  // A recipe's generic "carne" refers to the catalog's ground beef,
+  // even when that option is registered only as an additional.
+  const groundBeef = categoryComplements.find(o => normalizeFlavorText(o.name) === 'carne moida');
+  if (groundBeef && !matchedFlavors.some(({ opt }) => normalizeFlavorText(opt.name) === 'carne moida')) {
+    const meatMatch = /(^|[^a-z0-9])carne(?:\s+moida)?(?![a-z0-9]|\s+(?:de|do|seca|desfiada|assada|suina|bovina)\b)/i.exec(maskedDesc);
+    if (meatMatch) {
+      const startIdx = meatMatch.index + meatMatch[1].length;
+      const length = meatMatch[0].length - meatMatch[1].length;
+      matchedFlavors.push({ opt: groundBeef, index: startIdx });
+      maskedDesc = maskedDesc.slice(0, startIdx) + ' '.repeat(length) + maskedDesc.slice(startIdx + length);
+    }
+  }
+
   matchedFlavors.sort((a, b) => a.index - b.index);
 
   const result: SelectedComplement[] = [];
