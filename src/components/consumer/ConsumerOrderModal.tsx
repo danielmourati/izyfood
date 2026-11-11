@@ -59,7 +59,7 @@ export function ConsumerOrderModal({
   onDiscardEmptyOrder,
   onDeleteOrder,
 }: ConsumerOrderModalProps) {
-  const { products, categories, customers, tables, setTables, occupyTable, freeTable, moveOrderTable, confirmOrderSaved, orders: storeOrders, lastSyncError, settings: storeSettings } = useStore();
+  const { products, categories, customers, tables, setTables, occupyTable, freeTable, moveOrderTable, confirmOrderSaved, orders: storeOrders, lastSyncError, settings: storeSettings, noteOptions: storeNoteOptions } = useStore();
   const { user, isAdmin } = useAuth();
   const { permissions } = useAttendantPermissions();
   const hasAllPermissions = PERMISSION_KEYS.every(k => permissions[k]);
@@ -519,7 +519,9 @@ export function ConsumerOrderModal({
       return;
     }
     const cat = categories.find(c => c.id === prod.categoryId);
-    const flavorCheck = getFlavorLimitState(cat, [], prod);
+    const flavorCheck = getFlavorLimitState(cat, [], prod, 0, (storeNoteOptions ?? []).filter(o =>
+      o.active !== false && o.type === 'complement' && (o.classification === 'flavor' || o.classification === 'both') &&
+      (!prod.categoryId || !o.categoryIds?.length || o.categoryIds.includes(prod.categoryId))).length);
     if (!flavorCheck.canConfirm) {
       handlePersonalizeProduct(prod);
       return;

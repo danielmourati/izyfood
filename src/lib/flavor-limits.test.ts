@@ -90,3 +90,44 @@ describe('getPreselectedFlavorsForProduct', () => {
     expect(res.map(r => r.name)).toEqual(['Pernil', 'Queijo coalho']);
   });
 });
+
+describe('sem sabores disponíveis', () => {
+  it('obrigatório sem sabores cadastrados não bloqueia', () => {
+    const s = getFlavorLimitState({ flavorRequired: true, flavorMin: 2, flavorMax: 2 }, [], null, 0, 0);
+    expect(s.canConfirm).toBe(true);
+    expect(s.missingMessage).toBe('');
+  });
+  it('obrigatório com sabores cadastrados ainda exige mínimo', () => {
+    expect(getFlavorLimitState({ flavorRequired: true, flavorMin: 2 }, [], null, 0, 5).canConfirm).toBe(false);
+  });
+  it('sem exigência não bloqueia', () => {
+    expect(getFlavorLimitState({ flavorMin: 2 }, [], null, 0, 5).canConfirm).toBe(true);
+  });
+});
+
+describe('recheio carne corresponde a carne moída', () => {
+  const options: Pick<ProductNoteOption, 'name' | 'price' | 'type' | 'classification' | 'active' | 'categoryIds'>[] = [
+    { name: 'Carne moída', price: 5, type: 'complement', classification: 'additional', active: true, categoryIds: ['cat-1'] },
+    { name: 'Carne de sol', price: 6, type: 'complement', classification: 'flavor', active: true, categoryIds: ['cat-1'] },
+  ];
+
+  it('reconhece carne na descrição como carne moída da receita sem cobrar adicional', () => {
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-1', description: 'Carne e queijo' }, options))
+      .toEqual([{ name: 'Carne moída', price: 0, quantity: 1, classification: 'flavor' }]);
+  });
+
+  it('resolve carne explicitamente cadastrada nos recheios e não duplica carne moída', () => {
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-1', defaultFlavors: ['carne', 'Carne moída'] }, options).map(c => c.name))
+      .toEqual(['Carne moída']);
+  });
+
+  it('não confunde carne de sol nem carne seca com carne moída', () => {
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-1', description: 'Carne de sol e carne seca' }, options).map(c => c.name))
+      .toEqual(['Carne de sol']);
+  });
+
+  it('respeita categoria e disponibilidade do complemento', () => {
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-2', description: 'Carne' }, options)).toEqual([]);
+    expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-1', description: 'Carne' }, options.map(o => ({ ...o, active: false })))).toEqual([]);
+  });
+});
