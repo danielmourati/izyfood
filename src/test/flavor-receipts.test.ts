@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildBillReceipt, buildOrderReceipt, kitchenItemColumns } from '@/lib/escpos';
 import { receiptLines, receiptPlainText, receiptHtml } from '@/lib/receipt-renderer';
-import { getOrderItemCustomizationGroups } from '@/lib/utils';
+import { getOrderItemCustomizationGroups, isObservationOption, sortObservationsFirst } from '@/lib/utils';
 
 const order = {
   id: 'flavors-test', orderType: 'mesa', tableNumber: 2, total: 24,
@@ -40,5 +40,27 @@ describe('flavor and additional receipts', () => {
     expect(getOrderItemCustomizationGroups({})).toEqual([]);
     const snapshot = JSON.parse(JSON.stringify(order.items[0]));
     expect(getOrderItemCustomizationGroups(snapshot)[0].items).toHaveLength(2);
+  });
+  it('separates Observações at the top and keeps Pra Viagem first', () => {
+    const groups = getOrderItemCustomizationGroups({
+      selectedNotes: ['Sem cebola'],
+      selectedComplements: [
+        { name: 'Carne', quantity: 1, price: 0, classification: 'flavor' },
+        { name: 'Batata palha', quantity: 1, price: 0, classification: 'additional' },
+        { name: 'Pra Viagem', quantity: 1, price: 0 },
+      ],
+    });
+    expect(groups.map(g => g.title)).toEqual(['Observações:', 'Sabores:', 'Adicionais:']);
+    expect(groups[0].items.map(i => i.name)).toEqual(['Pra Viagem', 'Sem cebola']);
+    expect(groups[2].items.map(i => i.name)).toEqual(['Batata palha']);
+
+    const sorted = sortObservationsFirst([
+      { name: 'Sem gelo' },
+      { name: '[Pra Viagem]' },
+      { name: 'Bem passado' },
+    ]);
+    expect(sorted.map(o => o.name)).toEqual(['[Pra Viagem]', 'Sem gelo', 'Bem passado']);
+    expect(isObservationOption({ name: 'Pra Viagem', type: 'complement', price: 0 })).toBe(true);
+    expect(isObservationOption({ name: 'Cebola', type: 'complement', price: 0 })).toBe(false);
   });
 });

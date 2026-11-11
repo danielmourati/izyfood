@@ -15,6 +15,7 @@ vi.mock('@/contexts/StoreContext', () => ({
       { id: '6', name: 'Carne', type: 'complement', classification: 'flavor', price: 0, categoryIds: ['drinks'], active: true },
       { id: '8', name: 'Bacon', type: 'complement', classification: 'both', price: 0, categoryIds: ['drinks'], active: true },
       { id: '7', name: 'Queijo', type: 'complement', classification: 'flavor', price: 0, categoryIds: ['drinks'], active: true },
+      { id: '9', name: 'Pra Viagem', type: 'complement', price: 0, categoryIds: ['drinks'], active: true },
     ],
   }),
 }));
@@ -129,5 +130,35 @@ describe('ConsumerItemCustomizeModal', () => {
     const all = screen.getByText('Todos os adicionais');
     const lime = screen.getByText(/Limão/);
     expect(all.compareDocumentPosition(lime) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('renders Observações as a separate section at the top with Pra Viagem first', () => {
+    const onConfirm = vi.fn();
+    render(
+      <ConsumerItemCustomizeModal
+        open
+        onClose={() => undefined}
+        product={product}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    const obsHeader = screen.getByText(/^Observações/);
+    const flavorsHeader = screen.getByText(/^Sabores/);
+    const freeHeader = screen.getByText(/^Adicionais \(Grátis\)/);
+    expect(obsHeader.compareDocumentPosition(flavorsHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(flavorsHeader.compareDocumentPosition(freeHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const praViagem = screen.getByText('Pra Viagem');
+    const semGelo = screen.getByText('Sem gelo');
+    expect(praViagem.compareDocumentPosition(semGelo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Sem gelo' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Pra Viagem' }));
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      selectedNotes: ['Pra Viagem', 'Sem gelo'],
+    }));
   });
 });

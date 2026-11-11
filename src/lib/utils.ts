@@ -45,6 +45,37 @@ export function isAllAdditionalsOption(name: string): boolean {
   return name.trim().toLocaleLowerCase('pt-BR') === 'todos os adicionais';
 }
 
+/** Identify takeaway/priority observation options like "Pra Viagem" or "[Pra Viagem]". */
+export function isPriorityObservationOption(name: string): boolean {
+  const normalized = String(name || '')
+    .trim()
+    .replace(/^\[+|\]+$/g, '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+  return normalized === 'pra viagem' || normalized === 'para viagem';
+}
+
+/** True when a catalog/item option should be treated as an item observation rather than an additional. */
+export function isObservationOption(option: {
+  name: string;
+  type?: string;
+  price?: number;
+  classification?: string;
+}): boolean {
+  if (option.type === 'note' || option.classification === 'note') return true;
+  if (!(option.price && option.price > 0) && option.classification !== 'flavor' && isPriorityObservationOption(option.name)) {
+    return true;
+  }
+  return false;
+}
+
+/** Stable sort that keeps priority observations (e.g. "Pra Viagem") at the top. */
+export function sortObservationsFirst<T extends { name: string }>(options: T[]): T[] {
+  return [...options].sort(
+    (a, b) => Number(isPriorityObservationOption(b.name)) - Number(isPriorityObservationOption(a.name))
+  );
+}
+
 /** Stable sort that keeps "Todos os adicionais" first, preserving the original order otherwise. */
 export function sortAllAdditionalsFirst<T extends { name: string }>(options: T[]): T[] {
   return [...options].sort(
@@ -65,7 +96,7 @@ export function getOrderItemNoteLines(item: {
   const source = structured.length > 0 ? structured : String(item.notes || '').split('|');
   const seen = new Set<string>();
 
-  return source.reduce<string[]>((lines, value) => {
+  const deduplicated = source.reduce<string[]>((lines, value) => {
     const note = String(value || '').trim();
     const key = note.toLocaleLowerCase('pt-BR');
     if (note && !seen.has(key)) {
@@ -74,13 +105,17 @@ export function getOrderItemNoteLines(item: {
     }
     return lines;
   }, []);
+
+  return [...deduplicated].sort(
+    (a, b) => Number(isPriorityObservationOption(b)) - Number(isPriorityObservationOption(a))
+  );
 }
 
 export interface OrderItemAdditionalLine {
   name: string;
   quantity: number;
   price: number;
-  classification?: 'flavor' | 'additional';
+  classification?: 'flavor' | 'additional' | 'note';
 }
 
 /** Merge legacy observations and current additional items into one display/print list. */
@@ -94,18 +129,23 @@ export function getOrderItemAdditionalLines(item: {
 
   for (const name of getOrderItemNoteLines(item)) {
     const key = name.toLocaleLowerCase('pt-BR');
-    merged.set(key, { name, quantity: 1, price: 0 });
+    merged.set(key, { name, quantity: 1, price: 0, classification: 'note' });
   }
 
   for (const additional of item.selectedComplements || []) {
     const name = String(additional.name || '').trim();
     if (!name) continue;
     const key = name.toLocaleLowerCase('pt-BR');
+    const existing = merged.get(key);
+    const isNote =
+      additional.classification === 'note' ||
+      (existing?.classification === 'note' && !additional.classification && !(additional.price > 0)) ||
+      isObservationOption(additional);
     merged.set(key, {
       name,
       quantity: additional.quantity || 1,
       price: additional.price || 0,
-      classification: additional.classification,
+      classification: isNote ? 'note' : additional.classification,
     });
   }
 
@@ -115,8 +155,9 @@ export function getOrderItemAdditionalLines(item: {
 export function getOrderItemCustomizationGroups(item: Parameters<typeof getOrderItemAdditionalLines>[0]) {
   const lines = getOrderItemAdditionalLines(item);
   return [
+    { title: 'Observações:', items: sortObservationsFirst(lines.filter(line => line.classification === 'note')) },
     { title: 'Sabores:', items: lines.filter(line => line.classification === 'flavor') },
-    { title: 'Adicionais:', items: lines.filter(line => line.classification !== 'flavor') },
+    { title: 'Adicionais:', items: lines.filter(line => line.classification !== 'flavor' && line.classification !== 'note') },
   ].filter(group => group.items.length > 0);
 }
 

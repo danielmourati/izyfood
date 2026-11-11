@@ -5,7 +5,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Minus, Plus, Check, ChevronLeft, X } from 'lucide-react';
 import { Product, OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
-import { fmt, sortAllAdditionalsFirst } from '@/lib/utils';
+import { fmt, isObservationOption, isPriorityObservationOption, sortAllAdditionalsFirst, sortObservationsFirst } from '@/lib/utils';
 import { getFlavorLimitState, getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
 
 interface ConsumerItemCustomizeModalProps {
@@ -47,14 +47,22 @@ export function ConsumerItemCustomizeModal({
   );
 
   const availableNotes = useMemo(() => {
-    return sortAllAdditionalsFirst(noteOptions.filter(
-      o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId))
-    ));
+    const raw = noteOptions.filter(
+      o => o.active && isObservationOption(o) && (!categoryId || o.categoryIds.includes(categoryId))
+    );
+    const seen = new Set<string>();
+    const unique = raw.filter(o => {
+      const key = o.name.trim().toLocaleLowerCase('pt-BR');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return sortObservationsFirst(unique);
   }, [noteOptions, categoryId]);
 
   const availableComplements = useMemo(() => {
     return sortAllAdditionalsFirst(noteOptions.filter(
-      o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId))
+      o => o.active && o.type === 'complement' && !isObservationOption(o) && (!categoryId || o.categoryIds.includes(categoryId))
     ));
   }, [noteOptions, categoryId]);
 
@@ -62,10 +70,15 @@ export function ConsumerItemCustomizeModal({
     if (open) {
       if (itemToEdit) {
         setQuantity(itemToEdit.quantity || 1);
-        setSelectedObs(itemToEdit.selectedNotes || []);
-        setOtherNotes(itemToEdit.otherNotes || '');
         const existing = itemToEdit.selectedComplements || [];
-        setComplements(existing.length > 0 ? existing : getPreselectedFlavorsForProduct(product, noteOptions, category));
+        const migratedNotes = existing
+          .filter(c => isObservationOption(c))
+          .map(c => c.name);
+        const initialNotes = Array.from(new Set([...(itemToEdit.selectedNotes || []), ...migratedNotes]));
+        setSelectedObs(initialNotes);
+        setOtherNotes(itemToEdit.otherNotes || '');
+        const remaining = existing.filter(c => !isObservationOption(c));
+        setComplements(remaining.length > 0 ? remaining : (existing.length > 0 ? [] : getPreselectedFlavorsForProduct(product, noteOptions, category)));
       } else {
         setQuantity(1);
         setSelectedObs([]);
@@ -108,10 +121,9 @@ export function ConsumerItemCustomizeModal({
   const asAdditional = availableComplements.filter(c => c.classification !== 'flavor')
     .map(c => c.classification === 'both' ? { ...c, classification: 'additional' as const } : c);
 
-  const freeOptions = sortAllAdditionalsFirst([
-    ...asAdditional.filter(c => !(c.price > 0)),
-    ...availableNotes.filter(n => !availableComplements.some(c => c.name === n.name)),
-  ]);
+  const freeOptions = sortAllAdditionalsFirst(
+    asAdditional.filter(c => !(c.price > 0))
+  );
   const paidOptions = asAdditional.filter(c => c.price > 0);
   const flavorOptions = availableComplements.filter(c => c.classification === 'flavor' || c.classification === 'both')
     .map(c => ({ ...c, classification: 'flavor' as const }));
@@ -123,6 +135,7 @@ export function ConsumerItemCustomizeModal({
       ? prev.filter(c => !sameComp(c, opt))
        : [...prev, { name: opt.name, price: 0, quantity: 1, ...(opt.classification ? { classification: opt.classification === 'flavor' ? 'flavor' as const : 'additional' as const } : {}) }]);
   };
+  const notesSelectedCount = availableNotes.filter(opt => selectedObs.includes(opt.name)).length;
   const freeSelectedCount = freeOptions.filter(isFreeSelected).length;
   const paidSelectedCount = paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length;
 
@@ -134,9 +147,12 @@ export function ConsumerItemCustomizeModal({
 
   const handleSave = () => {
     if (!flavorLimit.canConfirm) return;
+    const sortedNotes = [...selectedObs].sort(
+      (a, b) => Number(isPriorityObservationOption(b)) - Number(isPriorityObservationOption(a))
+    );
     onConfirm({
       quantity,
-      selectedNotes: selectedObs,
+      selectedNotes: sortedNotes,
       otherNotes: otherNotes.trim(),
       selectedComplements: complements,
     });
@@ -206,7 +222,34 @@ export function ConsumerItemCustomizeModal({
         </div>
 
         <div className="flex-1 overflow-y-auto bg-background p-3 space-y-3">
-          <Accordion type="multiple" defaultValue={['flavors', 'free', 'paid']} className="space-y-2">
+          <Accordion type="multiple" defaultValue={['notes', 'flavors', 'free', 'paid']} className="space-y-2">
+            {availableNotes.length > 0 && (
+              <AccordionItem value="notes" className="border border-border rounded bg-card px-3">
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
+                  Observações{notesSelectedCount > 0 ? ` · ${notesSelectedCount}` : ''}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-1 pb-3">
+                  {availableNotes.map(opt => {
+                    const checked = selectedObs.includes(opt.name);
+                    return (
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        key={opt.id}
+                        onClick={() => toggleObs(opt.name)}
+                        className={`w-full flex items-center gap-3 p-2 rounded text-left text-xs font-semibold border transition-colors ${checked ? 'bg-primary/15 border-primary' : 'bg-background border-border/60 hover:bg-muted'}`}
+                      >
+                        <span className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${checked ? 'border-primary' : 'border-muted-foreground'}`}>
+                          {checked && <span className="h-2 w-2 rounded-full bg-primary" />}
+                        </span>
+                        <span className="text-foreground">{opt.name}</span>
+                      </button>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            )}
             {flavorOptions.length > 0 && (
               <AccordionItem value="flavors" className="border border-border rounded bg-card px-3">
                 <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores{flavorLimit.label ? ` — ${flavorLimit.label}` : ''}{flavorLimit.label ? <span className="ml-auto mr-2 text-xs font-medium text-muted-foreground">{flavorLimit.count}{flavorLimit.max != null ? ` de ${flavorLimit.max}` : ''}</span> : null}</AccordionTrigger>
@@ -287,7 +330,7 @@ export function ConsumerItemCustomizeModal({
               </AccordionItem>
             )}
           </Accordion>
-          {freeOptions.length === 0 && paidOptions.length === 0 && flavorOptions.length === 0 && (
+          {availableNotes.length === 0 && freeOptions.length === 0 && paidOptions.length === 0 && flavorOptions.length === 0 && (
             <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhum adicional disponível</p>
           )}
           <Input

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { getFlavorLimitState, getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
-import { sortAllAdditionalsFirst } from '@/lib/utils';
+import { isObservationOption, sortAllAdditionalsFirst, sortObservationsFirst } from '@/lib/utils';
 
 export function ItemNotesModal({
     open,
@@ -38,11 +38,11 @@ export function ItemNotesModal({
     );
 
     const availableNotes = useMemo(() =>
-        sortAllAdditionalsFirst(noteOptions.filter(o => o.active && o.type === 'note' && (!categoryId || o.categoryIds.includes(categoryId)))),
+        sortObservationsFirst(noteOptions.filter(o => o.active && isObservationOption(o) && (!categoryId || o.categoryIds.includes(categoryId)))),
     [noteOptions, categoryId]);
 
     const availableComplements = useMemo(() =>
-        sortAllAdditionalsFirst(noteOptions.filter(o => o.active && o.type === 'complement' && (!categoryId || o.categoryIds.includes(categoryId)))),
+        sortAllAdditionalsFirst(noteOptions.filter(o => o.active && o.type === 'complement' && !isObservationOption(o) && (!categoryId || o.categoryIds.includes(categoryId)))),
     [noteOptions, categoryId]);
 
     useEffect(() => {
