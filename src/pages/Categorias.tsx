@@ -13,7 +13,8 @@ import {
   Layers, Plus, Pencil, Trash2, ArrowUp, ArrowDown, Search, UtensilsCrossed, Printer, AlertTriangle, ExternalLink, X
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { ProductCategory } from '@/types';
+import type { CategoryPizzaSize, ProductCategory } from '@/types';
+import { DEFAULT_PIZZA_SIZES, getCategoryPizzaSizes, isPizzaOrCalzoneCategory, isPizzaOrCalzoneName } from '@/lib/pizza';
 
 const emptyCategoryForm = {
   name: '',
@@ -21,6 +22,8 @@ const emptyCategoryForm = {
   flavorRequired: false,
   flavorMin: '',
   flavorMax: '',
+  isPizzaCategory: false,
+  pizzaSizes: [...DEFAULT_PIZZA_SIZES] as CategoryPizzaSize[],
 };
 const toLimit = (v: string) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
 
@@ -90,6 +93,8 @@ const Categorias = () => {
       flavorRequired: !!cat.flavorRequired,
       flavorMin: cat.flavorMin != null ? String(cat.flavorMin) : '',
       flavorMax: cat.flavorMax != null ? String(cat.flavorMax) : '',
+      isPizzaCategory: isPizzaOrCalzoneCategory(cat),
+      pizzaSizes: [...getCategoryPizzaSizes(cat)],
     });
     setLimitError('');
     setDialogOpen(true);
@@ -119,7 +124,28 @@ const Categorias = () => {
       return;
     }
     setLimitError('');
-    const limits = { flavorRequired: form.flavorRequired, flavorMin, flavorMax };
+    const validSizes = form.isPizzaCategory
+      ? form.pizzaSizes
+          .map(s => ({
+            id: s.id.trim() || s.name.trim().slice(0, 3).toUpperCase(),
+            name: s.name.trim(),
+            maxFlavors: Math.max(1, Math.min(4, Number(s.maxFlavors) || 1)),
+          }))
+          .filter(s => s.id && s.name)
+      : undefined;
+
+    if (form.isPizzaCategory && (!validSizes || validSizes.length === 0)) {
+      toast.error('Cadastre pelo menos um tamanho para a categoria de Pizza/Calzone.');
+      return;
+    }
+
+    const limits = {
+      flavorRequired: form.flavorRequired,
+      flavorMin,
+      flavorMax,
+      isPizzaCategory: form.isPizzaCategory,
+      pizzaSizes: validSizes,
+    };
 
     if (editingId) {
       setCategories(prev =>
@@ -300,13 +326,20 @@ const Categorias = () => {
 
                       {/* Nome */}
                       <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(category)}
-                          className="font-semibold text-foreground hover:text-primary transition-colors text-left"
-                        >
-                          {category.name}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(category)}
+                            className="font-semibold text-foreground hover:text-primary transition-colors text-left"
+                          >
+                            {category.name}
+                          </button>
+                          {isPizzaOrCalzoneCategory(category) && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Pizza / Calzone
+                            </Badge>
+                          )}
+                        </div>
                       </td>
 
                       {/* Setor de Impressão */}
@@ -389,7 +422,7 @@ const Categorias = () => {
 
       {/* Modal de Criação / Edição de Categoria */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingId ? 'Editar Categoria' : 'Nova Categoria'}
@@ -403,7 +436,14 @@ const Categorias = () => {
                 id="category-name"
                 autoFocus
                 value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                onChange={e => {
+                  const name = e.target.value;
+                  setForm(f => ({
+                    ...f,
+                    name,
+                    ...(!editingId && isPizzaOrCalzoneName(name) ? { isPizzaCategory: true } : {}),
+                  }));
+                }}
                 placeholder="Ex: Lanches, Bebidas, Pizzas..."
               />
             </div>
@@ -433,6 +473,117 @@ const Categorias = () => {
               <p className="text-[11px] text-muted-foreground">
                 Os produtos cadastrados nesta categoria utilizarão este setor por padrão, a menos que especificado individualmente.
               </p>
+            </div>
+
+            <div className="space-y-3 rounded-md border p-3 bg-muted/10">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label htmlFor="category-pizza-mode" className="font-semibold">
+                    Modo Pizzaria / Calzone (Tamanhos e Múltiplos Sabores)
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Ativa a etapa de seleção de Tamanho e Quantidade de Sabores (1 a 4) com checkboxes no pedido.
+                  </p>
+                </div>
+                <Switch
+                  id="category-pizza-mode"
+                  checked={form.isPizzaCategory}
+                  onCheckedChange={v =>
+                    setForm(f => ({
+                      ...f,
+                      isPizzaCategory: v,
+                      pizzaSizes: f.pizzaSizes.length > 0 ? f.pizzaSizes : [...DEFAULT_PIZZA_SIZES],
+                    }))
+                  }
+                />
+              </div>
+
+              {form.isPizzaCategory && (
+                <div className="space-y-2 pt-2 border-t border-border/60">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Tamanhos e Limite de Sabores Padrão</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() =>
+                        setForm(f => ({
+                          ...f,
+                          pizzaSizes: [
+                            ...f.pizzaSizes,
+                            { id: `T${f.pizzaSizes.length + 1}`, name: '', maxFlavors: 2 },
+                          ],
+                        }))
+                      }
+                    >
+                      <Plus className="h-3 w-3" /> Adicionar Tamanho
+                    </Button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {form.pizzaSizes.map((sz, idx) => (
+                      <div key={idx} className="grid grid-cols-[64px_1fr_110px_32px] gap-1.5 items-center">
+                        <Input
+                          value={sz.id}
+                          placeholder="Sigla"
+                          className="h-8 text-xs font-bold uppercase text-center"
+                          onChange={e => {
+                            const val = e.target.value.toUpperCase();
+                            setForm(f => ({
+                              ...f,
+                              pizzaSizes: f.pizzaSizes.map((s, i) => (i === idx ? { ...s, id: val } : s)),
+                            }));
+                          }}
+                        />
+                        <Input
+                          value={sz.name}
+                          placeholder="Ex: Grande (G)"
+                          className="h-8 text-xs"
+                          onChange={e => {
+                            const val = e.target.value;
+                            setForm(f => ({
+                              ...f,
+                              pizzaSizes: f.pizzaSizes.map((s, i) => (i === idx ? { ...s, name: val } : s)),
+                            }));
+                          }}
+                        />
+                        <select
+                          aria-label={`Máximo de sabores para ${sz.name || sz.id}`}
+                          value={sz.maxFlavors}
+                          onChange={e => {
+                            const maxFlavors = Number(e.target.value) || 1;
+                            setForm(f => ({
+                              ...f,
+                              pizzaSizes: f.pizzaSizes.map((s, i) => (i === idx ? { ...s, maxFlavors } : s)),
+                            }));
+                          }}
+                          className="h-8 rounded-md border bg-background px-2 text-xs"
+                        >
+                          <option value={1}>Até 1 sabor</option>
+                          <option value={2}>Até 2 sabores</option>
+                          <option value={3}>Até 3 sabores</option>
+                          <option value={4}>Até 4 sabores</option>
+                        </select>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          disabled={form.pizzaSizes.length <= 1}
+                          onClick={() =>
+                            setForm(f => ({
+                              ...f,
+                              pizzaSizes: f.pizzaSizes.filter((_, i) => i !== idx),
+                            }))
+                          }
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 rounded-md border p-3">

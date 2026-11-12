@@ -5,15 +5,17 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Search, Plus, Printer, CreditCard, User, Menu, ChevronLeft, Trash2, Edit3, X, Lock, Send, RefreshCw, AlertTriangle, Check, ListChecks, LockKeyhole } from 'lucide-react';
-import { Order, OrderItem, OrderType, Product, TableInfo } from '@/types';
+import { Order, OrderItem, OrderType, Product, ProductCategory, SelectedComplement, TableInfo } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConsumerProductFinderModal } from './ConsumerProductFinderModal';
 import { ConsumerItemCustomizeModal } from './ConsumerItemCustomizeModal';
+import { PizzaOrderStep } from './PizzaOrderStep';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { ensureOrderOpener, fmt } from '@/lib/utils';
+import { getMinimumProductPrice, isPizzaOrCalzoneCategory } from '@/lib/pizza';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -117,6 +119,9 @@ export function ConsumerOrderModal({
 
   const [selectedMobileProduct, setSelectedMobileProduct] = useState<Product | null>(null);
   const [printNotice, setPrintNotice] = useState<string | null>(null);
+  const [preselectedCustomizeComplements, setPreselectedCustomizeComplements] = useState<SelectedComplement[] | undefined>(undefined);
+  const [pizzaModalCategory, setPizzaModalCategory] = useState<ProductCategory | null>(null);
+  const [pizzaInitialProduct, setPizzaInitialProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     if (open && order) {
@@ -519,6 +524,18 @@ export function ConsumerOrderModal({
       return;
     }
     const cat = categories.find(c => c.id === prod.categoryId);
+    if (isPizzaOrCalzoneCategory(cat)) {
+      if (isMobile) {
+        setSelectedCategory(cat!.id);
+        setPizzaInitialProduct(prod);
+        setMobileStep('products');
+      } else {
+        setPizzaModalCategory(cat!);
+        setPizzaInitialProduct(prod);
+        setFinderOpen(false);
+      }
+      return;
+    }
     const flavorCheck = getFlavorLimitState(cat, [], prod, 0, (storeNoteOptions ?? []).filter(o =>
       o.active !== false && o.type === 'complement' && (o.classification === 'flavor' || o.classification === 'both') &&
       (!prod.categoryId || !o.categoryIds?.length || o.categoryIds.includes(prod.categoryId))).length);
@@ -627,6 +644,20 @@ export function ConsumerOrderModal({
       toast.error('Mesa fechada. Clique em REABRIR para lançar novos produtos.');
       return;
     }
+    const cat = categories.find(c => c.id === prod.categoryId);
+    if (isPizzaOrCalzoneCategory(cat)) {
+      if (isMobile) {
+        setSelectedCategory(cat!.id);
+        setPizzaInitialProduct(prod);
+        setMobileStep('products');
+      } else {
+        setPizzaModalCategory(cat!);
+        setPizzaInitialProduct(prod);
+        setFinderOpen(false);
+      }
+      return;
+    }
+    setPreselectedCustomizeComplements(undefined);
     setSelectedProduct(prod);
     setEditingItem(null);
     setCustomizeOpen(true);
@@ -735,6 +766,9 @@ export function ConsumerOrderModal({
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
     setCustomizeOpen(false);
+    setPreselectedCustomizeComplements(undefined);
+    setPizzaInitialProduct(null);
+    setPizzaModalCategory(null);
     toast.success(editingItem ? 'Item atualizado!' : `Adicionado: ${selectedProduct.name}`);
   };
 
@@ -990,7 +1024,9 @@ export function ConsumerOrderModal({
     const customerObj = currentOrder.customerId ? customers.find(c => c.id === currentOrder.customerId) : null;
     const custName = customerObj?.name || currentOrder.customerName || '';
     const custPhone = customerObj?.phone || currentOrder.customerPhone || '';
-    const activeCatName = categories.find(c => c.id === selectedCategory)?.name || 'Todas Categorias';
+    const activeCatObj = categories.find(c => c.id === selectedCategory);
+    const activeCatName = activeCatObj?.name || 'Todas Categorias';
+    const isPizzaCatSelected = Boolean(activeCatObj && isPizzaOrCalzoneCategory(activeCatObj));
 
     const normalizeSearch = (s: string) =>
       (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -1142,126 +1178,154 @@ export function ConsumerOrderModal({
                 </Button>
               </div>
 
-              {/* Category Title */}
-              <div className="px-4 pt-3 pb-1 text-xs font-black text-[#554a42] uppercase tracking-wider">
-                {mobileQ ? `Resultados para "${mobileSearchQuery.trim()}" (${filteredCategoryProducts.length})` : activeCatName}
-              </div>
-
-              {/* Product Cards Grid */}
-              <div className="flex-1 overflow-y-auto p-3">
-                <div className="grid grid-cols-2 gap-3">
-                  {filteredCategoryProducts.map(prod => {
-                    const catObj = categories.find(c => c.id === prod.categoryId);
-                    const catName = catObj?.name || 'GERAL';
-                    const isSelected = selectedMobileProduct?.id === prod.id;
-
-                    return (
-                      <button
-                        key={prod.id}
-                        onClick={() => handleAddDirect(prod)}
-                        className={`bg-[#d926b5] hover:bg-[#c01da0] active:scale-95 text-white font-bold p-3 rounded-lg shadow-md text-left flex flex-col justify-between h-28 relative transition-transform ${
-                          isSelected ? 'border-2 border-black ring-2 ring-black/20' : 'border border-transparent'
-                        }`}
-                      >
-                        <span className="text-sm sm:text-base font-extrabold leading-tight line-clamp-3 drop-shadow-xs text-white">
-                          {prod.name}
-                        </span>
-                        <div className="flex justify-between items-end w-full pt-1">
-                          <span className="text-xs sm:text-sm font-black drop-shadow-xs text-white">R$ {fmt(prod.price)}</span>
-                          <span className="bg-[#00b050] text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase max-w-[55%] truncate shadow-xs tracking-wider">
-                            {catName}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Bottom Quantity Control Panel matching Image 3 */}
-              {selectedMobileProduct ? (
-                <div className="bg-[#00b050] text-white p-3 rounded-t-xl shadow-2xl border-t border-[#00c85b] font-sans space-y-3 shrink-0 animate-in slide-in-from-bottom duration-200">
-                  {/* Green Header Strip */}
-                  <div className="flex justify-between items-center text-sm font-extrabold px-1">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <Check className="h-4 w-4 shrink-0 text-white" />
-                      <span className="truncate">{selectedMobileProduct.name} R$ {fmt(selectedMobileProduct.price)}</span>
-                    </div>
-                    <span className="bg-[#0099ff] text-white text-xs font-black px-2.5 py-1 rounded-md shadow-xs shrink-0">
-                      x{items.find(i => i.productId === selectedMobileProduct.id)?.quantity || 1}
-                    </span>
-                  </div>
-
-                  {/* Quantity Controls Row */}
-                  <div className="grid grid-cols-4 gap-2">
-                    <button
-                      onClick={() => handleAddDirect(selectedMobileProduct)}
-                      className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
-                    >
-                      + 1
-                    </button>
-                    <button
-                      onClick={() => handleDecrementDirect(selectedMobileProduct)}
-                      className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
-                    >
-                      - 1
-                    </button>
-                    <button
-                      onClick={() => handleRemoveDirect(selectedMobileProduct)}
-                      className="bg-white hover:bg-slate-100 text-red-600 font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleCustomizeSelectedMobileProduct}
-                      aria-label="Selecionar observações e adicionais"
-                      title="Selecionar observações e adicionais"
-                      className="w-full bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
-                    >
-                      <ListChecks className="h-6 w-6" strokeWidth={3} />
-                    </Button>
-                  </div>
-
-                  {/* Control Action Buttons */}
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedMobileProduct(null);
-                        setMobileStep('categories');
-                      }}
-                      className="flex-1 h-11 text-xs font-black bg-white hover:bg-slate-100 text-[#4a3b32] border border-[#e0dcd3] flex items-center justify-center gap-2 rounded-lg shadow-sm"
-                    >
-                      <ChevronLeft className="h-4 w-4" /> VOLTAR
-                    </Button>
-                    <Button
-                      onClick={handleRevisar}
-                  disabled={items.length === 0}
-                      className="flex-1 h-11 text-xs font-black bg-[#ffc107] hover:bg-[#e0a800] text-[#1a1a1a] border border-[#e0a800] flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
-                    >
-                      <Check className="h-4 w-4 text-[#1a1a1a]" /> REVISAR
-                    </Button>
-                  </div>
+              {isPizzaCatSelected && activeCatObj ? (
+                <div className="flex-1 overflow-hidden flex flex-col">
+                  <PizzaOrderStep
+                    category={activeCatObj}
+                    products={activeProducts}
+                    initialProduct={pizzaInitialProduct}
+                    searchQuery={mobileSearchQuery}
+                    onBack={() => {
+                      setPizzaInitialProduct(null);
+                      setMobileStep('categories');
+                    }}
+                    onReview={handleRevisar}
+                    reviewItemCount={items.length}
+                    onComplete={({ assembledProduct, selectedFlavorComplements }) => {
+                      setSelectedProduct(assembledProduct);
+                      setEditingItem(null);
+                      setPreselectedCustomizeComplements(selectedFlavorComplements);
+                      setCustomizeOpen(true);
+                    }}
+                  />
                 </div>
               ) : (
-                <div className="p-3 bg-white border-t border-[#e8e4dc] flex gap-3 shrink-0">
-                  <Button
-                    variant="outline"
-                    onClick={() => setMobileStep('categories')}
-                    className="flex-1 h-12 text-xs font-black bg-white hover:bg-[#f9f8f5] text-[#4a3b32] border-[#d8d3c8] flex items-center justify-center gap-2 rounded-lg shadow-sm"
-                  >
-                    <ChevronLeft className="h-4 w-4" /> VOLTAR
-                  </Button>
-                  <Button
-                    onClick={handleRevisar}
-                  disabled={items.length === 0}
-                    className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
-                  >
-                    <Check className="h-4 w-4" /> REVISAR
-                  </Button>
-                </div>
+                <>
+                  {/* Category Title */}
+                  <div className="px-4 pt-3 pb-1 text-xs font-black text-[#554a42] uppercase tracking-wider">
+                    {mobileQ ? `Resultados para "${mobileSearchQuery.trim()}" (${filteredCategoryProducts.length})` : activeCatName}
+                  </div>
+
+                  {/* Product Cards Grid */}
+                  <div className="flex-1 overflow-y-auto p-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      {filteredCategoryProducts.map(prod => {
+                        const catObj = categories.find(c => c.id === prod.categoryId);
+                        const catName = catObj?.name || 'GERAL';
+                        const isSelected = selectedMobileProduct?.id === prod.id;
+                        const displayPrice = isPizzaOrCalzoneCategory(catObj)
+                          ? `a partir de R$ ${fmt(getMinimumProductPrice(prod, catObj))}`
+                          : `R$ ${fmt(prod.price)}`;
+
+                        return (
+                          <button
+                            key={prod.id}
+                            onClick={() => handleAddDirect(prod)}
+                            className={`bg-[#d926b5] hover:bg-[#c01da0] active:scale-95 text-white font-bold p-3 rounded-lg shadow-md text-left flex flex-col justify-between h-28 relative transition-transform ${
+                              isSelected ? 'border-2 border-black ring-2 ring-black/20' : 'border border-transparent'
+                            }`}
+                          >
+                            <span className="text-sm sm:text-base font-extrabold leading-tight line-clamp-3 drop-shadow-xs text-white">
+                              {prod.name}
+                            </span>
+                            <div className="flex justify-between items-end w-full pt-1">
+                              <span className="text-xs sm:text-sm font-black drop-shadow-xs text-white">{displayPrice}</span>
+                              <span className="bg-[#00b050] text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase max-w-[55%] truncate shadow-xs tracking-wider">
+                                {catName}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Bottom Quantity Control Panel matching Image 3 */}
+                  {selectedMobileProduct ? (
+                    <div className="bg-[#00b050] text-white p-3 rounded-t-xl shadow-2xl border-t border-[#00c85b] font-sans space-y-3 shrink-0 animate-in slide-in-from-bottom duration-200">
+                      {/* Green Header Strip */}
+                      <div className="flex justify-between items-center text-sm font-extrabold px-1">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Check className="h-4 w-4 shrink-0 text-white" />
+                          <span className="truncate">{selectedMobileProduct.name} R$ {fmt(selectedMobileProduct.price)}</span>
+                        </div>
+                        <span className="bg-[#0099ff] text-white text-xs font-black px-2.5 py-1 rounded-md shadow-xs shrink-0">
+                          x{items.find(i => i.productId === selectedMobileProduct.id)?.quantity || 1}
+                        </span>
+                      </div>
+
+                      {/* Quantity Controls Row */}
+                      <div className="grid grid-cols-4 gap-2">
+                        <button
+                          onClick={() => handleAddDirect(selectedMobileProduct)}
+                          className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
+                        >
+                          + 1
+                        </button>
+                        <button
+                          onClick={() => handleDecrementDirect(selectedMobileProduct)}
+                          className="bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
+                        >
+                          - 1
+                        </button>
+                        <button
+                          onClick={() => handleRemoveDirect(selectedMobileProduct)}
+                          className="bg-white hover:bg-slate-100 text-red-600 font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleCustomizeSelectedMobileProduct}
+                          aria-label="Selecionar observações e adicionais"
+                          title="Selecionar observações e adicionais"
+                          className="w-full bg-white hover:bg-slate-100 text-[#3e2b20] font-black h-11 rounded-lg shadow flex items-center justify-center text-base active:scale-95 border border-[#e0dcd3]"
+                        >
+                          <ListChecks className="h-6 w-6" strokeWidth={3} />
+                        </Button>
+                      </div>
+
+                      {/* Control Action Buttons */}
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedMobileProduct(null);
+                            setMobileStep('categories');
+                          }}
+                          className="flex-1 h-11 text-xs font-black bg-white hover:bg-slate-100 text-[#4a3b32] border border-[#e0dcd3] flex items-center justify-center gap-2 rounded-lg shadow-sm"
+                        >
+                          <ChevronLeft className="h-4 w-4" /> VOLTAR
+                        </Button>
+                        <Button
+                          onClick={handleRevisar}
+                          disabled={items.length === 0}
+                          className="flex-1 h-11 text-xs font-black bg-[#ffc107] hover:bg-[#e0a800] text-[#1a1a1a] border border-[#e0a800] flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
+                        >
+                          <Check className="h-4 w-4 text-[#1a1a1a]" /> REVISAR
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-white border-t border-[#e8e4dc] flex gap-3 shrink-0">
+                      <Button
+                        variant="outline"
+                        onClick={() => setMobileStep('categories')}
+                        className="flex-1 h-12 text-xs font-black bg-white hover:bg-[#f9f8f5] text-[#4a3b32] border-[#d8d3c8] flex items-center justify-center gap-2 rounded-lg shadow-sm"
+                      >
+                        <ChevronLeft className="h-4 w-4" /> VOLTAR
+                      </Button>
+                      <Button
+                        onClick={handleRevisar}
+                        disabled={items.length === 0}
+                        className="flex-1 h-12 text-xs font-black bg-[#0052cc] hover:bg-[#003d99] text-white flex items-center justify-center gap-2 rounded-lg shadow-md active:scale-95 transition-all"
+                      >
+                        <Check className="h-4 w-4" /> REVISAR
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -1620,9 +1684,13 @@ export function ConsumerOrderModal({
 
         <ConsumerItemCustomizeModal
           open={customizeOpen}
-          onClose={() => setCustomizeOpen(false)}
+          onClose={() => {
+            setCustomizeOpen(false);
+            setPreselectedCustomizeComplements(undefined);
+          }}
           product={selectedProduct}
           itemToEdit={editingItem}
+          initialComplements={preselectedCustomizeComplements}
           onConfirm={handleConfirmCustomization}
         />
       </>
@@ -1683,21 +1751,28 @@ export function ConsumerOrderModal({
                     {productSearchResults.length === 0 ? (
                       <div className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum produto encontrado.</div>
                     ) : (
-                      productSearchResults.map(prod => (
-                        <button
-                          key={prod.id}
-                          type="button"
-                          disabled={isLocked}
-                          onClick={() => {
-                            handleAddDirect(prod);
-                            setItemSearchQuery('');
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-muted/60 flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="font-bold text-foreground truncate">{prod.name}</span>
-                          <span className="text-primary font-bold shrink-0">R$ {fmt(prod.price)}</span>
-                        </button>
-                      ))
+                      productSearchResults.map(prod => {
+                        const prodCat = categories.find(c => c.id === prod.categoryId);
+                        return (
+                          <button
+                            key={prod.id}
+                            type="button"
+                            disabled={isLocked}
+                            onClick={() => {
+                              handleAddDirect(prod);
+                              setItemSearchQuery('');
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-muted/60 flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <span className="font-bold text-foreground truncate">{prod.name}</span>
+                            <span className="text-primary font-bold shrink-0">
+                              {isPizzaOrCalzoneCategory(prodCat)
+                                ? `a partir de R$ ${fmt(getMinimumProductPrice(prod, prodCat))}`
+                                : `R$ ${fmt(prod.price)}`}
+                            </span>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 )}
@@ -2026,12 +2101,59 @@ export function ConsumerOrderModal({
         onPersonalize={handlePersonalizeProduct}
       />
 
+      {/* Modal 2.5: Desktop Pizza / Calzone Builder */}
+      {pizzaModalCategory && (
+        <div className="fixed inset-0 z-[95] bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 font-sans">
+          <div className="bg-card text-card-foreground w-full max-w-3xl rounded-md shadow-2xl overflow-hidden border border-border flex flex-col h-[88vh] max-h-[720px] animate-in zoom-in-95 duration-150">
+            <div className="bg-primary px-4 py-2.5 flex justify-between items-center border-b border-border shrink-0">
+              <span className="text-sm font-bold text-primary-foreground">
+                Montar {pizzaModalCategory.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setPizzaModalCategory(null);
+                  setPizzaInitialProduct(null);
+                }}
+                className="text-primary-foreground/80 hover:text-primary-foreground p-1 rounded hover:bg-primary-foreground/15 transition-colors"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <PizzaOrderStep
+                category={pizzaModalCategory}
+                products={activeProducts}
+                initialProduct={pizzaInitialProduct}
+                onBack={() => {
+                  setPizzaModalCategory(null);
+                  setPizzaInitialProduct(null);
+                }}
+                onComplete={({ assembledProduct, selectedFlavorComplements }) => {
+                  setPizzaModalCategory(null);
+                  setPizzaInitialProduct(null);
+                  setSelectedProduct(assembledProduct);
+                  setEditingItem(null);
+                  setPreselectedCustomizeComplements(selectedFlavorComplements);
+                  setCustomizeOpen(true);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal 3: Item Customization */}
       <ConsumerItemCustomizeModal
         open={customizeOpen}
-        onClose={() => setCustomizeOpen(false)}
+        onClose={() => {
+          setCustomizeOpen(false);
+          setPreselectedCustomizeComplements(undefined);
+        }}
         product={selectedProduct}
         itemToEdit={editingItem}
+        initialComplements={preselectedCustomizeComplements}
         onConfirm={handleConfirmCustomization}
       />
 

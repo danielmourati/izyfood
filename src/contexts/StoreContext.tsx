@@ -89,12 +89,13 @@ export function sortProducts(prods: Product[], orderIds?: string[]): Product[] {
 function dbToProduct(r: any): Product {
   const inactiveIds = loadLS<string[]>('izy_inactive_products', []);
   const active = r.active !== undefined ? Boolean(r.active) : !inactiveIds.includes(r.id);
-  const flavorRules = loadLS<Record<string, { flavorRequired?: boolean; flavorMin?: number | null; flavorMax?: number | null; defaultFlavors?: string[] }>>('izy_product_flavor_limits', {});
+  const flavorRules = loadLS<Record<string, { flavorRequired?: boolean; flavorMin?: number | null; flavorMax?: number | null; defaultFlavors?: string[]; pizzaSizes?: any[] }>>('izy_product_flavor_limits', {});
   const localRule = flavorRules[r.id];
   const flavorRequired = r.flavor_required !== undefined ? Boolean(r.flavor_required) : (localRule?.flavorRequired ?? false);
   const flavorMin = r.flavor_min !== undefined ? r.flavor_min : (localRule?.flavorMin ?? null);
   const flavorMax = r.flavor_max !== undefined ? r.flavor_max : (localRule?.flavorMax ?? null);
   const defaultFlavors = Array.isArray(r.default_flavors) ? r.default_flavors : (Array.isArray(localRule?.defaultFlavors) ? localRule.defaultFlavors : undefined);
+  const pizzaSizes = Array.isArray(r.pizza_sizes) ? r.pizza_sizes : (Array.isArray(localRule?.pizzaSizes) ? localRule.pizzaSizes : undefined);
   return {
     id: r.id,
     name: r.name,
@@ -118,6 +119,7 @@ function dbToProduct(r: any): Product {
     flavorMin,
     flavorMax,
     defaultFlavors,
+    pizzaSizes,
   };
 }
 function dbToNoteOption(r: any): ProductNoteOption {
@@ -138,6 +140,10 @@ export function sortCategories(cats: ProductCategory[], orderIds?: string[]): Pr
 }
 
 function dbToCategory(r: any): ProductCategory {
+  const catConfigs = loadLS<Record<string, { isPizzaCategory?: boolean; pizzaSizes?: any[] }>>('izy_category_pizza_configs', {});
+  const localCfg = catConfigs[r.id];
+  const isPizzaCategory = r.is_pizza_category !== undefined ? Boolean(r.is_pizza_category) : localCfg?.isPizzaCategory;
+  const pizzaSizes = Array.isArray(r.pizza_sizes) ? r.pizza_sizes : (Array.isArray(localCfg?.pizzaSizes) ? localCfg.pizzaSizes : undefined);
   return {
     id: r.id,
     name: r.name,
@@ -146,6 +152,8 @@ function dbToCategory(r: any): ProductCategory {
     flavorRequired: r.flavor_required ?? false,
     flavorMin: r.flavor_min ?? null,
     flavorMax: r.flavor_max ?? null,
+    ...(isPizzaCategory !== undefined ? { isPizzaCategory } : {}),
+    ...(pizzaSizes ? { pizzaSizes } : {}),
   };
 }
 function dbToCustomer(r: any): Customer {
@@ -710,6 +718,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           saveLS('izy_categories_order', dbPs.categories_order);
           setCategories(prev => sortCategories(prev, dbPs.categories_order));
         }
+        if (dbPs.category_pizza_configs && typeof dbPs.category_pizza_configs === 'object') {
+          saveLS('izy_category_pizza_configs', dbPs.category_pizza_configs);
+          const catMap = dbPs.category_pizza_configs;
+          setCategories(prev => {
+            const nextCats = prev.map(c => {
+              const cfg = catMap[c.id];
+              if (!cfg) return c;
+              return {
+                ...c,
+                ...(cfg.isPizzaCategory !== undefined ? { isPizzaCategory: Boolean(cfg.isPizzaCategory) } : {}),
+                ...(Array.isArray(cfg.pizzaSizes) ? { pizzaSizes: cfg.pizzaSizes } : {}),
+              };
+            });
+            saveLS('izy_categories', nextCats);
+            return nextCats;
+          });
+        }
         if (Array.isArray(dbPs.products_order) && dbPs.products_order.length > 0) {
           saveLS('izy_products_order', dbPs.products_order);
         }
@@ -743,6 +768,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                       flavorMin: fRule.flavorMin ?? null,
                       flavorMax: fRule.flavorMax ?? null,
                       defaultFlavors: Array.isArray(fRule.defaultFlavors) ? fRule.defaultFlavors : p.defaultFlavors,
+                      pizzaSizes: Array.isArray(fRule.pizzaSizes) ? fRule.pizzaSizes : p.pizzaSizes,
                     }
                   : {}),
               };
@@ -1577,8 +1603,8 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
   });
   const activeChanged = prev.filter(p => p.active === false).map(p => p.id).sort().join(',') !==
     next.filter(p => p.active === false).map(p => p.id).sort().join(',');
-  const flavorChanged = JSON.stringify(prev.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || []])) !==
-    JSON.stringify(next.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || []]));
+  const flavorChanged = JSON.stringify(prev.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || [], p.pizzaSizes || []])) !==
+    JSON.stringify(next.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || [], p.pizzaSizes || []]));
 
   for (const p of added) {
     markPending(p.id);
@@ -1593,6 +1619,7 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       flavor_required: p.flavorRequired ?? false,
       flavor_min: p.flavorMin ?? null,
       flavor_max: p.flavorMax ?? null,
+      pizza_sizes: p.pizzaSizes ?? null,
     };
     if (tenantId) item.tenant_id = tenantId;
     const { error } = await supabase.from('products').insert(item);
@@ -1602,6 +1629,7 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       delete item.flavor_required;
       delete item.flavor_min;
       delete item.flavor_max;
+      delete item.pizza_sizes;
       const { error: errRetry } = await supabase.from('products').insert(item);
       if (errRetry) {
         console.warn('Product insert with tenant_id failed, fallback without tenant_id:', errRetry.message);
@@ -1624,6 +1652,7 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       flavor_required: p.flavorRequired ?? false,
       flavor_min: p.flavorMin ?? null,
       flavor_max: p.flavorMax ?? null,
+      pizza_sizes: p.pizzaSizes ?? null,
     };
     const { error } = await supabase.from('products').update(updatePayload).eq('id', p.id);
     if (error) {
@@ -1632,11 +1661,25 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       delete updatePayload.flavor_required;
       delete updatePayload.flavor_min;
       delete updatePayload.flavor_max;
+      delete updatePayload.pizza_sizes;
       const { error: err2 } = await supabase.from('products').update(updatePayload).eq('id', p.id);
       if (err2) console.error('Error updating product in Supabase:', err2);
     }
   }
   if ((activeChanged || orderChanged || flavorChanged) && tenantId) {
+    const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null; defaultFlavors?: string[]; pizzaSizes?: any[] }> = {};
+    for (const p of next) {
+      if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null || (p.defaultFlavors && p.defaultFlavors.length > 0) || (p.pizzaSizes && p.pizzaSizes.length > 0)) {
+        flavorLimitsMap[p.id] = {
+          flavorRequired: Boolean(p.flavorRequired),
+          flavorMin: p.flavorMin ?? null,
+          flavorMax: p.flavorMax ?? null,
+          defaultFlavors: p.defaultFlavors && p.defaultFlavors.length > 0 ? p.defaultFlavors : undefined,
+          pizzaSizes: p.pizzaSizes && p.pizzaSizes.length > 0 ? p.pizzaSizes : undefined,
+        };
+      }
+    }
+    saveLS('izy_product_flavor_limits', flavorLimitsMap);
     try {
       const { data: st } = await supabase
         .from('store_settings')
@@ -1647,17 +1690,6 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
         const ps = (st.print_settings && typeof st.print_settings === 'object' ? { ...st.print_settings } : {}) as any;
         ps.inactive_product_ids = next.filter(p => p.active === false).map(p => p.id);
         ps.products_order = next.map(p => p.id);
-        const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null; defaultFlavors?: string[] }> = {};
-        for (const p of next) {
-          if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null || (p.defaultFlavors && p.defaultFlavors.length > 0)) {
-            flavorLimitsMap[p.id] = {
-              flavorRequired: Boolean(p.flavorRequired),
-              flavorMin: p.flavorMin ?? null,
-              flavorMax: p.flavorMax ?? null,
-              defaultFlavors: p.defaultFlavors && p.defaultFlavors.length > 0 ? p.defaultFlavors : undefined,
-            };
-          }
-        }
         ps.product_flavor_limits = flavorLimitsMap;
         await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
       }
@@ -1676,9 +1708,11 @@ async function syncCategories(prev: ProductCategory[], next: ProductCategory[], 
   const added = next.filter(n => !prev.find(p => p.id === n.id));
   const removed = prev.filter(p => !next.find(n => n.id === p.id));
   const orderChanged = prev.map(c => c.id).join(',') !== next.map(c => c.id).join(',');
+  const pizzaCfgChanged = JSON.stringify(prev.map(c => [c.id, c.isPizzaCategory, c.pizzaSizes || []])) !==
+    JSON.stringify(next.map(c => [c.id, c.isPizzaCategory, c.pizzaSizes || []]));
   const updated = next.filter(n => {
     const p = prev.find(pp => pp.id === n.id);
-    return p && (p.name !== n.name || p.printSector !== n.printSector || p.orderIndex !== n.orderIndex || p.flavorRequired !== n.flavorRequired || p.flavorMin !== n.flavorMin || p.flavorMax !== n.flavorMax);
+    return p && (p.name !== n.name || p.printSector !== n.printSector || p.orderIndex !== n.orderIndex || p.flavorRequired !== n.flavorRequired || p.flavorMin !== n.flavorMin || p.flavorMax !== n.flavorMax || p.isPizzaCategory !== n.isPizzaCategory || JSON.stringify(p.pizzaSizes) !== JSON.stringify(n.pizzaSizes));
   });
 
   for (const c of added) {
@@ -1689,12 +1723,16 @@ async function syncCategories(prev: ProductCategory[], next: ProductCategory[], 
       print_sector: c.printSector || null,
       order_index: c.orderIndex ?? next.indexOf(c),
       flavor_required: c.flavorRequired ?? false, flavor_min: c.flavorMin ?? null, flavor_max: c.flavorMax ?? null,
+      is_pizza_category: c.isPizzaCategory ?? false,
+      pizza_sizes: c.pizzaSizes ?? null,
     };
     if (tenantId) item.tenant_id = tenantId;
     const { error } = await supabase.from('categories').insert(item);
     if (error) {
-      console.warn('Initial category insert failed, retrying without order_index / tenant_id:', error.message);
+      console.warn('Initial category insert failed, retrying without order_index / pizza_sizes / tenant_id:', error.message);
       delete item.order_index;
+      delete item.is_pizza_category;
+      delete item.pizza_sizes;
       const { error: err2 } = await supabase.from('categories').insert(item);
       if (err2) {
         delete item.tenant_id;
@@ -1710,28 +1748,43 @@ async function syncCategories(prev: ProductCategory[], next: ProductCategory[], 
       print_sector: c.printSector || null,
       order_index: c.orderIndex ?? next.indexOf(c),
       flavor_required: c.flavorRequired ?? false, flavor_min: c.flavorMin ?? null, flavor_max: c.flavorMax ?? null,
+      is_pizza_category: c.isPizzaCategory ?? false,
+      pizza_sizes: c.pizzaSizes ?? null,
     };
     const { error } = await supabase.from('categories').update(updateItem).eq('id', c.id);
     if (error) {
       delete updateItem.order_index;
+      delete updateItem.is_pizza_category;
+      delete updateItem.pizza_sizes;
       await supabase.from('categories').update(updateItem).eq('id', c.id);
     }
   }
 
-  // Se a ordem das categorias mudou (ex: clique nas setas de reordenação)
-  if (orderChanged) {
-    // 1. Atualiza order_index de cada categoria no Supabase
-    for (let i = 0; i < next.length; i++) {
-      const c = next[i];
-      markPending(c.id);
-      supabase.from('categories').update({ order_index: i } as any).eq('id', c.id).then(({ error }) => {
-        if (error) {
-          // Ignora se coluna ainda não existir
-        }
-      });
+  // Se a ordem ou configuração de pizza das categorias mudou
+  if (orderChanged || pizzaCfgChanged) {
+    if (orderChanged) {
+      for (let i = 0; i < next.length; i++) {
+        const c = next[i];
+        markPending(c.id);
+        supabase.from('categories').update({ order_index: i } as any).eq('id', c.id).then(({ error }) => {
+          if (error) {
+            // Ignora se coluna ainda não existir
+          }
+        });
+      }
     }
 
-    // 2. Persiste categories_order em store_settings para sincronização imediata cross-device
+    const catPizzaMap: Record<string, { isPizzaCategory?: boolean; pizzaSizes?: any[] }> = {};
+    for (const c of next) {
+      if (c.isPizzaCategory !== undefined || (c.pizzaSizes && c.pizzaSizes.length > 0)) {
+        catPizzaMap[c.id] = {
+          isPizzaCategory: c.isPizzaCategory,
+          pizzaSizes: c.pizzaSizes,
+        };
+      }
+    }
+    saveLS('izy_category_pizza_configs', catPizzaMap);
+
     if (tenantId) {
       try {
         const { data: st } = await supabase
@@ -1743,10 +1796,11 @@ async function syncCategories(prev: ProductCategory[], next: ProductCategory[], 
         if (st) {
           const ps = (st.print_settings && typeof st.print_settings === 'object' ? { ...st.print_settings } : {}) as any;
           ps.categories_order = next.map(c => c.id);
+          ps.category_pizza_configs = catPizzaMap;
           await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
         }
       } catch (e) {
-        console.warn('[syncCategories] Falha ao persistir categories_order em store_settings:', e);
+        console.warn('[syncCategories] Falha ao persistir metadados de categorias em store_settings:', e);
       }
     }
   }

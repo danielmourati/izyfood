@@ -13,6 +13,7 @@ interface ConsumerItemCustomizeModalProps {
   onClose: () => void;
   product: Product | null;
   itemToEdit?: OrderItem | null;
+  initialComplements?: SelectedComplement[];
   onConfirm: (payload: {
     quantity: number;
     selectedNotes: string[];
@@ -26,6 +27,7 @@ export function ConsumerItemCustomizeModal({
   onClose,
   product,
   itemToEdit,
+  initialComplements,
   onConfirm,
 }: ConsumerItemCustomizeModalProps) {
   const { noteOptions, categories } = useStore();
@@ -38,8 +40,8 @@ export function ConsumerItemCustomizeModal({
   const category = useMemo(() => (categories ?? []).find(c => c.id === categoryId), [categories, categoryId]);
 
   const preselectedComplements = useMemo(
-    () => getPreselectedFlavorsForProduct(product, noteOptions, category),
-    [product, noteOptions, category]
+    () => (initialComplements && initialComplements.length > 0 ? initialComplements : getPreselectedFlavorsForProduct(product, noteOptions, category)),
+    [initialComplements, product, noteOptions, category]
   );
   const preselectedFlavorCount = useMemo(
     () => preselectedComplements.filter(c => c.classification === 'flavor').reduce((s, c) => s + (c.quantity || 1), 0),
@@ -83,11 +85,11 @@ export function ConsumerItemCustomizeModal({
         setQuantity(1);
         setSelectedObs([]);
         setOtherNotes('');
-        setComplements(getPreselectedFlavorsForProduct(product, noteOptions, category));
+        setComplements(initialComplements && initialComplements.length > 0 ? initialComplements : getPreselectedFlavorsForProduct(product, noteOptions, category));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, itemToEdit?.id, product?.id]);
+  }, [open, itemToEdit?.id, product?.id, initialComplements]);
 
   if (!open || !product) return null;
 
@@ -125,8 +127,20 @@ export function ConsumerItemCustomizeModal({
     asAdditional.filter(c => !(c.price > 0))
   );
   const paidOptions = asAdditional.filter(c => c.price > 0);
-  const flavorOptions = availableComplements.filter(c => c.classification === 'flavor' || c.classification === 'both')
+  const catalogFlavorOptions = availableComplements.filter(c => c.classification === 'flavor' || c.classification === 'both')
     .map(c => ({ ...c, classification: 'flavor' as const }));
+  const customFlavorOptions: ProductNoteOption[] = complements
+    .filter(c => c.classification === 'flavor' && !catalogFlavorOptions.some(o => o.name === c.name))
+    .map((c, idx) => ({
+      id: `assembled-flavor-${idx}-${c.name}`,
+      name: c.name,
+      price: c.price || 0,
+      type: 'complement' as const,
+      classification: 'flavor' as const,
+      active: true,
+      categoryIds: categoryId ? [categoryId] : [],
+    }));
+  const flavorOptions = [...customFlavorOptions, ...catalogFlavorOptions];
   const isFreeSelected = (opt: { name: string; type: string }) =>
     opt.type === 'note' ? selectedObs.includes(opt.name) : getCompQty(opt.name, (opt as ProductNoteOption).classification) > 0;
   const toggleFree = (opt: ProductNoteOption) => {

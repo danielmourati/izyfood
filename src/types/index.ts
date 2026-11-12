@@ -1,5 +1,19 @@
 export type ProductType = 'unit' | 'weight';
 
+export interface CategoryPizzaSize {
+  id: string;
+  name: string;
+  maxFlavors: number;
+}
+
+export interface PizzaSizeConfig {
+  id: string;
+  name: string;
+  maxFlavors: number;
+  price: number;
+  active: boolean;
+}
+
 export interface ProductCategory {
   id: string;
   name: string;
@@ -9,6 +23,8 @@ export interface ProductCategory {
   flavorMin?: number | null;
   flavorMax?: number | null;
   defaultFlavors?: string[];
+  isPizzaCategory?: boolean;
+  pizzaSizes?: CategoryPizzaSize[];
 }
 export type OrderType = 'balcao' | 'mesa' | 'delivery' | 'retirada';
 export type OrderStatus = 'aberto' | 'segurado' | 'finalizado' | 'cancelado' | 'pronto' | 'concluido';
@@ -42,6 +58,7 @@ export interface Product {
   flavorMin?: number | null;
   flavorMax?: number | null;
   defaultFlavors?: string[];
+  pizzaSizes?: PizzaSizeConfig[];
 }
 
 export interface ProductNoteOption {

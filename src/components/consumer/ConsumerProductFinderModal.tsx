@@ -6,6 +6,7 @@ import { Search, RotateCw, Plus, MoreHorizontal, X, LayoutGrid, List } from 'luc
 import { Product, ProductCategory } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt } from '@/lib/utils';
+import { getMinimumProductPrice, isPizzaOrCalzoneCategory } from '@/lib/pizza';
 
 interface ConsumerProductFinderModalProps {
   open: boolean;
@@ -239,7 +240,7 @@ export function ConsumerProductFinderModal({
                             </td>
                             <td className="py-2.5 px-3 font-semibold">{prod.name}</td>
                             <td className="py-2.5 px-3 text-right font-bold">
-                              R$ {fmt(prod.price)}
+                              {isPizzaOrCalzoneCategory(cat) ? `a partir de R$ ${fmt(getMinimumProductPrice(prod, cat))}` : `R$ ${fmt(prod.price)}`}
                             </td>
 
                             {/* Adicionar (F11) Button */}
@@ -297,7 +298,9 @@ export function ConsumerProductFinderModal({
                       </div>
 
                       <div className="mt-3 flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400">R$ {fmt(prod.price)}</span>
+                        <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400">
+                          {isPizzaOrCalzoneCategory(cat) ? `a partir de R$ ${fmt(getMinimumProductPrice(prod, cat))}` : `R$ ${fmt(prod.price)}`}
+                        </span>
                         <div className="flex gap-1">
                           <button
                             type="button"

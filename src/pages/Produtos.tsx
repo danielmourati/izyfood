@@ -5,6 +5,7 @@ import { usePrinter } from '@/hooks/use-printer';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
 import { getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
+import { buildProductPizzaSizesForForm, getMinimumProductPrice, isPizzaOrCalzoneCategory } from '@/lib/pizza';
 import { sectorLabel, buildSectorOptions, PRINT_SECTOR_OPTIONS } from '@/lib/print-sectors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +23,15 @@ import {
   FileText, Check, AlertTriangle, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
+import type { PizzaSizeConfig, Product, ProductCategory, ProductNoteOption, ProductType, Supplier } from '@/types';
+
+interface ProductPizzaSizeFormRow {
+  id: string;
+  name: string;
+  maxFlavors: number;
+  price: string;
+  active: boolean;
+}
 
 const emptyProductForm = {
   name: '',
@@ -45,6 +54,7 @@ const emptyProductForm = {
   flavorMin: '',
   flavorMax: '',
   defaultFlavors: [] as string[],
+  pizzaSizes: [] as ProductPizzaSizeFormRow[],
 };
 
 const toLimit = (v: string) => {
@@ -211,13 +221,27 @@ const Produtos = () => {
     toast.success(`Produto "${product.name}" ${checked ? 'ativado' : 'desativado'}!`);
   };
 
+  const toPizzaFormRows = (catId: string, existing?: PizzaSizeConfig[], fallbackPrice = 0, fallbackMax?: number | null): ProductPizzaSizeFormRow[] => {
+    const cat = getCat(catId);
+    if (!isPizzaOrCalzoneCategory(cat) && (!existing || existing.length === 0)) return [];
+    return buildProductPizzaSizesForForm(cat, existing, fallbackPrice, fallbackMax).map(s => ({
+      id: s.id,
+      name: s.name,
+      maxFlavors: s.maxFlavors,
+      price: s.price > 0 ? formatBRLInput(s.price) : '',
+      active: s.active,
+    }));
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setActiveTab('dados');
     setLimitError('');
+    const initialCatId = filterCategory !== 'all' ? filterCategory : categories[0]?.id || '';
     setForm({
       ...emptyProductForm,
-      categoryId: filterCategory !== 'all' ? filterCategory : categories[0]?.id || '',
+      categoryId: initialCatId,
+      pizzaSizes: toPizzaFormRows(initialCatId),
     });
     setDialogOpen(true);
   };
@@ -247,6 +271,7 @@ const Produtos = () => {
       flavorMin: p.flavorMin != null ? String(p.flavorMin) : '',
       flavorMax: p.flavorMax != null ? String(p.flavorMax) : '',
       defaultFlavors: Array.isArray(p.defaultFlavors) ? p.defaultFlavors : [],
+      pizzaSizes: toPizzaFormRows(p.categoryId, p.pizzaSizes, p.price, p.flavorMax),
     });
     setDialogOpen(true);
   };
@@ -290,13 +315,41 @@ const Produtos = () => {
       setActiveTab('dados');
       return;
     }
-    if (!form.price || parseBRLInput(form.price) < 0) {
-      toast.error('Informe um preço de venda válido.');
+    if (!form.categoryId) {
+      toast.error('Selecione uma categoria para o produto.');
       setActiveTab('dados');
       return;
     }
-    if (!form.categoryId) {
-      toast.error('Selecione uma categoria para o produto.');
+
+    const catObj = getCat(form.categoryId);
+    const isPizzaCat = isPizzaOrCalzoneCategory(catObj);
+    const parsedPizzaSizes: PizzaSizeConfig[] | undefined = isPizzaCat
+      ? form.pizzaSizes.map(s => ({
+          id: s.id.trim() || s.name.trim().slice(0, 3).toUpperCase(),
+          name: s.name.trim(),
+          maxFlavors: Math.max(1, Math.min(4, Number(s.maxFlavors) || 1)),
+          price: s.price ? parseBRLInput(s.price) : 0,
+          active: s.active,
+        }))
+      : undefined;
+
+    const activePizzaSizes = (parsedPizzaSizes || []).filter(s => s.active);
+    if (isPizzaCat && activePizzaSizes.length === 0) {
+      toast.error('Selecione pelo menos um tamanho disponível para esta pizza/calzone.');
+      setActiveTab('dados');
+      return;
+    }
+
+    const minPizzaPrice =
+      activePizzaSizes.length > 0
+        ? Math.min(...activePizzaSizes.map(s => s.price).filter(v => v >= 0))
+        : 0;
+    const effectivePrice = isPizzaCat && activePizzaSizes.length > 0 && minPizzaPrice > 0
+      ? minPizzaPrice
+      : parseBRLInput(form.price);
+
+    if ((!isPizzaCat && (!form.price || effectivePrice < 0)) || effectivePrice < 0) {
+      toast.error('Informe um preço de venda válido.');
       setActiveTab('dados');
       return;
     }
@@ -319,7 +372,7 @@ const Produtos = () => {
       id: editingId || crypto.randomUUID(),
       name: form.name.trim(),
       description: form.description.trim() || undefined,
-      price: parseBRLInput(form.price),
+      price: effectivePrice,
       categoryId: form.categoryId,
       type: form.type,
       unit: form.type === 'weight' ? 'kg' : 'un',
@@ -339,6 +392,7 @@ const Produtos = () => {
       flavorMin,
       flavorMax,
       defaultFlavors: form.defaultFlavors.length > 0 ? form.defaultFlavors : undefined,
+      pizzaSizes: parsedPizzaSizes,
     };
 
     if (editingId) {
@@ -683,6 +737,14 @@ const Produtos = () => {
                               : `${product.flavorMin ?? (product.flavorRequired ? 1 : 0)}–${product.flavorMax ?? '∞'}`}
                           </Badge>
                         )}
+                        {product.pizzaSizes && product.pizzaSizes.some(s => s.active) && (
+                          <Badge variant="outline" className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/30 bg-amber-500/10">
+                            {product.pizzaSizes
+                              .filter(s => s.active)
+                              .map(s => `${s.id}: R$ ${fmt(s.price)} (${s.maxFlavors} sab.)`)
+                              .join(' · ')}
+                          </Badge>
+                        )}
                       </div>
                       {product.description && (
                         <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1 max-w-sm">
@@ -700,8 +762,17 @@ const Produtos = () => {
 
                     {/* Preço de venda */}
                     <td className="px-4 py-3 text-right font-bold tabular-nums text-primary">
-                      R$ {fmt(product.price)}
-                      {product.type === 'weight' ? '/kg' : ''}
+                      {isPizzaOrCalzoneCategory(cat) && product.pizzaSizes?.some(s => s.active) ? (
+                        <span className="inline-flex flex-col items-end leading-tight">
+                          <span className="text-[10px] font-normal text-muted-foreground">a partir de</span>
+                          <span>R$ {fmt(getMinimumProductPrice(product, cat))}</span>
+                        </span>
+                      ) : (
+                        <>
+                          R$ {fmt(product.price)}
+                          {product.type === 'weight' ? '/kg' : ''}
+                        </>
+                      )}
                     </td>
 
                     {/* Estoque */}
@@ -909,7 +980,25 @@ const Produtos = () => {
                         id="prod-cat"
                         className="w-full h-10 rounded-md border bg-background px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
                         value={form.categoryId}
-                        onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
+                        onChange={e => {
+                          const nextCatId = e.target.value;
+                          setForm(f => ({
+                            ...f,
+                            categoryId: nextCatId,
+                            pizzaSizes: toPizzaFormRows(
+                              nextCatId,
+                              f.pizzaSizes.map(s => ({
+                                id: s.id,
+                                name: s.name,
+                                maxFlavors: s.maxFlavors,
+                                price: s.price ? parseBRLInput(s.price) : 0,
+                                active: s.active,
+                              })),
+                              f.price ? parseBRLInput(f.price) : 0,
+                              toLimit(f.flavorMax)
+                            ),
+                          }));
+                        }}
                       >
                         <option value="">Selecione uma categoria...</option>
                         {categories.map(c => (
@@ -947,7 +1036,11 @@ const Produtos = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <Label htmlFor="prod-price">Preço de Venda (R$) *</Label>
+                      <Label htmlFor="prod-price">
+                        {isPizzaOrCalzoneCategory(getCat(form.categoryId))
+                          ? 'Preço Base / A partir de (R$) *'
+                          : 'Preço de Venda (R$) *'}
+                      </Label>
                       <CurrencyInput
                         id="prod-price"
                         value={form.price}
@@ -963,6 +1056,139 @@ const Produtos = () => {
                       />
                     </div>
                   </div>
+
+                  {isPizzaOrCalzoneCategory(getCat(form.categoryId)) && (
+                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <Label className="text-sm font-bold text-foreground">
+                            Tamanhos Disponíveis, Sabores e Valores (Pizza / Calzone)
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Marque os tamanhos disponíveis para este item, quantos sabores permite (1 a 4) e o valor de cada tamanho.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1 shrink-0"
+                          onClick={() =>
+                            setForm(f => ({
+                              ...f,
+                              pizzaSizes: [
+                                ...f.pizzaSizes,
+                                {
+                                  id: `T${f.pizzaSizes.length + 1}`,
+                                  name: `Tamanho ${f.pizzaSizes.length + 1}`,
+                                  maxFlavors: 2,
+                                  price: f.price || '',
+                                  active: true,
+                                },
+                              ],
+                            }))
+                          }
+                        >
+                          <Plus className="h-3 w-3" /> Novo Tamanho
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {form.pizzaSizes.map((sz, idx) => (
+                          <div
+                            key={`${sz.id}-${idx}`}
+                            className={`grid grid-cols-1 sm:grid-cols-[auto_1fr_140px_140px] gap-2 items-center p-2.5 rounded-md border transition-colors ${
+                              sz.active ? 'bg-card border-border' : 'bg-muted/30 border-border/50 opacity-60'
+                            }`}
+                          >
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={sz.active}
+                                onChange={e => {
+                                  const checked = e.target.checked;
+                                  setForm(f => {
+                                    const nextSizes = f.pizzaSizes.map((s, i) =>
+                                      i === idx ? { ...s, active: checked } : s
+                                    );
+                                    const activePrices = nextSizes
+                                      .filter(s => s.active && s.price && parseBRLInput(s.price) > 0)
+                                      .map(s => parseBRLInput(s.price));
+                                    const minP = activePrices.length > 0 ? Math.min(...activePrices) : null;
+                                    return {
+                                      ...f,
+                                      pizzaSizes: nextSizes,
+                                      ...(minP != null ? { price: formatBRLInput(minP) } : {}),
+                                    };
+                                  });
+                                }}
+                                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                              />
+                              <span className="text-xs font-bold uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                {sz.id}
+                              </span>
+                            </label>
+
+                            <Input
+                              value={sz.name}
+                              onChange={e => {
+                                const name = e.target.value;
+                                setForm(f => ({
+                                  ...f,
+                                  pizzaSizes: f.pizzaSizes.map((s, i) => (i === idx ? { ...s, name } : s)),
+                                }));
+                              }}
+                              placeholder="Nome do tamanho (ex: Grande (G))"
+                              className="h-8 text-xs"
+                            />
+
+                            <select
+                              aria-label={`Sabores permitidos para ${sz.name}`}
+                              value={sz.maxFlavors}
+                              disabled={!sz.active}
+                              onChange={e => {
+                                const maxFlavors = Number(e.target.value) || 1;
+                                setForm(f => ({
+                                  ...f,
+                                  pizzaSizes: f.pizzaSizes.map((s, i) => (i === idx ? { ...s, maxFlavors } : s)),
+                                }));
+                              }}
+                              className="h-8 rounded-md border bg-background px-2 text-xs font-medium"
+                            >
+                              <option value={1}>1 sabor</option>
+                              <option value={2}>Até 2 sabores</option>
+                              <option value={3}>Até 3 sabores</option>
+                              <option value={4}>Até 4 sabores</option>
+                            </select>
+
+                            <CurrencyInput
+                              aria-label={`Valor para ${sz.name}`}
+                              value={sz.price}
+                              disabled={!sz.active}
+                              placeholder="R$ 0,00"
+                              className="h-8 text-xs font-semibold"
+                              onValueChange={price => {
+                                setForm(f => {
+                                  const nextSizes = f.pizzaSizes.map((s, i) =>
+                                    i === idx ? { ...s, price } : s
+                                  );
+                                  const activePrices = nextSizes
+                                    .filter(s => s.active && s.price && parseBRLInput(s.price) > 0)
+                                    .map(s => parseBRLInput(s.price));
+                                  const minP = activePrices.length > 0 ? Math.min(...activePrices) : null;
+                                  return {
+                                    ...f,
+                                    pizzaSizes: nextSizes,
+                                    ...(minP != null ? { price: formatBRLInput(minP) } : {}),
+                                  };
+                                });
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <Label htmlFor="prod-desc">Descrição do Produto</Label>
