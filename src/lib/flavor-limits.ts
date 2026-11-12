@@ -236,3 +236,10 @@ export function getPreselectedFlavorsForProduct(
 
   return result;
 }
+
+/** Tenants (slugs) where flavors/additionals are auto-preselected when launching an item. */
+export const PRESELECT_FLAVOR_TENANTS: readonly string[] = ['pastelao-junin'];
+
+export function tenantAllowsFlavorPreselect(slug: string | null | undefined): boolean {
+  return !!slug && PRESELECT_FLAVOR_TENANTS.includes(slug.trim().toLowerCase());
+}

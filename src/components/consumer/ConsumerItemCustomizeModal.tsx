@@ -6,7 +6,8 @@ import { Minus, Plus, Check, ChevronLeft, X } from 'lucide-react';
 import { Product, OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt, isObservationOption, isPriorityObservationOption, sortAllAdditionalsFirst, sortObservationsFirst } from '@/lib/utils';
-import { getFlavorLimitState, getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
+import { getFlavorLimitState, getPreselectedFlavorsForProduct as basePreselect, tenantAllowsFlavorPreselect } from '@/lib/flavor-limits';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ConsumerItemCustomizeModalProps {
   open: boolean;
@@ -31,6 +32,9 @@ export function ConsumerItemCustomizeModal({
   onConfirm,
 }: ConsumerItemCustomizeModalProps) {
   const { noteOptions, categories } = useStore();
+  const { user } = useAuth();
+  const allowPreselect = tenantAllowsFlavorPreselect(user?.tenantSlug);
+  const getPreselectedFlavorsForProduct: typeof basePreselect = (...args) => allowPreselect ? basePreselect(...args) : [];
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedObs, setSelectedObs] = useState<string[]>([]);
   const [otherNotes, setOtherNotes] = useState<string>('');
@@ -40,8 +44,8 @@ export function ConsumerItemCustomizeModal({
   const category = useMemo(() => (categories ?? []).find(c => c.id === categoryId), [categories, categoryId]);
 
   const preselectedComplements = useMemo(
-    () => (initialComplements && initialComplements.length > 0 ? initialComplements : getPreselectedFlavorsForProduct(product, noteOptions, category)),
-    [initialComplements, product, noteOptions, category]
+    () => getPreselectedFlavorsForProduct(product, noteOptions, category),
+    [product, noteOptions, category]
   );
   const preselectedFlavorCount = useMemo(
     () => preselectedComplements.filter(c => c.classification === 'flavor').reduce((s, c) => s + (c.quantity || 1), 0),
@@ -147,7 +151,7 @@ export function ConsumerItemCustomizeModal({
     if (opt.type === 'note') { toggleObs(opt.name); return; }
     setComplements(prev => prev.some(c => sameComp(c, opt))
       ? prev.filter(c => !sameComp(c, opt))
-       : [...prev, { name: opt.name, price: 0, quantity: 1, ...(opt.classification ? { classification: opt.classification === 'flavor' ? 'flavor' as const : 'additional' as const } : {}) }]);
+      : [...prev, { name: opt.name, price: 0, quantity: 1, ...(opt.classification ? { classification: opt.classification === 'flavor' ? 'flavor' as const : 'additional' as const } : {}) }]);
   };
   const notesSelectedCount = availableNotes.filter(opt => selectedObs.includes(opt.name)).length;
   const freeSelectedCount = freeOptions.filter(isFreeSelected).length;
@@ -176,7 +180,7 @@ export function ConsumerItemCustomizeModal({
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 font-sans">
       <div className="bg-card text-card-foreground w-full max-w-4xl rounded-none sm:rounded-md shadow-2xl overflow-hidden border-0 sm:border border-border flex flex-col h-full sm:h-[90vh] sm:max-h-[700px] animate-in zoom-in-95 duration-150">
-        
+
         {/* Title Bar */}
         <div className="bg-primary px-4 py-3 sm:py-2 flex justify-between items-center border-b border-border shrink-0">
           <span className="text-sm font-bold text-primary-foreground">Personalizar Item</span>

@@ -6,7 +6,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
-import { getFlavorLimitState, getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
+import { getFlavorLimitState, getPreselectedFlavorsForProduct, tenantAllowsFlavorPreselect } from '@/lib/flavor-limits';
+import { useAuth } from '@/contexts/AuthContext';
 import { isObservationOption, sortAllAdditionalsFirst, sortObservationsFirst } from '@/lib/utils';
 
 export function ItemNotesModal({
@@ -21,6 +22,8 @@ export function ItemNotesModal({
     onConfirm: (itemId: string, payload: { notes: string; selectedNotes: string[]; otherNotes: string }, newComplements: { name: string; price: number; quantity: number }[]) => void;
 }) {
     const { noteOptions, products, categories } = useStore();
+    const { user } = useAuth();
+    const allowPreselect = tenantAllowsFlavorPreselect(user?.tenantSlug);
     const [selectedObs, setSelectedObs] = useState<string[]>([]);
     const [otherNotes, setOtherNotes] = useState('');
     const [complements, setComplements] = useState<SelectedComplement[]>([]);
@@ -29,8 +32,8 @@ export function ItemNotesModal({
     const categoryId = product?.categoryId;
     const category = useMemo(() => (categories ?? []).find(c => c.id === categoryId), [categories, categoryId]);
     const preselectedComplements = useMemo(
-        () => getPreselectedFlavorsForProduct(product, noteOptions, category),
-        [product, noteOptions, category]
+        () => allowPreselect ? getPreselectedFlavorsForProduct(product, noteOptions, category) : [],
+        [allowPreselect, product, noteOptions, category]
     );
     const preselectedFlavorCount = useMemo(
         () => preselectedComplements.filter(c => c.classification === 'flavor').reduce((s, c) => s + (c.quantity || 1), 0),
@@ -67,7 +70,7 @@ export function ItemNotesModal({
                 setOtherNotes(others.join(', '));
             }
             const existingComps = item.selectedComplements || [];
-            setComplements(existingComps.length > 0 ? existingComps : getPreselectedFlavorsForProduct(product, noteOptions, category));
+            setComplements(existingComps.length > 0 ? existingComps : (allowPreselect ? getPreselectedFlavorsForProduct(product, noteOptions, category) : []));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, item?.id, product?.id]);
