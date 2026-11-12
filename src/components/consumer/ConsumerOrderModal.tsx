@@ -1068,7 +1068,7 @@ export function ConsumerOrderModal({
               {/* Category Cards Grid */}
               <div className="flex-1 overflow-y-auto p-3">
                 <div className="grid grid-cols-2 gap-3">
-                  {categories.map(cat => (
+                  {categories.filter(c => products.some(p => p.categoryId === c.id)).map(cat => (
                     <button
                       key={cat.id}
                       onClick={() => {

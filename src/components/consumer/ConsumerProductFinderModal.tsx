@@ -176,7 +176,7 @@ export function ConsumerProductFinderModal({
               Todas
             </button>
 
-            {categories.map((cat, idx) => {
+            {categories.filter(c => products.some(p => p.categoryId === c.id)).map((cat, idx) => {
               const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
               const isSelected = selectedCatId === cat.id;
               return (
