@@ -43,7 +43,7 @@ export function ConsumerItemCustomizeModal({
 
   const preselectedComplements = useMemo(
     () => getPreselectedFlavorsForProduct(product, noteOptions, category),
-    [product, noteOptions, category]
+    [allowPreselect, product, noteOptions, category]
   );
   const preselectedFlavorCount = useMemo(
     () => preselectedComplements.filter(c => c.classification === 'flavor').reduce((s, c) => s + (c.quantity || 1), 0),
