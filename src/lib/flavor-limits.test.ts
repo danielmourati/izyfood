@@ -131,3 +131,13 @@ describe('recheio carne corresponde a carne moída', () => {
     expect(getPreselectedFlavorsForProduct({ categoryId: 'cat-1', description: 'Carne' }, options.map(o => ({ ...o, active: false })))).toEqual([]);
   });
 });
+
+import { tenantAllowsFlavorPreselect } from './flavor-limits';
+describe('tenantAllowsFlavorPreselect', () => {
+  it('only pastelao-junin preselects', () => {
+    expect(tenantAllowsFlavorPreselect('pastelao-junin')).toBe(true);
+    expect(tenantAllowsFlavorPreselect('zezinho')).toBe(false);
+    expect(tenantAllowsFlavorPreselect('pastelao-sousa')).toBe(false);
+    expect(tenantAllowsFlavorPreselect('')).toBe(false);
+  });
+});
