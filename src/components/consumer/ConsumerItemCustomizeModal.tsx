@@ -6,7 +6,8 @@ import { Minus, Plus, Check, ChevronLeft, X } from 'lucide-react';
 import { Product, OrderItem, SelectedComplement, ProductNoteOption } from '@/types';
 import { useStore } from '@/contexts/StoreContext';
 import { fmt, isObservationOption, isPriorityObservationOption, sortAllAdditionalsFirst, sortObservationsFirst } from '@/lib/utils';
-import { getFlavorLimitState, getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
+import { getFlavorLimitState, getPreselectedFlavorsForProduct as basePreselect, tenantAllowsFlavorPreselect } from '@/lib/flavor-limits';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ConsumerItemCustomizeModalProps {
   open: boolean;
@@ -29,6 +30,9 @@ export function ConsumerItemCustomizeModal({
   onConfirm,
 }: ConsumerItemCustomizeModalProps) {
   const { noteOptions, categories } = useStore();
+  const { user } = useAuth();
+  const allowPreselect = tenantAllowsFlavorPreselect(user?.tenantSlug);
+  const getPreselectedFlavorsForProduct: typeof basePreselect = (...args) => allowPreselect ? basePreselect(...args) : [];
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedObs, setSelectedObs] = useState<string[]>([]);
   const [otherNotes, setOtherNotes] = useState<string>('');
