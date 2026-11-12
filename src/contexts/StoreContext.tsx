@@ -341,9 +341,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = debounceTimersRef.current.categories;
     if (timer) { clearTimeout(timer); delete debounceTimersRef.current.categories; }
     const currentSeq = ++seqRef.current.categories;
-    let res = await supabase.from('categories').select('*').order('order_index' as any, { ascending: true, nullsFirst: false });
+    let res = await supabase.from('categories').select('*').eq('tenant_id', user?.tenantId || '').order('order_index' as any, { ascending: true, nullsFirst: false });
     if (res.error) {
-      res = await supabase.from('categories').select('*');
+      res = await supabase.from('categories').select('*').eq('tenant_id', user?.tenantId || '');
     }
     const cats = res.data;
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.categories !== currentSeq) return;
@@ -372,9 +372,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = debounceTimersRef.current.products;
     if (timer) { clearTimeout(timer); delete debounceTimersRef.current.products; }
     const currentSeq = ++seqRef.current.products;
-    let res = await supabase.from('products').select('*').order('order_index' as any, { ascending: true, nullsFirst: false });
+    let res = await supabase.from('products').select('*').eq('tenant_id', user?.tenantId || '').order('order_index' as any, { ascending: true, nullsFirst: false });
     if (res.error) {
-      res = await supabase.from('products').select('*');
+      res = await supabase.from('products').select('*').eq('tenant_id', user?.tenantId || '');
     }
     const prods = res.data;
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.products !== currentSeq) return;
@@ -403,7 +403,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = debounceTimersRef.current.customers;
     if (timer) { clearTimeout(timer); delete debounceTimersRef.current.customers; }
     const currentSeq = ++seqRef.current.customers;
-    const { data: custs } = await supabase.from('customers').select('*');
+    const { data: custs } = await supabase.from('customers').select('*').eq('tenant_id', user?.tenantId || '');
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.customers !== currentSeq) return;
     if (custs) {
       setCustomers(prev => {
@@ -429,7 +429,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = debounceTimersRef.current.suppliers;
     if (timer) { clearTimeout(timer); delete debounceTimersRef.current.suppliers; }
     const currentSeq = ++seqRef.current.suppliers;
-    const { data: supps } = await supabase.from('suppliers').select('*');
+    const { data: supps } = await supabase.from('suppliers').select('*').eq('tenant_id', user?.tenantId || '');
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.suppliers !== currentSeq) return;
     if (supps) {
       setSuppliers(prev => {
@@ -477,7 +477,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = debounceTimersRef.current.stockEntries;
     if (timer) { clearTimeout(timer); delete debounceTimersRef.current.stockEntries; }
     const currentSeq = ++seqRef.current.stockEntries;
-    const { data: stks } = await supabase.from('stock_entries').select('*').order('date', { ascending: false });
+    const { data: stks } = await supabase.from('stock_entries').select('*').eq('tenant_id', user?.tenantId || '').order('date', { ascending: false });
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.stockEntries !== currentSeq) return;
     if (stks) {
       const parsedStks = stks.map(dbToStockEntry);
@@ -629,7 +629,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = debounceTimersRef.current.coupons;
     if (timer) { clearTimeout(timer); delete debounceTimersRef.current.coupons; }
     const currentSeq = ++seqRef.current.coupons;
-    const { data: cpns } = await supabase.from('coupons').select('*');
+    const { data: cpns } = await supabase.from('coupons').select('*').eq('tenant_id', user?.tenantId || '');
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.coupons !== currentSeq) return;
     if (cpns) {
       const parsedCpns = cpns.map(dbToCoupon);
@@ -650,7 +650,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = debounceTimersRef.current.noteOptions;
     if (timer) { clearTimeout(timer); delete debounceTimersRef.current.noteOptions; }
     const currentSeq = ++seqRef.current.noteOptions;
-    const { data: opts } = await supabase.from('product_note_options').select('*');
+    const { data: opts } = await supabase.from('product_note_options').select('*').eq('tenant_id', user?.tenantId || '');
     if (activeRefreshRef.current !== sharedRefresh || seqRef.current.noteOptions !== currentSeq) return;
     if (opts) {
       setNoteOptions(prev => {
@@ -1515,7 +1515,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await deductStock(order.items);
 
     if (order.customerId) {
-      const { data: custData } = await supabase.from('customers').select('*').eq('id', order.customerId).single();
+      const { data: custData } = await supabase.from('customers').select('*').eq('tenant_id', user?.tenantId || '').eq('id', order.customerId).single();
       if (custData) {
         const eligibleCount = order.items.filter(item => {
           const product = products.find(p => p.id === item.productId);
