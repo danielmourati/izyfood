@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConsumerItemCustomizeModal } from '@/components/consumer/ConsumerItemCustomizeModal';
 import type { Product } from '@/types';
 
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { tenantSlug: 'pastelao-junin' } }) }));
 vi.mock('@/contexts/StoreContext', () => ({
   useStore: () => ({
     noteOptions: [
