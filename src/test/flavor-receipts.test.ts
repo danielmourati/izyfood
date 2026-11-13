@@ -5,8 +5,10 @@ import { getOrderItemCustomizationGroups, isObservationOption, sortObservationsF
 import {
   buildAssembledPizzaSelection,
   calculatePizzaHighestPrice,
+  getAllowedFlavorCountsForItem,
   getMinimumProductPrice,
   isPizzaOrCalzoneCategory,
+  isProductPizzaFlavor,
 } from '@/lib/pizza';
 import type { Product, ProductCategory } from '@/types';
 
@@ -142,5 +144,62 @@ describe('flavor and additional receipts', () => {
     expect(groups[0].items.map(i => i.name)).toEqual(['[Pra Viagem]']);
     expect(groups[1].items.map(i => i.name)).toEqual(['1/2 Calabresa', '1/2 Frango Catupiry']);
     expect(groups[2].items.map(i => i.name)).toEqual(['Borda Catupiry']);
+  });
+
+  it('respects min/max flavor limits and combo/flavor flags', () => {
+    const singleFlavorPizza: Product = {
+      id: 'single-1',
+      name: 'Calabresa',
+      price: 25,
+      categoryId: 'cat-pizza',
+      type: 'unit',
+      unit: 'un',
+      stock: 10,
+      loyaltyEligible: false,
+      isPizzaFlavor: true,
+      isCombo: false,
+      pizzaSizes: [{ id: 'G', name: 'Grande (G)', price: 45, maxFlavors: 1, active: true }],
+    };
+    const combo2Flavors: Product = {
+      id: 'combo-2',
+      name: 'Combo Pizza G + Refri (até 2 sabores)',
+      price: 48,
+      categoryId: 'cat-pizza',
+      type: 'unit',
+      unit: 'un',
+      stock: 10,
+      loyaltyEligible: false,
+      isPizzaFlavor: false,
+      isCombo: true,
+      flavorRequired: true,
+      flavorMin: 2,
+      flavorMax: 2,
+      pizzaSizes: [{ id: 'G', name: 'Grande (G)', price: 48, maxFlavors: 2, active: true }],
+    };
+
+    expect(isProductPizzaFlavor(singleFlavorPizza)).toBe(true);
+    expect(isProductPizzaFlavor(combo2Flavors)).toBe(false);
+    expect(getAllowedFlavorCountsForItem(singleFlavorPizza, { maxFlavors: 1 })).toEqual([1]);
+    expect(getAllowedFlavorCountsForItem(combo2Flavors, { maxFlavors: 2 })).toEqual([2]);
+    expect(
+      getAllowedFlavorCountsForItem(
+        { ...combo2Flavors, flavorMin: 1, flavorMax: 2 },
+        { maxFlavors: 2 },
+      ),
+    ).toEqual([1, 2]);
+
+    const comboBuilt = buildAssembledPizzaSelection({
+      category: { id: 'cat-pizza', name: 'PIZZAS', isPizzaCategory: true },
+      size: { id: 'G', name: 'Grande (G)', maxFlavors: 2 },
+      flavorCount: 2,
+      selectedProducts: [
+        { product: singleFlavorPizza, sizePrice: 45 },
+        { product: { ...singleFlavorPizza, id: 'f2', name: 'Frango' }, sizePrice: 42 },
+      ],
+      baseItem: combo2Flavors,
+      baseItemSizePrice: 48,
+    });
+    expect(comboBuilt.assembledProduct.name).toBe('Combo Pizza G + Refri (até 2 sabores) - Grande (G)');
+    expect(comboBuilt.basePrice).toBe(48);
   });
 });

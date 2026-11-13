@@ -525,15 +525,9 @@ export function ConsumerOrderModal({
     }
     const cat = categories.find(c => c.id === prod.categoryId);
     if (isPizzaOrCalzoneCategory(cat)) {
-      if (isMobile) {
-        setSelectedCategory(cat!.id);
-        setPizzaInitialProduct(prod);
-        setMobileStep('products');
-      } else {
-        setPizzaModalCategory(cat!);
-        setPizzaInitialProduct(prod);
-        setFinderOpen(false);
-      }
+      setPizzaModalCategory(cat!);
+      setPizzaInitialProduct(prod);
+      setFinderOpen(false);
       return;
     }
     const flavorCheck = getFlavorLimitState(cat, [], prod, 0, (storeNoteOptions ?? []).filter(o =>
@@ -646,15 +640,9 @@ export function ConsumerOrderModal({
     }
     const cat = categories.find(c => c.id === prod.categoryId);
     if (isPizzaOrCalzoneCategory(cat)) {
-      if (isMobile) {
-        setSelectedCategory(cat!.id);
-        setPizzaInitialProduct(prod);
-        setMobileStep('products');
-      } else {
-        setPizzaModalCategory(cat!);
-        setPizzaInitialProduct(prod);
-        setFinderOpen(false);
-      }
+      setPizzaModalCategory(cat!);
+      setPizzaInitialProduct(prod);
+      setFinderOpen(false);
       return;
     }
     setPreselectedCustomizeComplements(undefined);
@@ -770,6 +758,66 @@ export function ConsumerOrderModal({
     setPizzaInitialProduct(null);
     setPizzaModalCategory(null);
     toast.success(editingItem ? 'Item atualizado!' : `Adicionado: ${selectedProduct.name}`);
+  };
+
+  const handlePizzaStepComplete = (payload: {
+    assembledProduct: Product;
+    selectedFlavorComplements: SelectedComplement[];
+    basePrice: number;
+    mode: 'customize' | 'direct';
+    quantity?: number;
+    selectedNotes?: string[];
+    otherNotes?: string;
+    selectedComplements?: SelectedComplement[];
+  }) => {
+    setPizzaModalCategory(null);
+    setPizzaInitialProduct(null);
+
+    if (payload.mode === 'direct' && currentOrder) {
+      const qty = payload.quantity ?? 1;
+      const comps = payload.selectedComplements ?? payload.selectedFlavorComplements;
+      const notes = payload.selectedNotes ?? [];
+      const extraNotes = payload.otherNotes ?? '';
+      const compsTotal = comps.reduce((acc, c) => acc + c.price * c.quantity, 0);
+      const unitPrice = payload.assembledProduct.price + compsTotal;
+      const itemSubtotal = unitPrice * qty;
+      const notesParts = [...notes];
+      if (extraNotes) notesParts.push(extraNotes);
+
+      const newItem: OrderItem = {
+        id: crypto.randomUUID(),
+        productId: payload.assembledProduct.id,
+        name: payload.assembledProduct.name,
+        price: payload.assembledProduct.price,
+        quantity: qty,
+        selectedNotes: notes,
+        otherNotes: extraNotes,
+        selectedComplements: comps,
+        notes: notesParts.join(' | '),
+        subtotal: itemSubtotal,
+        addedBy: user?.id,
+        addedByName: user?.name,
+        printed: false,
+      };
+      const updatedItems = [...items, newItem];
+      const updatedTotal = updatedItems.reduce((s, i) => s + i.subtotal, 0);
+      const updatedOrder: Order = {
+        ...currentOrder,
+        items: updatedItems,
+        total: updatedTotal,
+        isLocked: false,
+      };
+      setIsLocked(false);
+      setCurrentOrder(updatedOrder);
+      onSaveOrder(updatedOrder);
+      toast.success(`Adicionado: ${payload.assembledProduct.name}`);
+      return;
+    }
+
+    setSelectedProduct(payload.assembledProduct);
+    setEditingItem(null);
+    setPreselectedCustomizeComplements(payload.selectedFlavorComplements);
+    setCustomizeOpen(true);
   };
 
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
@@ -1178,25 +1226,19 @@ export function ConsumerOrderModal({
                 </Button>
               </div>
 
-              {isPizzaCatSelected && activeCatObj ? (
+              {pizzaModalCategory && pizzaInitialProduct ? (
                 <div className="flex-1 overflow-hidden flex flex-col">
                   <PizzaOrderStep
-                    category={activeCatObj}
+                    category={pizzaModalCategory}
                     products={activeProducts}
                     initialProduct={pizzaInitialProduct}
-                    searchQuery={mobileSearchQuery}
                     onBack={() => {
+                      setPizzaModalCategory(null);
                       setPizzaInitialProduct(null);
-                      setMobileStep('categories');
                     }}
                     onReview={handleRevisar}
                     reviewItemCount={items.length}
-                    onComplete={({ assembledProduct, selectedFlavorComplements }) => {
-                      setSelectedProduct(assembledProduct);
-                      setEditingItem(null);
-                      setPreselectedCustomizeComplements(selectedFlavorComplements);
-                      setCustomizeOpen(true);
-                    }}
+                    onComplete={handlePizzaStepComplete}
                   />
                 </div>
               ) : (
@@ -2130,14 +2172,7 @@ export function ConsumerOrderModal({
                   setPizzaModalCategory(null);
                   setPizzaInitialProduct(null);
                 }}
-                onComplete={({ assembledProduct, selectedFlavorComplements }) => {
-                  setPizzaModalCategory(null);
-                  setPizzaInitialProduct(null);
-                  setSelectedProduct(assembledProduct);
-                  setEditingItem(null);
-                  setPreselectedCustomizeComplements(selectedFlavorComplements);
-                  setCustomizeOpen(true);
-                }}
+                onComplete={handlePizzaStepComplete}
               />
             </div>
           </div>

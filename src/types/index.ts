@@ -59,6 +59,10 @@ export interface Product {
   flavorMax?: number | null;
   defaultFlavors?: string[];
   pizzaSizes?: PizzaSizeConfig[];
+  /** Sinaliza que o item pode ser escolhido como sabor na montagem de pizzas/combos (padrão true em categorias pizza/calzone, exceto combos). */
+  isPizzaFlavor?: boolean;
+  /** Sinaliza que o item é um combo (ex: Combo Pizza + Refri), não aparecendo como sabor dentro de outro item. */
+  isCombo?: boolean;
 }
 
 export interface ProductNoteOption {

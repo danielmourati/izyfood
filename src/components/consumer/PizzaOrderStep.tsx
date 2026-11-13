@@ -1,14 +1,25 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Check, ChevronLeft } from 'lucide-react';
-import type { CategoryPizzaSize, Product, ProductCategory, SelectedComplement } from '@/types';
-import { fmt } from '@/lib/utils';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Check, ChevronLeft, Minus, Plus } from 'lucide-react';
+import type { CategoryPizzaSize, Product, ProductCategory, ProductNoteOption, SelectedComplement } from '@/types';
+import { useStore } from '@/contexts/StoreContext';
+import {
+  fmt,
+  isObservationOption,
+  isPriorityObservationOption,
+  sortAllAdditionalsFirst,
+  sortObservationsFirst,
+} from '@/lib/utils';
 import {
   buildAssembledPizzaSelection,
   calculatePizzaHighestPrice,
   getActiveProductPizzaSizes,
+  getAllowedFlavorCountsForItem,
   getCategoryPizzaSizes,
+  isProductPizzaFlavor,
 } from '@/lib/pizza';
 
 interface PizzaOrderStepProps {
@@ -24,6 +35,10 @@ interface PizzaOrderStepProps {
     selectedFlavorComplements: SelectedComplement[];
     basePrice: number;
     mode: 'customize' | 'direct';
+    quantity?: number;
+    selectedNotes?: string[];
+    otherNotes?: string;
+    selectedComplements?: SelectedComplement[];
   }) => void;
 }
 
@@ -79,13 +94,31 @@ export function PizzaOrderStep({
   reviewItemCount = 0,
   onComplete,
 }: PizzaOrderStepProps) {
+  const { noteOptions } = useStore();
+
   const categoryProducts = useMemo(
     () => products.filter(p => p.active !== false && p.categoryId === category.id),
     [products, category.id],
   );
 
-  // Collect all sizes available across the category and its active products
+  // Flavors available for selection in multi-flavor mode (excludes combos / non-flavor items)
+  const flavorPoolProducts = useMemo(
+    () => categoryProducts.filter(isProductPizzaFlavor),
+    [categoryProducts],
+  );
+
+  // When an initialProduct is selected, scope sizes to that product's active sizes
   const availableSizes = useMemo(() => {
+    if (initialProduct) {
+      const prodSizes = getActiveProductPizzaSizes(initialProduct, category);
+      return prodSizes.map(ps => ({
+        id: ps.id,
+        name: ps.name,
+        maxFlavors: Math.max(1, Math.min(4, ps.maxFlavors || 1)),
+        minPrice: ps.price > 0 ? ps.price : initialProduct.price || 0,
+      }));
+    }
+
     const baseSizes = getCategoryPizzaSizes(category);
     const sizeMap = new Map<string, { size: CategoryPizzaSize; minPrice: number; maxFlavors: number }>();
 
@@ -120,24 +153,59 @@ export function PizzaOrderStep({
       maxFlavors: Math.max(1, Math.min(4, entry.maxFlavors || 1)),
       minPrice: Number.isFinite(entry.minPrice) ? entry.minPrice : 0,
     }));
-  }, [category, categoryProducts]);
+  }, [initialProduct, category, categoryProducts]);
 
   const [selectedSizeId, setSelectedSizeId] = useState<string>(() => availableSizes[0]?.id || 'G');
-  const [flavorCount, setFlavorCount] = useState<number>(1);
-  const [selectedFlavorIds, setSelectedFlavorIds] = useState<string[]>(() =>
-    initialProduct ? [initialProduct.id] : [],
-  );
-
   const selectedSize = useMemo(
     () => availableSizes.find(s => s.id.toUpperCase() === selectedSizeId.toUpperCase()) || availableSizes[0],
     [availableSizes, selectedSizeId],
   );
 
+  // Determine allowed flavor counts ("quantos sabores?") for the current item + selected size
+  const flavorCountOptions = useMemo(
+    () => getAllowedFlavorCountsForItem(initialProduct, selectedSize),
+    [initialProduct, selectedSize],
+  );
+
+  // Single-flavor item mode: selected product is a single flavor (not combo) and only allows 1 flavor
+  const isSingleFlavorOnly = useMemo(() => {
+    if (!initialProduct || initialProduct.isCombo) return false;
+    return availableSizes.every(sz => {
+      const counts = getAllowedFlavorCountsForItem(initialProduct, sz);
+      return counts.length === 1 && counts[0] === 1;
+    });
+  }, [initialProduct, availableSizes]);
+
+  const [flavorCount, setFlavorCount] = useState<number>(() => flavorCountOptions[0] ?? 1);
+  const [selectedFlavorIds, setSelectedFlavorIds] = useState<string[]>(() =>
+    initialProduct && isProductPizzaFlavor(initialProduct) ? [initialProduct.id] : [],
+  );
+
+  // Inline customization state for single-flavor mode (Observações, Bordas, Complementos, Quantidade)
+  const [quantity, setQuantity] = useState<number>(1);
+  const [selectedObs, setSelectedObs] = useState<string[]>([]);
+  const [otherNotes, setOtherNotes] = useState<string>('');
+  const [complements, setComplements] = useState<SelectedComplement[]>([]);
+
+  // Reset state when initialProduct changes
   useEffect(() => {
-    if (selectedSize && flavorCount > selectedSize.maxFlavors) {
-      setFlavorCount(selectedSize.maxFlavors);
+    const firstSize = availableSizes[0];
+    setSelectedSizeId(firstSize?.id || 'G');
+    const initialCounts = getAllowedFlavorCountsForItem(initialProduct, firstSize);
+    setFlavorCount(initialCounts[0] ?? 1);
+    setSelectedFlavorIds(initialProduct && isProductPizzaFlavor(initialProduct) ? [initialProduct.id] : []);
+    setQuantity(1);
+    setSelectedObs([]);
+    setOtherNotes('');
+    setComplements([]);
+  }, [initialProduct?.id]);
+
+  // Keep flavorCount within allowed options when size changes
+  useEffect(() => {
+    if (flavorCountOptions.length > 0 && !flavorCountOptions.includes(flavorCount)) {
+      setFlavorCount(flavorCountOptions[0]);
     }
-  }, [selectedSize, flavorCount]);
+  }, [flavorCountOptions, flavorCount]);
 
   useEffect(() => {
     if (selectedFlavorIds.length > flavorCount) {
@@ -149,13 +217,15 @@ export function PizzaOrderStep({
     (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const q = normalize(searchQuery);
 
-  // Filter products that offer the currently selected size
+  // Flavors available for the selected size (from flavorPoolProducts, excluding combos)
   const flavorsForSize = useMemo(() => {
     if (!selectedSize) return [];
-    return categoryProducts
+    return flavorPoolProducts
       .map(prod => {
         const activeSizes = getActiveProductPizzaSizes(prod, category);
-        const match = activeSizes.find(s => s.id.toUpperCase() === selectedSize.id.toUpperCase());
+        const match =
+          activeSizes.find(s => s.id.toUpperCase() === selectedSize.id.toUpperCase()) ||
+          activeSizes[0];
         if (!match) return null;
         return {
           product: prod,
@@ -171,21 +241,7 @@ export function PizzaOrderStep({
           normalize(item.product.description).includes(q) ||
           normalize(item.product.searchCode).includes(q),
       );
-  }, [categoryProducts, category, selectedSize, q]);
-
-  const maxFlavorsForSize = useMemo(() => {
-    if (!selectedSize) return 1;
-    const maxFromProducts = flavorsForSize.reduce(
-      (max, item) => Math.max(max, item.sizeConfig.maxFlavors || 1),
-      selectedSize.maxFlavors || 1,
-    );
-    return Math.max(1, Math.min(4, maxFromProducts));
-  }, [selectedSize, flavorsForSize]);
-
-  const flavorCountOptions = useMemo(
-    () => Array.from({ length: maxFlavorsForSize }, (_, i) => i + 1),
-    [maxFlavorsForSize],
-  );
+  }, [flavorPoolProducts, category, selectedSize, q]);
 
   const selectedFlavorEntries = useMemo(
     () =>
@@ -195,18 +251,136 @@ export function PizzaOrderStep({
     [selectedFlavorIds, flavorsForSize],
   );
 
-  const currentPrice = useMemo(
-    () => calculatePizzaHighestPrice(selectedFlavorEntries.map(e => ({ price: e.sizePrice }))),
-    [selectedFlavorEntries],
-  );
+  // Inline note/complement options for single-flavor mode
+  const availableNotes = useMemo(() => {
+    const raw = noteOptions.filter(
+      o => o.active && isObservationOption(o) && (!category.id || o.categoryIds.includes(category.id)),
+    );
+    const seen = new Set<string>();
+    const unique = raw.filter(o => {
+      const key = o.name.trim().toLocaleLowerCase('pt-BR');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return sortObservationsFirst(unique);
+  }, [noteOptions, category.id]);
 
-  const handleSelectSingleFlavor = (entry: { product: Product; sizePrice: number }) => {
+  const availableComplements = useMemo(() => {
+    return sortAllAdditionalsFirst(
+      noteOptions.filter(
+        o =>
+          o.active &&
+          o.type === 'complement' &&
+          !isObservationOption(o) &&
+          (!category.id || o.categoryIds.includes(category.id)),
+      ),
+    );
+  }, [noteOptions, category.id]);
+
+  const asAdditional = availableComplements
+    .filter(c => c.classification !== 'flavor')
+    .map(c => (c.classification === 'both' ? { ...c, classification: 'additional' as const } : c));
+  const freeOptions = sortAllAdditionalsFirst(asAdditional.filter(c => !(c.price > 0)));
+  const paidOptions = asAdditional.filter(c => c.price > 0);
+
+  const sameComp = (c: { name: string; classification?: string }, o: { name: string; classification?: string }) =>
+    c.name === o.name && (c.classification === 'flavor') === (o.classification === 'flavor');
+  const getCompQty = (name: string, cls?: string) =>
+    complements.find(c => sameComp(c, { name, classification: cls }))?.quantity || 0;
+
+  const toggleObs = (name: string) => {
+    setSelectedObs(prev => (prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]));
+  };
+
+  const toggleFree = (opt: ProductNoteOption) => {
+    setComplements(prev =>
+      prev.some(c => sameComp(c, opt))
+        ? prev.filter(c => !sameComp(c, opt))
+        : [
+            ...prev,
+            {
+              name: opt.name,
+              price: 0,
+              quantity: 1,
+              ...(opt.classification
+                ? { classification: opt.classification === 'flavor' ? ('flavor' as const) : ('additional' as const) }
+                : {}),
+            },
+          ],
+    );
+  };
+
+  const updateCompQty = (comp: ProductNoteOption, delta: number) => {
+    setComplements(prev => {
+      const same = (c: { name: string; classification?: string }) => sameComp(c, comp);
+      const existing = prev.find(same);
+      if (existing) {
+        const newQty = existing.quantity + delta;
+        if (newQty <= 0) return prev.filter(c => !same(c));
+        return prev.map(c => (same(c) ? { ...c, quantity: newQty } : c));
+      }
+      if (delta <= 0) return prev;
+      return [
+        ...prev,
+        {
+          name: comp.name,
+          price: comp.price,
+          quantity: delta,
+          ...(comp.classification
+            ? { classification: comp.classification === 'flavor' ? ('flavor' as const) : ('additional' as const) }
+            : {}),
+        },
+      ];
+    });
+  };
+
+  // Price calculations
+  const selectedSizePrice = selectedSize?.minPrice ?? initialProduct?.price ?? 0;
+  const multiFlavorPrice = useMemo(() => {
+    const highest = calculatePizzaHighestPrice(selectedFlavorEntries.map(e => ({ price: e.sizePrice })));
+    if (initialProduct?.isCombo && selectedSizePrice > 0) {
+      return Math.max(selectedSizePrice, highest);
+    }
+    return highest;
+  }, [selectedFlavorEntries, initialProduct?.isCombo, selectedSizePrice]);
+
+  const compsTotalUnit = complements.reduce((sum, c) => sum + c.price * c.quantity, 0);
+  const singleUnitPrice = selectedSizePrice + compsTotalUnit;
+  const singleTotalPrice = singleUnitPrice * quantity;
+
+  const handleConfirmSingleFlavor = () => {
+    if (!initialProduct || !selectedSize) return;
+    const { assembledProduct, selectedFlavorComplements, basePrice } = buildAssembledPizzaSelection({
+      category,
+      size: selectedSize,
+      flavorCount: 1,
+      selectedProducts: [{ product: initialProduct, sizePrice: selectedSizePrice }],
+    });
+    const sortedNotes = [...selectedObs].sort(
+      (a, b) => Number(isPriorityObservationOption(b)) - Number(isPriorityObservationOption(a)),
+    );
+    onComplete({
+      assembledProduct,
+      selectedFlavorComplements,
+      basePrice,
+      mode: 'direct',
+      quantity,
+      selectedNotes: sortedNotes,
+      otherNotes: otherNotes.trim(),
+      selectedComplements: [...selectedFlavorComplements, ...complements],
+    });
+  };
+
+  const handleSelectSingleFlavorFromList = (entry: { product: Product; sizePrice: number }) => {
     if (!selectedSize) return;
     const { assembledProduct, selectedFlavorComplements, basePrice } = buildAssembledPizzaSelection({
       category,
       size: selectedSize,
       flavorCount: 1,
       selectedProducts: [entry],
+      baseItem: initialProduct?.isCombo ? initialProduct : undefined,
+      baseItemSizePrice: initialProduct?.isCombo ? selectedSizePrice : undefined,
     });
     onComplete({
       assembledProduct,
@@ -235,6 +409,8 @@ export function PizzaOrderStep({
       size: selectedSize,
       flavorCount,
       selectedProducts: selectedFlavorEntries,
+      baseItem: initialProduct?.isCombo ? initialProduct : undefined,
+      baseItemSizePrice: initialProduct?.isCombo ? selectedSizePrice : undefined,
     });
     onComplete({
       assembledProduct,
@@ -244,17 +420,59 @@ export function PizzaOrderStep({
     });
   };
 
-  const canConfirmMulti =
-    flavorCount >= 2 && selectedFlavorEntries.length === flavorCount;
+  const canConfirmMulti = flavorCount >= 2 && selectedFlavorEntries.length === flavorCount;
+  const showFlavorCountSelector = !isSingleFlavorOnly && flavorCountOptions.length > 0 && !(flavorCountOptions.length === 1 && flavorCountOptions[0] === 1);
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground overflow-hidden">
-      {/* Top configuration header: Etapa 1 (Tamanho) + Etapa 2 (Quantos sabores?) */}
+      {/* Item Header when a specific product is selected (both single-flavor & multi-flavor/combo) */}
+      {initialProduct && (
+        <div className="bg-muted/40 px-4 py-3 border-b border-border flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {isSingleFlavorOnly && (
+              <div className="flex items-center bg-background border border-input rounded shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setQuantity(qty => Math.max(1, qty - 1))}
+                  className="w-8 h-8 rounded-none text-primary hover:bg-muted font-bold border-r border-input"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="w-9 text-center font-bold text-sm text-foreground">{quantity}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setQuantity(qty => qty + 1)}
+                  className="w-8 h-8 rounded-none text-primary hover:bg-muted font-bold border-l border-input"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-lg font-extrabold text-foreground truncate">
+                {initialProduct.name}
+              </h2>
+              {initialProduct.description && (
+                <p className="text-xs text-muted-foreground truncate">{initialProduct.description}</p>
+              )}
+            </div>
+          </div>
+          <span className="text-base sm:text-xl font-extrabold text-primary whitespace-nowrap shrink-0">
+            R$ {fmt(isSingleFlavorOnly ? singleTotalPrice : selectedSizePrice)}
+          </span>
+        </div>
+      )}
+
+      {/* Top configuration header: Tamanho + (se 2+ sabores) Quantos sabores? */}
       <div className="p-3 sm:p-4 bg-card border-b border-border space-y-3 shrink-0 shadow-xs">
         {/* Etapa 1: Tamanho */}
         <div>
           <span className="block text-xs font-extrabold uppercase tracking-wider text-muted-foreground mb-1.5">
-            1. Qual o tamanho?
+            {isSingleFlavorOnly ? 'Tamanhos disponíveis' : '1. Qual o tamanho?'}
           </span>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {availableSizes.map(sz => {
@@ -263,12 +481,7 @@ export function PizzaOrderStep({
                 <button
                   key={sz.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedSizeId(sz.id);
-                    if (flavorCount > sz.maxFlavors) {
-                      setFlavorCount(sz.maxFlavors);
-                    }
-                  }}
+                  onClick={() => setSelectedSizeId(sz.id)}
                   className={`flex flex-col items-start justify-between p-2.5 rounded-lg border text-left transition-all ${
                     isSelected
                       ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/30'
@@ -277,13 +490,15 @@ export function PizzaOrderStep({
                 >
                   <div className="flex items-center justify-between w-full gap-1">
                     <span className="font-extrabold text-xs sm:text-sm truncate">{sz.name}</span>
-                    <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        isSelected ? 'bg-black/20 text-white' : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      até {sz.maxFlavors} {sz.maxFlavors === 1 ? 'sabor' : 'sab.'}
-                    </span>
+                    {!isSingleFlavorOnly && (
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          isSelected ? 'bg-black/20 text-white' : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        até {sz.maxFlavors} {sz.maxFlavors === 1 ? 'sabor' : 'sab.'}
+                      </span>
+                    )}
                   </div>
                   {sz.minPrice > 0 && (
                     <span
@@ -291,7 +506,7 @@ export function PizzaOrderStep({
                         isSelected ? 'text-primary-foreground/90' : 'text-primary'
                       }`}
                     >
-                      a partir de R$ {fmt(sz.minPrice)}
+                      {isSingleFlavorOnly || initialProduct?.isCombo ? `R$ ${fmt(sz.minPrice)}` : `a partir de R$ ${fmt(sz.minPrice)}`}
                     </span>
                   )}
                 </button>
@@ -300,66 +515,247 @@ export function PizzaOrderStep({
           </div>
         </div>
 
-        {/* Etapa 2: Quantos sabores? */}
-        <div>
-          <span className="block text-sm font-extrabold text-foreground mb-2">
-            quantos sabores?
-          </span>
-          <div className="grid grid-cols-4 gap-2 max-w-md">
-            {flavorCountOptions.map(num => {
-              const isSelected = flavorCount === num;
-              return (
-                <button
-                  key={num}
-                  type="button"
-                  aria-label={`${num} ${num === 1 ? 'sabor' : 'sabores'}`}
-                  aria-pressed={isSelected}
-                  onClick={() => setFlavorCount(num)}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border-2 font-extrabold text-base transition-all ${
-                    isSelected
-                      ? 'bg-[#7c2289] border-[#7c2289] text-white shadow-md scale-[1.02]'
-                      : 'bg-background border-border text-muted-foreground hover:border-[#7c2289]/50 hover:text-foreground'
-                  }`}
-                >
-                  <PizzaSliceIcon slices={num} active={isSelected} />
-                  <span>{num}</span>
-                </button>
-              );
-            })}
+        {/* Etapa 2: Quantos sabores? (oculto para sabor único) */}
+        {showFlavorCountSelector && (
+          <div>
+            <span className="block text-sm font-extrabold text-foreground mb-2">
+              quantos sabores?
+            </span>
+            <div className="grid grid-cols-4 gap-2 max-w-md">
+              {flavorCountOptions.map(num => {
+                const isSelected = flavorCount === num;
+                return (
+                  <button
+                    key={num}
+                    type="button"
+                    aria-label={`${num} ${num === 1 ? 'sabor' : 'sabores'}`}
+                    aria-pressed={isSelected}
+                    onClick={() => setFlavorCount(num)}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border-2 font-extrabold text-base transition-all ${
+                      isSelected
+                        ? 'bg-[#7c2289] border-[#7c2289] text-white shadow-md scale-[1.02]'
+                        : 'bg-background border-border text-muted-foreground hover:border-[#7c2289]/50 hover:text-foreground'
+                    }`}
+                  >
+                    <PizzaSliceIcon slices={num} active={isSelected} />
+                    <span>{num}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {flavorCount >= 2 && (
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Marque <strong>{flavorCount} sabores</strong> abaixo ({selectedFlavorEntries.length} de {flavorCount}{' '}
+                {selectedFlavorEntries.length === 1 ? 'selecionado' : 'selecionados'}) · Preço pelo maior valor.
+              </p>
+            )}
           </div>
-          {flavorCount >= 2 && (
-            <p className="text-xs text-muted-foreground mt-1.5">
-              Marque <strong>{flavorCount} sabores</strong> abaixo ({selectedFlavorEntries.length} de {flavorCount}{' '}
-              {selectedFlavorEntries.length === 1 ? 'selecionado' : 'selecionados'}) · Preço pelo maior valor.
-            </p>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Etapa 3: Lista de sabores */}
-      <div className="flex-1 overflow-y-auto divide-y divide-border bg-card">
-        {flavorsForSize.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground italic">
-            Nenhum sabor disponível para este tamanho.
-          </div>
-        ) : (
-          flavorsForSize.map(entry => {
-            const { product, sizePrice } = entry;
-            const isChecked = selectedFlavorIds.includes(product.id);
-            const isDisabled = flavorCount >= 2 && !isChecked && selectedFlavorIds.length >= flavorCount;
+      {/* Corpo principal: Sabor único -> Bordas, Observações e Complementos | 2+ sabores -> Lista de Sabores */}
+      {isSingleFlavorOnly ? (
+        <div className="flex-1 overflow-y-auto bg-background p-3 space-y-3">
+          <Accordion type="multiple" defaultValue={['notes', 'free', 'paid']} className="space-y-2">
+            {availableNotes.length > 0 && (
+              <AccordionItem value="notes" className="border border-border rounded bg-card px-3">
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
+                  Observações{selectedObs.length > 0 ? ` · ${selectedObs.length}` : ''}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-1 pb-3">
+                  {availableNotes.map(opt => {
+                    const checked = selectedObs.includes(opt.name);
+                    return (
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        key={opt.id}
+                        onClick={() => toggleObs(opt.name)}
+                        className={`w-full flex items-center gap-3 p-2 rounded text-left text-xs font-semibold border transition-colors ${
+                          checked ? 'bg-primary/15 border-primary' : 'bg-background border-border/60 hover:bg-muted'
+                        }`}
+                      >
+                        <span
+                          className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                            checked ? 'border-primary' : 'border-muted-foreground'
+                          }`}
+                        >
+                          {checked && <span className="h-2 w-2 rounded-full bg-primary" />}
+                        </span>
+                        <span className="text-foreground">{opt.name}</span>
+                      </button>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            )}
 
-            if (flavorCount === 1) {
+            {freeOptions.length > 0 && (
+              <AccordionItem value="free" className="border border-border rounded bg-card px-3">
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
+                  Bordas / Adicionais (Grátis)
+                  {freeOptions.filter(opt => getCompQty(opt.name, opt.classification) > 0).length > 0
+                    ? ` · ${freeOptions.filter(opt => getCompQty(opt.name, opt.classification) > 0).length}`
+                    : ''}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-1 pb-3">
+                  {freeOptions.map(opt => {
+                    const checked = getCompQty(opt.name, opt.classification) > 0;
+                    return (
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        key={opt.id}
+                        onClick={() => toggleFree(opt)}
+                        className={`w-full flex items-center gap-3 p-2 rounded text-left text-xs font-semibold border transition-colors ${
+                          checked ? 'bg-primary/15 border-primary' : 'bg-background border-border/60 hover:bg-muted'
+                        }`}
+                      >
+                        <span
+                          className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                            checked ? 'border-primary' : 'border-muted-foreground'
+                          }`}
+                        >
+                          {checked && <span className="h-2 w-2 rounded-full bg-primary" />}
+                        </span>
+                        <span className="text-foreground">{opt.name}</span>
+                      </button>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            )}
+
+            {paidOptions.length > 0 && (
+              <AccordionItem value="paid" className="border border-border rounded bg-card px-3">
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
+                  Bordas / Adicionais (Pagos)
+                  {paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length > 0
+                    ? ` · ${paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length}`
+                    : ''}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-1.5 pb-3">
+                  {paidOptions.map(comp => {
+                    const qty = getCompQty(comp.name, comp.classification);
+                    return (
+                      <div
+                        key={comp.id}
+                        className={`flex justify-between items-center gap-2 p-2 rounded text-xs border ${
+                          qty > 0 ? 'bg-primary/10 border-primary/50' : 'bg-background border-border/60'
+                        }`}
+                      >
+                        <span className="font-semibold text-foreground min-w-0 truncate">
+                          {comp.name} <span className="text-primary">R$ {fmt(comp.price)}</span>
+                        </span>
+                        <div className="flex items-center bg-background border border-input rounded shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => updateCompQty(comp, -1)}
+                            disabled={qty <= 0}
+                            className="w-7 h-7 rounded-none text-destructive disabled:opacity-30 border-r border-input"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-8 text-center font-bold text-foreground">{qty}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => updateCompQty(comp, 1)}
+                            className="w-7 h-7 rounded-none text-success border-l border-input"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            )}
+          </Accordion>
+
+          <Input
+            placeholder="Digite aqui outras observações..."
+            value={otherNotes}
+            onChange={e => setOtherNotes(e.target.value)}
+            className="h-9 text-xs bg-background"
+          />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto divide-y divide-border bg-card">
+          {flavorsForSize.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground italic">
+              Nenhum sabor disponível para este tamanho.
+            </div>
+          ) : (
+            flavorsForSize.map(entry => {
+              const { product, sizePrice } = entry;
+              const isChecked = selectedFlavorIds.includes(product.id);
+              const isDisabled = flavorCount >= 2 && !isChecked && selectedFlavorIds.length >= flavorCount;
+
+              if (flavorCount === 1) {
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => handleSelectSingleFlavorFromList(entry)}
+                    className="w-full p-3.5 sm:p-4 flex items-start justify-between gap-3 text-left hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <h4 className="font-bold text-sm sm:text-base text-foreground leading-snug">
+                        {product.name}
+                      </h4>
+                      <p className="text-xs sm:text-sm font-bold text-[#9333ea] dark:text-[#c084fc]">
+                        a partir de R$ {fmt(sizePrice)}
+                      </p>
+                      {product.description && (
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                          {product.description}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              }
+
               return (
-                <button
+                <label
                   key={product.id}
-                  type="button"
-                  onClick={() => handleSelectSingleFlavor(entry)}
-                  className="w-full p-3.5 sm:p-4 flex items-start justify-between gap-3 text-left hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                  onClick={e => {
+                    e.preventDefault();
+                    if (!isDisabled) toggleMultiFlavor(product.id);
+                  }}
+                  className={`w-full p-3.5 sm:p-4 flex items-start gap-3.5 text-left transition-colors select-none ${
+                    isDisabled
+                      ? 'opacity-45 cursor-not-allowed'
+                      : 'cursor-pointer hover:bg-muted/40'
+                  } ${isChecked ? 'bg-[#7c2289]/8' : ''}`}
                 >
+                  <Checkbox
+                    checked={isChecked}
+                    disabled={isDisabled}
+                    aria-label={product.name}
+                    onCheckedChange={() => {
+                      if (!isDisabled) toggleMultiFlavor(product.id);
+                    }}
+                    className="mt-1 h-5 w-5 rounded border-2 border-muted-foreground/50 data-[state=checked]:bg-[#7c2289] data-[state=checked]:border-[#7c2289]"
+                  />
                   <div className="min-w-0 flex-1 space-y-1">
-                    <h4 className="font-bold text-sm sm:text-base text-foreground leading-snug">
-                      {product.name}
-                    </h4>
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-bold text-sm sm:text-base text-foreground leading-snug">
+                        {product.name}
+                      </h4>
+                      {isChecked && (
+                        <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-[#7c2289] text-white shrink-0">
+                          1/{flavorCount}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs sm:text-sm font-bold text-[#9333ea] dark:text-[#c084fc]">
                       a partir de R$ {fmt(sizePrice)}
                     </p>
@@ -369,57 +765,12 @@ export function PizzaOrderStep({
                       </p>
                     )}
                   </div>
-                </button>
+                </label>
               );
-            }
-
-            return (
-              <label
-                key={product.id}
-                onClick={e => {
-                  e.preventDefault();
-                  if (!isDisabled) toggleMultiFlavor(product.id);
-                }}
-                className={`w-full p-3.5 sm:p-4 flex items-start gap-3.5 text-left transition-colors select-none ${
-                  isDisabled
-                    ? 'opacity-45 cursor-not-allowed'
-                    : 'cursor-pointer hover:bg-muted/40'
-                } ${isChecked ? 'bg-[#7c2289]/8' : ''}`}
-              >
-                <Checkbox
-                  checked={isChecked}
-                  disabled={isDisabled}
-                  aria-label={product.name}
-                  onCheckedChange={() => {
-                    if (!isDisabled) toggleMultiFlavor(product.id);
-                  }}
-                  className="mt-1 h-5 w-5 rounded border-2 border-muted-foreground/50 data-[state=checked]:bg-[#7c2289] data-[state=checked]:border-[#7c2289]"
-                />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="font-bold text-sm sm:text-base text-foreground leading-snug">
-                      {product.name}
-                    </h4>
-                    {isChecked && (
-                      <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-[#7c2289] text-white shrink-0">
-                        1/{flavorCount}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs sm:text-sm font-bold text-[#9333ea] dark:text-[#c084fc]">
-                    a partir de R$ {fmt(sizePrice)}
-                  </p>
-                  {product.description && (
-                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                      {product.description}
-                    </p>
-                  )}
-                </div>
-              </label>
-            );
-          })
-        )}
-      </div>
+            })
+          )}
+        </div>
+      )}
 
       {/* Footer action bar */}
       <div className="p-3 bg-card border-t border-border flex items-center justify-between gap-2 shrink-0">
@@ -432,7 +783,15 @@ export function PizzaOrderStep({
           <ChevronLeft className="h-4 w-4" /> VOLTAR
         </Button>
 
-        {flavorCount >= 2 ? (
+        {isSingleFlavorOnly ? (
+          <Button
+            type="button"
+            onClick={handleConfirmSingleFlavor}
+            className="flex-1 sm:flex-initial h-11 px-6 text-xs sm:text-sm font-extrabold bg-success hover:bg-success/90 text-success-foreground flex items-center justify-center gap-2 shadow-md"
+          >
+            <Check className="h-4 w-4 stroke-[3]" /> OK · R$ {fmt(singleTotalPrice)}
+          </Button>
+        ) : flavorCount >= 2 ? (
           <div className="flex items-center gap-2 flex-1 justify-end">
             <Button
               type="button"
@@ -442,7 +801,7 @@ export function PizzaOrderStep({
             >
               <Check className="h-4 w-4" />
               {canConfirmMulti
-                ? `CONTINUAR · R$ ${fmt(currentPrice)}`
+                ? `CONTINUAR · R$ ${fmt(multiFlavorPrice)}`
                 : `ESCOLHA ${flavorCount - selectedFlavorEntries.length} SABOR(ES)`}
             </Button>
           </div>

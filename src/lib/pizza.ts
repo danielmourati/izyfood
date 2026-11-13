@@ -131,6 +131,43 @@ export function getMinimumProductPrice(product: Product, category?: ProductCateg
   return Math.min(...positivePrices);
 }
 
+/** Returns true if a product can be selected as a flavor option in multi-flavor pizzas/combos. */
+export function isProductPizzaFlavor(product: Product): boolean {
+  if (product.isCombo) return false;
+  if (product.isPizzaFlavor === false) return false;
+  return true;
+}
+
+/**
+ * Computes the allowed flavor counts ("quantos sabores?") for an item & size,
+ * respecting both the size's `maxFlavors` and the product's `flavorMin` / `flavorMax` (1..4).
+ */
+export function getAllowedFlavorCountsForItem(
+  product: Product | null | undefined,
+  size: { maxFlavors: number } | undefined,
+): number[] {
+  const sizeMax = Math.max(1, Math.min(4, size?.maxFlavors || 1));
+  if (!product) {
+    return Array.from({ length: sizeMax }, (_, i) => i + 1);
+  }
+  const prodMax =
+    product.flavorMax != null && product.flavorMax >= 1
+      ? Math.min(4, product.flavorMax)
+      : sizeMax;
+  const effectiveMax = Math.max(1, Math.min(sizeMax, prodMax));
+  const rawMin =
+    product.flavorMin != null && product.flavorMin >= 1
+      ? Math.min(4, product.flavorMin)
+      : 1;
+  const effectiveMin = Math.max(1, Math.min(effectiveMax, rawMin));
+
+  const counts: number[] = [];
+  for (let n = effectiveMin; n <= effectiveMax; n += 1) {
+    counts.push(n);
+  }
+  return counts;
+}
+
 /**
  * Calculates the final base price for a pizza when 1 or more flavors are chosen,
  * using the HIGHEST price among the selected flavors (standard pizzeria rule).
@@ -156,21 +193,27 @@ export function buildAssembledPizzaSelection(params: {
   size: CategoryPizzaSize;
   flavorCount: number;
   selectedProducts: { product: Product; sizePrice: number }[];
+  baseItem?: Product | null;
+  baseItemSizePrice?: number;
 }): {
   assembledProduct: Product;
   selectedFlavorComplements: SelectedComplement[];
   basePrice: number;
 } {
-  const { category, size, flavorCount, selectedProducts } = params;
-  const primaryProduct = selectedProducts[0]?.product;
-  const basePrice = calculatePizzaHighestPrice(selectedProducts.map(sp => ({ price: sp.sizePrice })));
+  const { category, size, flavorCount, selectedProducts, baseItem, baseItemSizePrice } = params;
+  const primaryProduct = selectedProducts[0]?.product || baseItem || undefined;
+  const highestFlavorPrice = calculatePizzaHighestPrice(selectedProducts.map(sp => ({ price: sp.sizePrice })));
+  const basePrice = baseItem?.isCombo && (baseItemSizePrice ?? 0) > 0
+    ? Math.max(baseItemSizePrice || 0, highestFlavorPrice)
+    : highestFlavorPrice;
 
   const isCalzone = (category.name || '').toLowerCase().includes('calzone');
   const prefix = isCalzone ? 'Calzone' : 'Pizza';
   const totalFlavors = Math.max(1, selectedProducts.length);
 
-  const itemTitle =
-    totalFlavors === 1 && primaryProduct
+  const itemTitle = baseItem?.isCombo
+    ? `${baseItem.name} - ${size.name}`
+    : totalFlavors === 1 && primaryProduct
       ? `${prefix} ${size.name} - ${primaryProduct.name}`
       : `${prefix} ${size.name} (${totalFlavors} Sabores)`;
 
@@ -179,7 +222,7 @@ export function buildAssembledPizzaSelection(params: {
     .join(' + ');
 
   const assembledProduct: Product = {
-    ...(primaryProduct || {
+    ...(baseItem || primaryProduct || {
       id: `pizza-${category.id}-${size.id}`,
       categoryId: category.id,
       type: 'unit',

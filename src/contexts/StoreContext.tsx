@@ -89,13 +89,15 @@ export function sortProducts(prods: Product[], orderIds?: string[]): Product[] {
 function dbToProduct(r: any): Product {
   const inactiveIds = loadLS<string[]>('izy_inactive_products', []);
   const active = r.active !== undefined ? Boolean(r.active) : !inactiveIds.includes(r.id);
-  const flavorRules = loadLS<Record<string, { flavorRequired?: boolean; flavorMin?: number | null; flavorMax?: number | null; defaultFlavors?: string[]; pizzaSizes?: any[] }>>('izy_product_flavor_limits', {});
+  const flavorRules = loadLS<Record<string, { flavorRequired?: boolean; flavorMin?: number | null; flavorMax?: number | null; defaultFlavors?: string[]; pizzaSizes?: any[]; isPizzaFlavor?: boolean; isCombo?: boolean }>>('izy_product_flavor_limits', {});
   const localRule = flavorRules[r.id];
   const flavorRequired = r.flavor_required !== undefined ? Boolean(r.flavor_required) : (localRule?.flavorRequired ?? false);
   const flavorMin = r.flavor_min !== undefined ? r.flavor_min : (localRule?.flavorMin ?? null);
   const flavorMax = r.flavor_max !== undefined ? r.flavor_max : (localRule?.flavorMax ?? null);
   const defaultFlavors = Array.isArray(r.default_flavors) ? r.default_flavors : (Array.isArray(localRule?.defaultFlavors) ? localRule.defaultFlavors : undefined);
   const pizzaSizes = Array.isArray(r.pizza_sizes) ? r.pizza_sizes : (Array.isArray(localRule?.pizzaSizes) ? localRule.pizzaSizes : undefined);
+  const isPizzaFlavor = r.is_pizza_flavor !== undefined ? (r.is_pizza_flavor !== null ? Boolean(r.is_pizza_flavor) : undefined) : localRule?.isPizzaFlavor;
+  const isCombo = r.is_combo !== undefined ? Boolean(r.is_combo) : localRule?.isCombo;
   return {
     id: r.id,
     name: r.name,
@@ -120,6 +122,8 @@ function dbToProduct(r: any): Product {
     flavorMax,
     defaultFlavors,
     pizzaSizes,
+    ...(isPizzaFlavor !== undefined ? { isPizzaFlavor } : {}),
+    ...(isCombo !== undefined ? { isCombo } : {}),
   };
 }
 function dbToNoteOption(r: any): ProductNoteOption {
@@ -769,6 +773,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                       flavorMax: fRule.flavorMax ?? null,
                       defaultFlavors: Array.isArray(fRule.defaultFlavors) ? fRule.defaultFlavors : p.defaultFlavors,
                       pizzaSizes: Array.isArray(fRule.pizzaSizes) ? fRule.pizzaSizes : p.pizzaSizes,
+                      ...(fRule.isPizzaFlavor !== undefined ? { isPizzaFlavor: Boolean(fRule.isPizzaFlavor) } : {}),
+                      ...(fRule.isCombo !== undefined ? { isCombo: Boolean(fRule.isCombo) } : {}),
                     }
                   : {}),
               };
@@ -1603,8 +1609,8 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
   });
   const activeChanged = prev.filter(p => p.active === false).map(p => p.id).sort().join(',') !==
     next.filter(p => p.active === false).map(p => p.id).sort().join(',');
-  const flavorChanged = JSON.stringify(prev.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || [], p.pizzaSizes || []])) !==
-    JSON.stringify(next.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || [], p.pizzaSizes || []]));
+  const flavorChanged = JSON.stringify(prev.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || [], p.pizzaSizes || [], p.isPizzaFlavor ?? null, !!p.isCombo])) !==
+    JSON.stringify(next.map(p => [p.id, !!p.flavorRequired, p.flavorMin ?? null, p.flavorMax ?? null, p.defaultFlavors || [], p.pizzaSizes || [], p.isPizzaFlavor ?? null, !!p.isCombo]));
 
   for (const p of added) {
     markPending(p.id);
@@ -1620,6 +1626,8 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       flavor_min: p.flavorMin ?? null,
       flavor_max: p.flavorMax ?? null,
       pizza_sizes: p.pizzaSizes ?? null,
+      is_pizza_flavor: p.isPizzaFlavor ?? null,
+      is_combo: p.isCombo ?? false,
     };
     if (tenantId) item.tenant_id = tenantId;
     const { error } = await supabase.from('products').insert(item);
@@ -1630,6 +1638,8 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       delete item.flavor_min;
       delete item.flavor_max;
       delete item.pizza_sizes;
+      delete item.is_pizza_flavor;
+      delete item.is_combo;
       const { error: errRetry } = await supabase.from('products').insert(item);
       if (errRetry) {
         console.warn('Product insert with tenant_id failed, fallback without tenant_id:', errRetry.message);
@@ -1653,6 +1663,8 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       flavor_min: p.flavorMin ?? null,
       flavor_max: p.flavorMax ?? null,
       pizza_sizes: p.pizzaSizes ?? null,
+      is_pizza_flavor: p.isPizzaFlavor ?? null,
+      is_combo: p.isCombo ?? false,
     };
     const { error } = await supabase.from('products').update(updatePayload).eq('id', p.id);
     if (error) {
@@ -1662,20 +1674,24 @@ async function syncProducts(prev: Product[], next: Product[], markPending: (id: 
       delete updatePayload.flavor_min;
       delete updatePayload.flavor_max;
       delete updatePayload.pizza_sizes;
+      delete updatePayload.is_pizza_flavor;
+      delete updatePayload.is_combo;
       const { error: err2 } = await supabase.from('products').update(updatePayload).eq('id', p.id);
       if (err2) console.error('Error updating product in Supabase:', err2);
     }
   }
   if ((activeChanged || orderChanged || flavorChanged) && tenantId) {
-    const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null; defaultFlavors?: string[]; pizzaSizes?: any[] }> = {};
+    const flavorLimitsMap: Record<string, { flavorRequired: boolean; flavorMin: number | null; flavorMax: number | null; defaultFlavors?: string[]; pizzaSizes?: any[]; isPizzaFlavor?: boolean; isCombo?: boolean }> = {};
     for (const p of next) {
-      if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null || (p.defaultFlavors && p.defaultFlavors.length > 0) || (p.pizzaSizes && p.pizzaSizes.length > 0)) {
+      if (p.flavorRequired || p.flavorMin != null || p.flavorMax != null || (p.defaultFlavors && p.defaultFlavors.length > 0) || (p.pizzaSizes && p.pizzaSizes.length > 0) || p.isPizzaFlavor !== undefined || p.isCombo) {
         flavorLimitsMap[p.id] = {
           flavorRequired: Boolean(p.flavorRequired),
           flavorMin: p.flavorMin ?? null,
           flavorMax: p.flavorMax ?? null,
           defaultFlavors: p.defaultFlavors && p.defaultFlavors.length > 0 ? p.defaultFlavors : undefined,
           pizzaSizes: p.pizzaSizes && p.pizzaSizes.length > 0 ? p.pizzaSizes : undefined,
+          ...(p.isPizzaFlavor !== undefined ? { isPizzaFlavor: Boolean(p.isPizzaFlavor) } : {}),
+          ...(p.isCombo ? { isCombo: true } : {}),
         };
       }
     }

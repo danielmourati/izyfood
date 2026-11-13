@@ -55,6 +55,8 @@ const emptyProductForm = {
   flavorMax: '',
   defaultFlavors: [] as string[],
   pizzaSizes: [] as ProductPizzaSizeFormRow[],
+  isPizzaFlavor: true,
+  isCombo: false,
 };
 
 const toLimit = (v: string) => {
@@ -272,6 +274,8 @@ const Produtos = () => {
       flavorMax: p.flavorMax != null ? String(p.flavorMax) : '',
       defaultFlavors: Array.isArray(p.defaultFlavors) ? p.defaultFlavors : [],
       pizzaSizes: toPizzaFormRows(p.categoryId, p.pizzaSizes, p.price, p.flavorMax),
+      isPizzaFlavor: p.isPizzaFlavor !== undefined ? p.isPizzaFlavor : !p.isCombo,
+      isCombo: Boolean(p.isCombo),
     });
     setDialogOpen(true);
   };
@@ -393,6 +397,8 @@ const Produtos = () => {
       flavorMax,
       defaultFlavors: form.defaultFlavors.length > 0 ? form.defaultFlavors : undefined,
       pizzaSizes: parsedPizzaSizes,
+      isPizzaFlavor: isPizzaCat ? form.isPizzaFlavor : undefined,
+      isCombo: form.isCombo,
     };
 
     if (editingId) {
@@ -730,6 +736,11 @@ const Produtos = () => {
                             Inativo
                           </Badge>
                         )}
+                        {product.isCombo && (
+                          <Badge variant="outline" className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/40 bg-amber-500/10">
+                            Combo
+                          </Badge>
+                        )}
                         {(product.flavorRequired || product.flavorMin != null || product.flavorMax != null) && (
                           <Badge variant="outline" className="text-[10px] text-primary border-primary/30 bg-primary/5">
                             Sabores: {product.flavorMin != null && product.flavorMax != null && product.flavorMin === product.flavorMax
@@ -1059,6 +1070,39 @@ const Produtos = () => {
 
                   {isPizzaOrCalzoneCategory(getCat(form.categoryId)) && (
                     <div className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 space-y-3">
+                      <div className="flex flex-wrap items-center gap-4 pb-2 border-b border-primary/20">
+                        <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={form.isPizzaFlavor}
+                            onChange={e =>
+                              setForm(f => ({
+                                ...f,
+                                isPizzaFlavor: e.target.checked,
+                                ...(e.target.checked ? { isCombo: false } : {}),
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span>É Sabor (aparece na escolha de sabores)</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={form.isCombo}
+                            onChange={e =>
+                              setForm(f => ({
+                                ...f,
+                                isCombo: e.target.checked,
+                                ...(e.target.checked ? { isPizzaFlavor: false } : {}),
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span>É Combo (não aparece como sabor)</span>
+                        </label>
+                      </div>
+
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <Label className="text-sm font-bold text-foreground">
