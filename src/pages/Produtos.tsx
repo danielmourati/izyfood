@@ -756,14 +756,6 @@ const Produtos = () => {
                               : `${product.flavorMin ?? (product.flavorRequired ? 1 : 0)}–${product.flavorMax ?? '∞'}`}
                           </Badge>
                         )}
-                        {product.pizzaSizes && product.pizzaSizes.some(s => s.active) && (
-                          <Badge variant="outline" className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/30 bg-amber-500/10">
-                            {product.pizzaSizes
-                              .filter(s => s.active)
-                              .map(s => `${s.id}: R$ ${fmt(s.price)} (${s.maxFlavors} sab.)`)
-                              .join(' · ')}
-                          </Badge>
-                        )}
                       </div>
                       {product.description && (
                         <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1 max-w-sm">
