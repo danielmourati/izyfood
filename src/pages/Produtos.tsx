@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '@/contexts/StoreContext';
 import { usePrinter } from '@/hooks/use-printer';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
-import { fmt, formatBRLInput, parseBRLInput } from '@/lib/utils';
+import { fmt, formatBRLInput, isBorderOption, parseBRLInput } from '@/lib/utils';
 import { getPreselectedFlavorsForProduct } from '@/lib/flavor-limits';
 import { buildProductPizzaSizesForForm, getMinimumProductPrice, isPizzaOrCalzoneCategory } from '@/lib/pizza';
 import { sectorLabel, buildSectorOptions, PRINT_SECTOR_OPTIONS } from '@/lib/print-sectors';
@@ -70,7 +70,7 @@ const emptyNoteOptionForm = {
   price: '',
   categoryIds: [] as string[],
   active: true,
-  classification: 'additional' as 'flavor' | 'additional' | 'both',
+  classification: 'additional' as 'flavor' | 'additional' | 'both' | 'border',
 };
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -422,14 +422,18 @@ const Produtos = () => {
 
   const openCreateOpt = (
     type: 'note' | 'complement' = 'note',
-    classification: 'flavor' | 'additional' | 'both' = 'additional'
+    classification: 'flavor' | 'additional' | 'both' | 'border' = 'additional'
   ) => {
     setEditingOptId(null);
+    const pizzaCatIds = categories.filter(isPizzaOrCalzoneCategory).map(c => c.id);
     setOptForm({
       ...emptyNoteOptionForm,
       type,
       classification,
-      categoryIds: categories.map(c => c.id),
+      categoryIds:
+        classification === 'border' && pizzaCatIds.length > 0
+          ? pizzaCatIds
+          : categories.map(c => c.id),
       active: true,
     });
     setOptFormOpen(true);
@@ -484,8 +488,12 @@ const Produtos = () => {
   }, [noteOptions, form.categoryId]);
 
   const noteItems = useMemo(() => noteOptions.filter(o => o.type === 'note'), [noteOptions]);
+  const borderItems = useMemo(
+    () => noteOptions.filter(o => o.type === 'complement' && isBorderOption(o)),
+    [noteOptions]
+  );
   const additionalItems = useMemo(
-    () => noteOptions.filter(o => o.type === 'complement' && (!o.classification || o.classification === 'additional')),
+    () => noteOptions.filter(o => o.type === 'complement' && !isBorderOption(o) && (!o.classification || o.classification === 'additional')),
     [noteOptions]
   );
   const complementFlavorItems = useMemo(
@@ -1655,6 +1663,14 @@ const Produtos = () => {
             </Button>
             <Button
               size="sm"
+              variant="outline"
+              className="flex-1 gap-1 text-xs"
+              onClick={() => openCreateOpt('complement', 'border')}
+            >
+              <Plus className="h-3.5 w-3.5" /> Nova Borda
+            </Button>
+            <Button
+              size="sm"
               className="flex-1 gap-1 text-xs"
               onClick={() => openCreateOpt('complement', 'flavor')}
             >
@@ -1722,7 +1738,67 @@ const Produtos = () => {
               )}
             </div>
 
-            {/* 2. Adicionais */}
+            {/* 2. Bordas (Grátis e Pagas) */}
+            <div>
+              <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-purple-500" />
+                Bordas — Grátis e Pagas ({borderItems.length})
+              </h3>
+              {borderItems.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+                  Nenhuma borda cadastrada.
+                </p>
+              ) : (
+                <div className="grid gap-2">
+                  {borderItems.map(opt => (
+                    <div
+                      key={opt.id}
+                      className={`flex items-center justify-between p-3 border rounded-lg bg-card ${!opt.active ? 'opacity-60 bg-muted/15' : ''}`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm text-foreground">{opt.name}</p>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {opt.price > 0 ? 'Borda Paga' : 'Borda Grátis'}
+                          </Badge>
+                          <Badge variant={opt.active ? 'secondary' : 'outline'} className="text-[10px]">
+                            {opt.active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs font-bold text-primary tabular-nums mt-0.5">
+                          {opt.price > 0 ? `+ R$ ${fmt(opt.price)}` : 'Grátis (R$ 0,00)'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={opt.active !== false}
+                          onCheckedChange={checked => toggleOptActive(opt, checked)}
+                          aria-label={`${opt.active ? 'Desativar' : 'Ativar'} ${opt.name}`}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => openEditOpt(opt)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => deleteOpt(opt.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Adicionais */}
             <div>
               <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
                 <span className="inline-block w-2 h-2 rounded-full bg-primary" />
@@ -1854,6 +1930,8 @@ const Produtos = () => {
                 ? 'Editar Opção'
                 : optForm.type === 'note'
                 ? 'Nova Observação'
+                : optForm.classification === 'border'
+                ? 'Nova Borda (Grátis ou Paga)'
                 : optForm.classification === 'flavor'
                 ? 'Novo Complemento / Sabor'
                 : 'Novo Adicional'}
@@ -1877,7 +1955,7 @@ const Produtos = () => {
                   <Label>Classificação</Label>
                   <Select
                     value={optForm.classification}
-                    onValueChange={(value: 'flavor' | 'additional' | 'both') =>
+                    onValueChange={(value: 'flavor' | 'additional' | 'both' | 'border') =>
                       setOptForm(f => ({ ...f, classification: value }))
                     }
                   >
@@ -1886,14 +1964,15 @@ const Produtos = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="additional">Adicional</SelectItem>
+                      <SelectItem value="border">Borda (Grátis ou Paga)</SelectItem>
                       <SelectItem value="flavor">Complemento / Sabor</SelectItem>
-                      <SelectItem value="both">Ambos</SelectItem>
+                      <SelectItem value="both">Ambos (Adicional & Sabor)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Preço Adicional (R$)</Label>
+                  <Label>{optForm.classification === 'border' ? 'Preço da Borda (R$ · 0 = Grátis)' : 'Preço Adicional (R$)'}</Label>
                   <CurrencyInput
                     value={optForm.price}
                     onValueChange={price => setOptForm(f => ({ ...f, price }))}

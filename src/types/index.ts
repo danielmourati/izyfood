@@ -72,15 +72,15 @@ export interface ProductNoteOption {
   price: number;
   categoryIds: string[];
   active: boolean;
-  /** 'both' = offered as flavor and as additional; selections snapshot the group used. */
-  classification?: 'flavor' | 'additional' | 'both';
+  /** 'both' = offered as flavor and as additional; 'border' = crust/border option; selections snapshot the group used. */
+  classification?: 'flavor' | 'additional' | 'both' | 'border';
 }
 
 export interface SelectedComplement {
   name: string;
   price: number;
   quantity: number;
-  classification?: 'flavor' | 'additional';
+  classification?: 'flavor' | 'additional' | 'border';
 }
 
 export interface OrderItem {

@@ -8,6 +8,7 @@ import type { CategoryPizzaSize, Product, ProductCategory, ProductNoteOption, Se
 import { useStore } from '@/contexts/StoreContext';
 import {
   fmt,
+  isBorderOption,
   isObservationOption,
   isPriorityObservationOption,
   sortAllAdditionalsFirst,
@@ -278,11 +279,22 @@ export function PizzaOrderStep({
     );
   }, [noteOptions, category.id]);
 
+  const toSavedClassification = (cls?: string): SelectedComplement['classification'] =>
+    cls === 'flavor' ? 'flavor' : cls === 'border' ? 'border' : cls ? 'additional' : undefined;
+
   const asAdditional = availableComplements
     .filter(c => c.classification !== 'flavor')
-    .map(c => (c.classification === 'both' ? { ...c, classification: 'additional' as const } : c));
-  const freeOptions = sortAllAdditionalsFirst(asAdditional.filter(c => !(c.price > 0)));
-  const paidOptions = asAdditional.filter(c => c.price > 0);
+    .map(c => {
+      if (c.classification === 'both') return { ...c, classification: 'additional' as const };
+      if (isBorderOption(c)) return { ...c, classification: 'border' as const };
+      return c;
+    });
+  const borderOptions = asAdditional.filter(c => c.classification === 'border');
+  const freeBorders = borderOptions.filter(c => !(c.price > 0));
+  const paidBorders = borderOptions.filter(c => c.price > 0);
+  const nonBorderAdditional = asAdditional.filter(c => c.classification !== 'border');
+  const freeOptions = sortAllAdditionalsFirst(nonBorderAdditional.filter(c => !(c.price > 0)));
+  const paidOptions = nonBorderAdditional.filter(c => c.price > 0);
 
   const sameComp = (c: { name: string; classification?: string }, o: { name: string; classification?: string }) =>
     c.name === o.name && (c.classification === 'flavor') === (o.classification === 'flavor');
@@ -294,6 +306,7 @@ export function PizzaOrderStep({
   };
 
   const toggleFree = (opt: ProductNoteOption) => {
+    const savedCls = toSavedClassification(opt.classification);
     setComplements(prev =>
       prev.some(c => sameComp(c, opt))
         ? prev.filter(c => !sameComp(c, opt))
@@ -303,9 +316,7 @@ export function PizzaOrderStep({
               name: opt.name,
               price: 0,
               quantity: 1,
-              ...(opt.classification
-                ? { classification: opt.classification === 'flavor' ? ('flavor' as const) : ('additional' as const) }
-                : {}),
+              ...(savedCls ? { classification: savedCls } : {}),
             },
           ],
     );
@@ -321,15 +332,14 @@ export function PizzaOrderStep({
         return prev.map(c => (same(c) ? { ...c, quantity: newQty } : c));
       }
       if (delta <= 0) return prev;
+      const savedCls = toSavedClassification(comp.classification);
       return [
         ...prev,
         {
           name: comp.name,
           price: comp.price,
           quantity: delta,
-          ...(comp.classification
-            ? { classification: comp.classification === 'flavor' ? ('flavor' as const) : ('additional' as const) }
-            : {}),
+          ...(savedCls ? { classification: savedCls } : {}),
         },
       ];
     });
@@ -556,7 +566,7 @@ export function PizzaOrderStep({
       {/* Corpo principal: Sabor único -> Bordas, Observações e Complementos | 2+ sabores -> Lista de Sabores */}
       {isSingleFlavorOnly ? (
         <div className="flex-1 overflow-y-auto bg-background p-3 space-y-3">
-          <Accordion type="multiple" defaultValue={['notes', 'free', 'paid']} className="space-y-2">
+          <Accordion type="multiple" defaultValue={['notes', 'free-borders', 'paid-borders', 'free', 'paid']} className="space-y-2">
             {availableNotes.length > 0 && (
               <AccordionItem value="notes" className="border border-border rounded bg-card px-3">
                 <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
@@ -591,10 +601,97 @@ export function PizzaOrderStep({
               </AccordionItem>
             )}
 
+            {freeBorders.length > 0 && (
+              <AccordionItem value="free-borders" className="border border-border rounded bg-card px-3">
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
+                  Bordas (Grátis)
+                  {freeBorders.filter(opt => getCompQty(opt.name, opt.classification) > 0).length > 0
+                    ? ` · ${freeBorders.filter(opt => getCompQty(opt.name, opt.classification) > 0).length}`
+                    : ''}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-1 pb-3">
+                  {freeBorders.map(opt => {
+                    const checked = getCompQty(opt.name, opt.classification) > 0;
+                    return (
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        key={opt.id}
+                        onClick={() => toggleFree(opt)}
+                        className={`w-full flex items-center gap-3 p-2 rounded text-left text-xs font-semibold border transition-colors ${
+                          checked ? 'bg-primary/15 border-primary' : 'bg-background border-border/60 hover:bg-muted'
+                        }`}
+                      >
+                        <span
+                          className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                            checked ? 'border-primary' : 'border-muted-foreground'
+                          }`}
+                        >
+                          {checked && <span className="h-2 w-2 rounded-full bg-primary" />}
+                        </span>
+                        <span className="text-foreground">{opt.name}</span>
+                      </button>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            )}
+
+            {paidBorders.length > 0 && (
+              <AccordionItem value="paid-borders" className="border border-border rounded bg-card px-3">
+                <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
+                  Bordas (Pagas)
+                  {paidBorders.filter(c => getCompQty(c.name, c.classification) > 0).length > 0
+                    ? ` · ${paidBorders.filter(c => getCompQty(c.name, c.classification) > 0).length}`
+                    : ''}
+                </AccordionTrigger>
+                <AccordionContent className="space-y-1.5 pb-3">
+                  {paidBorders.map(comp => {
+                    const qty = getCompQty(comp.name, comp.classification);
+                    return (
+                      <div
+                        key={comp.id}
+                        className={`flex justify-between items-center gap-2 p-2 rounded text-xs border ${
+                          qty > 0 ? 'bg-primary/10 border-primary/50' : 'bg-background border-border/60'
+                        }`}
+                      >
+                        <span className="font-semibold text-foreground min-w-0 truncate">
+                          {comp.name} <span className="text-primary">R$ {fmt(comp.price)}</span>
+                        </span>
+                        <div className="flex items-center bg-background border border-input rounded shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => updateCompQty(comp, -1)}
+                            disabled={qty <= 0}
+                            className="w-7 h-7 rounded-none text-destructive disabled:opacity-30 border-r border-input"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-8 text-center font-bold text-foreground">{qty}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => updateCompQty(comp, 1)}
+                            className="w-7 h-7 rounded-none text-success border-l border-input"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            )}
+
             {freeOptions.length > 0 && (
               <AccordionItem value="free" className="border border-border rounded bg-card px-3">
                 <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
-                  Bordas / Adicionais (Grátis)
+                  Adicionais (Grátis)
                   {freeOptions.filter(opt => getCompQty(opt.name, opt.classification) > 0).length > 0
                     ? ` · ${freeOptions.filter(opt => getCompQty(opt.name, opt.classification) > 0).length}`
                     : ''}
@@ -631,7 +728,7 @@ export function PizzaOrderStep({
             {paidOptions.length > 0 && (
               <AccordionItem value="paid" className="border border-border rounded bg-card px-3">
                 <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
-                  Bordas / Adicionais (Pagos)
+                  Adicionais (Pagos)
                   {paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length > 0
                     ? ` · ${paidOptions.filter(c => getCompQty(c.name, c.classification) > 0).length}`
                     : ''}

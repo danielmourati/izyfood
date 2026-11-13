@@ -63,10 +63,27 @@ export function isObservationOption(option: {
   classification?: string;
 }): boolean {
   if (option.type === 'note' || option.classification === 'note') return true;
-  if (!(option.price && option.price > 0) && option.classification !== 'flavor' && isPriorityObservationOption(option.name)) {
+  if (!(option.price && option.price > 0) && option.classification !== 'flavor' && option.classification !== 'border' && isPriorityObservationOption(option.name)) {
     return true;
   }
   return false;
+}
+
+/** True when a catalog/item option is a pizza/calzone crust/border option (explicitly or by legacy "Borda ..." name). */
+export function isBorderOption(option: {
+  name: string;
+  type?: string;
+  classification?: string;
+}): boolean {
+  if (option.type === 'note' || option.classification === 'note') return false;
+  if (option.classification === 'border') return true;
+  if (option.classification === 'flavor') return false;
+  const normalized = String(option.name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+  return /^(borda|bordas|sem borda)\b/.test(normalized);
 }
 
 /** Stable sort that keeps priority observations (e.g. "Pra Viagem") at the top. */
@@ -115,7 +132,7 @@ export interface OrderItemAdditionalLine {
   name: string;
   quantity: number;
   price: number;
-  classification?: 'flavor' | 'additional' | 'note';
+  classification?: 'flavor' | 'additional' | 'note' | 'border';
 }
 
 /** Merge legacy observations and current additional items into one display/print list. */
@@ -141,11 +158,12 @@ export function getOrderItemAdditionalLines(item: {
       additional.classification === 'note' ||
       (existing?.classification === 'note' && !additional.classification && !(additional.price > 0)) ||
       isObservationOption(additional);
+    const isBorder = !isNote && isBorderOption(additional);
     merged.set(key, {
       name,
       quantity: additional.quantity || 1,
       price: additional.price || 0,
-      classification: isNote ? 'note' : additional.classification,
+      classification: isNote ? 'note' : isBorder ? 'border' : additional.classification,
     });
   }
 
@@ -157,7 +175,8 @@ export function getOrderItemCustomizationGroups(item: Parameters<typeof getOrder
   return [
     { title: 'Observações:', items: sortObservationsFirst(lines.filter(line => line.classification === 'note')) },
     { title: 'Sabores:', items: lines.filter(line => line.classification === 'flavor') },
-    { title: 'Adicionais:', items: lines.filter(line => line.classification !== 'flavor' && line.classification !== 'note') },
+    { title: 'Bordas:', items: lines.filter(line => line.classification === 'border') },
+    { title: 'Adicionais:', items: lines.filter(line => line.classification !== 'flavor' && line.classification !== 'note' && line.classification !== 'border') },
   ].filter(group => group.items.length > 0);
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildBillReceipt, buildOrderReceipt, kitchenItemColumns } from '@/lib/escpos';
 import { receiptLines, receiptPlainText, receiptHtml } from '@/lib/receipt-renderer';
-import { getOrderItemCustomizationGroups, isObservationOption, sortObservationsFirst } from '@/lib/utils';
+import { getOrderItemCustomizationGroups, isBorderOption, isObservationOption, sortObservationsFirst } from '@/lib/utils';
 import {
   buildAssembledPizzaSelection,
   calculatePizzaHighestPrice,
@@ -140,7 +140,7 @@ describe('flavor and additional receipts', () => {
         { name: 'Borda Catupiry', price: 8, quantity: 1, classification: 'additional' },
       ],
     });
-    expect(groups.map(g => g.title)).toEqual(['Observações:', 'Sabores:', 'Adicionais:']);
+    expect(groups.map(g => g.title)).toEqual(['Observações:', 'Sabores:', 'Bordas:']);
     expect(groups[0].items.map(i => i.name)).toEqual(['[Pra Viagem]']);
     expect(groups[1].items.map(i => i.name)).toEqual(['1/2 Calabresa', '1/2 Frango Catupiry']);
     expect(groups[2].items.map(i => i.name)).toEqual(['Borda Catupiry']);
@@ -201,5 +201,24 @@ describe('flavor and additional receipts', () => {
     });
     expect(comboBuilt.assembledProduct.name).toBe('Combo Pizza G + Refri (até 2 sabores) - Grande (G)');
     expect(comboBuilt.basePrice).toBe(48);
+  });
+
+  it('separates Bordas (free and paid) from Adicionais in customization groups and receipts', () => {
+    expect(isBorderOption({ name: 'Borda Catupiry', type: 'complement', classification: 'border' })).toBe(true);
+    expect(isBorderOption({ name: 'Borda Cheddar', type: 'complement', classification: 'additional' })).toBe(true);
+    expect(isBorderOption({ name: 'Bacon Extra', type: 'complement', classification: 'additional' })).toBe(false);
+
+    const groups = getOrderItemCustomizationGroups({
+      selectedNotes: ['[Pra Viagem]'],
+      selectedComplements: [
+        { name: '1/2 Calabresa', price: 0, quantity: 1, classification: 'flavor' },
+        { name: 'Borda Catupiry', price: 3, quantity: 1, classification: 'border' },
+        { name: 'Borda Doce', price: 0, quantity: 1, classification: 'border' },
+        { name: 'Bacon Extra', price: 5, quantity: 1, classification: 'additional' },
+      ],
+    });
+    expect(groups.map(g => g.title)).toEqual(['Observações:', 'Sabores:', 'Bordas:', 'Adicionais:']);
+    expect(groups[2].items.map(i => i.name)).toEqual(['Borda Catupiry', 'Borda Doce']);
+    expect(groups[3].items.map(i => i.name)).toEqual(['Bacon Extra']);
   });
 });
