@@ -100,11 +100,21 @@ serve(async (req) => {
     if (Array.isArray(business_types)) {
       insertPayload.business_types = business_types;
     }
-    const { data: tenant, error: tenantError } = await supabase
+    let { data: tenant, error: tenantError } = await supabase
       .from("tenants")
       .insert(insertPayload)
       .select()
       .single();
+
+    if (tenantError && (tenantError.message?.includes('business_types') || (tenantError as any).code === '42703')) {
+      const fallback = await supabase
+        .from("tenants")
+        .insert({ name, slug })
+        .select()
+        .single();
+      tenant = fallback.data;
+      tenantError = fallback.error;
+    }
 
     if (tenantError) throw tenantError;
 

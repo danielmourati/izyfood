@@ -67,6 +67,27 @@ export const BUSINESS_TYPE_OPTIONS = [
   'Outro',
 ] as const;
 
+export function loadLocalTenantBusinessTypes(tenantId?: string, slug?: string): string[] {
+  try {
+    if (tenantId) {
+      const v = localStorage.getItem(`izy_tenant_business_types_${tenantId}`);
+      if (v) return JSON.parse(v);
+    }
+    if (slug) {
+      const v = localStorage.getItem(`izy_tenant_business_types_${slug}`);
+      if (v) return JSON.parse(v);
+    }
+  } catch {}
+  return [];
+}
+
+export function saveLocalTenantBusinessTypes(tenantId: string, slug: string, types: string[]) {
+  try {
+    if (tenantId) localStorage.setItem(`izy_tenant_business_types_${tenantId}`, JSON.stringify(types));
+    if (slug) localStorage.setItem(`izy_tenant_business_types_${slug}`, JSON.stringify(types));
+  } catch {}
+}
+
 export interface Tenant {
   id: string;
   name: string;
@@ -602,7 +623,11 @@ function EditTenantDialog({
     if (tenant) {
       setName(tenant.name || '');
       setSlug(tenant.slug || '');
-      setBusinessTypes(Array.isArray(tenant.business_types) ? tenant.business_types : []);
+      const localBT = loadLocalTenantBusinessTypes(tenant.id, tenant.slug);
+      const initialBT = Array.isArray(tenant.business_types) && tenant.business_types.length > 0
+        ? tenant.business_types
+        : localBT;
+      setBusinessTypes(initialBT);
       setOwnerName(tenant.ownerName && tenant.ownerName !== '—' ? tenant.ownerName : '');
       setOwnerEmail(tenant.ownerEmail && tenant.ownerEmail !== '—' ? tenant.ownerEmail : '');
       setOwnerPhone(tenant.ownerPhone || '');
@@ -626,6 +651,7 @@ function EditTenantDialog({
           let foundPass = '';
           let foundName = '';
           let foundEmail = '';
+          let foundBT: string[] | null = null;
 
           (auditLogs || []).forEach((a: any) => {
             const d = a.details || {};
@@ -635,11 +661,13 @@ function EditTenantDialog({
             if (d.admin_name && !foundName) foundName = d.admin_name;
             if (d.owner_email && !foundEmail) foundEmail = d.owner_email;
             if (d.admin_email && !foundEmail) foundEmail = d.admin_email;
+            if (d.business_types && Array.isArray(d.business_types) && !foundBT) foundBT = d.business_types;
           });
 
           if (foundPass) setInitialPassword(foundPass);
           if (foundName && !tenant.ownerName) setOwnerName(foundName);
           if (foundEmail && !tenant.ownerEmail) setOwnerEmail(foundEmail);
+          if (foundBT && initialBT.length === 0) setBusinessTypes(foundBT);
 
           // Find admin user ID if not present
           if (!tenant.ownerUserId) {
@@ -686,16 +714,23 @@ function EditTenantDialog({
     return () => { clearTimeout(handle); setChecking(false); };
   }, [slug, tenant, formatError]);
 
+  const initialOwnerName = tenant?.ownerName && tenant.ownerName !== '—' ? tenant.ownerName : '';
+  const initialOwnerEmail = tenant?.ownerEmail && tenant.ownerEmail !== '—' ? tenant.ownerEmail : '';
+  const initialOwnerPhone = tenant?.ownerPhone || '';
+  const initialBT = Array.isArray(tenant?.business_types) && tenant.business_types.length > 0
+    ? tenant.business_types
+    : loadLocalTenantBusinessTypes(tenant?.id, tenant?.slug);
+
   const hasStoreChanges = !!tenant && (
     name !== tenant.name ||
     slug !== tenant.slug ||
-    JSON.stringify([...businessTypes].sort()) !== JSON.stringify([...(tenant.business_types || [])].sort())
+    JSON.stringify([...businessTypes].sort()) !== JSON.stringify([...initialBT].sort())
   );
 
   const hasOwnerChanges = !!tenant && (
-    ownerName !== (tenant.ownerName || '') ||
-    ownerEmail !== (tenant.ownerEmail || '') ||
-    ownerPhone !== (tenant.ownerPhone || '')
+    (ownerName || '') !== initialOwnerName ||
+    (ownerEmail || '') !== initialOwnerEmail ||
+    (ownerPhone || '') !== initialOwnerPhone
   );
 
   const canSave = !!tenant && !formatError && (available === true || slug === tenant.slug) && (hasStoreChanges || hasOwnerChanges) && !saving;
@@ -710,28 +745,73 @@ function EditTenantDialog({
 
       // 1. Update tenant table
       if (hasStoreChanges) {
-        const { error } = await supabase.from('tenants').update({
-          name,
-          slug,
-          business_types: businessTypes,
-        }).eq('id', tenant.id);
+        let updateSucceeded = false;
+        try {
+          const res = await supabase.from('tenants').update({
+            name,
+            slug,
+            business_types: businessTypes,
+          } as any).eq('id', tenant.id);
 
-        if (error) throw error;
+          if (!res.error) {
+            updateSucceeded = true;
+          } else {
+            console.warn('Tentativa com business_types falhou (coluna ausente no DB?):', res.error.message);
+          }
+        } catch (e) {
+          console.warn('Exceção ao atualizar com business_types:', e);
+        }
 
-        if (slug !== oldSlug) {
+        // Se a coluna business_types não existe na tabela tenants do Supabase, atualiza name e slug
+        if (!updateSucceeded) {
+          const { error: fallbackErr } = await supabase.from('tenants').update({
+            name,
+            slug,
+          }).eq('id', tenant.id);
+
+          if (fallbackErr) throw fallbackErr;
+        }
+
+        // Salva business_types em storage local e store_settings
+        saveLocalTenantBusinessTypes(tenant.id, slug, businessTypes);
+
+        try {
+          const { data: st } = await supabase
+            .from('store_settings')
+            .select('id, print_settings')
+            .eq('tenant_id', tenant.id)
+            .maybeSingle();
+
+          if (st) {
+            const ps = (st.print_settings && typeof st.print_settings === 'object') ? { ...st.print_settings } : {};
+            ps.business_types = businessTypes;
+            await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
+          }
+        } catch (e) {
+          console.warn('Aviso: falha ao salvar business_types em store_settings:', e);
+        }
+
+        try {
           await supabase.rpc('log_audit_event' as any, {
-            p_action: 'tenant.slug_updated',
+            p_action: 'tenant.updated',
             p_entity_type: 'tenant',
             p_entity_id: tenant.id,
-            p_details: { old_slug: oldSlug, new_slug: slug } as any,
+            p_details: {
+              old_slug: oldSlug,
+              new_slug: slug,
+              tenant_name: name,
+              business_types: businessTypes,
+            } as any,
           });
+        } catch (e) {
+          console.warn('Audit log warning:', e);
         }
       }
 
       // 2. Update owner profile / user if changed and user_id is known
       if (hasOwnerChanges && ownerUserId) {
         try {
-          await supabase.functions.invoke('manage-users', {
+          const res = await supabase.functions.invoke('manage-users', {
             body: {
               action: 'update',
               user_id: ownerUserId,
@@ -740,6 +820,7 @@ function EditTenantDialog({
               phone: ownerPhone || null,
             }
           });
+          if (res.error) throw res.error;
         } catch (e) {
           // Direct fallback update
           await supabase.from('profiles').update({
@@ -750,9 +831,10 @@ function EditTenantDialog({
         }
       }
 
-      toast.success('Dados do estabelecimento e proprietário salvos com sucesso!');
+      toast.success('Dados do estabelecimento salvos com sucesso!');
       onSaved();
     } catch (err: any) {
+      console.error('Erro ao salvar tenant:', err);
       setServerError(err.message || 'Erro ao salvar alterações');
       toast.error(err.message || 'Erro ao salvar');
     } finally {
@@ -1245,8 +1327,10 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
             owner_name: form.admin_name,
             owner_email: form.admin_email,
             initial_password: form.admin_password,
+            business_types: businessTypes,
           } as any,
         });
+        saveLocalTenantBusinessTypes(data.tenant?.id, form.slug, businessTypes);
       } catch (e) {
         console.warn('Audit log warning:', e);
       }
@@ -1421,6 +1505,11 @@ export function SuperAdminContent({ withHeader = true, initialTab = 'dashboard',
         const ownerPhone = prof?.phone || details.owner_phone || '';
         const initialPassword = details.initial_password || details.new_password_set || '';
 
+        const localBT = loadLocalTenantBusinessTypes(t.id, t.slug);
+        const auditBT = details.business_types && Array.isArray(details.business_types) ? details.business_types : null;
+        const dbBT = Array.isArray(t.business_types) && t.business_types.length > 0 ? t.business_types : null;
+        const business_types = dbBT || auditBT || (localBT.length > 0 ? localBT : []);
+
         return {
           id: t.id,
           name: t.name,
@@ -1429,7 +1518,7 @@ export function SuperAdminContent({ withHeader = true, initialTab = 'dashboard',
           created_at: t.created_at,
           logo: t.logo,
           login_icon: t.login_icon,
-          business_types: Array.isArray(t.business_types) ? t.business_types : [],
+          business_types,
           ownerName,
           ownerEmail,
           ownerPhone,
