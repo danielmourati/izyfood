@@ -51,19 +51,20 @@ Deno.serve(async (req) => {
         const mem = (members || []).find((m: any) => m.user_id === u.id)
         const rol = (roles || []).find((r: any) => r.user_id === u.id)
         const tenant = (mem?.tenants as any)
+        const role = rol?.role || mem?.role || u.user_metadata?.role || 'atendente'
         return {
           id: u.id,
           name: prof?.name || u.user_metadata?.name || u.email?.split('@')[0] || 'Usuário',
-          email: u.email || prof?.email || '',
+          email: prof?.email || u.user_metadata?.contact_email || u.email || '',
           phone: prof?.phone || u.user_metadata?.phone || '',
-          role: rol?.role || mem?.role || u.user_metadata?.role || 'atendente',
-          tenantId: mem?.tenant_id || u.user_metadata?.tenant_id || '',
+          role,
+          tenantId: tenant ? (mem?.tenant_id || '') : '',
           tenantName: tenant?.name || '—',
           tenantSlug: tenant?.slug || '',
           createdAt: u.created_at,
           lastSignInAt: u.last_sign_in_at,
         }
-      })
+      }).filter((u: any) => u.role === 'superadmin' || (u.tenantId && u.tenantName && u.tenantName !== '—'))
 
       return json({ success: true, users: combined })
     }
