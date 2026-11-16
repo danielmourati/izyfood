@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { PrintSettings } from '@/lib/escpos';
+import { formatProductNameForTenant } from '@/lib/flavor-limits';
 
 /** Canonical empty PrintSettings — all toggles off, all texts blank */
 const EMPTY_PRINT_SETTINGS: PrintSettings = {
@@ -367,6 +368,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const pendingLocal = prev.filter(c => !dbIds.has(c.id) && isPendingLocalChange(c.id));
         const merged = sortCategories([...dbCats, ...pendingLocal], orderIds);
         saveLS('izy_categories', merged);
+        if (user?.tenantSlug === 'pastelao-junin') {
+          setProducts(prevProds => {
+            let changed = false;
+            const updated = prevProds.map(p => {
+              const formattedName = formatProductNameForTenant(p.name, p.categoryId, merged, user?.tenantSlug);
+              if (formattedName !== p.name) {
+                changed = true;
+                return { ...p, name: formattedName };
+              }
+              return p;
+            });
+            if (changed) saveLS('izy_products', updated);
+            return changed ? updated : prevProds;
+          });
+        }
         return merged;
       });
     }
@@ -397,8 +413,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const dbIds = new Set(dbProds.map(p => p.id));
         const pendingLocal = prev.filter(p => !dbIds.has(p.id) && isPendingLocalChange(p.id));
         const merged = sortProducts([...dbProds, ...pendingLocal], orderIds);
-        saveLS('izy_products', merged);
-        return merged;
+        const formatted = (user?.tenantSlug === 'pastelao-junin')
+          ? merged.map(p => {
+              const formattedName = formatProductNameForTenant(p.name, p.categoryId, categoriesRef.current, user?.tenantSlug);
+              return formattedName !== p.name ? { ...p, name: formattedName } : p;
+            })
+          : merged;
+        saveLS('izy_products', formatted);
+        return formatted;
       });
     }
   }, [sharedRefresh, isPendingLocalChange]);
@@ -1133,7 +1155,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const setProductsWrapped: typeof setProducts = useCallback((updater) => {
     const prev = productsRef.current;
-    const next = typeof updater === 'function' ? updater(prev) : updater;
+    let next = typeof updater === 'function' ? updater(prev) : updater;
+    if (user?.tenantSlug === 'pastelao-junin') {
+      next = next.map(p => {
+        const formattedName = formatProductNameForTenant(p.name, p.categoryId, categoriesRef.current, user?.tenantSlug);
+        return formattedName !== p.name ? { ...p, name: formattedName } : p;
+      });
+    }
     productsRef.current = next;
     setProducts(next);
     saveLS('izy_products', next);
@@ -1152,7 +1180,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     saveLS('izy_product_flavor_limits', flavorLimitsMap);
     syncProducts(prev, next, markPending, user?.tenantId).then(() => notifyCrossTabSync(['products', 'settings'])).catch(e => console.error('[syncProducts]', e));
-  }, [notifyCrossTabSync, markPending, user?.tenantId]);
+  }, [notifyCrossTabSync, markPending, user?.tenantId, user?.tenantSlug]);
 
   const setCategoriesWrapped: typeof setCategories = useCallback((updater) => {
     const prev = categoriesRef.current;

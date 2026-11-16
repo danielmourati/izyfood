@@ -243,3 +243,23 @@ export const PRESELECT_FLAVOR_TENANTS: readonly string[] = ['pastelao-junin'];
 export function tenantAllowsFlavorPreselect(slug: string | null | undefined): boolean {
   return !!slug && PRESELECT_FLAVOR_TENANTS.includes(slug.trim().toLowerCase());
 }
+
+/**
+ * For pastelao-junin, all products in the "Crepes" category must have "Crepe " prefixed in their title.
+ */
+export function formatProductNameForTenant(
+  name: string,
+  categoryId: string | undefined,
+  categories: { id: string; name: string }[],
+  tenantSlug?: string | null
+): string {
+  if (!name) return name;
+  const slug = (tenantSlug || '').trim().toLowerCase();
+  if (slug !== 'pastelao-junin' || !categoryId) return name;
+  const cat = categories.find(c => c.id === categoryId);
+  if (!cat || !cat.name.toLowerCase().includes('crepe')) return name;
+  const trimmed = name.trim();
+  if (trimmed.toLowerCase().startsWith('crepe')) return trimmed;
+  return `Crepe ${trimmed}`;
+}
+

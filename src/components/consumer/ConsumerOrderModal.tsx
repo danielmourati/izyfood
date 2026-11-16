@@ -473,6 +473,7 @@ export function ConsumerOrderModal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (customizeOpen) { setCustomizeOpen(false); return; }
+        if (pizzaModalCategory) { setPizzaModalCategory(null); setPizzaInitialProduct(null); return; }
         if (finderOpen) { setFinderOpen(false); return; }
         if (customerModalOpen) { setCustomerModalOpen(false); return; }
         if (checkoutOpen) { setCheckoutOpen(false); return; }
@@ -495,7 +496,7 @@ export function ConsumerOrderModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     open, currentOrder, items, totalAmount,
-    finderOpen, customizeOpen, customerModalOpen, checkoutOpen,
+    finderOpen, customizeOpen, pizzaModalCategory, customerModalOpen, checkoutOpen,
     printMenuOpen, changeTypeOpen, tablePickerOpen, deleteConfirmOpen, moreOptionsOpen, reprintModalOpen, unsentAlertOpen,
     handleEnviarOrder, handleCloseAndSaveOrDiscard
   ]);

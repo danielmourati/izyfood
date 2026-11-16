@@ -73,6 +73,20 @@ export function ConsumerItemCustomizeModal({
   }, [noteOptions, categoryId]);
 
   useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [open, onClose]);
+
+  useEffect(() => {
     if (open) {
       if (itemToEdit) {
         setQuantity(itemToEdit.quantity || 1);

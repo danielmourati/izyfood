@@ -53,6 +53,20 @@ const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'criar', label: 'Novo Tenant', icon: Plus },
 ];
 
+export const BUSINESS_TYPE_OPTIONS = [
+  'Pastelaria',
+  'Pizzaria',
+  'Restaurante',
+  'Barraca de Praia',
+  'Hamburgueria',
+  'Lanchonete',
+  'Cafeteria / Doceria',
+  'Sorveteria / Açaí',
+  'Bar / Petiscaria',
+  'Calzone',
+  'Outro',
+] as const;
+
 export interface Tenant {
   id: string;
   name: string;
@@ -61,6 +75,7 @@ export interface Tenant {
   created_at: string;
   logo: string | null;
   login_icon: string | null;
+  business_types?: string[];
   ownerName?: string;
   ownerEmail?: string;
   ownerPhone?: string;
@@ -304,6 +319,15 @@ function TenantsTab({
                             >
                               /{t.slug} <ExternalLink className="h-2.5 w-2.5" />
                             </a>
+                            {t.business_types && t.business_types.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {t.business_types.map(bt => (
+                                  <span key={bt} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                                    {bt}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -552,8 +576,7 @@ function EditTenantDialog({
   // Store fields
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [logo, setLogo] = useState('');
-  const [loginIcon, setLoginIcon] = useState('');
+  const [businessTypes, setBusinessTypes] = useState<string[]>([]);
 
   // Owner fields
   const [ownerName, setOwnerName] = useState('');
@@ -579,8 +602,7 @@ function EditTenantDialog({
     if (tenant) {
       setName(tenant.name || '');
       setSlug(tenant.slug || '');
-      setLogo(tenant.logo || '');
-      setLoginIcon(tenant.login_icon || '');
+      setBusinessTypes(Array.isArray(tenant.business_types) ? tenant.business_types : []);
       setOwnerName(tenant.ownerName && tenant.ownerName !== '—' ? tenant.ownerName : '');
       setOwnerEmail(tenant.ownerEmail && tenant.ownerEmail !== '—' ? tenant.ownerEmail : '');
       setOwnerPhone(tenant.ownerPhone || '');
@@ -667,8 +689,7 @@ function EditTenantDialog({
   const hasStoreChanges = !!tenant && (
     name !== tenant.name ||
     slug !== tenant.slug ||
-    logo !== (tenant.logo || '') ||
-    loginIcon !== (tenant.login_icon || '')
+    JSON.stringify([...businessTypes].sort()) !== JSON.stringify([...(tenant.business_types || [])].sort())
   );
 
   const hasOwnerChanges = !!tenant && (
@@ -692,8 +713,7 @@ function EditTenantDialog({
         const { error } = await supabase.from('tenants').update({
           name,
           slug,
-          logo: logo || null,
-          login_icon: loginIcon || null,
+          business_types: businessTypes,
         }).eq('id', tenant.id);
 
         if (error) throw error;
@@ -908,16 +928,39 @@ function EditTenantDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div className="space-y-1.5">
-                <Label>Logo (URL)</Label>
-                <Input value={logo} onChange={e => setLogo(e.target.value)} placeholder="https://..." />
-                {logo && <img src={logo} alt="Logo" className="h-10 object-contain rounded border mt-1.5" />}
-              </div>
-              <div className="space-y-1.5">
-                <Label>Ícone de Login (URL)</Label>
-                <Input value={loginIcon} onChange={e => setLoginIcon(e.target.value)} placeholder="https://..." />
-                {loginIcon && <img src={loginIcon} alt="Ícone de Login" className="h-10 object-contain rounded border mt-1.5" />}
+            {/* Tipos de Negócio */}
+            <div className="space-y-2 pt-1">
+              <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
+                Tipos de Negócio
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-lg border bg-muted/20">
+                {BUSINESS_TYPE_OPTIONS.map((type) => {
+                  const checked = businessTypes.includes(type);
+                  return (
+                    <label
+                      key={type}
+                      className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer select-none transition-all ${
+                        checked
+                          ? 'border-primary bg-primary/10 text-primary font-medium'
+                          : 'border-border/60 hover:bg-muted/50 text-foreground'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setBusinessTypes(prev =>
+                            prev.includes(type)
+                              ? prev.filter(t => t !== type)
+                              : [...prev, type]
+                          );
+                        }}
+                        className="h-3.5 w-3.5 rounded border-input text-primary focus:ring-primary"
+                      />
+                      <span>{type}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1135,6 +1178,7 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
   const [form, setForm] = useState({
     name: '', slug: '', admin_name: '', admin_email: '', admin_password: '',
   });
+  const [businessTypes, setBusinessTypes] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [checking, setChecking] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
@@ -1177,7 +1221,10 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
     setCreating(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-tenant', {
-        body: form,
+        body: {
+          ...form,
+          business_types: businessTypes,
+        },
       });
       if (error) {
         let msg = error.message;
@@ -1206,6 +1253,7 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
 
       setFeedback({ type: 'ok', text: `Estabelecimento "${data.tenant.name}" criado com sucesso!` });
       setForm({ name: '', slug: '', admin_name: '', admin_email: '', admin_password: '' });
+      setBusinessTypes([]);
       setTimeout(onCreated, 1500);
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || 'Erro ao criar tenant' });
@@ -1245,6 +1293,42 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">Será usado na URL: /{form.slug || 'slug'}</p>
+          </div>
+
+          {/* Tipos de Negócio */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
+              Tipos de Negócio
+            </Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-lg border bg-muted/20">
+              {BUSINESS_TYPE_OPTIONS.map((type) => {
+                const checked = businessTypes.includes(type);
+                return (
+                  <label
+                    key={type}
+                    className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer select-none transition-all ${
+                      checked
+                        ? 'border-primary bg-primary/10 text-primary font-medium'
+                        : 'border-border/60 hover:bg-muted/50 text-foreground'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setBusinessTypes(prev =>
+                          prev.includes(type)
+                            ? prev.filter(t => t !== type)
+                            : [...prev, type]
+                        );
+                      }}
+                      className="h-3.5 w-3.5 rounded border-input text-primary focus:ring-primary"
+                    />
+                    <span>{type}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           <div className="pt-2 border-t">
@@ -1345,6 +1429,7 @@ export function SuperAdminContent({ withHeader = true, initialTab = 'dashboard',
           created_at: t.created_at,
           logo: t.logo,
           login_icon: t.login_icon,
+          business_types: Array.isArray(t.business_types) ? t.business_types : [],
           ownerName,
           ownerEmail,
           ownerPhone,

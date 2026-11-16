@@ -52,7 +52,7 @@ serve(async (req) => {
       });
     }
 
-    const { name, slug: requestedSlug, admin_email, admin_password, admin_name } = await req.json();
+    const { name, slug: requestedSlug, admin_email, admin_password, admin_name, business_types } = await req.json();
 
     if (!name || !requestedSlug || !admin_email || !admin_password || !admin_name) {
       return new Response(JSON.stringify({ error: "Campos obrigatórios: name, slug, admin_email, admin_password, admin_name" }), {
@@ -96,9 +96,13 @@ serve(async (req) => {
 
 
     // 1. Create tenant
+    const insertPayload: Record<string, any> = { name, slug };
+    if (Array.isArray(business_types)) {
+      insertPayload.business_types = business_types;
+    }
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
-      .insert({ name, slug })
+      .insert(insertPayload)
       .select()
       .single();
 

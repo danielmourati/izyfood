@@ -425,15 +425,11 @@ const Produtos = () => {
     classification: 'flavor' | 'additional' | 'both' | 'border' = 'additional'
   ) => {
     setEditingOptId(null);
-    const pizzaCatIds = categories.filter(isPizzaOrCalzoneCategory).map(c => c.id);
     setOptForm({
       ...emptyNoteOptionForm,
       type,
       classification,
-      categoryIds:
-        classification === 'border' && pizzaCatIds.length > 0
-          ? pizzaCatIds
-          : categories.map(c => c.id),
+      categoryIds: [],
       active: true,
     });
     setOptFormOpen(true);
@@ -1987,7 +1983,26 @@ const Produtos = () => {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Disponível para as categorias: *</Label>
+              <div className="flex items-center justify-between">
+                <Label>Disponível para as categorias: *</Label>
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setOptForm(f => ({ ...f, categoryIds: categories.map(c => c.id) }))}
+                    className="text-primary hover:underline font-medium text-[11px]"
+                  >
+                    Marcar todas
+                  </button>
+                  <span className="text-muted-foreground text-[10px]">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setOptForm(f => ({ ...f, categoryIds: [] }))}
+                    className="text-muted-foreground hover:underline text-[11px]"
+                  >
+                    Desmarcar todas
+                  </button>
+                </div>
+              </div>
               <div className="max-h-40 overflow-y-auto border rounded-md p-2 grid grid-cols-2 gap-2 bg-muted/30">
                 {categories.map(cat => (
                   <label

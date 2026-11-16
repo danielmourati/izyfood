@@ -90,6 +90,8 @@ export function ConsumerProductFinderModal({
         setSelectedRowIndex(i => Math.max(0, i - 1));
       } else if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         onClose();
       }
     };

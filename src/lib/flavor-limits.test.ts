@@ -132,12 +132,42 @@ describe('recheio carne corresponde a carne moída', () => {
   });
 });
 
-import { tenantAllowsFlavorPreselect } from './flavor-limits';
+import { tenantAllowsFlavorPreselect, formatProductNameForTenant } from './flavor-limits';
 describe('tenantAllowsFlavorPreselect', () => {
   it('only pastelao-junin preselects', () => {
     expect(tenantAllowsFlavorPreselect('pastelao-junin')).toBe(true);
     expect(tenantAllowsFlavorPreselect('zezinho')).toBe(false);
     expect(tenantAllowsFlavorPreselect('pastelao-sousa')).toBe(false);
     expect(tenantAllowsFlavorPreselect('')).toBe(false);
+  });
+});
+
+describe('formatProductNameForTenant', () => {
+  const cats = [
+    { id: 'cat-crepe', name: 'Crepes' },
+    { id: 'cat-pastel', name: 'Pastéis' },
+  ];
+
+  it('prefixes "Crepe " for pastelao-junin on Crepes category when missing', () => {
+    expect(formatProductNameForTenant('Frango com Catupiry', 'cat-crepe', cats, 'pastelao-junin'))
+      .toBe('Crepe Frango com Catupiry');
+    expect(formatProductNameForTenant('Chocolate', 'cat-crepe', cats, 'pastelao-junin'))
+      .toBe('Crepe Chocolate');
+  });
+
+  it('does not duplicate "Crepe " if already prefixed', () => {
+    expect(formatProductNameForTenant('Crepe Frango com Catupiry', 'cat-crepe', cats, 'pastelao-junin'))
+      .toBe('Crepe Frango com Catupiry');
+    expect(formatProductNameForTenant('crepe salgado', 'cat-crepe', cats, 'pastelao-junin'))
+      .toBe('crepe salgado');
+  });
+
+  it('does not alter products in other categories or other tenants', () => {
+    expect(formatProductNameForTenant('Carne de Sol', 'cat-pastel', cats, 'pastelao-junin'))
+      .toBe('Carne de Sol');
+    expect(formatProductNameForTenant('Frango com Catupiry', 'cat-crepe', cats, 'outro-tenant'))
+      .toBe('Frango com Catupiry');
+    expect(formatProductNameForTenant('Frango com Catupiry', 'cat-crepe', cats, null))
+      .toBe('Frango com Catupiry');
   });
 });
