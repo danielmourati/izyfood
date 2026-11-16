@@ -715,8 +715,6 @@ function EditTenantDialog({
           slug,
           business_types: businessTypes,
         } as never).eq("id", tenant.id);
-        void 0; ({
-        }).eq('id', tenant.id);
 
         if (error) throw error;
 
