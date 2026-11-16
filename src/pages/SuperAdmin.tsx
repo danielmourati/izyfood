@@ -749,9 +749,14 @@ function EditTenantDialog({
           name,
           slug,
           business_types: businessTypes,
-        }).eq('id', tenant.id);
+        } as never).eq('id', tenant.id);
 
-        if (fallbackErr) throw fallbackErr;
+        if (error) {
+          if (!error.message.includes('business_types')) throw error;
+          const { error: fallbackErr } = await supabase.from('tenants')
+            .update({ name, slug }).eq('id', tenant.id);
+          if (fallbackErr) throw fallbackErr;
+        }
       }
 
       // Salva business_types em storage local e store_settings
@@ -788,7 +793,6 @@ function EditTenantDialog({
       } catch (e) {
         console.warn('Audit log warning:', e);
       }
-    }
 
       // 2. Update owner profile / user if changed and user_id is known
       if (hasOwnerChanges && ownerUserId) {
