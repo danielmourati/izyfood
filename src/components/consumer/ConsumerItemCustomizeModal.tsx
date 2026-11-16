@@ -197,7 +197,7 @@ export function ConsumerItemCustomizeModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 font-sans">
+    <div data-finder-overlay-above className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 font-sans">
       <div className="bg-card text-card-foreground w-full max-w-4xl rounded-none sm:rounded-md shadow-2xl overflow-hidden border-0 sm:border border-border flex flex-col h-full sm:h-[90vh] sm:max-h-[700px] animate-in zoom-in-95 duration-150">
 
         {/* Title Bar */}

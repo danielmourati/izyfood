@@ -499,7 +499,6 @@ export function ConsumerOrderModal({
     if (isPizzaOrCalzoneCategory(cat)) {
       setPizzaModalCategory(cat!);
       setPizzaInitialProduct(prod);
-      setFinderOpen(false);
       return;
     }
     const flavorCheck = getFlavorLimitState(cat, [], prod, 0, (storeNoteOptions ?? []).filter(o =>
@@ -614,7 +613,6 @@ export function ConsumerOrderModal({
     if (isPizzaOrCalzoneCategory(cat)) {
       setPizzaModalCategory(cat!);
       setPizzaInitialProduct(prod);
-      setFinderOpen(false);
       return;
     }
     setPreselectedCustomizeComplements(undefined);
@@ -2117,7 +2115,7 @@ export function ConsumerOrderModal({
 
       {/* Modal 2.5: Desktop Pizza / Calzone Builder */}
       {pizzaModalCategory && (
-        <div className="fixed inset-0 z-[95] bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 font-sans">
+        <div data-finder-overlay-above className="fixed inset-0 z-[95] bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 font-sans">
           <div className="bg-card text-card-foreground w-full max-w-3xl rounded-md shadow-2xl overflow-hidden border border-border flex flex-col h-[88vh] max-h-[720px] animate-in zoom-in-95 duration-150">
             <div className="bg-primary px-4 py-2.5 flex justify-between items-center border-b border-border shrink-0">
               <span className="text-sm font-bold text-primary-foreground">
