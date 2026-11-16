@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import {
   LayoutDashboard, Building2, Plus, Store, Users, DollarSign, TrendingUp,
@@ -749,9 +750,14 @@ function EditTenantDialog({
           name,
           slug,
           business_types: businessTypes,
-        }).eq('id', tenant.id);
+        } as never).eq('id', tenant.id);
 
-        if (fallbackErr) throw fallbackErr;
+        if (error) {
+          if (!error.message.includes('business_types')) throw error;
+          const { error: fallbackErr } = await supabase.from('tenants')
+            .update({ name, slug }).eq('id', tenant.id);
+          if (fallbackErr) throw fallbackErr;
+        }
       }
 
       // Salva business_types em storage local e store_settings
@@ -765,7 +771,10 @@ function EditTenantDialog({
           .maybeSingle();
 
         if (st) {
-          const ps = (st.print_settings && typeof st.print_settings === 'object') ? { ...st.print_settings } : {};
+          const ps: { [key: string]: Json | undefined } =
+            st.print_settings && typeof st.print_settings === 'object' && !Array.isArray(st.print_settings)
+              ? { ...st.print_settings }
+              : {};
           ps.business_types = businessTypes;
           await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
         }
@@ -788,7 +797,6 @@ function EditTenantDialog({
       } catch (e) {
         console.warn('Audit log warning:', e);
       }
-    }
 
       // 2. Update owner profile / user if changed and user_id is known
       if (hasOwnerChanges && ownerUserId) {
