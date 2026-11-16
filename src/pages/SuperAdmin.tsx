@@ -178,12 +178,65 @@ function TenantsTab({
     if (!deleting) return;
     setIsDeleting(true);
     try {
+      const tenantId = deleting.id;
+      const tenantSlug = deleting.slug;
+
+      // 1. Explicitly delete all non-superadmin users tied to this tenant before deleting the tenant
+      try {
+        const [{ data: members }, { data: superRoles }] = await Promise.all([
+          supabase.from('tenant_members').select('user_id').eq('tenant_id', tenantId),
+          supabase.from('user_roles').select('user_id').eq('role', 'superadmin'),
+        ]);
+        const superAdminIds = new Set((superRoles || []).map(r => r.user_id));
+        const memberUserIds = Array.from(
+          new Set((members || []).map(m => m.user_id).filter(Boolean))
+        );
+
+        for (const uid of memberUserIds) {
+          if (superAdminIds.has(uid)) {
+            await supabase.from('tenant_members').delete().eq('user_id', uid).eq('tenant_id', tenantId);
+            continue;
+          }
+
+          // Check if user also belongs to another tenant
+          const { data: otherMemberships } = await supabase
+            .from('tenant_members')
+            .select('tenant_id')
+            .eq('user_id', uid)
+            .neq('tenant_id', tenantId);
+
+          if (otherMemberships && otherMemberships.length > 0) {
+            await supabase.from('tenant_members').delete().eq('user_id', uid).eq('tenant_id', tenantId);
+          } else {
+            try {
+              await supabase.functions.invoke('manage-users', {
+                body: { action: 'delete', user_id: uid },
+              });
+            } catch {}
+            await supabase.from('attendant_permissions').delete().eq('user_id', uid);
+            await supabase.from('user_roles').delete().eq('user_id', uid);
+            await supabase.from('tenant_members').delete().eq('user_id', uid);
+            await supabase.from('profiles').delete().eq('id', uid);
+          }
+        }
+      } catch (cleanupErr) {
+        console.warn('Aviso ao limpar usuários do tenant antes da exclusão:', cleanupErr);
+      }
+
+      // 2. Delete tenant and all its data via Edge Function
       const { data, error } = await supabase.functions.invoke('manage-users', {
-        body: { action: 'delete_tenant', tenant_id: deleting.id }
+        body: { action: 'delete_tenant', tenant_id: tenantId }
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success('Tenant excluído com sucesso');
+
+      // 3. Remove local cache for this tenant
+      try {
+        localStorage.removeItem(`izy_tenant_business_types_${tenantId}`);
+        if (tenantSlug) localStorage.removeItem(`izy_tenant_business_types_${tenantSlug}`);
+      } catch {}
+
+      toast.success('Estabelecimento e todos os seus usuários foram excluídos com sucesso');
       onDeleted();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao excluir tenant');

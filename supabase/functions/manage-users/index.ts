@@ -162,8 +162,10 @@ Deno.serve(async (req) => {
     if (action === 'delete') {
       const { user_id } = body
       if (!user_id) return json({ error: 'user_id required' }, 400)
+      await adminClient.from('attendant_permissions').delete().eq('user_id', user_id)
       await adminClient.from('user_roles').delete().eq('user_id', user_id)
       await adminClient.from('tenant_members').delete().eq('user_id', user_id)
+      await adminClient.from('profiles').delete().eq('id', user_id)
       const { error } = await adminClient.auth.admin.deleteUser(user_id)
       if (error) return json({ error: error.message }, 400)
       return json({ success: true })
@@ -183,27 +185,65 @@ Deno.serve(async (req) => {
       const { tenant_id } = body
       if (!tenant_id) return json({ error: 'tenant_id required' }, 400)
 
-      const { data: members } = await adminClient.from('tenant_members').select('user_id').eq('tenant_id', tenant_id)
-      if (members) {
-        for (const m of members) {
-          // Verify if they only belong to this tenant
-          const { data: userTenants } = await adminClient.from('tenant_members').select('tenant_id').eq('user_id', m.user_id)
-          if (userTenants && userTenants.length === 1) {
-            await adminClient.auth.admin.deleteUser(m.user_id)
-          } else {
-            await adminClient.from('tenant_members').delete().eq('user_id', m.user_id).eq('tenant_id', tenant_id)
+      // Collect all users linked to this tenant via tenant_members or auth metadata
+      const candidateUserIds = new Set<string>()
+      const { data: members } = await adminClient
+        .from('tenant_members')
+        .select('user_id')
+        .eq('tenant_id', tenant_id)
+      ;(members || []).forEach((m: any) => {
+        if (m.user_id) candidateUserIds.add(m.user_id)
+      })
+
+      try {
+        const { data: { users: authUsers } } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+        ;(authUsers || []).forEach((au: any) => {
+          if (au?.user_metadata?.tenant_id === tenant_id) {
+            candidateUserIds.add(au.id)
           }
+        })
+      } catch {}
+
+      for (const uid of candidateUserIds) {
+        // Never delete a superadmin account; only unlink their tenant_members entry for this tenant
+        const { data: saRole } = await adminClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', uid)
+          .eq('role', 'superadmin')
+          .maybeSingle()
+
+        if (saRole) {
+          await adminClient.from('tenant_members').delete().eq('user_id', uid).eq('tenant_id', tenant_id)
+          continue
+        }
+
+        // Check if user belongs to another tenant
+        const { data: otherTenants } = await adminClient
+          .from('tenant_members')
+          .select('tenant_id')
+          .eq('user_id', uid)
+          .neq('tenant_id', tenant_id)
+
+        if (otherTenants && otherTenants.length > 0) {
+          await adminClient.from('tenant_members').delete().eq('user_id', uid).eq('tenant_id', tenant_id)
+        } else {
+          await adminClient.from('attendant_permissions').delete().eq('user_id', uid)
+          await adminClient.from('user_roles').delete().eq('user_id', uid)
+          await adminClient.from('tenant_members').delete().eq('user_id', uid)
+          await adminClient.from('profiles').delete().eq('id', uid)
+          await adminClient.auth.admin.deleteUser(uid)
         }
       }
 
-      // Manual cascade delete
+      // Manual cascade delete of tenant data
       const tables = [
         'audit_logs', 'cash_movements', 'commission_records', 'print_jobs', 'store_tables',
-        'orders', 'product_note_options', 'products', 'categories', 'customers', 'suppliers',
-        'printer_configs', 'cash_registers', 'store_settings', 'tenant_plans', 'attendant_permissions',
-        'coupons'
-      ];
-      
+        'sales', 'orders', 'product_note_options', 'products', 'categories', 'customers', 'suppliers',
+        'printer_configs', 'cash_registers', 'store_settings', 'payment_intents', 'tenant_plans',
+        'attendant_permissions', 'coupons', 'tenant_members'
+      ]
+
       for (const table of tables) {
         await adminClient.from(table).delete().eq('tenant_id', tenant_id)
       }
