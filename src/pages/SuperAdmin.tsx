@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import {
   LayoutDashboard, Building2, Plus, Store, Users, DollarSign, TrendingUp,
@@ -770,7 +771,10 @@ function EditTenantDialog({
           .maybeSingle();
 
         if (st) {
-          const ps = (st.print_settings && typeof st.print_settings === 'object') ? { ...st.print_settings } : {};
+          const ps: { [key: string]: Json | undefined } =
+            st.print_settings && typeof st.print_settings === 'object' && !Array.isArray(st.print_settings)
+              ? { ...st.print_settings }
+              : {};
           ps.business_types = businessTypes;
           await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
         }
