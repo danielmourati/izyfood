@@ -77,6 +77,8 @@ export function ConsumerProductFinderModal({
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore keys while another window (customize/pizza) is on top of the finder
+      if (document.querySelector('[data-finder-overlay-above]')) return;
       if (e.key === 'F11') {
         e.preventDefault();
         const prod = filteredProducts[selectedRowIndex];
