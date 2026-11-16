@@ -77,7 +77,7 @@ export function loadLocalTenantBusinessTypes(tenantId?: string, slug?: string): 
       const v = localStorage.getItem(`izy_tenant_business_types_${slug}`);
       if (v) return JSON.parse(v);
     }
-  } catch {}
+  } catch { }
   return [];
 }
 
@@ -85,7 +85,7 @@ export function saveLocalTenantBusinessTypes(tenantId: string, slug: string, typ
   try {
     if (tenantId) localStorage.setItem(`izy_tenant_business_types_${tenantId}`, JSON.stringify(types));
     if (slug) localStorage.setItem(`izy_tenant_business_types_${slug}`, JSON.stringify(types));
-  } catch {}
+  } catch { }
 }
 
 export interface Tenant {
@@ -231,7 +231,7 @@ function TenantsTab({
           body: { action: 'reset_password', user_id: targetUserId, new_password: quickPassword },
         });
         if (!error && !data?.error) resetOk = true;
-      } catch {}
+      } catch { }
 
       if (!resetOk) {
         const { data, error } = await supabase.functions.invoke('reset-user-password', {
@@ -252,7 +252,7 @@ function TenantsTab({
             new_password_set: quickPassword,
           } as any,
         });
-      } catch {}
+      } catch { }
 
       toast.success(`Senha do administrador de "${quickResetTenant.name}" redefinida!`);
       setQuickResetTenant(null);
@@ -745,514 +745,495 @@ function EditTenantDialog({
 
       // 1. Update tenant table
       if (hasStoreChanges) {
-        let updateSucceeded = false;
-        try {
-          const res = await supabase.from('tenants').update({
-            name,
-            slug,
-            business_types: businessTypes,
-          } as any).eq('id', tenant.id);
+        const { error } = await supabase.from('tenants').update({
+          name,
+          slug,
+          business_types: businessTypes,
+        }).eq('id', tenant.id);
 
-          if (!res.error) {
-            updateSucceeded = true;
-          } else {
-            console.warn('Tentativa com business_types falhou (coluna ausente no DB?):', res.error.message);
-          }
-        } catch (e) {
-          console.warn('Exceção ao atualizar com business_types:', e);
-        }
-
-        // Se a coluna business_types não existe na tabela tenants do Supabase, atualiza name e slug
-        if (!updateSucceeded) {
-          const { error: fallbackErr } = await supabase.from('tenants').update({
-            name,
-            slug,
-          }).eq('id', tenant.id);
-
-          if (fallbackErr) throw fallbackErr;
-        }
-
-        // Salva business_types em storage local e store_settings
-        saveLocalTenantBusinessTypes(tenant.id, slug, businessTypes);
-
-        try {
-          const { data: st } = await supabase
-            .from('store_settings')
-            .select('id, print_settings')
-            .eq('tenant_id', tenant.id)
-            .maybeSingle();
-
-          if (st) {
-            const ps = (st.print_settings && typeof st.print_settings === 'object') ? { ...st.print_settings } : {};
-            ps.business_types = businessTypes;
-            await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
-          }
-        } catch (e) {
-          console.warn('Aviso: falha ao salvar business_types em store_settings:', e);
-        }
-
-        try {
-          await supabase.rpc('log_audit_event' as any, {
-            p_action: 'tenant.updated',
-            p_entity_type: 'tenant',
-            p_entity_id: tenant.id,
-            p_details: {
-              old_slug: oldSlug,
-              new_slug: slug,
-              tenant_name: name,
-              business_types: businessTypes,
-            } as any,
-          });
-        } catch (e) {
-          console.warn('Audit log warning:', e);
-        }
+        if (fallbackErr) throw fallbackErr;
       }
+
+      // Salva business_types em storage local e store_settings
+      saveLocalTenantBusinessTypes(tenant.id, slug, businessTypes);
+
+      try {
+        const { data: st } = await supabase
+          .from('store_settings')
+          .select('id, print_settings')
+          .eq('tenant_id', tenant.id)
+          .maybeSingle();
+
+        if (st) {
+          const ps = (st.print_settings && typeof st.print_settings === 'object') ? { ...st.print_settings } : {};
+          ps.business_types = businessTypes;
+          await supabase.from('store_settings').update({ print_settings: ps }).eq('id', st.id);
+        }
+      } catch (e) {
+        console.warn('Aviso: falha ao salvar business_types em store_settings:', e);
+      }
+
+      try {
+        await supabase.rpc('log_audit_event' as any, {
+          p_action: 'tenant.updated',
+          p_entity_type: 'tenant',
+          p_entity_id: tenant.id,
+          p_details: {
+            old_slug: oldSlug,
+            new_slug: slug,
+            tenant_name: name,
+            business_types: businessTypes,
+          } as any,
+        });
+      } catch (e) {
+        console.warn('Audit log warning:', e);
+      }
+    }
 
       // 2. Update owner profile / user if changed and user_id is known
       if (hasOwnerChanges && ownerUserId) {
-        try {
-          const res = await supabase.functions.invoke('manage-users', {
-            body: {
-              action: 'update',
-              user_id: ownerUserId,
-              name: ownerName,
-              email: ownerEmail,
-              phone: ownerPhone || null,
-            }
-          });
-          if (res.error) throw res.error;
-        } catch (e) {
-          // Direct fallback update
-          await supabase.from('profiles').update({
+      try {
+        const res = await supabase.functions.invoke('manage-users', {
+          body: {
+            action: 'update',
+            user_id: ownerUserId,
             name: ownerName,
             email: ownerEmail,
-            phone: ownerPhone || '',
-          } as any).eq('id', ownerUserId);
-        }
+            phone: ownerPhone || null,
+          }
+        });
+        if (res.error) throw res.error;
+      } catch (e) {
+        // Direct fallback update
+        await supabase.from('profiles').update({
+          name: ownerName,
+          email: ownerEmail,
+          phone: ownerPhone || '',
+        } as any).eq('id', ownerUserId);
       }
-
-      toast.success('Dados do estabelecimento salvos com sucesso!');
-      onSaved();
-    } catch (err: any) {
-      console.error('Erro ao salvar tenant:', err);
-      setServerError(err.message || 'Erro ao salvar alterações');
-      toast.error(err.message || 'Erro ao salvar');
-    } finally {
-      setSaving(false);
     }
-  };
 
-  const handleResetPasswordInModal = async () => {
-    if (!tenant) return;
-    if (!newPassword || newPassword.length < 6) {
-      toast.error('Informe uma senha com no mínimo 6 caracteres');
-      return;
+    toast.success('Dados do estabelecimento salvos com sucesso!');
+    onSaved();
+  } catch (err: any) {
+    console.error('Erro ao salvar tenant:', err);
+    setServerError(err.message || 'Erro ao salvar alterações');
+    toast.error(err.message || 'Erro ao salvar');
+  } finally {
+    setSaving(false);
+  }
+};
+
+const handleResetPasswordInModal = async () => {
+  if (!tenant) return;
+  if (!newPassword || newPassword.length < 6) {
+    toast.error('Informe uma senha com no mínimo 6 caracteres');
+    return;
+  }
+  setResettingPassword(true);
+  try {
+    let uid = ownerUserId;
+    if (!uid) {
+      const { data: member } = await supabase
+        .from('tenant_members')
+        .select('user_id')
+        .eq('tenant_id', tenant.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      uid = member?.user_id;
     }
-    setResettingPassword(true);
+
+    if (!uid) {
+      throw new Error('Nenhum usuário administrador encontrado para redefinir senha.');
+    }
+
+    let resetOk = false;
     try {
-      let uid = ownerUserId;
-      if (!uid) {
-        const { data: member } = await supabase
-          .from('tenant_members')
-          .select('user_id')
-          .eq('tenant_id', tenant.id)
-          .eq('role', 'admin')
-          .maybeSingle();
-        uid = member?.user_id;
-      }
-
-      if (!uid) {
-        throw new Error('Nenhum usuário administrador encontrado para redefinir senha.');
-      }
-
-      let resetOk = false;
-      try {
-        const { data, error } = await supabase.functions.invoke('manage-users', {
-          body: { action: 'reset_password', user_id: uid, new_password: newPassword },
-        });
-        if (!error && !data?.error) resetOk = true;
-      } catch {}
-
-      if (!resetOk) {
-        const { data, error } = await supabase.functions.invoke('reset-user-password', {
-          body: { user_id: uid, new_password: newPassword },
-        });
-        if (error || data?.error) throw error || new Error(data?.error || 'Erro ao redefinir senha');
-      }
-
-      // Log audit
-      await supabase.rpc('log_audit_event' as any, {
-        p_action: 'tenant.owner_password_reset',
-        p_entity_type: 'tenant',
-        p_entity_id: tenant.id,
-        p_details: {
-          tenant_name: tenant.name,
-          owner_name: ownerName,
-          owner_email: ownerEmail,
-          new_password_set: newPassword,
-        } as any,
+      const { data, error } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'reset_password', user_id: uid, new_password: newPassword },
       });
+      if (!error && !data?.error) resetOk = true;
+    } catch { }
 
-      setInitialPassword(newPassword);
-      toast.success('Senha do proprietário redefinida com sucesso!');
-      setNewPassword('');
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao redefinir senha');
-    } finally {
-      setResettingPassword(false);
+    if (!resetOk) {
+      const { data, error } = await supabase.functions.invoke('reset-user-password', {
+        body: { user_id: uid, new_password: newPassword },
+      });
+      if (error || data?.error) throw error || new Error(data?.error || 'Erro ao redefinir senha');
     }
-  };
 
-  return (
-    <Dialog open={!!tenant} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center justify-between pr-4">
-            <DialogTitle className="text-xl flex items-center gap-2">
-              <Store className="h-5 w-5 text-primary" /> Visualizar & Editar Estabelecimento
-            </DialogTitle>
+    // Log audit
+    await supabase.rpc('log_audit_event' as any, {
+      p_action: 'tenant.owner_password_reset',
+      p_entity_type: 'tenant',
+      p_entity_id: tenant.id,
+      p_details: {
+        tenant_name: tenant.name,
+        owner_name: ownerName,
+        owner_email: ownerEmail,
+        new_password_set: newPassword,
+      } as any,
+    });
+
+    setInitialPassword(newPassword);
+    toast.success('Senha do proprietário redefinida com sucesso!');
+    setNewPassword('');
+  } catch (err: any) {
+    toast.error(err.message || 'Erro ao redefinir senha');
+  } finally {
+    setResettingPassword(false);
+  }
+};
+
+return (
+  <Dialog open={!!tenant} onOpenChange={(o) => !o && onClose()}>
+    <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+      <DialogHeader>
+        <div className="flex items-center justify-between pr-4">
+          <DialogTitle className="text-xl flex items-center gap-2">
+            <Store className="h-5 w-5 text-primary" /> Visualizar & Editar Estabelecimento
+          </DialogTitle>
+        </div>
+        <DialogDescription>
+          Exibição completa de todos os dados informados no cadastro (loja, proprietário, credenciais de acesso e senha).
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-5 py-2">
+        {/* Header Summary Box */}
+        <div className="p-3.5 rounded-xl bg-muted/60 border flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div>
+            <p className="text-muted-foreground">Estabelecimento:</p>
+            <p className="font-bold text-sm text-foreground">{tenant?.name}</p>
           </div>
-          <DialogDescription>
-            Exibição completa de todos os dados informados no cadastro (loja, proprietário, credenciais de acesso e senha).
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-5 py-2">
-          {/* Header Summary Box */}
-          <div className="p-3.5 rounded-xl bg-muted/60 border flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div>
-              <p className="text-muted-foreground">Estabelecimento:</p>
-              <p className="font-bold text-sm text-foreground">{tenant?.name}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Cadastrado em:</p>
-              <p className="font-medium text-foreground">
-                {tenant?.created_at ? new Date(tenant.created_at).toLocaleDateString('pt-BR') : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Status Atual:</p>
-              <Badge variant={tenant?.active ? 'default' : 'destructive'} className="text-[10px] px-1.5 py-0 mt-0.5">
-                {tenant?.active ? 'Loja Ativa' : 'Loja Inativa'}
-              </Badge>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Plano / Licença:</p>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 bg-primary/10 text-primary border-primary/30">
-                {tenant?.planName || 'PRO'}
-              </Badge>
-            </div>
+          <div>
+            <p className="text-muted-foreground">Cadastrado em:</p>
+            <p className="font-medium text-foreground">
+              {tenant?.created_at ? new Date(tenant.created_at).toLocaleDateString('pt-BR') : '—'}
+            </p>
           </div>
+          <div>
+            <p className="text-muted-foreground">Status Atual:</p>
+            <Badge variant={tenant?.active ? 'default' : 'destructive'} className="text-[10px] px-1.5 py-0 mt-0.5">
+              {tenant?.active ? 'Loja Ativa' : 'Loja Inativa'}
+            </Badge>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Plano / Licença:</p>
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 bg-primary/10 text-primary border-primary/30">
+              {tenant?.planName || 'PRO'}
+            </Badge>
+          </div>
+        </div>
 
-          {/* Section 1: Dados da Loja */}
-          <div className="p-4 rounded-xl border bg-card space-y-4">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Store className="h-4 w-4 text-primary" /> Dados do Estabelecimento (Loja)
-            </h3>
+        {/* Section 1: Dados da Loja */}
+        <div className="p-4 rounded-xl border bg-card space-y-4">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Store className="h-4 w-4 text-primary" /> Dados do Estabelecimento (Loja)
+          </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="tenant-name">Nome do Estabelecimento</Label>
-                <Input
-                  id="tenant-name"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Ex: Pastelaria Central"
-                />
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="tenant-name">Nome do Estabelecimento</Label>
+              <Input
+                id="tenant-name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Ex: Pastelaria Central"
+              />
+            </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="tenant-slug">Slug (URL de Acesso)</Label>
-                <Input
-                  id="tenant-slug"
-                  value={slug}
-                  onChange={e => setSlug(e.target.value.toLowerCase())}
-                  className="font-mono"
-                  placeholder="pastelaria-central"
-                />
-                <div className="min-h-[1.25rem] text-xs">
-                  {formatError && <span className="text-destructive">{formatError}</span>}
-                  {!formatError && tenant && slug !== tenant.slug && (
-                    checking ? <span className="text-muted-foreground inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> verificando…</span>
+            <div className="space-y-1.5">
+              <Label htmlFor="tenant-slug">Slug (URL de Acesso)</Label>
+              <Input
+                id="tenant-slug"
+                value={slug}
+                onChange={e => setSlug(e.target.value.toLowerCase())}
+                className="font-mono"
+                placeholder="pastelaria-central"
+              />
+              <div className="min-h-[1.25rem] text-xs">
+                {formatError && <span className="text-destructive">{formatError}</span>}
+                {!formatError && tenant && slug !== tenant.slug && (
+                  checking ? <span className="text-muted-foreground inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> verificando…</span>
                     : available === true ? <span className="text-success inline-flex items-center gap-1"><Check className="h-3 w-3" /> disponível</span>
-                    : available === false ? <span className="text-destructive inline-flex items-center gap-1"><X className="h-3 w-3" /> já em uso</span>
-                    : null
-                  )}
-                  {serverError && <span className="text-destructive">{serverError}</span>}
-                </div>
+                      : available === false ? <span className="text-destructive inline-flex items-center gap-1"><X className="h-3 w-3" /> já em uso</span>
+                        : null
+                )}
+                {serverError && <span className="text-destructive">{serverError}</span>}
               </div>
             </div>
+          </div>
 
-            {/* URL info with copy and open buttons */}
-            <div className="p-2.5 rounded-lg bg-muted/40 border text-xs flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">URL da Loja: <strong className="font-mono text-foreground">/{slug || '…'}</strong></span>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs gap-1"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/${slug}`);
-                    toast.success('Link copiado!');
-                  }}
-                >
-                  <Copy className="h-3 w-3" /> Copiar Link
-                </Button>
-                <a
-                  href={`/${slug}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 h-7 px-2 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
-                >
-                  Abrir Loja <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
+          {/* URL info with copy and open buttons */}
+          <div className="p-2.5 rounded-lg bg-muted/40 border text-xs flex items-center justify-between gap-2">
+            <span className="text-muted-foreground">URL da Loja: <strong className="font-mono text-foreground">/{slug || '…'}</strong></span>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs gap-1"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/${slug}`);
+                  toast.success('Link copiado!');
+                }}
+              >
+                <Copy className="h-3 w-3" /> Copiar Link
+              </Button>
+              <a
+                href={`/${slug}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 h-7 px-2 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
+              >
+                Abrir Loja <ExternalLink className="h-3 w-3" />
+              </a>
             </div>
+          </div>
 
-            {/* Tipos de Negócio */}
-            <div className="space-y-2 pt-1">
-              <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
-                Tipos de Negócio
-              </Label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-lg border bg-muted/20">
-                {BUSINESS_TYPE_OPTIONS.map((type) => {
-                  const checked = businessTypes.includes(type);
-                  return (
-                    <label
-                      key={type}
-                      className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer select-none transition-all ${
-                        checked
-                          ? 'border-primary bg-primary/10 text-primary font-medium'
-                          : 'border-border/60 hover:bg-muted/50 text-foreground'
+          {/* Tipos de Negócio */}
+          <div className="space-y-2 pt-1">
+            <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
+              Tipos de Negócio
+            </Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-lg border bg-muted/20">
+              {BUSINESS_TYPE_OPTIONS.map((type) => {
+                const checked = businessTypes.includes(type);
+                return (
+                  <label
+                    key={type}
+                    className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer select-none transition-all ${checked
+                        ? 'border-primary bg-primary/10 text-primary font-medium'
+                        : 'border-border/60 hover:bg-muted/50 text-foreground'
                       }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {
-                          setBusinessTypes(prev =>
-                            prev.includes(type)
-                              ? prev.filter(t => t !== type)
-                              : [...prev, type]
-                          );
-                        }}
-                        className="h-3.5 w-3.5 rounded border-input text-primary focus:ring-primary"
-                      />
-                      <span>{type}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Dados do Proprietário */}
-          <div className="p-4 rounded-xl border bg-card space-y-4">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <UserCheck className="h-4 w-4 text-primary" /> Dados do Proprietário / Administrador
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="owner-name">Nome do Proprietário</Label>
-                <Input
-                  id="owner-name"
-                  value={ownerName}
-                  onChange={e => setOwnerName(e.target.value)}
-                  placeholder="Nome do responsável"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="owner-email">E-mail / Usuário de Acesso</Label>
-                <div className="relative">
-                  <Input
-                    id="owner-email"
-                    type="email"
-                    value={ownerEmail}
-                    onChange={e => setOwnerEmail(e.target.value)}
-                    placeholder="email@loja.com"
-                    className="pr-9"
-                  />
-                  {ownerEmail && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(ownerEmail);
-                        toast.success('Email copiado!');
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setBusinessTypes(prev =>
+                          prev.includes(type)
+                            ? prev.filter(t => t !== type)
+                            : [...prev, type]
+                        );
                       }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      title="Copiar email de login"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="owner-phone">Telefone / WhatsApp</Label>
-                <Input
-                  id="owner-phone"
-                  value={ownerPhone}
-                  onChange={e => setOwnerPhone(e.target.value)}
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Função no Sistema</Label>
-                <Input value="Administrador da Loja (Proprietário)" disabled className="bg-muted text-muted-foreground" />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Credenciais & Gestão de Senha */}
-          <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <KeyRound className="h-4 w-4 text-primary" /> Credenciais de Acesso & Redefinição de Senha
-              </h3>
-              <Badge variant="outline" className="text-[10px] bg-background">
-                SuperAdmin Control
-              </Badge>
-            </div>
-
-            {/* Recorded Initial Password if available */}
-            {initialPassword && (
-              <div className="p-3 rounded-lg bg-background border space-y-1 text-xs">
-                <span className="text-muted-foreground font-medium">Senha Registrada / Anotada no Cadastro:</span>
-                <div className="flex items-center justify-between gap-2 mt-1">
-                  <span className="font-mono text-sm font-semibold text-foreground">
-                    {showInitialPass ? initialPassword : '••••••••••••'}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0 text-muted-foreground"
-                      onClick={() => setShowInitialPass(p => !p)}
-                      title={showInitialPass ? 'Ocultar' : 'Mostrar'}
-                    >
-                      {showInitialPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0 text-muted-foreground"
-                      onClick={() => {
-                        navigator.clipboard.writeText(initialPassword);
-                        toast.success('Senha inicial copiada!');
-                      }}
-                      title="Copiar senha registrada"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Direct Reset Password Form */}
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="modal-new-pass" className="text-xs font-semibold">
-                  Definir / Redefinir Nova Senha do Proprietário:
-                </Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs text-primary px-2"
-                  onClick={() => {
-                    const pass = generateRandomPassword(10);
-                    setNewPassword(pass);
-                    setShowNewPass(true);
-                  }}
-                >
-                  <Sparkles className="h-3 w-3 mr-1" /> Gerar Senha Forte
-                </Button>
-              </div>
-
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    id="modal-new-pass"
-                    type={showNewPass ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                    placeholder="Digite nova senha (mínimo 6 caracteres)"
-                    className="pr-20 font-mono text-sm bg-background"
-                  />
-                  <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground"
-                      onClick={() => setShowNewPass(p => !p)}
-                      title={showNewPass ? 'Ocultar' : 'Mostrar'}
-                    >
-                      {showNewPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground"
-                      onClick={() => {
-                        if (!newPassword) return;
-                        navigator.clipboard.writeText(newPassword);
-                        setCopiedPass(true);
-                        toast.success('Nova senha copiada!');
-                        setTimeout(() => setCopiedPass(false), 2000);
-                      }}
-                      title="Copiar senha"
-                    >
-                      {copiedPass ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-                    </Button>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  onClick={handleResetPasswordInModal}
-                  disabled={resettingPassword || !newPassword || newPassword.length < 6}
-                  className="gap-1.5 shrink-0"
-                >
-                  {resettingPassword ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</>
-                  ) : (
-                    <><KeyRound className="h-4 w-4" /> Salvar Senha</>
-                  )}
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                A nova senha entrará em vigor imediatamente para o usuário administrador deste estabelecimento.
-              </p>
+                      className="h-3.5 w-3.5 rounded border-input text-primary focus:ring-primary"
+                    />
+                    <span>{type}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={!canSave}>
-            {saving ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvando Alterações…</>
-            ) : (
-              'Salvar Dados'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+        {/* Section 2: Dados do Proprietário */}
+        <div className="p-4 rounded-xl border bg-card space-y-4">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-primary" /> Dados do Proprietário / Administrador
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="owner-name">Nome do Proprietário</Label>
+              <Input
+                id="owner-name"
+                value={ownerName}
+                onChange={e => setOwnerName(e.target.value)}
+                placeholder="Nome do responsável"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="owner-email">E-mail / Usuário de Acesso</Label>
+              <div className="relative">
+                <Input
+                  id="owner-email"
+                  type="email"
+                  value={ownerEmail}
+                  onChange={e => setOwnerEmail(e.target.value)}
+                  placeholder="email@loja.com"
+                  className="pr-9"
+                />
+                {ownerEmail && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(ownerEmail);
+                      toast.success('Email copiado!');
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    title="Copiar email de login"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="owner-phone">Telefone / WhatsApp</Label>
+              <Input
+                id="owner-phone"
+                value={ownerPhone}
+                onChange={e => setOwnerPhone(e.target.value)}
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Função no Sistema</Label>
+              <Input value="Administrador da Loja (Proprietário)" disabled className="bg-muted text-muted-foreground" />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: Credenciais & Gestão de Senha */}
+        <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-primary" /> Credenciais de Acesso & Redefinição de Senha
+            </h3>
+            <Badge variant="outline" className="text-[10px] bg-background">
+              SuperAdmin Control
+            </Badge>
+          </div>
+
+          {/* Recorded Initial Password if available */}
+          {initialPassword && (
+            <div className="p-3 rounded-lg bg-background border space-y-1 text-xs">
+              <span className="text-muted-foreground font-medium">Senha Registrada / Anotada no Cadastro:</span>
+              <div className="flex items-center justify-between gap-2 mt-1">
+                <span className="font-mono text-sm font-semibold text-foreground">
+                  {showInitialPass ? initialPassword : '••••••••••••'}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 text-muted-foreground"
+                    onClick={() => setShowInitialPass(p => !p)}
+                    title={showInitialPass ? 'Ocultar' : 'Mostrar'}
+                  >
+                    {showInitialPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 text-muted-foreground"
+                    onClick={() => {
+                      navigator.clipboard.writeText(initialPassword);
+                      toast.success('Senha inicial copiada!');
+                    }}
+                    title="Copiar senha registrada"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Direct Reset Password Form */}
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="modal-new-pass" className="text-xs font-semibold">
+                Definir / Redefinir Nova Senha do Proprietário:
+              </Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs text-primary px-2"
+                onClick={() => {
+                  const pass = generateRandomPassword(10);
+                  setNewPassword(pass);
+                  setShowNewPass(true);
+                }}
+              >
+                <Sparkles className="h-3 w-3 mr-1" /> Gerar Senha Forte
+              </Button>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  id="modal-new-pass"
+                  type={showNewPass ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="Digite nova senha (mínimo 6 caracteres)"
+                  className="pr-20 font-mono text-sm bg-background"
+                />
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground"
+                    onClick={() => setShowNewPass(p => !p)}
+                    title={showNewPass ? 'Ocultar' : 'Mostrar'}
+                  >
+                    {showNewPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground"
+                    onClick={() => {
+                      if (!newPassword) return;
+                      navigator.clipboard.writeText(newPassword);
+                      setCopiedPass(true);
+                      toast.success('Nova senha copiada!');
+                      setTimeout(() => setCopiedPass(false), 2000);
+                    }}
+                    title="Copiar senha"
+                  >
+                    {copiedPass ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handleResetPasswordInModal}
+                disabled={resettingPassword || !newPassword || newPassword.length < 6}
+                className="gap-1.5 shrink-0"
+              >
+                {resettingPassword ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</>
+                ) : (
+                  <><KeyRound className="h-4 w-4" /> Salvar Senha</>
+                )}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              A nova senha entrará em vigor imediatamente para o usuário administrador deste estabelecimento.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
+        <Button variant="outline" onClick={onClose} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button onClick={handleSave} disabled={!canSave}>
+          {saving ? (
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvando Alterações…</>
+          ) : (
+            'Salvar Dados'
+          )}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
 }
 
 /* ─────────── Create Tab ─────────── */
@@ -1310,7 +1291,7 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
       });
       if (error) {
         let msg = error.message;
-        try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch {}
+        try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { }
         throw new Error(msg);
       }
       if (data?.error) throw new Error(data.error);
@@ -1371,9 +1352,9 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
               {slugError && <span className="text-destructive">{slugError}</span>}
               {!slugError && form.slug && (
                 checking ? <span className="text-muted-foreground inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> verificando…</span>
-                : available === true ? <span className="text-success inline-flex items-center gap-1"><Check className="h-3 w-3" /> disponível</span>
-                : available === false ? <span className="text-destructive inline-flex items-center gap-1"><X className="h-3 w-3" /> já em uso</span>
-                : null
+                  : available === true ? <span className="text-success inline-flex items-center gap-1"><Check className="h-3 w-3" /> disponível</span>
+                    : available === false ? <span className="text-destructive inline-flex items-center gap-1"><X className="h-3 w-3" /> já em uso</span>
+                      : null
               )}
             </div>
             <p className="text-xs text-muted-foreground">Será usado na URL: /{form.slug || 'slug'}</p>
@@ -1390,11 +1371,10 @@ function CreateTab({ onCreated }: { onCreated: () => void }) {
                 return (
                   <label
                     key={type}
-                    className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer select-none transition-all ${
-                      checked
+                    className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer select-none transition-all ${checked
                         ? 'border-primary bg-primary/10 text-primary font-medium'
                         : 'border-border/60 hover:bg-muted/50 text-foreground'
-                    }`}
+                      }`}
                   >
                     <input
                       type="checkbox"

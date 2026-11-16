@@ -80,6 +80,7 @@ describe('flavor and additional receipts', () => {
       isPizzaCategory: true,
     };
     const calabresa: Product = {
+      controlStock: false,
       id: 'prod-calabresa',
       name: 'Calabresa',
       description: 'pelati, muçarela, calabresa, cebola roxa, azeitonas e orégano',
@@ -95,6 +96,7 @@ describe('flavor and additional receipts', () => {
       ],
     };
     const frangoCatupiry: Product = {
+      controlStock: false,
       id: 'prod-frango',
       name: 'Frango Catupiry',
       description: 'pelati, muçarela, frango desfiado, catupiry original, azeitonas e orégano',
@@ -148,6 +150,7 @@ describe('flavor and additional receipts', () => {
 
   it('respects min/max flavor limits and combo/flavor flags', () => {
     const singleFlavorPizza: Product = {
+      controlStock: false,
       id: 'single-1',
       name: 'Calabresa',
       price: 25,
@@ -161,6 +164,7 @@ describe('flavor and additional receipts', () => {
       pizzaSizes: [{ id: 'G', name: 'Grande (G)', price: 45, maxFlavors: 1, active: true }],
     };
     const combo2Flavors: Product = {
+      controlStock: false,
       id: 'combo-2',
       name: 'Combo Pizza G + Refri (até 2 sabores)',
       price: 48,

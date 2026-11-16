@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useEscapeLayer } from '@/lib/escape-stack';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -70,10 +71,14 @@ export function ConsumerProductFinderModal({
     setSelectedRowIndex(0);
   }, [selectedCatId, searchQuery]);
 
+  useEscapeLayer(open, onClose);
+
   // Keyboard navigation for F11, Enter, and Escape
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore keys while another window (customize/pizza) is on top of the finder
+      if (document.querySelector('[data-finder-overlay-above]')) return;
       if (e.key === 'F11') {
         e.preventDefault();
         const prod = filteredProducts[selectedRowIndex];
@@ -88,11 +93,6 @@ export function ConsumerProductFinderModal({
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedRowIndex(i => Math.max(0, i - 1));
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        onClose();
       }
     };
 
