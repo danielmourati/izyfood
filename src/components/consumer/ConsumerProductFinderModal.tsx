@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useEscapeLayer } from '@/lib/escape-stack';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -70,6 +71,8 @@ export function ConsumerProductFinderModal({
     setSelectedRowIndex(0);
   }, [selectedCatId, searchQuery]);
 
+  useEscapeLayer(open, onClose);
+
   // Keyboard navigation for F11, Enter, and Escape
   useEffect(() => {
     if (!open) return;
@@ -88,11 +91,6 @@ export function ConsumerProductFinderModal({
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedRowIndex(i => Math.max(0, i - 1));
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        onClose();
       }
     };
 

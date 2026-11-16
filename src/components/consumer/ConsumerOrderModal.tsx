@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useEscapeLayer } from '@/lib/escape-stack';
 import { computeServiceFee } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -466,40 +467,10 @@ export function ConsumerOrderModal({
     }
   };
 
-  // Keyboard shortcut handler for ESC key (salva, imprime lançamentos novos e sai)
-  useEffect(() => {
-    if (!open) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (customizeOpen) { setCustomizeOpen(false); return; }
-        if (pizzaModalCategory) { setPizzaModalCategory(null); setPizzaInitialProduct(null); return; }
-        if (finderOpen) { setFinderOpen(false); return; }
-        if (customerModalOpen) { setCustomerModalOpen(false); return; }
-        if (checkoutOpen) { setCheckoutOpen(false); return; }
-        if (printMenuOpen) { setPrintMenuOpen(false); return; }
-        if (tablePickerOpen) { setTablePickerOpen(false); return; }
-        if (changeTypeOpen) { setChangeTypeOpen(false); return; }
-        if (deleteConfirmOpen) { setDeleteConfirmOpen(false); return; }
-        if (moreOptionsOpen) { setMoreOptionsOpen(false); return; }
-        if (reprintModalOpen) { setReprintModalOpen(false); return; }
-        if (unsentAlertOpen) { setUnsentAlertOpen(false); return; }
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        handleCloseAndSaveOrDiscard();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    open, currentOrder, items, totalAmount,
-    finderOpen, customizeOpen, pizzaModalCategory, customerModalOpen, checkoutOpen,
-    printMenuOpen, changeTypeOpen, tablePickerOpen, deleteConfirmOpen, moreOptionsOpen, reprintModalOpen, unsentAlertOpen,
-    handleEnviarOrder, handleCloseAndSaveOrDiscard
-  ]);
+  // ESC (camada mais antiga): salva, imprime lançamentos novos e sai.
+  useEscapeLayer(open, () => handleCloseAndSaveOrDiscard());
+  // Montar pizzas é uma camada própria (não é janela padrão).
+  useEscapeLayer(!!pizzaModalCategory, () => { setPizzaModalCategory(null); setPizzaInitialProduct(null); });
 
   // A busca serve para lançar produtos; a lista do pedido permanece completa.
   const filteredItems = items;

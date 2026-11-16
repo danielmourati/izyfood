@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useEscapeLayer } from '@/lib/escape-stack';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -72,19 +73,7 @@ export function ConsumerItemCustomizeModal({
     ));
   }, [noteOptions, categoryId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [open, onClose]);
+  useEscapeLayer(open, onClose);
 
   useEffect(() => {
     if (open) {
