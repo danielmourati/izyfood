@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useEscapeLayer } from '@/lib/escape-stack';
 import { usePrinter } from '@/hooks/use-printer';
 import { toast } from 'sonner';
 
@@ -94,19 +95,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     };
   }, []);
 
-  // ESC key handler for CheckoutModal
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (showTaxDiscountModal) { setShowTaxDiscountModal(false); return; }
-        if (activeSubModal !== 'list') { setActiveSubModal('list'); return; }
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, activeSubModal, showTaxDiscountModal, onClose]);
 
   const splitsPersistedRef = useRef<string>('');
   const splitsLoadedRef = useRef(false);
@@ -228,21 +216,6 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, activeSubModal, remaining]);
 
-  // ESC key returns to list view when inside a sub-modal
-  useEffect(() => {
-    if (!open || activeSubModal === 'list') return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        setActiveSubModal('list');
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [open, activeSubModal]);
 
   if (!order) return null;
 
@@ -419,6 +392,10 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   const pixPayload = pixKey ? generatePixPayload(pixKey, pixAmount > 0 ? pixAmount : finalTotal, printSettings.storeName || 'IZYFOOD') : '';
 
   const isMobile = useIsMobile();
+  // Tela cheia no mobile não é janela padrão: registra a própria camada de ESC.
+  useEscapeLayer(open && isMobile, onClose);
+  // Sub-telas (forma de pagamento) fecham antes do pagamento.
+  useEscapeLayer(open && activeSubModal !== 'list', () => setActiveSubModal('list'));
 
   const filteredCustomers = customers.filter(c =>
     (c.name || '').toLowerCase().includes(fiadoSearch.toLowerCase()) ||
