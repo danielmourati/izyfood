@@ -134,8 +134,8 @@ describe('recheio carne corresponde a carne moída', () => {
 
 import { tenantAllowsFlavorPreselect, formatProductNameForTenant } from './flavor-limits';
 describe('tenantAllowsFlavorPreselect', () => {
-  it('only pastelao-junin preselects', () => {
-    expect(tenantAllowsFlavorPreselect('pastelao-junin')).toBe(true);
+  it('does not preselect flavors for pastelao-junin or other tenants', () => {
+    expect(tenantAllowsFlavorPreselect('pastelao-junin')).toBe(false);
     expect(tenantAllowsFlavorPreselect('zezinho')).toBe(false);
     expect(tenantAllowsFlavorPreselect('pastelao-sousa')).toBe(false);
     expect(tenantAllowsFlavorPreselect('')).toBe(false);
