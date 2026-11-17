@@ -503,7 +503,7 @@ export function ConsumerOrderModal({
     }
     const flavorCheck = getFlavorLimitState(cat, [], prod, 0, (storeNoteOptions ?? []).filter(o =>
       o.active !== false && o.type === 'complement' && (o.classification === 'flavor' || o.classification === 'both') &&
-      (!prod.categoryId || !o.categoryIds?.length || o.categoryIds.includes(prod.categoryId))).length);
+      (!prod.categoryId || (o.categoryIds ?? []).includes(prod.categoryId))).length);
     if (!flavorCheck.canConfirm) {
       handlePersonalizeProduct(prod);
       return;

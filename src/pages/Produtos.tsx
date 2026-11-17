@@ -1984,7 +1984,7 @@ const Produtos = () => {
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label>Disponível para as categorias: *</Label>
+                <Label>Disponível para as categorias:</Label>
                 <div className="flex items-center gap-2 text-xs">
                   <button
                     type="button"
@@ -2035,7 +2035,7 @@ const Produtos = () => {
               </Button>
               <Button
                 onClick={saveOpt}
-                disabled={!optForm.name.trim() || optForm.categoryIds.length === 0}
+                disabled={!optForm.name.trim()}
               >
                 {editingOptId ? 'Salvar' : 'Cadastrar'}
               </Button>
