@@ -287,6 +287,12 @@ export function ConsumerItemCustomizeModal({
                 </AccordionContent>
               </AccordionItem>
             )}
+            <Input
+              placeholder="Digite aqui outras observações..."
+              value={otherNotes}
+              onChange={e => setOtherNotes(e.target.value)}
+              className="h-9 text-xs bg-background"
+            />
             {flavorOptions.length > 0 && (
               <AccordionItem value="flavors" className="border border-border rounded bg-card px-3">
                 <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">Sabores{flavorLimit.label ? ` — ${flavorLimit.label}` : ''}{flavorLimit.label ? <span className="ml-auto mr-2 text-xs font-medium text-muted-foreground">{flavorLimit.count}{flavorLimit.max != null ? ` de ${flavorLimit.max}` : ''}</span> : null}</AccordionTrigger>
@@ -423,12 +429,6 @@ export function ConsumerItemCustomizeModal({
           {availableNotes.length === 0 && freeBorders.length === 0 && paidBorders.length === 0 && freeOptions.length === 0 && paidOptions.length === 0 && flavorOptions.length === 0 && (
             <p className="text-xs text-muted-foreground italic p-3 text-center">Nenhum adicional disponível</p>
           )}
-          <Input
-            placeholder="Digite aqui outras observações..."
-            value={otherNotes}
-            onChange={e => setOtherNotes(e.target.value)}
-            className="h-9 text-xs bg-background"
-          />
         </div>
 
         {/* Footer Action Buttons */}

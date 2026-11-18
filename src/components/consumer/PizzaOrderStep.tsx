@@ -601,6 +601,13 @@ export function PizzaOrderStep({
               </AccordionItem>
             )}
 
+            <Input
+              placeholder="Digite aqui outras observações..."
+              value={otherNotes}
+              onChange={e => setOtherNotes(e.target.value)}
+              className="h-9 text-xs bg-background"
+            />
+
             {freeBorders.length > 0 && (
               <AccordionItem value="free-borders" className="border border-border rounded bg-card px-3">
                 <AccordionTrigger className="py-3 text-sm font-bold hover:no-underline">
@@ -775,13 +782,6 @@ export function PizzaOrderStep({
               </AccordionItem>
             )}
           </Accordion>
-
-          <Input
-            placeholder="Digite aqui outras observações..."
-            value={otherNotes}
-            onChange={e => setOtherNotes(e.target.value)}
-            className="h-9 text-xs bg-background"
-          />
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto divide-y divide-border bg-card">
