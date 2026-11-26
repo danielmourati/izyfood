@@ -30,10 +30,12 @@ import { Switch } from '@/components/ui/switch';
 import { MeuPerfilTab } from '@/components/MeuPerfilTab';
 import { ImpressoraTab } from '@/components/ImpressoraTab';
 import { PlanoTab } from '@/components/PlanoTab';
+import { AuditLogsTab } from '@/components/AuditLogsTab';
+import { hasTenantMasterPassword, setTenantMasterPassword } from '@/lib/master-password';
 import { useAttendantPermissions, type AttendantPermissions } from '@/hooks/use-attendant-permissions';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'impressora' | 'plano';
+type Tab = 'perfil' | 'geral' | 'usuarios' | 'permissoes' | 'auditoria' | 'impressora' | 'plano';
 
 const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: boolean; permissionKey?: keyof AttendantPermissions; mobileAllowed?: boolean }[] = [
   { key: 'impressora', label: 'Impressora', icon: Printer, adminOnly: true, permissionKey: 'manage_printers', mobileAllowed: true },
@@ -41,6 +43,7 @@ const allTabs: { key: Tab; label: string; icon: React.ElementType; adminOnly: bo
   { key: 'geral', label: 'Geral', icon: Settings, adminOnly: true, mobileAllowed: true },
   { key: 'usuarios', label: 'Usuários', icon: Users, adminOnly: true, mobileAllowed: false },
   { key: 'permissoes', label: 'Permissões', icon: KeyRound, adminOnly: true, mobileAllowed: false },
+  { key: 'auditoria', label: 'Auditoria', icon: FileText, adminOnly: true, mobileAllowed: true },
   { key: 'plano', label: 'Plano', icon: CreditCard, adminOnly: true, mobileAllowed: true },
 ];
 
@@ -101,6 +104,18 @@ const Configuracoes = () => {
       {activeTab === 'geral' && <GeralTab />}
       {activeTab === 'usuarios' && <UsuariosTab />}
       {activeTab === 'permissoes' && <PermissoesTab />}
+      {activeTab === 'auditoria' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" /> Logs de Auditoria
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AuditLogsTab />
+          </CardContent>
+        </Card>
+      )}
       {activeTab === 'impressora' && <ImpressoraTab />}
       {activeTab === 'plano' && <PlanoTab />}
     </div>
@@ -147,7 +162,7 @@ interface PrintSettings {
 
 function GeralTab() {
   const { settings, updateTableCount, setSettings, printSettings, setPrintSettings } = useStore();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [tableCount, setTableCount] = useState(settings.tableCount.toString());
   const [serviceFee, setServiceFee] = useState('');
   const [tenantName, setTenantName] = useState('');
@@ -155,6 +170,58 @@ function GeralTab() {
   const [uploading, setUploading] = useState(false);
   const [savingGeneral, setSavingGeneral] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ kind: 'idle' | 'saved' | 'error'; message: string }>({ kind: 'idle', message: '' });
+
+  // Master password management state
+  const [hasMasterPwd, setHasMasterPwd] = useState(false);
+  const [currentMasterPwd, setCurrentMasterPwd] = useState('');
+  const [newMasterPwd, setNewMasterPwd] = useState('');
+  const [confirmMasterPwd, setConfirmMasterPwd] = useState('');
+  const [savingMasterPwd, setSavingMasterPwd] = useState(false);
+  const [masterPwdError, setMasterPwdError] = useState<string | null>(null);
+  const [masterPwdSuccess, setMasterPwdSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.tenantId) {
+      hasTenantMasterPassword(user.tenantId).then(setHasMasterPwd);
+    }
+  }, [user?.tenantId]);
+
+  const handleSaveMasterPassword = async () => {
+    if (!user?.tenantId) return;
+    setMasterPwdError(null);
+    setMasterPwdSuccess(null);
+
+    const cleanNew = newMasterPwd.trim();
+    const cleanConfirm = confirmMasterPwd.trim();
+    if (cleanNew.length < 4) {
+      setMasterPwdError('A Senha Mestra deve ter no mínimo 4 caracteres.');
+      return;
+    }
+    if (cleanNew !== cleanConfirm) {
+      setMasterPwdError('A confirmação da Senha Mestra não confere.');
+      return;
+    }
+
+    setSavingMasterPwd(true);
+    const res = await setTenantMasterPassword({
+      tenantId: user.tenantId,
+      newPassword: cleanNew,
+      currentMasterPassword: hasMasterPwd ? currentMasterPwd : undefined,
+    });
+    setSavingMasterPwd(false);
+
+    if (!res.ok) {
+      setMasterPwdError(res.error || 'Erro ao salvar Senha Mestra.');
+      return;
+    }
+
+    setHasMasterPwd(true);
+    setCurrentMasterPwd('');
+    setNewMasterPwd('');
+    setConfirmMasterPwd('');
+    setMasterPwdSuccess('Senha Mestra configurada com sucesso!');
+    toast.success('Senha Mestra de exclusão atualizada!');
+  };
   // printSettings lives in StoreContext — no local duplication needed
 
   useEffect(() => {
@@ -546,6 +613,71 @@ function GeralTab() {
           </div>
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <KeyRound className="h-5 w-5 text-primary" /> Senha Mestra de Exclusão e Estorno
+              </CardTitle>
+              <Badge variant={hasMasterPwd ? 'default' : 'destructive'}>
+                {hasMasterPwd ? 'Configurada' : 'Não configurada'}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Exigida para confirmar a exclusão de itens já salvos, pedidos salvos e pagamentos lançados. Por segurança, a Senha Mestra <strong>não pode ser igual à senha de login do administrador</strong>.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {hasMasterPwd && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Senha Mestra Atual *</Label>
+                  <Input
+                    type="password"
+                    placeholder="Senha mestra atual..."
+                    value={currentMasterPwd}
+                    onChange={e => { setCurrentMasterPwd(e.target.value); setMasterPwdError(null); setMasterPwdSuccess(null); }}
+                  />
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label className="text-xs">{hasMasterPwd ? 'Nova Senha Mestra *' : 'Definir Senha Mestra *'}</Label>
+                <Input
+                  type="password"
+                  placeholder="Mínimo 4 caracteres (distinta do login)..."
+                  value={newMasterPwd}
+                  onChange={e => { setNewMasterPwd(e.target.value); setMasterPwdError(null); setMasterPwdSuccess(null); }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Confirmar Senha Mestra *</Label>
+                <Input
+                  type="password"
+                  placeholder="Repita a senha mestra..."
+                  value={confirmMasterPwd}
+                  onChange={e => { setConfirmMasterPwd(e.target.value); setMasterPwdError(null); setMasterPwdSuccess(null); }}
+                />
+              </div>
+            </div>
+            {masterPwdError && <p className="text-xs font-semibold text-destructive">{masterPwdError}</p>}
+            {masterPwdSuccess && <p className="text-xs font-semibold text-primary">{masterPwdSuccess}</p>}
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSaveMasterPassword}
+                disabled={savingMasterPwd || !newMasterPwd.trim() || !confirmMasterPwd.trim()}
+                className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
+              >
+                {savingMasterPwd && <Loader2 className="h-4 w-4 animate-spin" />}
+                {hasMasterPwd ? 'Atualizar Senha Mestra' : 'Salvar Senha Mestra'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Cabeçalho e Rodapé do Recibo */}
       <Card>

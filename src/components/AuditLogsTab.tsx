@@ -19,10 +19,13 @@ const entityLabels: Record<string, string> = {
   cash_register: 'Caixa',
   cash_movement: 'Movimentação',
   order: 'Pedido',
+  order_item: 'Item de Pedido',
+  payment: 'Pagamento',
   sale: 'Venda',
   product: 'Produto',
   customer: 'Cliente',
   settings: 'Configurações',
+  security: 'Segurança / Senha Mestra',
   user: 'Usuário',
   table: 'Mesa',
   print_job: 'Fila de impressão',
@@ -34,14 +37,18 @@ const actionLabels: Record<string, { label: string; color: string }> = {
   create: { label: 'Criação', color: 'bg-success/10 text-success dark:text-success' },
   update: { label: 'Alteração', color: 'bg-warning/10 text-warning-foreground dark:text-warning-foreground' },
   delete: { label: 'Exclusão', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
-  cancel: { label: 'Cancelamento', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  cancel: { label: 'Pedido Cancelado', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
   entrada: { label: 'Entrada', color: 'bg-success/10 text-success dark:text-success' },
   saida: { label: 'Saída', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
   admin_auth: { label: 'Autorização Admin', color: 'bg-primary/10 text-primary dark:text-primary' },
   finalize: { label: 'Finalização', color: 'bg-accent/10 text-accent dark:text-accent' },
-  order_deleted: { label: 'Pedido apagado', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
-  items_removed: { label: 'Itens removidos', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
-  remove_printed_item: { label: 'Item impresso removido', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  order_deleted: { label: 'Pedido Excluído (Senha Mestra)', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  item_deleted: { label: 'Item Excluído (Senha Mestra)', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  items_removed: { label: 'Itens Removidos', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  remove_printed_item: { label: 'Item Impresso Removido (Senha Mestra)', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  payment_deleted: { label: 'Pagamento Excluído (Senha Mestra)', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
+  master_password_updated: { label: 'Senha Mestra Atualizada', color: 'bg-primary/10 text-primary dark:text-primary' },
+  master_password_failed: { label: 'Tentativa Inválida (Senha Mestra)', color: 'bg-destructive/10 text-destructive dark:text-destructive' },
   table_freed: { label: 'Mesa liberada', color: 'bg-warning/10 text-warning-foreground dark:text-warning-foreground' },
   blocked_delete: { label: 'Exclusão bloqueada', color: 'bg-primary/10 text-primary dark:text-primary' },
   duplicate_merged: { label: 'Pedido duplicado juntado', color: 'bg-primary/10 text-primary dark:text-primary' },
@@ -51,14 +58,17 @@ const actionLabels: Record<string, { label: string; color: string }> = {
 };
 
 const detailLabels: Record<string, string> = {
-  mesa: 'Mesa', tipo: 'Tipo', status: 'Status', total: 'Total', total_antes: 'Total antes', total_depois: 'Total depois',
-  aberto_por: 'Aberto por', itens: 'Itens', status_pedido: 'Status do pedido', pedido_existe: 'Pedido existe',
+  mesa: 'Mesa', tipo: 'Tipo', tipo_pedido: 'Tipo do pedido', status: 'Status', total: 'Total', total_antes: 'Total antes', total_depois: 'Total depois',
+  aberto_por: 'Aberto por', itens: 'Itens', quantidade_itens: 'Qtd. Itens', status_pedido: 'Status do pedido', pedido_existe: 'Pedido existe',
   pedido_recusado: 'Pedido recusado', itens_juntados: 'Itens juntados', item: 'Item', quantity: 'Qtd',
-  authorizedBy: 'Autorizado por', table: 'Mesa', autorizado_por_senha: 'Autorizado com senha',
+  valor_unitario: 'Unitário', subtotal: 'Subtotal', metodo: 'Forma de Pagamento', valor: 'Valor', observacoes: 'Observações',
+  motivo: 'Motivo', motivo_informado: 'Motivo', motivo_falha: 'Falha', alvo: 'Alvo',
+  authorizedBy: 'Autorizado por', executado_por: 'Operador', table: 'Mesa',
+  autorizado_por_senha: 'Autorizado com senha', autorizado_por_senha_mestra: 'Senha Mestra validada',
   origem: 'Origem', pedido_solicitante: 'Pedido que pediu', quantidade: 'Quantidade', cupons: 'Cupons',
 };
 
-const MONEY_KEYS = new Set(['total', 'total_antes', 'total_depois', 'amount', 'valor']);
+const MONEY_KEYS = new Set(['total', 'total_antes', 'total_depois', 'amount', 'valor', 'valor_unitario', 'subtotal']);
 
 function formatItemList(list: unknown[]): string {
   return list.map((it: any) => {

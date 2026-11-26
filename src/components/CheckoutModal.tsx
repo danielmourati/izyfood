@@ -21,6 +21,9 @@ import { useTenantNavigate } from '@/hooks/use-tenant-navigate';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useEscapeLayer } from '@/lib/escape-stack';
 import { usePrinter } from '@/hooks/use-printer';
+import { useAuth } from '@/contexts/AuthContext';
+import { logAudit } from '@/lib/audit';
+import { MasterPasswordConfirmModal } from '@/components/MasterPasswordConfirmModal';
 import { toast } from 'sonner';
 
 interface CheckoutModalProps {
@@ -46,11 +49,13 @@ const paymentMethodsConfig: { key: PaymentMethod; cardSubtype?: 'credito' | 'deb
 export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComplete }: CheckoutModalProps) {
   const navigate = useTenantNavigate();
   const { completeSale, customers, setCustomers, coupons, products, isCashRegisterOpen, settings, printSettings, setOrders, orders: storeOrders } = useStore();
+  const { user } = useAuth();
   const { printBill } = usePrinter();
 
   const [cashRegisterChecked, setCashRegisterChecked] = useState(false);
   const [localCashOpen, setLocalCashOpen] = useState(false);
   const [splits, setSplits] = useState<PaymentSplit[]>([]);
+  const [pendingRemoveSplitIdx, setPendingRemoveSplitIdx] = useState<number | null>(null);
   const [finalizing, setFinalizing] = useState(false);
   const [activeSubModal, setActiveSubModal] = useState<SubModalType>('list');
   const [cardSubtype, setCardSubtype] = useState<'credito' | 'debito' | 'refeicao'>('credito');
@@ -288,7 +293,32 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   };
 
   const removeSplit = (idx: number) => {
+    setPendingRemoveSplitIdx(idx);
+  };
+
+  const executeRemoveSplit = async (idx: number, reason?: string) => {
+    const targetSplit = splits[idx];
     setSplits(prev => prev.filter((_, i) => i !== idx));
+    if (targetSplit) {
+      await logAudit({
+        action: 'payment_deleted',
+        entityType: 'payment',
+        entityId: order.id,
+        details: {
+          order_id: order.id,
+          mesa: order.tableNumber ?? null,
+          tipo_pedido: order.orderType,
+          payment_id: targetSplit.id || null,
+          metodo: targetSplit.method,
+          valor: targetSplit.amount,
+          observacoes: targetSplit.notes || null,
+          motivo: reason || 'Não informado',
+          autorizado_por_senha_mestra: true,
+          executado_por: user?.name || user?.email,
+        },
+      });
+      toast.success(`Pagamento de R$ ${fmt(targetSplit.amount)} (${targetSplit.method.toUpperCase()}) removido.`);
+    }
   };
 
   // Create new customer quick modal
@@ -569,6 +599,35 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
   );
 
   // Quick New Customer Dialog (for Fiado) — shared by desktop and mobile
+  const targetRemoveSplit = pendingRemoveSplitIdx != null ? splits[pendingRemoveSplitIdx] : undefined;
+  const removeSplitConfirmDialog = (
+    <MasterPasswordConfirmModal
+      open={pendingRemoveSplitIdx !== null}
+      onClose={() => setPendingRemoveSplitIdx(null)}
+      title="Confirmar Exclusão de Pagamento"
+      description="Informe a Senha Mestra do estabelecimento para autorizar o estorno/exclusão deste pagamento já salvo. A ação será registrada nos logs de auditoria."
+      summaryText={
+        targetRemoveSplit
+          ? `${targetRemoveSplit.method.toUpperCase()} — R$ ${fmt(targetRemoveSplit.amount)}${targetRemoveSplit.notes ? ` (${targetRemoveSplit.notes})` : ''}`
+          : undefined
+      }
+      target="payment"
+      entityId={order.id}
+      auditContext={{
+        mesa: order.tableNumber ?? null,
+        metodo: targetRemoveSplit?.method,
+        valor: targetRemoveSplit?.amount,
+      }}
+      confirmButtonLabel="Confirmar Exclusão do Pagamento"
+      onAuthorized={async ({ reason }) => {
+        if (pendingRemoveSplitIdx !== null) {
+          await executeRemoveSplit(pendingRemoveSplitIdx, reason);
+        }
+        setPendingRemoveSplitIdx(null);
+      }}
+    />
+  );
+
   const newCustomerDialog = (
     <Dialog open={newCustomerOpen} onOpenChange={setNewCustomerOpen}>
       <DialogContent className="bg-card text-card-foreground border-border max-w-sm p-4 font-sans">
@@ -729,7 +788,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
               {splits.map((s, idx) => (
                 <div key={idx} className="bg-muted p-2 rounded text-xs flex justify-between items-center">
                   <span>{s.method.toUpperCase()} - R$ {fmt(s.amount)}</span>
-                  <button onClick={() => setSplits(prev => prev.filter((_, i) => i !== idx))} className="text-destructive p-1">
+                  <button onClick={() => removeSplit(idx)} className="text-destructive p-1" title="Excluir pagamento (Senha Mestra)">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -820,6 +879,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           </Button>
         </div>
         {newCustomerDialog}
+        {removeSplitConfirmDialog}
       </div>
     );
   }
@@ -1484,6 +1544,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
       </Dialog>
 
       {newCustomerDialog}
+      {removeSplitConfirmDialog}
     </Dialog>
   );
 }

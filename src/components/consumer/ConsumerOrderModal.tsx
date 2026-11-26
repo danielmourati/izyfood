@@ -29,6 +29,7 @@ import { OrderItemDetails } from '@/components/OrderItemDetails';
 import { needsAuthToRemoveItem, showsRemoveItemControl, verifyTenantAdminPassword } from '@/lib/order-permissions';
 import { logAudit } from '@/lib/audit';
 import { allowOrderDelete, allowItemRemoval } from '@/lib/order-merge';
+import { MasterPasswordConfirmModal } from '@/components/MasterPasswordConfirmModal';
 import { TransferItemsModal } from '@/components/TransferItemsModal';
 import { isTableOccupiedError, tableMoveErrorMessage } from '@/lib/transfer-items';
 import { getFlavorLimitState } from '@/lib/flavor-limits';
@@ -791,11 +792,8 @@ export function ConsumerOrderModal({
   };
 
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
-  const [removeAuthPwd, setRemoveAuthPwd] = useState('');
-  const [removeAuthError, setRemoveAuthError] = useState('');
-  const [removeAuthChecking, setRemoveAuthChecking] = useState(false);
 
-  const doRemoveItem = (id: string, authorizedBy?: string) => {
+  const doRemoveItem = (id: string, reason?: string) => {
     const removed = items.find(i => i.id === id);
     if (currentOrder?.id) allowItemRemoval(String(currentOrder.id), id);
     const updatedItems = items.filter(i => i.id !== id);
@@ -803,36 +801,34 @@ export function ConsumerOrderModal({
     const updatedOrder: Order = { ...currentOrder, items: updatedItems, total: updatedTotal };
     setCurrentOrder(updatedOrder);
     onSaveOrder(updatedOrder);
-    if (removed?.printed) {
+    if (removed) {
       logAudit({
-        action: 'remove_printed_item', entityType: 'order', entityId: currentOrder?.id,
-        details: { item: removed.name, quantity: removed.quantity, table: currentOrder?.tableNumber ?? tableNumber, authorizedBy: authorizedBy || user?.name },
+        action: removed.printed ? 'remove_printed_item' : 'item_deleted',
+        entityType: 'order',
+        entityId: currentOrder?.id,
+        details: {
+          order_id: currentOrder?.id,
+          mesa: currentOrder?.tableNumber ?? tableNumber ?? null,
+          tipo_pedido: currentOrder?.orderType,
+          item_id: removed.id,
+          item: removed.name,
+          quantity: removed.quantity,
+          valor_unitario: removed.price,
+          subtotal: removed.subtotal,
+          impresso: Boolean(removed.printed),
+          motivo: reason || 'Não informado',
+          autorizado_por_senha_mestra: true,
+          executado_por: user?.name || user?.email,
+        },
       });
     }
+    toast.success(removed ? `Item "${removed.name}" removido do pedido.` : 'Item removido.');
   };
 
   const handleRemoveItem = (id: string) => {
     const item = items.find(i => i.id === id);
     if (!item) return;
-    if (needsAuthToRemoveItem(item, canRemovePrinted)) {
-      setPendingRemoveId(id);
-      setRemoveAuthPwd('');
-      setRemoveAuthError('');
-      return;
-    }
-    doRemoveItem(id);
-  };
-
-  const handleConfirmRemovePrinted = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!pendingRemoveId || !removeAuthPwd.trim()) return;
-    setRemoveAuthChecking(true);
-    const res = await verifyTenantAdminPassword(removeAuthPwd.trim());
-    setRemoveAuthChecking(false);
-    if (!res.ok) { setRemoveAuthError('Senha de administrador incorreta.'); return; }
-    doRemoveItem(pendingRemoveId, res.adminName);
-    setPendingRemoveId(null);
-    setRemoveAuthPwd('');
+    setPendingRemoveId(id);
   };
 
   const handleSelectCustomer = (cust: any) => {
@@ -963,38 +959,34 @@ export function ConsumerOrderModal({
     setMoreOptionsOpen(false);
   };
 
-  const [adminPasswordForDelete, setAdminPasswordForDelete] = useState('');
-  const [adminDeleting, setAdminDeleting] = useState(false);
-
-  const handleConfirmDeleteOrder = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-
-    setAdminDeleting(true);
-
-    // Admins and authorized users have full powers; attendants without permission must enter Admin password.
-    if (!canCancelOrDeleteMesa) {
-      const pwd = adminPasswordForDelete.trim();
-      if (!pwd) {
-        toast.error('Informe a senha do administrador para autorizar a exclusão.');
-        setAdminDeleting(false);
-        return;
-      }
-
-      const isValid = (await verifyTenantAdminPassword(pwd)).ok;
-
-      if (!isValid) {
-        setAdminDeleting(false);
-        toast.error('Senha de administrador incorreta.');
-        return;
-      }
-    }
-
+  const executeDeleteOrder = async (reason?: string) => {
     const mesaNum = currentOrder?.tableNumber || tableNumber;
     const orderId = currentOrder?.id;
 
     if (orderId) {
       allowOrderDelete(orderId);
-      logAudit({ action: 'delete', entityType: 'order', entityId: orderId, details: { mesa: mesaNum ?? null, total: totalAmount, itens: items.length, autorizado_por_senha: !canCancelOrDeleteMesa } });
+      await logAudit({
+        action: 'order_deleted',
+        entityType: 'order',
+        entityId: orderId,
+        details: {
+          order_id: orderId,
+          mesa: mesaNum ?? null,
+          tipo_pedido: currentOrder?.orderType,
+          total: totalAmount,
+          quantidade_itens: items.length,
+          itens: items.map(i => ({
+            nome: i.name,
+            qtd: i.quantity,
+            valor: i.subtotal,
+            impresso: Boolean(i.printed),
+          })),
+          pagamentos_parciais: currentOrder?.paymentSplits?.length || 0,
+          motivo: reason || 'Não informado',
+          autorizado_por_senha_mestra: true,
+          executado_por: user?.name || user?.email,
+        },
+      });
       if (onDeleteOrder) {
         await onDeleteOrder(orderId, mesaNum);
       } else if (onDiscardEmptyOrder) {
@@ -1014,9 +1006,7 @@ export function ConsumerOrderModal({
       }
     }
 
-    setAdminDeleting(false);
-    toast.success(`Pedido da Mesa ${mesaNum || ''} excluído com sucesso!`);
-    setAdminPasswordForDelete('');
+    toast.success(`Pedido ${mesaNum ? `da Mesa ${mesaNum}` : ''} excluído com sucesso!`);
     setDeleteConfirmOpen(false);
     setMoreOptionsOpen(false);
     onClose();
@@ -1416,11 +1406,9 @@ export function ConsumerOrderModal({
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-extrabold text-[#3e2b20]">R$ {fmt(item.subtotal)}</span>
-                        {showsRemoveItemControl(item, canRemovePrinted) && (
-                          <button onClick={() => handleRemoveItem(item.id)} className="text-destructive p-1">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button onClick={() => handleRemoveItem(item.id)} className="text-destructive p-1" title="Excluir item (Senha Mestra)">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   ))
@@ -1661,20 +1649,18 @@ export function ConsumerOrderModal({
                     </button>
                   )}
 
-                  {/* Excluir Pedido Vazio (Exibido apenas com permissão ativada) */}
-                  {canCancelOrDeleteMesa && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        setDeleteConfirmOpen(true);
-                      }}
-                      className="w-full flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors font-bold"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Descartar / Excluir Pedido</span>
-                    </button>
-                  )}
+                  {/* Excluir Pedido (Sempre protegido por Senha Mestra) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setDeleteConfirmOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors font-bold"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Descartar / Excluir Pedido</span>
+                  </button>
                 </div>
 
                 {/* SEÇÃO 2: IMPRESSORA BLUETOOTH (LOCAL) */}
@@ -1704,6 +1690,48 @@ export function ConsumerOrderModal({
           itemToEdit={editingItem}
           initialComplements={preselectedCustomizeComplements}
           onConfirm={handleConfirmCustomization}
+        />
+
+        <MasterPasswordConfirmModal
+          open={!!pendingRemoveId}
+          onClose={() => setPendingRemoveId(null)}
+          title="Confirmar Exclusão de Item"
+          description="Informe a Senha Mestra do estabelecimento para autorizar a exclusão deste item. A ação será registrada nos logs de auditoria."
+          summaryText={(() => {
+            const it = items.find(i => i.id === pendingRemoveId);
+            return it ? `${it.quantity}x ${it.name} — R$ ${fmt(it.subtotal)}${it.printed ? ' (Impresso na cozinha)' : ''}` : undefined;
+          })()}
+          target="item"
+          entityId={currentOrder?.id}
+          auditContext={{
+            mesa: currentOrder?.tableNumber ?? tableNumber ?? null,
+            item_id: pendingRemoveId,
+            item_nome: items.find(i => i.id === pendingRemoveId)?.name,
+          }}
+          confirmButtonLabel="Confirmar Exclusão do Item"
+          onAuthorized={({ reason }) => {
+            if (pendingRemoveId) doRemoveItem(pendingRemoveId, reason);
+            setPendingRemoveId(null);
+          }}
+        />
+
+        <MasterPasswordConfirmModal
+          open={deleteConfirmOpen}
+          onClose={() => setDeleteConfirmOpen(false)}
+          title={`Excluir Pedido #${shortOrderId}`}
+          description="Tem certeza que deseja excluir este pedido? Informe a Senha Mestra para liberar a comanda/mesa e registrar a operação nos logs de auditoria."
+          summaryText={`${currentOrder?.orderType === 'balcao' ? 'Balcão' : `Mesa ${displayMesaNum}`} · ${items.length} item(ns) · Total: R$ ${fmt(totalAmount)}`}
+          target="order"
+          entityId={currentOrder?.id}
+          auditContext={{
+            mesa: currentOrder?.tableNumber ?? tableNumber ?? null,
+            total: totalAmount,
+            quantidade_itens: items.length,
+          }}
+          confirmButtonLabel="Sim, Excluir Pedido"
+          onAuthorized={async ({ reason }) => {
+            await executeDeleteOrder(reason);
+          }}
         />
       </>
     );
@@ -1990,16 +2018,14 @@ export function ConsumerOrderModal({
                               >
                                 <Edit3 className="h-3.5 w-3.5" />
                               </button>
-                              {showsRemoveItemControl(item, canRemovePrinted) && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveItem(item.id)}
-                                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted"
-                                  title="Remover item"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(item.id)}
+                                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted"
+                                title="Remover item (Senha Mestra)"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -2277,15 +2303,13 @@ export function ConsumerOrderModal({
               </button>
             )}
 
-            {canCancelOrDeleteMesa && (
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmOpen(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
-              >
-                <Trash2 className="h-4 w-4 text-destructive" /> Excluir Pedido
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded hover:bg-muted text-sm text-foreground transition-colors font-normal"
+            >
+              <Trash2 className="h-4 w-4 text-destructive" /> Excluir Pedido
+            </button>
 
             <div className="pt-2">
               <hr className="border-border mb-2" />
@@ -2373,95 +2397,48 @@ export function ConsumerOrderModal({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!pendingRemoveId} onOpenChange={(val) => { if (!val) { setPendingRemoveId(null); setRemoveAuthPwd(''); setRemoveAuthError(''); } }}>
-        <DialogContent className="bg-card text-card-foreground border-border max-w-md p-5 font-sans">
-          <form onSubmit={handleConfirmRemovePrinted}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-destructive font-bold">
-                <LockKeyhole className="h-5 w-5" /> Remover item já impresso
-              </DialogTitle>
-              <DialogDescription className="text-muted-foreground text-xs mt-2">
-                Este item já foi enviado para a cozinha. Informe a senha de um administrador para autorizar a remoção.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="my-4 space-y-2">
-              <Input
-                type="password"
-                placeholder="Senha do administrador..."
-                value={removeAuthPwd}
-                onChange={(e) => { setRemoveAuthPwd(e.target.value); setRemoveAuthError(''); }}
-                autoFocus
-                className="text-sm bg-background border-border"
-              />
-              {removeAuthError && <p className="text-xs font-semibold text-destructive">{removeAuthError}</p>}
-            </div>
-            <DialogFooter className="mt-4 flex gap-2 justify-end">
-              <Button type="button" variant="outline" onClick={() => { setPendingRemoveId(null); setRemoveAuthPwd(''); setRemoveAuthError(''); }} className="text-xs font-semibold">Cancelar</Button>
-              <Button type="submit" variant="destructive" disabled={removeAuthChecking || !removeAuthPwd.trim()} className="text-xs font-bold">
-                {removeAuthChecking ? 'Verificando...' : 'Autorizar e remover'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Master Password Confirmation Dialogs for Item & Order Deletion */}
+      <MasterPasswordConfirmModal
+        open={!!pendingRemoveId}
+        onClose={() => setPendingRemoveId(null)}
+        title="Confirmar Exclusão de Item"
+        description="Informe a Senha Mestra do estabelecimento para autorizar a exclusão deste item. A ação será registrada nos logs de auditoria."
+        summaryText={(() => {
+          const it = items.find(i => i.id === pendingRemoveId);
+          return it ? `${it.quantity}x ${it.name} — R$ ${fmt(it.subtotal)}${it.printed ? ' (Impresso na cozinha)' : ''}` : undefined;
+        })()}
+        target="item"
+        entityId={currentOrder?.id}
+        auditContext={{
+          mesa: currentOrder?.tableNumber ?? tableNumber ?? null,
+          item_id: pendingRemoveId,
+          item_nome: items.find(i => i.id === pendingRemoveId)?.name,
+        }}
+        confirmButtonLabel="Confirmar Exclusão do Item"
+        onAuthorized={({ reason }) => {
+          if (pendingRemoveId) doRemoveItem(pendingRemoveId, reason);
+          setPendingRemoveId(null);
+        }}
+      />
 
-      <Dialog open={deleteConfirmOpen} onOpenChange={(val) => { setDeleteConfirmOpen(val); if (!val) setAdminPasswordForDelete(''); }}>
-        <DialogContent className="bg-card text-card-foreground border-border max-w-md p-5 font-sans">
-          <form onSubmit={handleConfirmDeleteOrder}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-destructive font-bold">
-                <AlertTriangle className="h-5 w-5" /> Excluir Pedido #{shortOrderId}
-              </DialogTitle>
-              <DialogDescription className="text-muted-foreground text-xs mt-2">
-                {canCancelOrDeleteMesa
-                  ? 'Tem certeza que deseja excluir este pedido? A comanda/mesa será liberada e esta ação não poderá ser desfeita.'
-                  : 'Atenção: Este usuário não possui permissão para excluir pedidos. Informe a senha de um administrador para autorizar a exclusão.'
-                }
-              </DialogDescription>
-            </DialogHeader>
-
-            {!canCancelOrDeleteMesa && (
-              <div className="my-4 space-y-2">
-                <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                  <LockKeyhole className="h-3.5 w-3.5 text-amber-500" />
-                  Senha de Autorização (Admin):
-                </label>
-                <Input
-                  type="password"
-                  placeholder="Digite a senha de admin..."
-                  value={adminPasswordForDelete}
-                  onChange={(e) => setAdminPasswordForDelete(e.target.value)}
-                  autoFocus
-                  className="text-sm bg-background border-border"
-                />
-              </div>
-            )}
-
-            <DialogFooter className="mt-4 flex gap-2 justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setDeleteConfirmOpen(false);
-                  setAdminPasswordForDelete('');
-                }}
-                className="border-border text-foreground hover:bg-muted text-xs font-semibold"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                variant="destructive"
-                disabled={adminDeleting || (!canCancelOrDeleteMesa && !adminPasswordForDelete.trim())}
-                className="text-xs font-bold"
-              >
-                {adminDeleting ? 'Excluindo...' : 'Sim, Excluir Pedido'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <MasterPasswordConfirmModal
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        title={`Excluir Pedido #${shortOrderId}`}
+        description="Tem certeza que deseja excluir este pedido? Informe a Senha Mestra para liberar a comanda/mesa e registrar a operação nos logs de auditoria."
+        summaryText={`${currentOrder?.orderType === 'balcao' ? 'Balcão' : `Mesa ${displayMesaNum}`} · ${items.length} item(ns) · Total: R$ ${fmt(totalAmount)}`}
+        target="order"
+        entityId={currentOrder?.id}
+        auditContext={{
+          mesa: currentOrder?.tableNumber ?? tableNumber ?? null,
+          total: totalAmount,
+          quantidade_itens: items.length,
+        }}
+        confirmButtonLabel="Sim, Excluir Pedido"
+        onAuthorized={async ({ reason }) => {
+          await executeDeleteOrder(reason);
+        }}
+      />
 
       {/* Reimprimir na Cozinha - Item Selection Dialog */}
       <Dialog open={reprintModalOpen} onOpenChange={setReprintModalOpen}>

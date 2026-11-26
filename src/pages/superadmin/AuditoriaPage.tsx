@@ -18,9 +18,14 @@ interface AuditLog {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  order_deleted: 'Pedido apagado',
-  items_removed: 'Itens removidos',
-  remove_printed_item: 'Item impresso removido',
+  order_deleted: 'Pedido Excluído (Senha Mestra)',
+  cancel: 'Pedido Cancelado (Senha Mestra)',
+  item_deleted: 'Item Excluído (Senha Mestra)',
+  items_removed: 'Itens Removidos',
+  remove_printed_item: 'Item Impresso Removido (Senha Mestra)',
+  payment_deleted: 'Pagamento Excluído (Senha Mestra)',
+  master_password_updated: 'Senha Mestra Atualizada',
+  master_password_failed: 'Falha na Senha Mestra',
   table_freed: 'Mesa liberada',
   blocked_delete: 'Exclusão bloqueada',
   duplicate_merged: 'Pedido duplicado juntado',

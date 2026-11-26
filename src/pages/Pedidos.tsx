@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '@/contexts/StoreContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { fmt } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { useOrderHistory, ORDER_HISTORY_PAGE_SIZE } from '@/hooks/use-order-history';
 import { brazilToday } from '@/lib/query-pages';
+import { MasterPasswordConfirmModal } from '@/components/MasterPasswordConfirmModal';
+import { logAudit } from '@/lib/audit';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import type { Order } from '@/types';
 
 const statusColors: Record<string, string> = {
   aberto: 'bg-primary/10 text-primary border border-primary/20',
@@ -16,11 +22,13 @@ const statusColors: Record<string, string> = {
 };
 
 const Pedidos = () => {
-  const { setOrders } = useStore();
+  const { setOrders, freeTable } = useStore();
+  const { user } = useAuth();
   const [filter, setFilter] = useState<string>('all');
   const [start, setStart] = useState(brazilToday);
   const [end, setEnd] = useState(brazilToday);
   const [page, setPage] = useState(0);
+  const [pendingCancelOrder, setPendingCancelOrder] = useState<Order | null>(null);
   const history = useOrderHistory(start, end, filter, page);
   const orders = history.data?.orders || [];
 
@@ -28,8 +36,39 @@ const Pedidos = () => {
   const filtered = filter === 'all' ? nonEmpty : nonEmpty.filter(o => o.status === filter);
   const sorted = [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  const cancelOrder = (id: string) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'cancelado' } : o));
+  const executeCancelOrder = async (target: Order, reason?: string) => {
+    setOrders(prev => prev.map(o => o.id === target.id ? { ...o, status: 'cancelado' } : o));
+    try {
+      await supabase.from('orders').update({ status: 'cancelado' }).eq('id', target.id);
+      if (target.orderType === 'mesa' && target.tableNumber) {
+        await freeTable(Number(target.tableNumber), target.id);
+      }
+    } catch (e) {
+      console.error('[Pedidos] erro ao cancelar pedido:', e);
+    }
+    await logAudit({
+      action: 'cancel',
+      entityType: 'order',
+      entityId: target.id,
+      details: {
+        order_id: target.id,
+        mesa: target.tableNumber ?? null,
+        tipo_pedido: target.orderType,
+        total: target.total,
+        quantidade_itens: target.items.length,
+        itens: target.items.map(i => ({
+          nome: i.name,
+          qtd: i.quantity,
+          valor: i.subtotal,
+          impresso: Boolean(i.printed),
+        })),
+        motivo: reason || 'Cancelado na tela de Pedidos',
+        autorizado_por_senha_mestra: true,
+        executado_por: user?.name || user?.email,
+      },
+    });
+    toast.success(`Pedido #${target.id.slice(0, 6)} cancelado com sucesso.`);
+    void history.refetch();
   };
 
   return (
@@ -78,7 +117,7 @@ const Pedidos = () => {
                 </TableCell>
                 <TableCell>
                   {(order.status === 'aberto' || order.status === 'segurado') && (
-                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => cancelOrder(order.id)}>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setPendingCancelOrder(order)}>
                       Cancelar
                     </Button>
                   )}
@@ -93,6 +132,28 @@ const Pedidos = () => {
         <span className="text-sm text-muted-foreground">{page + 1} / {Math.max(1, Math.ceil((history.data?.count || 0) / ORDER_HISTORY_PAGE_SIZE))}</span>
         <Button variant="outline" disabled={history.isFetching || (page + 1) * ORDER_HISTORY_PAGE_SIZE >= (history.data?.count || 0)} onClick={() => setPage(p => p + 1)}>Próxima</Button>
       </div>
+
+      <MasterPasswordConfirmModal
+        open={!!pendingCancelOrder}
+        onClose={() => setPendingCancelOrder(null)}
+        title={`Cancelar Pedido #${pendingCancelOrder?.id.slice(0, 6) || ''}`}
+        description="Informe a Senha Mestra do estabelecimento para confirmar o cancelamento deste pedido. A operação será gravada nos logs de auditoria."
+        summaryText={pendingCancelOrder ? `${pendingCancelOrder.orderType.toUpperCase()} · ${pendingCancelOrder.items.length} item(ns) · R$ ${fmt(pendingCancelOrder.total)}` : undefined}
+        target="order"
+        entityId={pendingCancelOrder?.id}
+        auditContext={{
+          mesa: pendingCancelOrder?.tableNumber ?? null,
+          total: pendingCancelOrder?.total,
+          quantidade_itens: pendingCancelOrder?.items.length,
+        }}
+        confirmButtonLabel="Confirmar Cancelamento"
+        onAuthorized={async ({ reason }) => {
+          if (pendingCancelOrder) {
+            await executeCancelOrder(pendingCancelOrder, reason);
+          }
+          setPendingCancelOrder(null);
+        }}
+      />
     </div>
   );
 };
