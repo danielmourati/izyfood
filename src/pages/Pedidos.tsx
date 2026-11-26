@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { useOrderHistory, ORDER_HISTORY_PAGE_SIZE } from '@/hooks/use-order-history';
 import { brazilToday } from '@/lib/query-pages';
 import { MasterPasswordConfirmModal } from '@/components/MasterPasswordConfirmModal';
+import { MASTER_PASSWORD_NOT_CONFIGURED_REASON } from '@/lib/master-password';
 import { logAudit } from '@/lib/audit';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -63,7 +64,7 @@ const Pedidos = () => {
           impresso: Boolean(i.printed),
         })),
         motivo: reason || 'Cancelado na tela de Pedidos',
-        autorizado_por_senha_mestra: true,
+        autorizado_por_senha_mestra: reason !== MASTER_PASSWORD_NOT_CONFIGURED_REASON,
         executado_por: user?.name || user?.email,
       },
     });

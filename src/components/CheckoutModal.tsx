@@ -24,6 +24,7 @@ import { usePrinter } from '@/hooks/use-printer';
 import { useAuth } from '@/contexts/AuthContext';
 import { logAudit } from '@/lib/audit';
 import { MasterPasswordConfirmModal } from '@/components/MasterPasswordConfirmModal';
+import { MASTER_PASSWORD_NOT_CONFIGURED_REASON } from '@/lib/master-password';
 import { toast } from 'sonner';
 
 interface CheckoutModalProps {
@@ -313,7 +314,7 @@ export function CheckoutModal({ open, onClose, order, selectedCustomerId, onComp
           valor: targetSplit.amount,
           observacoes: targetSplit.notes || null,
           motivo: reason || 'Não informado',
-          autorizado_por_senha_mestra: true,
+          autorizado_por_senha_mestra: reason !== MASTER_PASSWORD_NOT_CONFIGURED_REASON,
           executado_por: user?.name || user?.email,
         },
       });

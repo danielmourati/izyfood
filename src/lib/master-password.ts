@@ -6,6 +6,12 @@ const LS_MASTER_HASH_PREFIX = 'izy_master_pwd_hash_';
 const LS_PRINT_SETTINGS_PREFIX = 'print_settings_';
 
 /**
+ * Motivo gravado na auditoria quando a exclusão acontece sem modal de Senha Mestra,
+ * porque a Senha Mestra ainda não foi configurada na loja.
+ */
+export const MASTER_PASSWORD_NOT_CONFIGURED_REASON = 'Senha Mestra não configurada';
+
+/**
  * Pure deterministic SHA-256 hex digest using Web Crypto API (with fallback).
  */
 export async function hashMasterPassword(tenantId: string, password: string): Promise<string> {

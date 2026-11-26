@@ -30,6 +30,7 @@ import { needsAuthToRemoveItem, showsRemoveItemControl, verifyTenantAdminPasswor
 import { logAudit } from '@/lib/audit';
 import { allowOrderDelete, allowItemRemoval } from '@/lib/order-merge';
 import { MasterPasswordConfirmModal } from '@/components/MasterPasswordConfirmModal';
+import { MASTER_PASSWORD_NOT_CONFIGURED_REASON } from '@/lib/master-password';
 import { TransferItemsModal } from '@/components/TransferItemsModal';
 import { isTableOccupiedError, tableMoveErrorMessage } from '@/lib/transfer-items';
 import { getFlavorLimitState } from '@/lib/flavor-limits';
@@ -817,7 +818,7 @@ export function ConsumerOrderModal({
           subtotal: removed.subtotal,
           impresso: Boolean(removed.printed),
           motivo: reason || 'Não informado',
-          autorizado_por_senha_mestra: true,
+          autorizado_por_senha_mestra: reason !== MASTER_PASSWORD_NOT_CONFIGURED_REASON,
           executado_por: user?.name || user?.email,
         },
       });
@@ -983,7 +984,7 @@ export function ConsumerOrderModal({
           })),
           pagamentos_parciais: currentOrder?.paymentSplits?.length || 0,
           motivo: reason || 'Não informado',
-          autorizado_por_senha_mestra: true,
+          autorizado_por_senha_mestra: reason !== MASTER_PASSWORD_NOT_CONFIGURED_REASON,
           executado_por: user?.name || user?.email,
         },
       });

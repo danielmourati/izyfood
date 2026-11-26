@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,9 +10,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LockKeyhole, AlertTriangle, Loader2, Eye, EyeOff } from 'lucide-react';
-import { verifyTenantMasterPassword, hasTenantMasterPassword } from '@/lib/master-password';
+import { LockKeyhole, Loader2, Eye, EyeOff } from 'lucide-react';
+import {
+  verifyTenantMasterPassword,
+  hasTenantMasterPassword,
+  MASTER_PASSWORD_NOT_CONFIGURED_REASON,
+} from '@/lib/master-password';
+import { withTimeout } from '@/lib/with-timeout';
 import { useAuth } from '@/contexts/AuthContext';
+
+/** Tempo máximo para descobrir se a Senha Mestra está configurada antes de mostrar o modal. */
+const MASTER_PASSWORD_CHECK_MS = 8000;
 
 export interface MasterPasswordConfirmModalProps {
   open: boolean;
@@ -48,21 +56,60 @@ export function MasterPasswordConfirmModal({
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const autoAuthorizedRef = useRef(false);
+  const onAuthorizedRef = useRef(onAuthorized);
+  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
-    if (open) {
-      setPassword('');
-      setReason('');
-      setError('');
-      setShowPassword(false);
-      setChecking(false);
-      if (user?.tenantId) {
-        hasTenantMasterPassword(user.tenantId).then(setConfigured);
-      } else {
-        setConfigured(null);
-      }
+    onAuthorizedRef.current = onAuthorized;
+    onCloseRef.current = onClose;
+  });
+
+  useEffect(() => {
+    if (!open) {
+      autoAuthorizedRef.current = false;
+      return;
     }
+
+    setPassword('');
+    setReason('');
+    setError('');
+    setShowPassword(false);
+    setChecking(false);
+    setConfigured(null);
+
+    if (!user?.tenantId) {
+      setConfigured(true);
+      return;
+    }
+
+    let cancelled = false;
+    withTimeout(hasTenantMasterPassword(user.tenantId), MASTER_PASSWORD_CHECK_MS)
+      .then(value => {
+        if (!cancelled) setConfigured(value);
+      })
+      .catch(() => {
+        // Sem resposta, mantém a proteção: o modal é exibido normalmente.
+        if (!cancelled) setConfigured(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, user?.tenantId]);
+
+  // Senha Mestra ainda não configurada: não mostra modal, a exclusão segue direto.
+  useEffect(() => {
+    if (!open || configured !== false || autoAuthorizedRef.current) return;
+    autoAuthorizedRef.current = true;
+    void (async () => {
+      try {
+        await onAuthorizedRef.current({ reason: MASTER_PASSWORD_NOT_CONFIGURED_REASON });
+      } finally {
+        onCloseRef.current();
+      }
+    })();
+  }, [open, configured]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,6 +157,10 @@ export function MasterPasswordConfirmModal({
     }
   };
 
+  // Enquanto não se sabe se a Senha Mestra existe, nada é exibido. Quando ela não existe,
+  // o efeito acima autoriza a exclusão direto, sem mostrar o modal.
+  if (configured !== true) return null;
+
   return (
     <Dialog
       open={open}
@@ -133,19 +184,6 @@ export function MasterPasswordConfirmModal({
             {summaryText && (
               <div className="p-2.5 rounded-md bg-destructive/10 border border-destructive/30 text-xs font-semibold text-foreground">
                 {summaryText}
-              </div>
-            )}
-
-            {configured === false && (
-              <div className="p-3 rounded-md bg-amber-500/15 border border-amber-500/40 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                <div>
-                  <p className="font-bold">Senha Mestra não configurada</p>
-                  <p className="mt-0.5">
-                    O administrador da loja precisa definir uma Senha Mestra (diferente da senha de login) em{' '}
-                    <strong>Configurações &gt; Geral</strong> para liberar exclusões.
-                  </p>
-                </div>
               </div>
             )}
 
