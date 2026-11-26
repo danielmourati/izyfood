@@ -11,6 +11,7 @@ import { logAudit } from '@/lib/audit';
 import { CashRegisterReceipt } from '@/components/CashRegisterReceipt';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -837,8 +838,7 @@ export default function Caixa() {
             </p>
             <div>
               <Label>Senha do administrador</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 placeholder="••••••"
                 value={adminPassword}
                 onChange={e => setAdminPassword(e.target.value)}
@@ -882,8 +882,7 @@ export default function Caixa() {
             </div>
             <div>
               <Label>Senha do administrador</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 placeholder="••••••"
                 value={movementAuthPassword}
                 onChange={e => setMovementAuthPassword(e.target.value)}

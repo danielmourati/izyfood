@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
@@ -116,7 +117,7 @@ export function UserFormModal({ open, mode, initial, tenants, onClose, onSaved }
           {mode === 'create' && (
             <div>
               <Label>Senha</Label>
-              <Input type="password" value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="mínimo 6 caracteres" />
+              <PasswordInput value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="mínimo 6 caracteres" />
             </div>
           )}
           <div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -177,8 +178,7 @@ export function MeuPerfilTab() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Nova Senha</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={e => { setPassword(e.target.value); setPasswordFeedback(null); }}
                 placeholder="Mín. 6 caracteres"
@@ -187,8 +187,7 @@ export function MeuPerfilTab() {
             </div>
             <div className="space-y-2">
               <Label>Confirmar Senha</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={confirmPassword}
                 onChange={e => { setConfirmPassword(e.target.value); setPasswordFeedback(null); }}
                 placeholder="Repita a senha"

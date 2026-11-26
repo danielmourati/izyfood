@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -634,8 +635,7 @@ function GeralTab() {
               {hasMasterPwd && (
                 <div className="space-y-1.5">
                   <Label className="text-xs">Senha Mestra Atual *</Label>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     placeholder="Senha mestra atual..."
                     value={currentMasterPwd}
                     onChange={e => { setCurrentMasterPwd(e.target.value); setMasterPwdError(null); setMasterPwdSuccess(null); }}
@@ -644,8 +644,7 @@ function GeralTab() {
               )}
               <div className="space-y-1.5">
                 <Label className="text-xs">{hasMasterPwd ? 'Nova Senha Mestra *' : 'Definir Senha Mestra *'}</Label>
-                <Input
-                  type="password"
+                <PasswordInput
                   placeholder="Mínimo 4 caracteres (distinta do login)..."
                   value={newMasterPwd}
                   onChange={e => { setNewMasterPwd(e.target.value); setMasterPwdError(null); setMasterPwdSuccess(null); }}
@@ -653,8 +652,7 @@ function GeralTab() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Confirmar Senha Mestra *</Label>
-                <Input
-                  type="password"
+                <PasswordInput
                   placeholder="Repita a senha mestra..."
                   value={confirmMasterPwd}
                   onChange={e => { setConfirmMasterPwd(e.target.value); setMasterPwdError(null); setMasterPwdSuccess(null); }}
@@ -909,7 +907,7 @@ function UsuariosTab() {
                 {!editingId && (
                   <div className="space-y-1">
                     <Label>Senha</Label>
-                    <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+                    <PasswordInput value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
                   </div>
                 )}
                 {(form.role === 'atendente') && (
@@ -970,7 +968,7 @@ function UsuariosTab() {
           </p>
           <div className="space-y-2">
             <Label>Nova Senha</Label>
-            <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+            <PasswordInput value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
           </div>
           <Button onClick={async () => {
             if (!resetModal || !newPassword || newPassword.length < 6) {
